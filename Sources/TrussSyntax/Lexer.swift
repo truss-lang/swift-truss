@@ -19,11 +19,6 @@ let keywordLookupMap: [String: KeywordKind] = {
     return map
 }()
 
-public struct LexerResult {
-    public let id: Id.SourceId
-    public let tokens: [Token]
-}
-
 public final class Lexer {
     private var input: CharStream
     public init(input: CharStream) {
