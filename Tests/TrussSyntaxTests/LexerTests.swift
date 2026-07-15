@@ -41,8 +41,7 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[1].kind == .Keyword(.Func))
     #expect(tokens[1].value == "func")
     #expect(tokens[2].kind == .Operator(.Assign))
-    #expect(tokens[3].kind == .IntegerLiteral)
-    #expect(tokens[3].value == "5")
+    #expect(tokens[3].kind == .IntegerLiteral(5))
 }
 
 @Test func lexSeparators() {
@@ -183,77 +182,59 @@ func lex(_ source: String) -> [Token] {
 @Test func lexCharLiteral() {
     let tokens = lex("'a'")
     #expect(tokens.count == 1)
-    #expect(tokens[0].kind == .CharLiteral)
-    #expect(tokens[0].value == "'a'")
+    #expect(tokens[0].kind == .CharLiteral("a"))
 }
 
 @Test func lexCharLiteralWithEscape() {
     let tokens = lex("'\\n'")
     #expect(tokens.count == 1)
-    #expect(tokens[0].kind == .CharLiteral)
-    #expect(tokens[0].value == "'\\n'")
+    #expect(tokens[0].kind == .CharLiteral("\n"))
 }
 
 @Test func lexCharLiteralWithUnicode() {
     let tokens = lex("'\\u{41}'")
     #expect(tokens.count == 1)
-    #expect(tokens[0].kind == .CharLiteral)
-    #expect(tokens[0].value == "'\\u{41}'")
+    #expect(tokens[0].kind == .CharLiteral("A"))
 }
 
 @Test func lexDecimalIntegers() {
     let tokens = lex("0 42 1_000_000")
     #expect(tokens.count == 3)
-    #expect(tokens[0].kind == .IntegerLiteral)
-    #expect(tokens[0].value == "0")
-    #expect(tokens[1].kind == .IntegerLiteral)
-    #expect(tokens[1].value == "42")
-    #expect(tokens[2].kind == .IntegerLiteral)
-    #expect(tokens[2].value == "1_000_000")
+    #expect(tokens[0].kind == .IntegerLiteral(0))
+    #expect(tokens[1].kind == .IntegerLiteral(42))
+    #expect(tokens[2].kind == .IntegerLiteral(1000000))
 }
 
 @Test func lexFloatNumbers() {
     let tokens = lex("3.14 0.5 1e10 1.5e-3 2E+5")
     #expect(tokens.count == 5)
-    #expect(tokens[0].kind == .FloatLiteral)
-    #expect(tokens[0].value == "3.14")
-    #expect(tokens[1].kind == .FloatLiteral)
-    #expect(tokens[1].value == "0.5")
-    #expect(tokens[2].kind == .FloatLiteral)
-    #expect(tokens[2].value == "1e10")
-    #expect(tokens[3].kind == .FloatLiteral)
-    #expect(tokens[3].value == "1.5e-3")
-    #expect(tokens[4].kind == .FloatLiteral)
-    #expect(tokens[4].value == "2E+5")
+    #expect(tokens[0].kind == .FloatLiteral(3.14))
+    #expect(tokens[1].kind == .FloatLiteral(0.5))
+    #expect(tokens[2].kind == .FloatLiteral(10000000000.0))
+    #expect(tokens[3].kind == .FloatLiteral(0.0015))
+    #expect(tokens[4].kind == .FloatLiteral(200000.0))
 }
 
 @Test func lexHexIntegers() {
     let tokens = lex("0xFF 0x1a_2b 0XABCD")
     #expect(tokens.count == 3)
-    #expect(tokens[0].kind == .IntegerLiteral)
-    #expect(tokens[0].value == "0xFF")
-    #expect(tokens[1].kind == .IntegerLiteral)
-    #expect(tokens[1].value == "0x1a_2b")
-    #expect(tokens[2].kind == .IntegerLiteral)
-    #expect(tokens[2].value == "0XABCD")
+    #expect(tokens[0].kind == .IntegerLiteral(255))
+    #expect(tokens[1].kind == .IntegerLiteral(6699))
+    #expect(tokens[2].kind == .IntegerLiteral(43981))
 }
 
 @Test func lexBinaryIntegers() {
     let tokens = lex("0b1010 0b1111_0000")
     #expect(tokens.count == 2)
-    #expect(tokens[0].kind == .IntegerLiteral)
-    #expect(tokens[0].value == "0b1010")
-    #expect(tokens[1].kind == .IntegerLiteral)
-    #expect(tokens[1].value == "0b1111_0000")
+    #expect(tokens[0].kind == .IntegerLiteral(10))
+    #expect(tokens[1].kind == .IntegerLiteral(240))
 }
 
 @Test func lexOctalIntegers() {
     let tokens = lex("0o777 0o123")
     #expect(tokens.count == 2)
-    #expect(tokens[0].kind == .IntegerLiteral)
-    #expect(tokens[0].value == "0o777")
-    #expect(tokens[1].kind == .IntegerLiteral)
-    #expect(tokens[1].value == "0o123")
+    #expect(tokens[0].kind == .IntegerLiteral(511))
+    #expect(tokens[1].kind == .IntegerLiteral(83))
 }
 
 @Test func lexLineComment() {
@@ -263,8 +244,7 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[1].kind == .Identifier)
     #expect(tokens[1].value == "x")
     #expect(tokens[2].kind == .Operator(.Assign))
-    #expect(tokens[3].kind == .IntegerLiteral)
-    #expect(tokens[3].value == "5")
+    #expect(tokens[3].kind == .IntegerLiteral(5))
 }
 
 @Test func lexBlockComment() {
@@ -274,8 +254,7 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[1].kind == .Identifier)
     #expect(tokens[1].value == "x")
     #expect(tokens[2].kind == .Operator(.Assign))
-    #expect(tokens[3].kind == .IntegerLiteral)
-    #expect(tokens[3].value == "5")
+    #expect(tokens[3].kind == .IntegerLiteral(5))
 }
 
 @Test func lexNestedBlockComment() {
@@ -285,8 +264,7 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[1].kind == .Identifier)
     #expect(tokens[1].value == "x")
     #expect(tokens[2].kind == .Operator(.Assign))
-    #expect(tokens[3].kind == .IntegerLiteral)
-    #expect(tokens[3].value == "5")
+    #expect(tokens[3].kind == .IntegerLiteral(5))
 }
 
 @Test func lexUnknownCharacter() {
@@ -309,8 +287,7 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[6].kind == .Identifier)
     #expect(tokens[6].value == "x")
     #expect(tokens[7].kind == .Operator(.Assign))
-    #expect(tokens[8].kind == .IntegerLiteral)
-    #expect(tokens[8].value == "42")
+    #expect(tokens[8].kind == .IntegerLiteral(42))
     #expect(tokens[9].kind == .Separator(.CloseBrace))
 }
 

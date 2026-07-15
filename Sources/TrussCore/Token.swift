@@ -15,7 +15,7 @@ public struct Position {
     }
 }
 
-public enum KeywordKind: CaseIterable {
+public enum KeywordKind: CaseIterable, Sendable {
     case Func
     case Return
     case Let
@@ -32,7 +32,7 @@ public enum KeywordKind: CaseIterable {
     }
 }
 
-public enum SeparatorKind {
+public enum SeparatorKind: Sendable {
     case OpenParen  // (
     case CloseParen  // )
     case OpenBracket  // [
@@ -44,7 +44,7 @@ public enum SeparatorKind {
     case Colon  // :
 }
 
-public enum OperatorKind {
+public enum OperatorKind: Sendable {
     case Dollar  // $
     case At  // @
     case QuestionMark  // ?
@@ -101,10 +101,10 @@ public enum TokenKind: Equatable {
     case Keyword(KeywordKind)
     case Separator(SeparatorKind)
     case Operator(OperatorKind)
-    case IntegerLiteral
-    case FloatLiteral
+    case IntegerLiteral(Int128)
+    case FloatLiteral(Double)
     case StringLiteral
-    case CharLiteral
+    case CharLiteral(Character)
     case Unknown
 }
 

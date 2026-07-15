@@ -1,31 +1,23 @@
 import TrussCore
 
-nonisolated(unsafe) var keywordMap: [KeywordKind: String]? = nil
+let keywordMap: [KeywordKind: String] = {
+    var map: [KeywordKind: String] = [:]
+    for keyword in KeywordKind.allCases {
+        map[keyword] = keyword.code
+    }
+    return map
+}()
 
-func getKeywordMap() -> [KeywordKind: String] {
-    if keywordMap == nil {
-        keywordMap = [:]
-        for keyword in KeywordKind.allCases {
-            (keywordMap!)[keyword] = keyword.code
+let keywordLookupMap: [String: KeywordKind] = {
+    var map: [String: KeywordKind] = [:]
+    for keyword in KeywordKind.allCases {
+        let code = keyword.code
+        if !code.isEmpty {
+            map[code] = keyword
         }
     }
-    return keywordMap!
-}
-
-nonisolated(unsafe) var keywordLookupMap: [String: KeywordKind]? = nil
-
-func getKeywordLookupMap() -> [String: KeywordKind] {
-    if keywordLookupMap == nil {
-        keywordLookupMap = [:]
-        for keyword in KeywordKind.allCases {
-            let code = keyword.code
-            if !code.isEmpty {
-                (keywordLookupMap!)[code] = keyword
-            }
-        }
-    }
-    return keywordLookupMap!
-}
+    return map
+}()
 
 public struct LexerResult {
     public let id: Id.SourceId
@@ -142,7 +134,7 @@ public final class Lexer {
         }
         let value = String(chars)
         let pos = self.makePosition(begin)
-        if let keyword = getKeywordLookupMap()[value] {
+        if let keyword = keywordLookupMap[value] {
             return Token(value: value, kind: .Keyword(keyword), pos: pos, id: self.input.id)
         }
         return Token(value: value, kind: .Identifier, pos: pos, id: self.input.id)
@@ -185,37 +177,53 @@ public final class Lexer {
     private func parseCharLiteral() -> Token {
         let begin = self.input.currentPosition
         var chars: [Character] = []
-        if let c = self.input.next() { chars.append(c) }
-        while let c = self.input.peek, c != "'" {
+        chars.append(self.input.next()!)
+        var charValue: Character = "\0"
+        if let c = self.input.peek {
             if c == "\\" {
-                chars.append(c)
-                _ = self.input.next()
+                chars.append(self.input.next()!)
                 if let escaped = self.input.peek {
-                    chars.append(escaped)
-                    _ = self.input.next()
-                    if escaped == "u" && self.input.peek == "{" {
-                        while let u = self.input.peek, u != "}" {
-                            chars.append(u)
-                            _ = self.input.next()
+                    chars.append(self.input.next()!)
+                    switch escaped {
+                    case "n": charValue = "\n"
+                    case "t": charValue = "\t"
+                    case "r": charValue = "\r"
+                    case "\\": charValue = "\\"
+                    case "'": charValue = "'"
+                    case "\"": charValue = "\""
+                    case "0": charValue = "\0"
+                    case "u":
+                        if self.input.peek == "{" {
+                            chars.append(self.input.next()!)
+                            var hex = ""
+                            while let h = self.input.peek, h != "}" {
+                                hex.append(h)
+                                chars.append(self.input.next()!)
+                            }
+                            if self.input.peek == "}" {
+                                chars.append(self.input.next()!)
+                            }
+                            if let scalar = UInt32(hex, radix: 16),
+                                let unicode = Unicode.Scalar(scalar)
+                            {
+                                charValue = Character(unicode)
+                            }
                         }
-                        if self.input.peek == "}" {
-                            chars.append("}")
-                            _ = self.input.next()
-                        }
+                    default:
+                        charValue = escaped
                     }
                 }
             } else {
-                chars.append(c)
-                _ = self.input.next()
+                charValue = c
+                chars.append(self.input.next()!)
             }
         }
         if self.input.peek == "'" {
-            chars.append("'")
-            _ = self.input.next()
+            chars.append(self.input.next()!)
         }
-        let value = String(chars)
         let pos = self.makePosition(begin)
-        return Token(value: value, kind: .CharLiteral, pos: pos, id: self.input.id)
+        return Token(
+            value: String(chars), kind: .CharLiteral(charValue), pos: pos, id: self.input.id)
     }
     private func parseNumber() -> Token {
         let begin = self.input.currentPosition
@@ -229,9 +237,12 @@ public final class Lexer {
                     chars.append(c)
                     _ = self.input.next()
                 }
-                let value = String(chars)
+                let digits = String(chars.dropFirst(2)).filter { $0 != "_" }
+                let intValue = Int128(digits, radix: 16) ?? 0
                 let pos = self.makePosition(begin)
-                return Token(value: value, kind: .IntegerLiteral, pos: pos, id: self.input.id)
+                return Token(
+                    value: String(chars), kind: .IntegerLiteral(intValue), pos: pos,
+                    id: self.input.id)
             } else if next == "b" || next == "B" {
                 if let c = self.input.next() { chars.append(c) }
                 if let c = self.input.next() { chars.append(c) }
@@ -239,9 +250,12 @@ public final class Lexer {
                     chars.append(c)
                     _ = self.input.next()
                 }
-                let value = String(chars)
+                let digits = String(chars.dropFirst(2)).filter { $0 != "_" }
+                let intValue = Int128(digits, radix: 2) ?? 0
                 let pos = self.makePosition(begin)
-                return Token(value: value, kind: .IntegerLiteral, pos: pos, id: self.input.id)
+                return Token(
+                    value: String(chars), kind: .IntegerLiteral(intValue), pos: pos,
+                    id: self.input.id)
             } else if next == "o" || next == "O" {
                 if let c = self.input.next() { chars.append(c) }
                 if let c = self.input.next() { chars.append(c) }
@@ -249,9 +263,12 @@ public final class Lexer {
                     chars.append(c)
                     _ = self.input.next()
                 }
-                let value = String(chars)
+                let digits = String(chars.dropFirst(2)).filter { $0 != "_" }
+                let intValue = Int128(digits, radix: 8) ?? 0
                 let pos = self.makePosition(begin)
-                return Token(value: value, kind: .IntegerLiteral, pos: pos, id: self.input.id)
+                return Token(
+                    value: String(chars), kind: .IntegerLiteral(intValue), pos: pos,
+                    id: self.input.id)
             }
         }
         while let c = self.input.peek, (c >= "0" && c <= "9") || c == "_" {
@@ -281,8 +298,15 @@ public final class Lexer {
         }
         let value = String(chars)
         let pos = self.makePosition(begin)
-        let kind: TokenKind = isFloat ? .FloatLiteral : .IntegerLiteral
-        return Token(value: value, kind: kind, pos: pos, id: self.input.id)
+        if isFloat {
+            return Token(
+                value: value, kind: .FloatLiteral(Double(value) ?? 0), pos: pos, id: self.input.id)
+        } else {
+            let digits = value.filter { $0 != "_" }
+            let intValue = Int128(digits) ?? 0
+            return Token(
+                value: value, kind: .IntegerLiteral(intValue), pos: pos, id: self.input.id)
+        }
     }
     private func parseQuestion() -> Token {
         let begin = self.input.currentPosition
