@@ -100,7 +100,7 @@ public enum TokenKind: Equatable {
     case Identifier
     case Keyword(KeywordKind)
     case Separator(SeparatorKind)
-    case Operator(OperatorKind)
+    case Operator(OperatorKind?)
     case IntegerLiteral(Int128)
     case FloatLiteral(Double)
     case StringLiteral

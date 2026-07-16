@@ -19,6 +19,50 @@ let keywordLookupMap: [String: KeywordKind] = {
     return map
 }()
 
+let operatorChars: Set<Character> = [
+    "/", "=", "-", "+", "!", "*", "%", "<", ">", "&", "|", "^", "~", "."
+]
+
+let operatorTable: [String: OperatorKind] = [
+    ".": .Dot,
+    "~": .BitNot,
+    "!": .Not,
+    "!=": .NotEqual,
+    "%": .Modulus,
+    "%=": .ModulusAssign,
+    "&": .BitAnd,
+    "&&": .And,
+    "&=": .BitAndAssign,
+    "*": .Multiply,
+    "*=": .MultiplyAssign,
+    "+": .Plus,
+    "++": .Inc,
+    "+=": .PlusAssign,
+    "-": .Minus,
+    "--": .Dec,
+    "->": .Arrow,
+    "-=": .MinusAssign,
+    "/": .Divide,
+    "/=": .DivideAssign,
+    "<": .Less,
+    "<<": .LeftShift,
+    "<<=": .LeftShiftArithmeticAssign,
+    "<=": .LessEqual,
+    ">": .Greater,
+    ">>": .RightShift,
+    ">>=": .RightShiftArithmeticAssign,
+    ">>>": .RightShiftLogical,
+    ">>>=": .RightShiftLogicalAssign,
+    ">=": .GreaterEqual,
+    "=": .Assign,
+    "==": .Equal,
+    "^": .BitXor,
+    "^=": .BitXorAssign,
+    "|": .BitOr,
+    "||": .Or,
+    "|=": .BitOrAssign,
+]
+
 public final class Lexer {
     private var input: CharStream
     public init(input: CharStream) {
@@ -69,36 +113,25 @@ public final class Lexer {
             return self.singleCharToken(.Operator(.Dollar), "$")
         case "@":
             return self.singleCharToken(.Operator(.At), "@")
-        case "~":
-            return self.singleCharToken(.Operator(.BitNot), "~")
-        case ".":
-            return self.singleCharToken(.Operator(.Dot), ".")
         case "?":
             return self.parseQuestion()
-        case "<":
-            return self.parseLess()
-        case ">":
-            return self.parseGreater()
-        case "&":
-            return self.parseAmpersand()
-        case "|":
-            return self.parsePipe()
-        case "^":
-            return self.parseCaret()
-        case "!":
-            return self.parseExclaim()
-        case "=":
-            return self.parseEqual()
-        case "+":
-            return self.parsePlus()
-        case "-":
-            return self.parseMinus()
-        case "*":
-            return self.parseStar()
+        case "~", "!", "%", "&", "*", "+", "-", "<", ">", "=", "^", "|", ".":
+            return self.parseOperator()
         case "/":
-            return self.parseSlash()
-        case "%":
-            return self.parsePercent()
+            let next = self.input.peek2
+            if next == "/" {
+                _ = self.input.next()
+                _ = self.input.next()
+                self.skipLineComment()
+                return nil
+            } else if next == "*" {
+                _ = self.input.next()
+                _ = self.input.next()
+                self.skipBlockComment()
+                return nil
+            } else {
+                return self.parseOperator()
+            }
         default:
             let begin = self.input.currentPosition
             _ = self.input.next()
@@ -323,243 +356,23 @@ public final class Lexer {
             value: "?", kind: .Operator(.QuestionMark),
             pos: self.makePosition(begin), id: self.input.id)
     }
-    private func parseLess() -> Token {
+    private func parseOperator() -> Token {
         let begin = self.input.currentPosition
-        _ = self.input.next()
-        if let c = self.input.peek {
-            if c == "<" {
-                _ = self.input.next()
-                if self.input.peek == "=" {
-                    _ = self.input.next()
-                    return Token(
-                        value: "<<=", kind: .Operator(.LeftShiftArithmeticAssign),
-                        pos: self.makePosition(begin), id: self.input.id)
+        var chars: [Character] = []
+        while let c = self.input.peek, operatorChars.contains(c) {
+            if c == "/" && !chars.isEmpty {
+                let next = self.input.peek2
+                if next == "/" || next == "*" {
+                    break
                 }
-                return Token(
-                    value: "<<", kind: .Operator(.LeftShift),
-                    pos: self.makePosition(begin), id: self.input.id)
-            } else if c == "=" {
-                _ = self.input.next()
-                return Token(
-                    value: "<=", kind: .Operator(.LessEqual),
-                    pos: self.makePosition(begin), id: self.input.id)
             }
-        }
-        return Token(
-            value: "<", kind: .Operator(.Less),
-            pos: self.makePosition(begin), id: self.input.id)
-    }
-    private func parseGreater() -> Token {
-        let begin = self.input.currentPosition
-        _ = self.input.next()
-        if let c = self.input.peek {
-            if c == ">" {
-                _ = self.input.next()
-                if let c2 = self.input.peek {
-                    if c2 == ">" {
-                        _ = self.input.next()
-                        if self.input.peek == "=" {
-                            _ = self.input.next()
-                            return Token(
-                                value: ">>>=", kind: .Operator(.RightShiftLogicalAssign),
-                                pos: self.makePosition(begin), id: self.input.id)
-                        }
-                        return Token(
-                            value: ">>>", kind: .Operator(.RightShiftLogical),
-                            pos: self.makePosition(begin), id: self.input.id)
-                    } else if c2 == "=" {
-                        _ = self.input.next()
-                        return Token(
-                            value: ">>=", kind: .Operator(.RightShiftArithmeticAssign),
-                            pos: self.makePosition(begin), id: self.input.id)
-                    }
-                }
-                return Token(
-                    value: ">>", kind: .Operator(.RightShift),
-                    pos: self.makePosition(begin), id: self.input.id)
-            } else if c == "=" {
-                _ = self.input.next()
-                return Token(
-                    value: ">=", kind: .Operator(.GreaterEqual),
-                    pos: self.makePosition(begin), id: self.input.id)
-            }
-        }
-        return Token(
-            value: ">", kind: .Operator(.Greater),
-            pos: self.makePosition(begin), id: self.input.id)
-    }
-    private func parseAmpersand() -> Token {
-        let begin = self.input.currentPosition
-        _ = self.input.next()
-        if let c = self.input.peek {
-            if c == "&" {
-                _ = self.input.next()
-                return Token(
-                    value: "&&", kind: .Operator(.And),
-                    pos: self.makePosition(begin), id: self.input.id)
-            } else if c == "=" {
-                _ = self.input.next()
-                return Token(
-                    value: "&=", kind: .Operator(.BitAndAssign),
-                    pos: self.makePosition(begin), id: self.input.id)
-            }
-        }
-        return Token(
-            value: "&", kind: .Operator(.BitAnd),
-            pos: self.makePosition(begin), id: self.input.id)
-    }
-    private func parsePipe() -> Token {
-        let begin = self.input.currentPosition
-        _ = self.input.next()
-        if let c = self.input.peek {
-            if c == "|" {
-                _ = self.input.next()
-                return Token(
-                    value: "||", kind: .Operator(.Or),
-                    pos: self.makePosition(begin), id: self.input.id)
-            } else if c == "=" {
-                _ = self.input.next()
-                return Token(
-                    value: "|=", kind: .Operator(.BitOrAssign),
-                    pos: self.makePosition(begin), id: self.input.id)
-            }
-        }
-        return Token(
-            value: "|", kind: .Operator(.BitOr),
-            pos: self.makePosition(begin), id: self.input.id)
-    }
-    private func parseCaret() -> Token {
-        let begin = self.input.currentPosition
-        _ = self.input.next()
-        if self.input.peek == "=" {
+            chars.append(c)
             _ = self.input.next()
-            return Token(
-                value: "^=", kind: .Operator(.BitXorAssign),
-                pos: self.makePosition(begin), id: self.input.id)
         }
-        return Token(
-            value: "^", kind: .Operator(.BitXor),
-            pos: self.makePosition(begin), id: self.input.id)
-    }
-    private func parseExclaim() -> Token {
-        let begin = self.input.currentPosition
-        _ = self.input.next()
-        if self.input.peek == "=" {
-            _ = self.input.next()
-            return Token(
-                value: "!=", kind: .Operator(.NotEqual),
-                pos: self.makePosition(begin), id: self.input.id)
-        }
-        return Token(
-            value: "!", kind: .Operator(.Not),
-            pos: self.makePosition(begin), id: self.input.id)
-    }
-    private func parseEqual() -> Token {
-        let begin = self.input.currentPosition
-        _ = self.input.next()
-        if self.input.peek == "=" {
-            _ = self.input.next()
-            return Token(
-                value: "==", kind: .Operator(.Equal),
-                pos: self.makePosition(begin), id: self.input.id)
-        }
-        return Token(
-            value: "=", kind: .Operator(.Assign),
-            pos: self.makePosition(begin), id: self.input.id)
-    }
-    private func parsePlus() -> Token {
-        let begin = self.input.currentPosition
-        _ = self.input.next()
-        if let c = self.input.peek {
-            if c == "+" {
-                _ = self.input.next()
-                return Token(
-                    value: "++", kind: .Operator(.Inc),
-                    pos: self.makePosition(begin), id: self.input.id)
-            } else if c == "=" {
-                _ = self.input.next()
-                return Token(
-                    value: "+=", kind: .Operator(.PlusAssign),
-                    pos: self.makePosition(begin), id: self.input.id)
-            }
-        }
-        return Token(
-            value: "+", kind: .Operator(.Plus),
-            pos: self.makePosition(begin), id: self.input.id)
-    }
-    private func parseMinus() -> Token {
-        let begin = self.input.currentPosition
-        _ = self.input.next()
-        if let c = self.input.peek {
-            if c == "-" {
-                _ = self.input.next()
-                return Token(
-                    value: "--", kind: .Operator(.Dec),
-                    pos: self.makePosition(begin), id: self.input.id)
-            } else if c == ">" {
-                _ = self.input.next()
-                return Token(
-                    value: "->", kind: .Operator(.Arrow),
-                    pos: self.makePosition(begin), id: self.input.id)
-            } else if c == "=" {
-                _ = self.input.next()
-                return Token(
-                    value: "-=", kind: .Operator(.MinusAssign),
-                    pos: self.makePosition(begin), id: self.input.id)
-            }
-        }
-        return Token(
-            value: "-", kind: .Operator(.Minus),
-            pos: self.makePosition(begin), id: self.input.id)
-    }
-    private func parseStar() -> Token {
-        let begin = self.input.currentPosition
-        _ = self.input.next()
-        if self.input.peek == "=" {
-            _ = self.input.next()
-            return Token(
-                value: "*=", kind: .Operator(.MultiplyAssign),
-                pos: self.makePosition(begin), id: self.input.id)
-        }
-        return Token(
-            value: "*", kind: .Operator(.Multiply),
-            pos: self.makePosition(begin), id: self.input.id)
-    }
-    private func parseSlash() -> Token? {
-        let begin = self.input.currentPosition
-        _ = self.input.next()
-        if let c = self.input.peek {
-            if c == "/" {
-                _ = self.input.next()
-                self.skipLineComment()
-                return nil
-            } else if c == "*" {
-                _ = self.input.next()
-                self.skipBlockComment()
-                return nil
-            } else if c == "=" {
-                _ = self.input.next()
-                return Token(
-                    value: "/=", kind: .Operator(.DivideAssign),
-                    pos: self.makePosition(begin), id: self.input.id)
-            }
-        }
-        return Token(
-            value: "/", kind: .Operator(.Divide),
-            pos: self.makePosition(begin), id: self.input.id)
-    }
-    private func parsePercent() -> Token {
-        let begin = self.input.currentPosition
-        _ = self.input.next()
-        if self.input.peek == "=" {
-            _ = self.input.next()
-            return Token(
-                value: "%=", kind: .Operator(.ModulusAssign),
-                pos: self.makePosition(begin), id: self.input.id)
-        }
-        return Token(
-            value: "%", kind: .Operator(.Modulus),
-            pos: self.makePosition(begin), id: self.input.id)
+        let value = String(chars)
+        let pos = self.makePosition(begin)
+        let kind = operatorTable[value]
+        return Token(value: value, kind: .Operator(kind), pos: pos, id: self.input.id)
     }
     private func skipLineComment() {
         while let c = self.input.peek, c != "\n" {

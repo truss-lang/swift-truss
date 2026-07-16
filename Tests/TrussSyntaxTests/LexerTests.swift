@@ -307,3 +307,39 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[3].pos.col == 3)
     #expect(tokens[3].pos.len == 1)
 }
+
+@Test func lexCustomOperator() {
+    let tokens = lex("+++")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .Operator(nil))
+    #expect(tokens[0].value == "+++")
+}
+
+@Test func lexCustomOperatorMixed() {
+    let tokens = lex("<>> ===")
+    #expect(tokens.count == 2)
+    #expect(tokens[0].kind == .Operator(nil))
+    #expect(tokens[0].value == "<>>")
+    #expect(tokens[1].kind == .Operator(nil))
+    #expect(tokens[1].value == "===")
+}
+
+@Test func lexCustomOperatorThenComment() {
+    let tokens = lex("a /=//comment\n b")
+    #expect(tokens.count == 3)
+    #expect(tokens[0].kind == .Identifier)
+    #expect(tokens[0].value == "a")
+    #expect(tokens[1].kind == .Operator(.DivideAssign))
+    #expect(tokens[1].value == "/=")
+    #expect(tokens[2].kind == .Identifier)
+    #expect(tokens[2].value == "b")
+}
+
+@Test func lexKnownOperatorNotSplit() {
+    let tokens = lex("<<= >>=")
+    #expect(tokens.count == 2)
+    #expect(tokens[0].kind == .Operator(.LeftShiftArithmeticAssign))
+    #expect(tokens[0].value == "<<=")
+    #expect(tokens[1].kind == .Operator(.RightShiftArithmeticAssign))
+    #expect(tokens[1].value == ">>=")
+}
