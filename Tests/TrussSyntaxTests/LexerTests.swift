@@ -343,3 +343,29 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[1].kind == .Operator(.RightShiftArithmeticAssign))
     #expect(tokens[1].value == ">>=")
 }
+
+@Test func lexBooleanLiterals() {
+    let tokens = lex("true false")
+    #expect(tokens.count == 2)
+    #expect(tokens[0].kind == .BooleanLiteral(true))
+    #expect(tokens[0].value == "true")
+    #expect(tokens[1].kind == .BooleanLiteral(false))
+    #expect(tokens[1].value == "false")
+}
+
+@Test func lexNullLiteral() {
+    let tokens = lex("null")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .NullLiteral)
+    #expect(tokens[0].value == "null")
+}
+
+@Test func lexLiteralsMixed() {
+    let tokens = lex("true null false 42 3.14")
+    #expect(tokens.count == 5)
+    #expect(tokens[0].kind == .BooleanLiteral(true))
+    #expect(tokens[1].kind == .NullLiteral)
+    #expect(tokens[2].kind == .BooleanLiteral(false))
+    #expect(tokens[3].kind == .IntegerLiteral(42))
+    #expect(tokens[4].kind == .FloatLiteral(3.14))
+}

@@ -105,6 +105,8 @@ public enum TokenKind: Equatable {
     case FloatLiteral(Double)
     case StringLiteral
     case CharLiteral(Character)
+    case BooleanLiteral(Bool)
+    case NullLiteral
     case Unknown
 }
 

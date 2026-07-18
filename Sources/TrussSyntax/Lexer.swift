@@ -162,6 +162,16 @@ public final class Lexer {
         }
         let value = String(chars)
         let pos = self.makePosition(begin)
+        switch value {
+        case "true":
+            return Token(value: value, kind: .BooleanLiteral(true), pos: pos, id: self.input.id)
+        case "false":
+            return Token(value: value, kind: .BooleanLiteral(false), pos: pos, id: self.input.id)
+        case "null":
+            return Token(value: value, kind: .NullLiteral, pos: pos, id: self.input.id)
+        default:
+            break
+        }
         if let keyword = keywordLookupMap[value] {
             return Token(value: value, kind: .Keyword(keyword), pos: pos, id: self.input.id)
         }
