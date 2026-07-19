@@ -3,15 +3,14 @@ import TrussCore
 import TrussSyntax
 
 func parse(_ source: String) -> AST.Program {
+    let context = Context()
+    let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
+    context.register(src)
     let stream = CharStream(content: source, id: Id.SourceId(id: 0))
     let lexer = Lexer(input: stream)
     let tokens = lexer.parse().tokens
-    let sentinel = Token(
-        value: "", kind: .Unknown,
-        pos: Position(pos: 0, line: 0, col: 0, len: 0),
-        id: Id.SourceId(id: 0))
-    let result = LexerResult(id: Id.SourceId(id: 0), tokens: tokens + [sentinel])
-    let parser = Parser(result)
+    let result = LexerResult(id: Id.SourceId(id: 0), tokens: tokens)
+    let parser = Parser(context: context, result)
     return parser.parse()
 }
 

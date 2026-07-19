@@ -20,14 +20,12 @@ public enum KeywordKind: CaseIterable, Sendable {
     case Return
     case Let
     case Var
-    // etc.
     public var code: String {
         switch self {
         case .Func: "func"
         case .Return: "return"
         case .Let: "let"
         case .Var: "var"
-        default: ""
         }
     }
 }

@@ -13,7 +13,9 @@ let package = Package(
         .target(name: "TrussDiagnosis"),
         .target(
             name: "TrussCore",
-            dependencies: [.product(name: "SwiftAbstract", package: "swift-abstract")]
+            dependencies: [
+                "TrussDiagnosis", .product(name: "SwiftAbstract", package: "swift-abstract"),
+            ]
         ),
         .target(
             name: "TrussSyntax",

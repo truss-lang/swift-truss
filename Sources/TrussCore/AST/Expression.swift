@@ -127,4 +127,7 @@ extension AST {
             self.operatorToken = operatorToken
         }
     }
+    public final class ErrorExpression: Expression {
+        public override init() {}
+    }
 }

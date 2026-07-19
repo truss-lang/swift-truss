@@ -57,4 +57,7 @@ extension AST {
             self.initializer = initializer
         }
     }
+    public final class ErrorStatement: Statement {
+        public override init() {}
+    }
 }

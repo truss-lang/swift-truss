@@ -1,26 +1,11 @@
 import TrussCore
-
-public enum Precedence: UInt8 {
-    case None = 0
-    case Assignment
-    case Or
-    case And
-    case NullCoalescing
-    case BitOr
-    case BitAnd
-    case Equality
-    case Relational
-    case Range
-    case Shift
-    case Additive
-    case Multiplicative
-    case Postfix
-    case Cast
-}
+import TrussDiagnosis
 
 public final class Parser {
-    public let lexerResult: LexerResult
-    public var index: Int = 0
+    private let context: Context
+    private let lexerResult: LexerResult
+    private let source: Source
+    private var index: Int = 0
     public var peek: Token? {
         if self.index < self.lexerResult.tokens.count {
             return lexerResult.tokens[self.index]
@@ -51,9 +36,37 @@ public final class Parser {
             return nil
         }
     }
-    public init(_ lexerResult: LexerResult) {
+    public init(context: Context, _ lexerResult: LexerResult) {
+        self.context = context
         self.lexerResult = lexerResult
+        self.source = context.sourceTable[lexerResult.id]!
     }
+    private func emitError(_ message: String, at range: SourceRange) {
+        context.diagnositicEngine.emit(Diagnostic(severity: .error, message: message, range: range))
+    }
+
+    private func emitError(_ message: String, at token: Token) {
+        let buffer = source.stringSourceBuffer
+        let start = SourceLocation(
+            buffer: buffer, offset: token.pos.pos, line: token.pos.line, column: token.pos.col)
+        let end = SourceLocation(
+            buffer: buffer, offset: token.pos.pos + token.pos.len, line: token.pos.line,
+            column: token.pos.col + token.pos.len)
+        emitError(message, at: SourceRange(start: start, end: end))
+    }
+
+    private func emitError(_ message: String, atOffset offset: Int) {
+        let buffer = source.stringSourceBuffer
+        let converter = LocationConverter(source: source.content)
+        let (line, column) = converter.lineAndColumn(for: offset)
+        let loc = SourceLocation(buffer: buffer, offset: offset, line: line, column: column)
+        emitError(message, at: SourceRange(start: loc, end: loc))
+    }
+
+    private func emitEndOfFile() {
+        emitError("unexpected end of file", atOffset: source.content.utf8.count)
+    }
+
     public func parse() -> AST.Program {
         var statements: [AST.Statement] = []
         while true {
@@ -82,26 +95,38 @@ public final class Parser {
                 } else {
                     break
                 }
+            } else {
+                break
             }
         }
         return AST.Program(lexerResult.id, statements)
     }
-    private func parseFunctionDecl() -> AST.FunctionDecl {
+    private func parseFunctionDecl() -> AST.Statement {
         guard let token = next else {
-            fatalError()
+            emitEndOfFile()
+            return AST.ErrorStatement()
         }
         guard let name = next else {
-            fatalError()
+            emitError("expected function name after 'func'", at: token)
+            return AST.ErrorStatement()
         }
-        if let t = peek, case .Separator(let kind) = t.kind, case .OpenParen = kind {
-            self.index += 1
+        if let t = peek {
+            if case .Separator(let kind) = t.kind, case .OpenParen = kind {
+                self.index += 1
+            } else {
+                emitError("expected '(' after function name", at: t)
+            }
         } else {
-            fatalError()
+            emitEndOfFile()
         }
-        if let t = peek, case .Separator(let kind) = t.kind, case .CloseParen = kind {
-            self.index += 1
+        if let t = peek {
+            if case .Separator(let kind) = t.kind, case .CloseParen = kind {
+                self.index += 1
+            } else {
+                emitError("expected ')' after function parameters", at: t)
+            }
         } else {
-            fatalError()
+            emitEndOfFile()
         }
         let returnTypeExpression: AST.Expression?
         if let t = peek, case .Operator(let kind) = t.kind, case .Arrow = kind {
@@ -123,31 +148,40 @@ public final class Parser {
                         statements.append(parseStatement())
                     }
                 }
-                if let closeToken = peek, case .Separator(let kind) = closeToken.kind,
-                    case .CloseBrace = kind
-                {
-                    self.index += 1
+                if let closeToken = peek {
+                    if case .Separator(let kind) = closeToken.kind,
+                        case .CloseBrace = kind
+                    {
+                        self.index += 1
+                    } else {
+                        emitError("expected '}' after function body, but found \(t.value)", at: t)
+                    }
                 } else {
-                    fatalError()
+                    emitEndOfFile()
                 }
 
                 body = .Block(statements)
             case .Operator(let kind) where kind == .Assign:
                 self.index += 1
                 body = .Expression(parseExpression())
-            default: fatalError()
+            default:
+                emitError("expected a statement, but found \(t.value)", at: t)
+                return AST.ErrorStatement()
             }
         } else {
-            fatalError()
+            emitEndOfFile()
+            return AST.ErrorStatement()
         }
         return AST.FunctionDecl(token, name, returnTypeExpression, body)
     }
-    private func parseVariableDecl() -> AST.VariableDecl {
+    private func parseVariableDecl() -> AST.Statement {
         guard let token = next else {
-            fatalError()
+            emitEndOfFile()
+            return AST.ErrorStatement()
         }
         guard let name = next else {
-            fatalError()
+            emitError("expected variable name", at: token)
+            return AST.ErrorStatement()
         }
         let typeExpression: AST.Expression?
         if let t = peek, case .Separator(let kind) = t.kind, case .Colon = kind {
@@ -167,7 +201,8 @@ public final class Parser {
     }
     private func parseStatement() -> AST.Statement {
         guard let token = peek else {
-            fatalError()
+            emitEndOfFile()
+            return AST.ErrorStatement()
         }
         switch token.kind {
         case .Keyword(let kind):
@@ -175,14 +210,18 @@ public final class Parser {
             case .Func: return parseFunctionDecl()
             case .Let: return parseVariableDecl()
             case .Var: return parseVariableDecl()
-            default: fatalError()
+            default:
+                emitError("expected a statement, but found \(token.value)", at: token)
+                return AST.ErrorStatement()
             }
         case .Separator(let kind):
             switch kind {
             case .SemiColon:
                 self.index += 1
                 return AST.EmptyStatement(token)
-            default: fatalError()
+            default:
+                emitError("expected a statement, but found \(token.value)", at: token)
+                return AST.ErrorStatement()
             }
         default:
             return AST.ExpressionStatement(parseExpression())
@@ -205,7 +244,8 @@ public final class Parser {
     }
     private func parsePrimary() -> AST.Expression? {
         guard let token = peek else {
-            fatalError()
+            emitEndOfFile()
+            return nil
         }
         var expression: AST.Expression
         switch token.kind {
@@ -259,7 +299,8 @@ public final class Parser {
                 case .Dot:
                     self.index += 1
                     guard let member = next else {
-                        fatalError()
+                        emitError("expected member name after '.'", at: t)
+                        break loop
                     }
                     expression = AST.MemberAccess(expression, t, member)
                 default: break loop
@@ -271,12 +312,16 @@ public final class Parser {
     }
     private func parseCall(_ callee: AST.Expression) -> AST.Call {
         self.index += 1
-        if let t = peek, case .Separator(let kind) = t.kind,
-            case .CloseParen = kind
-        {
-            self.index += 1
+        if let t = peek {
+            if case .Separator(let kind) = t.kind,
+                case .CloseParen = kind
+            {
+                self.index += 1
+            } else {
+                emitError("expected ')' after call arguments", at: t)
+            }
         } else {
-            fatalError()
+            emitEndOfFile()
         }
         return AST.Call(callee: callee, arguments: [])
     }
