@@ -20,7 +20,7 @@ let keywordLookupMap: [String: KeywordKind] = {
 }()
 
 let operatorChars: Set<Character> = [
-    "/", "=", "-", "+", "!", "*", "%", "<", ">", "&", "|", "^", "~", "."
+    "/", "=", "-", "+", "!", "*", "%", "<", ">", "&", "|", "^", "~", ".",
 ]
 
 let operatorTable: [String: OperatorKind] = [
@@ -46,11 +46,11 @@ let operatorTable: [String: OperatorKind] = [
     "/=": .DivideAssign,
     "<": .Less,
     "<<": .LeftShift,
-    "<<=": .LeftShiftArithmeticAssign,
+    "<<=": .LeftShiftAssign,
     "<=": .LessEqual,
     ">": .Greater,
     ">>": .RightShift,
-    ">>=": .RightShiftArithmeticAssign,
+    ">>=": .RightShiftAssign,
     ">>>": .RightShiftLogical,
     ">>>=": .RightShiftLogicalAssign,
     ">=": .GreaterEqual,

@@ -67,8 +67,8 @@ public enum OperatorKind: Sendable {
     case ModulusAssign  // %=
     case PlusAssign  // +=
     case MinusAssign  // -=
-    case LeftShiftArithmeticAssign  // <<=
-    case RightShiftArithmeticAssign  // >>=
+    case LeftShiftAssign  // <<=
+    case RightShiftAssign  // >>=
     case RightShiftLogicalAssign  // >>>=
     case BitAndAssign  // &=
     case BitXorAssign  // ^=

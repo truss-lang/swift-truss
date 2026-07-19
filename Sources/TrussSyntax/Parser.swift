@@ -195,7 +195,7 @@ public final class Parser {
             if case .Operator = token.kind {
                 ops.append(token)
                 self.index += 1
-            } else if let expr = parsePrefix() {
+            } else if let expr = parsePrimary() {
                 operands.append(expr)
             } else {
                 break
@@ -203,7 +203,7 @@ public final class Parser {
         }
         return AST.Infix(ops, operands)
     }
-    private func parsePrefix() -> AST.Expression? {
+    private func parsePrimary() -> AST.Expression? {
         guard let token = peek else {
             fatalError()
         }
