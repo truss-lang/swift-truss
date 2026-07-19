@@ -37,8 +37,8 @@ public enum SeparatorKind: Sendable {
     case CloseParen  // )
     case OpenBracket  // [
     case CloseBracket  // ]
-    case OpenBrace  // (
-    case CloseBrace  // )
+    case OpenBrace  // {
+    case CloseBrace  // }
     case SemiColon  // ;
     case Comma  // ,
     case Colon  // :
