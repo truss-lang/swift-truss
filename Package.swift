@@ -6,11 +6,11 @@ import PackageDescription
 let package = Package(
     name: "swift-truss",
     dependencies: [
-        .package(url: "https://github.com/xiaoli-white/swift-abstract.git", from: "1.0.0")
+        .package(url: "https://github.com/xiaoli-white/swift-abstract.git", from: "1.0.0"),
+        .package(url: "https://github.com/pointfreeco/swift-custom-dump.git", from: "1.6.1"),
     ],
     targets: [
-        // Targets are the basic building blocks of a package, defining a module or a test suite.
-        // Targets can depend on other targets in this package and products from dependencies.
+        .target(name: "TrussDiagnosis"),
         .target(
             name: "TrussCore",
             dependencies: [.product(name: "SwiftAbstract", package: "swift-abstract")]
@@ -21,11 +21,17 @@ let package = Package(
         ),
         .executableTarget(
             name: "truss",
-            dependencies: ["TrussSyntax"]
+            dependencies: [
+                "TrussSyntax", .product(name: "CustomDump", package: "swift-custom-dump"),
+            ]
         ),
         .testTarget(
             name: "TrussSyntaxTests",
             dependencies: ["TrussSyntax", "TrussCore"]
+        ),
+        .testTarget(
+            name: "TrussDiagnosisTests",
+            dependencies: ["TrussDiagnosis"]
         ),
         .testTarget(
             name: "trussTests",

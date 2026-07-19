@@ -1,9 +1,9 @@
-// The Swift Programming Language
-// https://docs.swift.org/swift-book
+import CustomDump
+import TrussCore
 
 @main
 struct truss {
     static func main() {
-        print("Hello, world!")
+        customDump(AST.Return(nil))
     }
 }

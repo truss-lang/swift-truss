@@ -129,14 +129,14 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[18].value == "|=")
     #expect(tokens[19].kind == .Operator(.BitXorAssign))
     #expect(tokens[19].value == "^=")
-    #expect(tokens[20].kind == .Operator(.LeftShiftArithmeticAssign))
+    #expect(tokens[20].kind == .Operator(.LeftShiftAssign))
     #expect(tokens[20].value == "<<=")
 }
 
 @Test func lexShiftAssignOperators() {
     let tokens = lex(">>= >>>=")
     #expect(tokens.count == 2)
-    #expect(tokens[0].kind == .Operator(.RightShiftArithmeticAssign))
+    #expect(tokens[0].kind == .Operator(.RightShiftAssign))
     #expect(tokens[0].value == ">>=")
     #expect(tokens[1].kind == .Operator(.RightShiftLogicalAssign))
     #expect(tokens[1].value == ">>>=")
@@ -202,7 +202,7 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens.count == 3)
     #expect(tokens[0].kind == .IntegerLiteral(0))
     #expect(tokens[1].kind == .IntegerLiteral(42))
-    #expect(tokens[2].kind == .IntegerLiteral(1000000))
+    #expect(tokens[2].kind == .IntegerLiteral(1_000_000))
 }
 
 @Test func lexFloatNumbers() {
@@ -338,9 +338,9 @@ func lex(_ source: String) -> [Token] {
 @Test func lexKnownOperatorNotSplit() {
     let tokens = lex("<<= >>=")
     #expect(tokens.count == 2)
-    #expect(tokens[0].kind == .Operator(.LeftShiftArithmeticAssign))
+    #expect(tokens[0].kind == .Operator(.LeftShiftAssign))
     #expect(tokens[0].value == "<<=")
-    #expect(tokens[1].kind == .Operator(.RightShiftArithmeticAssign))
+    #expect(tokens[1].kind == .Operator(.RightShiftAssign))
     #expect(tokens[1].value == ">>=")
 }
 
