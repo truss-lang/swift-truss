@@ -1,16 +1,16 @@
-public struct TerminalRenderer {
+public struct TerminalRenderer: DiagnosticRenderer {
     public init() {}
 
     public func render(_ diagnostics: [Diagnostic]) -> String {
         diagnostics.map { renderSingle($0) }.joined(separator: "\n")
     }
 
-    private func renderSingle(_ diag: Diagnostic) -> String {
+    public func renderSingle(_ diag: Diagnostic) -> String {
         var output = ""
         let loc = diag.range.start
         let color = severityColor(diag.severity)
 
-        output += colorize("\(loc.buffer.fileName):\(loc.line):\(loc.column): ", color: .cyan)
+        output += colorize("\(loc.buffer.filePath):\(loc.line):\(loc.column): ", color: .cyan)
         output += colorize("\(diag.severity): ", color: color, bold: true)
         output += "\(diag.message)\n"
 
@@ -31,10 +31,10 @@ public struct TerminalRenderer {
         return output
     }
 
-    private func renderSuggestion(_ suggestion: Suggestion) -> String {
+    public func renderSuggestion(_ suggestion: Suggestion) -> String {
         var output = ""
         let floc = suggestion.range.start
-        output += colorize("\(floc.buffer.fileName):\(floc.line):\(floc.column): ", color: .cyan)
+        output += colorize("\(floc.buffer.filePath):\(floc.line):\(floc.column): ", color: .cyan)
         output += colorize("help: ", color: .green, bold: true)
         if !suggestion.message.isEmpty {
             output += "\(suggestion.message)"
@@ -56,7 +56,7 @@ public struct TerminalRenderer {
         return "replace '\(suggestion.range.length)' chars with '\(suggestion.newText)'"
     }
 
-    private func renderLabeledSpan(_ span: LabeledSpan) -> String {
+    public func renderLabeledSpan(_ span: LabeledSpan) -> String {
         var output = ""
         output += colorize("  = ", color: .cyan)
         output += colorize("note: ", color: .cyan, bold: true)
@@ -65,7 +65,7 @@ public struct TerminalRenderer {
         return output
     }
 
-    private func renderNote(_ note: Diagnostic) -> String {
+    public func renderNote(_ note: Diagnostic) -> String {
         var output = ""
         let color = severityColor(note.severity)
         output += colorize("  = ", color: .cyan)
@@ -86,7 +86,7 @@ public struct TerminalRenderer {
 
         output += colorize(
             "\(String(repeating: " ", count: lineNumStr.count)) --> ", color: .cyan)
-        output += "\(loc.buffer.fileName):\(loc.line):\(loc.column)\n"
+        output += "\(loc.buffer.filePath):\(loc.line):\(loc.column)\n"
 
         output += colorize("\(lineNumStr) | ", color: .cyan)
         output += "\(lineContent)\n"

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import TrussDiagnosis
 
 private func makeDiagnostic(
@@ -13,7 +14,7 @@ private func makeDiagnostic(
     column: Int = 5,
     suggestions: [Suggestion] = []
 ) -> Diagnostic {
-    let buffer = StringSourceBuffer(fileName: fileName, content: content)
+    let buffer = StringSourceBuffer(filePath: fileName, content: content)
     let start = SourceLocation(buffer: buffer, offset: startOffset, line: line, column: column)
     let end = SourceLocation(buffer: buffer, offset: endOffset, line: line, column: column + 1)
     let range = SourceRange(start: start, end: end)
@@ -71,7 +72,7 @@ private func makeDiagnostic(
 
 @Test func rendererZeroLengthRangeProducesAtLeastOneSquiggle() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\n")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let range = SourceRange(start: start, end: end)
@@ -92,7 +93,7 @@ private func makeDiagnostic(
 
 @Test func rendererIncludesSuggestionInformation() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\n")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let range = SourceRange(start: start, end: end)
@@ -105,7 +106,7 @@ private func makeDiagnostic(
 
 @Test func rendererSuggestionShowsLength() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\n")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let range = SourceRange(start: start, end: end)
@@ -129,7 +130,7 @@ private func makeDiagnostic(
 
 @Test func rendererLineOutOfRangeSkipsSourceSnippet() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\n")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 99, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 1, line: 99, column: 2)
     let range = SourceRange(start: start, end: end)
@@ -141,7 +142,7 @@ private func makeDiagnostic(
 
 @Test func rendererMultipleSuggestionsAllRendered() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\n")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let range = SourceRange(start: start, end: end)
@@ -174,7 +175,7 @@ private func makeDiagnostic(
 
 @Test func rendererRendersNoteMessage() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\nlet y\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\nlet y\n")
     let mainStart = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let mainEnd = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let mainRange = SourceRange(start: mainStart, end: mainEnd)
@@ -193,7 +194,7 @@ private func makeDiagnostic(
 
 @Test func rendererNoteHasItsOwnArrowPointingToNoteLocation() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\nlet y\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\nlet y\n")
     let mainStart = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let mainEnd = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let mainRange = SourceRange(start: mainStart, end: mainEnd)
@@ -211,7 +212,7 @@ private func makeDiagnostic(
 
 @Test func rendererNoteRendersSquigglesAtNotePosition() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\nlet y\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\nlet y\n")
     let mainStart = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let mainEnd = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let mainRange = SourceRange(start: mainStart, end: mainEnd)
@@ -229,7 +230,7 @@ private func makeDiagnostic(
 
 @Test func rendererMultipleNotesEachGetArrow() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "a\nb\nc\nd\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "a\nb\nc\nd\n")
     let mainRange = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1),
         end: SourceLocation(buffer: buffer, offset: 1, line: 1, column: 2)
@@ -260,7 +261,7 @@ private func makeDiagnostic(
 
 @Test func rendererRendersLabeledSpanLabel() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\nlet y\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\nlet y\n")
     let mainRange = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1),
         end: SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
@@ -279,7 +280,7 @@ private func makeDiagnostic(
 
 @Test func rendererLabeledSpanHasItsOwnArrow() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\nlet y\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\nlet y\n")
     let mainRange = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1),
         end: SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
@@ -300,7 +301,7 @@ private func makeDiagnostic(
 
 @Test func rendererLabeledSpanRendersSourceLine() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\nlet y\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\nlet y\n")
     let mainRange = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1),
         end: SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
@@ -319,7 +320,7 @@ private func makeDiagnostic(
 
 @Test func rendererPrimaryLabeledSpanNotDuplicatedAsRelated() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\n")
     let mainRange = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1),
         end: SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
@@ -335,7 +336,7 @@ private func makeDiagnostic(
 
 @Test func rendererCombinesNotesLabeledSpansAndSuggestions() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\nlet y\nlet z\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\nlet y\nlet z\n")
     let mainRange = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1),
         end: SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
@@ -367,7 +368,7 @@ private func makeDiagnostic(
 
 @Test func rendererNoteOutOfLineRangeSkipsSnippetOnly() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\n")
     let mainRange = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1),
         end: SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
@@ -389,7 +390,7 @@ private func makeDiagnostic(
 
 @Test func rendererOutputDiagnosticsSortsBeforeRender() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "abcdefghij")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "abcdefghij")
     let d1 = Diagnostic(
         severity: .error, message: "late",
         range: SourceRange(
@@ -417,7 +418,7 @@ private func makeDiagnostic(
 
 @Test func rendererHelpUsesItsOwnRangeNotMainLocation() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\nlet y\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\nlet y\n")
     let mainRange = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1),
         end: SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
@@ -437,7 +438,7 @@ private func makeDiagnostic(
 
 @Test func rendererHelpMessageShownWhenProvided() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\n")
     let range = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1),
         end: SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
@@ -453,7 +454,7 @@ private func makeDiagnostic(
 
 @Test func rendererHelpDefaultDescriptionForReplace() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\n")
     let range = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1),
         end: SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
@@ -470,7 +471,7 @@ private func makeDiagnostic(
 
 @Test func rendererHelpDefaultDescriptionForInsert() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\n")
     let range = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 5, line: 1, column: 6),
         end: SourceLocation(buffer: buffer, offset: 5, line: 1, column: 6)
@@ -487,7 +488,7 @@ private func makeDiagnostic(
 
 @Test func rendererHelpDefaultDescriptionForDelete() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x;\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x;\n")
     let range = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 5, line: 1, column: 6),
         end: SourceLocation(buffer: buffer, offset: 6, line: 1, column: 7)
@@ -503,7 +504,7 @@ private func makeDiagnostic(
 
 @Test func rendererMultipleHelpsAtDifferentPositionsEachGetArrow() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\nlet y\nlet z\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\nlet y\nlet z\n")
     let mainRange = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1),
         end: SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
@@ -519,7 +520,8 @@ private func makeDiagnostic(
     let suggestion1 = Suggestion(range: help1Range, newText: "var", message: "option A")
     let suggestion2 = Suggestion(range: help2Range, newText: "const", message: "option B")
     let diag = Diagnostic(
-        severity: .error, message: "main", range: mainRange, suggestions: [suggestion1, suggestion2]
+        severity: .error, message: "main", range: mainRange,
+        suggestions: [suggestion1, suggestion2]
     )
     let output = renderer.render([diag])
     #expect(output.contains("option A"))
@@ -532,7 +534,7 @@ private func makeDiagnostic(
 
 @Test func rendererHelpRendersGreenSnippet() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\n")
     let range = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1),
         end: SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
@@ -548,7 +550,7 @@ private func makeDiagnostic(
 
 @Test func rendererHelpOutOfLineRangeSkipsSnippetOnly() {
     let renderer = TerminalRenderer()
-    let buffer = StringSourceBuffer(fileName: "t.truss", content: "let x\n")
+    let buffer = StringSourceBuffer(filePath: "t.truss", content: "let x\n")
     let mainRange = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1),
         end: SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)

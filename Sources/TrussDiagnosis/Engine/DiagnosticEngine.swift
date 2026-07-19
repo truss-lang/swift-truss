@@ -20,8 +20,8 @@ public final class DiagnosticEngine {
 
     public func sortedDiagnostics() -> [Diagnostic] {
         diagnostics.sorted { lhs, rhs in
-            let lfn = lhs.range.start.buffer.fileName
-            let rfn = rhs.range.start.buffer.fileName
+            let lfn = lhs.range.start.buffer.filePath
+            let rfn = rhs.range.start.buffer.filePath
             if lfn != rfn { return lfn < rfn }
             return lhs.range.start.offset < rhs.range.start.offset
         }
@@ -41,8 +41,8 @@ public final class DiagnosticEngine {
     public func outputDiagnostics() -> [Diagnostic] {
         var diags = deduplicated()
         diags.sort { lhs, rhs in
-            let lfn = lhs.range.start.buffer.fileName
-            let rfn = rhs.range.start.buffer.fileName
+            let lfn = lhs.range.start.buffer.filePath
+            let rfn = rhs.range.start.buffer.filePath
             if lfn != rfn { return lfn < rfn }
             return lhs.range.start.offset < rhs.range.start.offset
         }
@@ -77,6 +77,6 @@ public final class DiagnosticEngine {
     }
 
     private func dedupKey(_ d: Diagnostic) -> String {
-        "\(d.range.start.buffer.fileName)|\(d.range.start.offset)|\(d.severity.rawValue)|\(d.message)"
+        "\(d.range.start.buffer.filePath)|\(d.range.start.offset)|\(d.severity.rawValue)|\(d.message)"
     }
 }

@@ -1,4 +1,5 @@
 import Testing
+
 @testable import TrussDiagnosis
 
 @Test func severityOrderingNoteLeastSevere() {
@@ -33,7 +34,7 @@ import Testing
 }
 
 @Test func suggestionStoresRangeAndNewText() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let range = SourceRange(start: start, end: end)
@@ -43,7 +44,7 @@ import Testing
 }
 
 @Test func suggestionWithEmptyReplacement() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let end = SourceLocation(buffer: buffer, offset: 4, line: 1, column: 5)
     let range = SourceRange(start: start, end: end)
@@ -53,7 +54,7 @@ import Testing
 }
 
 @Test func diagnosticStoresAllFields() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let range = SourceRange(start: start, end: end)
@@ -66,7 +67,7 @@ import Testing
 }
 
 @Test func diagnosticWithNotesAndSuggestions() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let range = SourceRange(start: start, end: end)
@@ -83,7 +84,7 @@ import Testing
 }
 
 @Test func diagnosticSeverityVariants() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "x")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 1, line: 1, column: 2)
     let range = SourceRange(start: start, end: end)
@@ -95,7 +96,7 @@ import Testing
 }
 
 @Test func labeledSpanStoresAllFields() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let range = SourceRange(start: start, end: end)
@@ -106,7 +107,7 @@ import Testing
 }
 
 @Test func labeledSpanDefaultsToNonPrimary() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let range = SourceRange(start: start, end: end)
@@ -115,7 +116,7 @@ import Testing
 }
 
 @Test func diagnosticLabeledSpansDefaultsEmpty() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let range = SourceRange(start: start, end: end)
@@ -124,7 +125,7 @@ import Testing
 }
 
 @Test func diagnosticStoresLabeledSpans() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x\nlet y\n")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x\nlet y\n")
     let s1 = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let e1 = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let r1 = SourceRange(start: s1, end: e1)
@@ -143,7 +144,7 @@ import Testing
 }
 
 @Test func diagnosticInitBackwardCompatible() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let range = SourceRange(start: start, end: end)
@@ -159,7 +160,7 @@ import Testing
 }
 
 @Test func suggestionDefaultsMessageToEmpty() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let range = SourceRange(start: start, end: end)
@@ -168,7 +169,7 @@ import Testing
 }
 
 @Test func suggestionStoresMessage() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let range = SourceRange(start: start, end: end)
@@ -179,7 +180,7 @@ import Testing
 }
 
 @Test func diagnosticStoresMultipleSuggestions() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x\nlet y\n")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x\nlet y\n")
     let r1 = SourceRange(
         start: SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1),
         end: SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)

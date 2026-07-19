@@ -1,8 +1,9 @@
 import Testing
+
 @testable import TrussDiagnosis
 
 @Test func sourceRangeLengthZeroWidth() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 2, line: 1, column: 3)
     let end = SourceLocation(buffer: buffer, offset: 2, line: 1, column: 3)
     let range = SourceRange(start: start, end: end)
@@ -10,7 +11,7 @@ import Testing
 }
 
 @Test func sourceRangeLengthSingleChar() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 1, line: 1, column: 2)
     let range = SourceRange(start: start, end: end)
@@ -18,7 +19,7 @@ import Testing
 }
 
 @Test func sourceRangeLengthMultiChar() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let range = SourceRange(start: start, end: end)
@@ -26,7 +27,7 @@ import Testing
 }
 
 @Test func sourceRangeEqualitySameOffsets() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start1 = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end1 = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let start2 = SourceLocation(buffer: buffer, offset: 0, line: 9, column: 9)
@@ -37,7 +38,7 @@ import Testing
 }
 
 @Test func sourceRangeInequalityDifferentStart() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start1 = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let start2 = SourceLocation(buffer: buffer, offset: 1, line: 1, column: 2)
     let end = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
@@ -47,7 +48,7 @@ import Testing
 }
 
 @Test func sourceRangeInequalityDifferentEnd() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end1 = SourceLocation(buffer: buffer, offset: 2, line: 1, column: 3)
     let end2 = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
@@ -57,7 +58,7 @@ import Testing
 }
 
 @Test func sourceRangeExposesStartAndEnd() {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 1, line: 1, column: 2)
     let end = SourceLocation(buffer: buffer, offset: 4, line: 1, column: 5)
     let range = SourceRange(start: start, end: end)

@@ -12,6 +12,6 @@ public struct SourceLocation: Equatable {
     }
 
     public static func == (lhs: SourceLocation, rhs: SourceLocation) -> Bool {
-        return lhs.buffer.fileName == rhs.buffer.fileName && lhs.offset == rhs.offset
+        return lhs.buffer.filePath == rhs.buffer.filePath && lhs.offset == rhs.offset
     }
 }

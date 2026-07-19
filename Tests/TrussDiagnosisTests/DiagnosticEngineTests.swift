@@ -1,8 +1,9 @@
 import Testing
+
 @testable import TrussDiagnosis
 
 private func makeDiagnostic(_ severity: DiagnosticSeverity) -> Diagnostic {
-    let buffer = StringSourceBuffer(fileName: "a.truss", content: "let x")
+    let buffer = StringSourceBuffer(filePath: "a.truss", content: "let x")
     let start = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
     let end = SourceLocation(buffer: buffer, offset: 3, line: 1, column: 4)
     let range = SourceRange(start: start, end: end)
@@ -105,7 +106,8 @@ private func makeDiagnosticAt(
     column: Int = 1,
     message: String = "msg"
 ) -> Diagnostic {
-    let buffer = StringSourceBuffer(fileName: fileName, content: String(repeating: "x", count: max(offset + 1, 1)))
+    let buffer = StringSourceBuffer(
+        filePath: fileName, content: String(repeating: "x", count: max(offset + 1, 1)))
     let start = SourceLocation(buffer: buffer, offset: offset, line: line, column: column)
     let end = SourceLocation(buffer: buffer, offset: offset + 1, line: line, column: column + 1)
     let range = SourceRange(start: start, end: end)
@@ -129,9 +131,9 @@ private func makeDiagnosticAt(
     engine.emit(makeDiagnosticAt(.error, "a.truss", 99))
     engine.emit(makeDiagnosticAt(.error, "m.truss", 5))
     let sorted = engine.sortedDiagnostics()
-    #expect(sorted[0].range.start.buffer.fileName == "a.truss")
-    #expect(sorted[1].range.start.buffer.fileName == "m.truss")
-    #expect(sorted[2].range.start.buffer.fileName == "z.truss")
+    #expect(sorted[0].range.start.buffer.filePath == "a.truss")
+    #expect(sorted[1].range.start.buffer.filePath == "m.truss")
+    #expect(sorted[2].range.start.buffer.filePath == "z.truss")
 }
 
 @Test func engineSortedDoesNotMutateStoredOrder() {

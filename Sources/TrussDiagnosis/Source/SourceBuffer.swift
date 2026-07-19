@@ -1,14 +1,14 @@
 public protocol SourceBuffer {
-    var fileName: String { get }
+    var filePath: String { get }
     var content: String { get }
 }
 
 public struct StringSourceBuffer: SourceBuffer {
-    public let fileName: String
+    public let filePath: String
     public let content: String
 
-    public init(fileName: String, content: String) {
-        self.fileName = fileName
+    public init(filePath: String, content: String) {
+        self.filePath = filePath
         self.content = content
     }
 }
