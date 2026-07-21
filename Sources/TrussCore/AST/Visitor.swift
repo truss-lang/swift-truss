@@ -2,35 +2,35 @@ import SwiftAbstract
 
 extension AST {
     @abstractClass
-    public class Visitor {
+    open class Visitor {
         @abstractInit
         public init() {}
-        public func visit(_ node: AST.AstNode, additional: Any? = nil) -> Any? {
+        open func visit(_ node: AST.AstNode, additional: Any? = nil) -> Any? {
             node.accept(self, additional: additional)
         }
-        public func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
+        open func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
             var last: Any? = nil
             for statement in program.statements {
                 last = visit(statement, additional: additional)
             }
             return last
         }
-        public func visitEmptyStatement(
+        open func visitEmptyStatement(
             _ emptyStatement: AST.EmptyStatement, additional: Any? = nil
         ) -> Any? {
             return nil
         }
-        public func visitErrorStatement(
+        open func visitErrorStatement(
             _ errorStatement: AST.ErrorStatement, additional: Any? = nil
         ) -> Any? {
             return nil
         }
-        public func visitExpressionStatement(
+        open func visitExpressionStatement(
             _ expressionStatement: AST.ExpressionStatement, additional: Any? = nil
         ) -> Any? {
             visit(expressionStatement.expression, additional: additional)
         }
-        public func visitReturn(
+        open func visitReturn(
             _ ret: AST.Return, additional: Any? = nil
         ) -> Any? {
             if let value = ret.value {
@@ -39,7 +39,7 @@ extension AST {
                 nil
             }
         }
-        public func visitFunctionDecl(
+        open func visitFunctionDecl(
             _ functionDecl: AST.FunctionDecl, additional: Any? = nil
         ) -> Any? {
             if let returnTypeExpression = functionDecl.returnTypeExpression {
@@ -56,7 +56,7 @@ extension AST {
                 return visit(expression, additional: additional)
             }
         }
-        public func visitVariableDecl(
+        open func visitVariableDecl(
             _ variableDecl: AST.VariableDecl, additional: Any? = nil
         ) -> Any? {
             if let typeExpression = variableDecl.typeExpression {
@@ -67,15 +67,15 @@ extension AST {
             }
             return nil
         }
-        public func visitErrorExpression(
+        open func visitErrorExpression(
             _ errorExpression: AST.ErrorExpression, additional: Any? = nil
         ) -> Any? {
             return nil
         }
-        public func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
+        open func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
             return nil
         }
-        public func visitGenericApplication(
+        open func visitGenericApplication(
             _ genericApplication: AST.GenericApplication, additional: Any? = nil
         ) -> Any? {
             let _ = visit(genericApplication.base, additional: additional)
@@ -84,37 +84,37 @@ extension AST {
             }
             return nil
         }
-        public func visitIntegerLiteral(
+        open func visitIntegerLiteral(
             _ integerLiteral: AST.IntegerLiteral, additional: Any? = nil
         ) -> Any? {
             return nil
         }
-        public func visitFloatLiteral(
+        open func visitFloatLiteral(
             _ floatLiteral: AST.FloatLiteral, additional: Any? = nil
         ) -> Any? {
             return nil
         }
-        public func visitStringLiteral(
+        open func visitStringLiteral(
             _ stringLiteral: AST.StringLiteral, additional: Any? = nil
         ) -> Any? {
             return nil
         }
-        public func visitCharLiteral(
+        open func visitCharLiteral(
             _ charLiteral: AST.CharLiteral, additional: Any? = nil
         ) -> Any? {
             return nil
         }
-        public func visitBoolLiteral(
+        open func visitBoolLiteral(
             _ boolLiteral: AST.BoolLiteral, additional: Any? = nil
         ) -> Any? {
             return nil
         }
-        public func visitNullLiteral(
+        open func visitNullLiteral(
             _ nullLiteral: AST.NullLiteral, additional: Any? = nil
         ) -> Any? {
             return nil
         }
-        public func visitCall(
+        open func visitCall(
             _ call: AST.Call, additional: Any? = nil
         ) -> Any? {
             let _ = visit(call.callee, additional: additional)
@@ -123,12 +123,12 @@ extension AST {
             }
             return nil
         }
-        public func visitMemberAccess(
+        open func visitMemberAccess(
             _ memberAccess: AST.MemberAccess, additional: Any? = nil
         ) -> Any? {
             return visit(memberAccess.object, additional: additional)
         }
-        public func visitInfix(
+        open func visitInfix(
             _ infixExpression: AST.Infix, additional: Any? = nil
         ) -> Any? {
             var last: Any? = nil
@@ -137,18 +137,18 @@ extension AST {
             }
             return last
         }
-        public func visitBinary(
+        open func visitBinary(
             _ binary: AST.Binary, additional: Any? = nil
         ) -> Any? {
             let _ = visit(binary.left, additional: additional)
             return visit(binary.right, additional: additional)
         }
-        public func visitPrefix(
+        open func visitPrefix(
             _ prefixExpression: AST.Prefix, additional: Any? = nil
         ) -> Any? {
             return visit(prefixExpression.expression, additional: additional)
         }
-        public func visitPostfix(
+        open func visitPostfix(
             _ postfixExpression: AST.Postfix, additional: Any? = nil
         ) -> Any? {
             return visit(postfixExpression.expression, additional: additional)
