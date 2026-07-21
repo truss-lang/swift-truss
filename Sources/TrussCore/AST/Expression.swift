@@ -4,17 +4,23 @@ extension AST {
     @abstractClass
     public class Expression: AstNode {
         @abstractInit
-        override init() {}
+        public override init() {}
     }
     @abstractClass
     public class Literal: Expression {
         @abstractInit
-        override init() {}
+        public override init() {}
+    }
+    public final class ErrorExpression: Expression {
+        public override init() {}
     }
     public final class Variable: Expression {
         public let name: Token
         public init(name: Token) {
             self.name = name
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitVariable(self, additional: additional)
         }
     }
     public final class GenericApplication: Expression {
@@ -24,6 +30,9 @@ extension AST {
             self.base = base
             self.genericArguments = genericArguments
         }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitGenericApplication(self, additional: additional)
+        }
     }
     public final class IntegerLiteral: Literal {
         public let token: Token
@@ -31,6 +40,9 @@ extension AST {
         public init(_ token: Token, _ value: Int128) {
             self.token = token
             self.value = value
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitIntegerLiteral(self, additional: additional)
         }
     }
     public final class FloatLiteral: Literal {
@@ -40,11 +52,17 @@ extension AST {
             self.token = token
             self.value = value
         }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitFloatLiteral(self, additional: additional)
+        }
     }
     public final class StringLiteral: Literal {
         public let token: Token
         public init(_ token: Token) {
             self.token = token
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitStringLiteral(self, additional: additional)
         }
     }
     public final class CharLiteral: Literal {
@@ -54,6 +72,9 @@ extension AST {
             self.token = token
             self.value = value
         }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitCharLiteral(self, additional: additional)
+        }
     }
     public final class BoolLiteral: Literal {
         public let token: Token
@@ -62,11 +83,17 @@ extension AST {
             self.token = token
             self.value = value
         }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitBoolLiteral(self, additional: additional)
+        }
     }
     public final class NullLiteral: Literal {
         public let token: Token
         public init(_ token: Token) {
             self.token = token
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitNullLiteral(self, additional: additional)
         }
     }
     public final class Call: Expression {
@@ -75,6 +102,9 @@ extension AST {
         public init(callee: Expression, arguments: [Expression]) {
             self.callee = callee
             self.arguments = arguments
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitCall(self, additional: additional)
         }
     }
     public final class MemberAccess: Expression {
@@ -86,6 +116,9 @@ extension AST {
             self.token = token
             self.member = member
         }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitMemberAccess(self, additional: additional)
+        }
     }
     public final class Infix: Expression {
         public let ops: [Token]
@@ -94,21 +127,21 @@ extension AST {
             self.ops = ops
             self.operands = operands
         }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitInfix(self, additional: additional)
+        }
     }
     public final class Binary: Expression {
         public let left: Expression
         public let right: Expression
         public let operatorToken: Token
-        public let kind: Kind
-        public init(_ left: Expression, _ right: Expression, _ operatorToken: Token, _ kind: Kind) {
+        public init(_ left: Expression, _ right: Expression, _ operatorToken: Token) {
             self.left = left
             self.right = right
             self.operatorToken = operatorToken
-            self.kind = kind
         }
-        public enum Kind {
-            case Assignment
-            case Plus
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitBinary(self, additional: additional)
         }
     }
     public final class Prefix: Expression {
@@ -118,6 +151,9 @@ extension AST {
             self.operatorToken = operatorToken
             self.expression = expression
         }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitPrefix(self, additional: additional)
+        }
     }
     public final class Postfix: Expression {
         public let expression: Expression
@@ -126,8 +162,8 @@ extension AST {
             self.expression = expression
             self.operatorToken = operatorToken
         }
-    }
-    public final class ErrorExpression: Expression {
-        public override init() {}
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitPostfix(self, additional: additional)
+        }
     }
 }
