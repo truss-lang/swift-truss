@@ -101,6 +101,35 @@ public final class Parser {
         }
         return AST.Program(lexerResult.id, statements)
     }
+    private func parseStatement() -> AST.Statement {
+        guard let token = peek else {
+            emitEndOfFile()
+            return AST.ErrorStatement()
+        }
+        switch token.kind {
+        case .Keyword(let kind):
+            switch kind {
+            case .Func: return parseFunctionDecl()
+            case .Let: return parseVariableDecl()
+            case .Var: return parseVariableDecl()
+            case .Return: return parseReturn()
+            default:
+                emitError("expected a statement, but found \(token.value)", at: token)
+                return AST.ErrorStatement()
+            }
+        case .Separator(let kind):
+            switch kind {
+            case .SemiColon:
+                self.index += 1
+                return AST.EmptyStatement(token)
+            default:
+                emitError("expected a statement, but found \(token.value)", at: token)
+                return AST.ErrorStatement()
+            }
+        default:
+            return AST.ExpressionStatement(parseExpression())
+        }
+    }
     private func parseFunctionDecl() -> AST.Statement {
         guard let token = next else {
             emitEndOfFile()
@@ -199,32 +228,20 @@ public final class Parser {
         }
         return AST.VariableDecl(token, name, typeExpression, initializer)
     }
-    private func parseStatement() -> AST.Statement {
-        guard let token = peek else {
+    private func parseReturn() -> AST.Statement {
+        guard let token = next else {
             emitEndOfFile()
             return AST.ErrorStatement()
         }
-        switch token.kind {
-        case .Keyword(let kind):
-            switch kind {
-            case .Func: return parseFunctionDecl()
-            case .Let: return parseVariableDecl()
-            case .Var: return parseVariableDecl()
-            default:
-                emitError("expected a statement, but found \(token.value)", at: token)
-                return AST.ErrorStatement()
-            }
-        case .Separator(let kind):
-            switch kind {
-            case .SemiColon:
-                self.index += 1
-                return AST.EmptyStatement(token)
-            default:
-                emitError("expected a statement, but found \(token.value)", at: token)
-                return AST.ErrorStatement()
-            }
-        default:
-            return AST.ExpressionStatement(parseExpression())
+        guard let t = peek else {
+            return AST.Return(token, nil)
+        }
+        if case .Separator(let kind) = t.kind, case .SemiColon = kind {
+            return AST.Return(token, nil)
+        } else if token.pos.line != t.pos.line {
+            return AST.Return(token, nil)
+        } else {
+            return AST.Return(token, parseExpression())
         }
     }
     private func parseExpression() -> AST.Expression {

@@ -472,3 +472,71 @@ func firstExpression(_ source: String) -> AST.Expression {
     #expect(lit != nil)
     #expect(lit!.value == 0.0015)
 }
+
+@Test func parseReturnWithIntegerLiteral() {
+    let body = parseBlockStatements("func main() { return 42 }")
+    #expect(body.count == 1)
+    let ret = body[0] as? AST.Return
+    #expect(ret != nil)
+    #expect(ret!.token.kind == .Keyword(.Return))
+    let infix = ret!.value as? AST.Infix
+    #expect(infix != nil)
+    #expect(infix!.operands.count == 1)
+    let lit = infix!.operands[0] as? AST.IntegerLiteral
+    #expect(lit != nil)
+    #expect(lit!.value == 42)
+}
+
+@Test func parseReturnWithComplexExpression() {
+    let body = parseBlockStatements("func main() { return a + b }")
+    #expect(body.count == 1)
+    let ret = body[0] as? AST.Return
+    #expect(ret != nil)
+    #expect(ret!.token.kind == .Keyword(.Return))
+    let infix = ret!.value as? AST.Infix
+    #expect(infix != nil)
+    #expect(infix!.ops.count == 1)
+    #expect(infix!.ops[0].kind == .Operator(.Plus))
+    #expect(infix!.operands.count == 2)
+    let left = infix!.operands[0] as? AST.Variable
+    #expect(left != nil)
+    #expect(left!.name.value == "a")
+    let right = infix!.operands[1] as? AST.Variable
+    #expect(right != nil)
+    #expect(right!.name.value == "b")
+}
+
+@Test func parseReturnWithoutValueFollowedBySemicolon() {
+    let body = parseBlockStatements("func main() { return; }")
+    #expect(body.count == 2)
+    let ret = body[0] as? AST.Return
+    #expect(ret != nil)
+    #expect(ret!.token.kind == .Keyword(.Return))
+    #expect(ret!.value == nil)
+    #expect(body[1] is AST.EmptyStatement)
+}
+
+@Test func parseReturnWithoutValueOnOwnLine() {
+    let body = parseBlockStatements("func main() {\nreturn\n}")
+    #expect(body.count == 1)
+    let ret = body[0] as? AST.Return
+    #expect(ret != nil)
+    #expect(ret!.token.kind == .Keyword(.Return))
+    #expect(ret!.value == nil)
+}
+
+@Test func parseReturnFollowedByAnotherStatement() {
+    let body = parseBlockStatements("func main() { return x; let y }")
+    #expect(body.count == 3)
+    let ret = body[0] as? AST.Return
+    #expect(ret != nil)
+    let infix = ret!.value as? AST.Infix
+    #expect(infix != nil)
+    let varExpr = infix!.operands[0] as? AST.Variable
+    #expect(varExpr != nil)
+    #expect(varExpr!.name.value == "x")
+    #expect(body[1] is AST.EmptyStatement)
+    let vd = body[2] as? AST.VariableDecl
+    #expect(vd != nil)
+    #expect(vd!.name.value == "y")
+}
