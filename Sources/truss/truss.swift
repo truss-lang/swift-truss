@@ -13,6 +13,7 @@ struct truss {
                 f2()
             }
             func f2() {
+                M.f3()
             }
             module M {
                 func f3() {
@@ -21,7 +22,6 @@ struct truss {
             """
         let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))
             .parse()
-        // lexerResult.tokens.forEach { customDump($0) }
         let context = Context()
         let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
         context.register(source: src)

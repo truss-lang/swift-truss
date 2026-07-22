@@ -1,3 +1,5 @@
+import TrussDiagnosis
+
 public struct SourceId {
     public let id: UInt64
 }
@@ -21,6 +23,7 @@ public enum KeywordKind: CaseIterable, Sendable {
     case Let
     case Var
     case Module
+    case PrecedenceGroup
     public var code: String {
         switch self {
         case .Func: "func"
@@ -28,6 +31,7 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .Let: "let"
         case .Var: "var"
         case .Module: "module"
+        case .PrecedenceGroup: "precedencegroup"
         }
     }
 }
@@ -183,5 +187,28 @@ public class CharStream: IteratorProtocol {
         } else {
             col += 1
         }
+    }
+}
+
+extension Token {
+    public func sourceRange(in buffer: SourceBuffer) -> SourceRange {
+        let start = SourceLocation(
+            buffer: buffer, offset: pos.pos, line: pos.line, column: pos.col)
+        let end = SourceLocation(
+            buffer: buffer, offset: pos.pos + pos.len, line: pos.line,
+            column: pos.col + pos.len)
+        return SourceRange(start: start, end: end)
+    }
+}
+
+extension SourceRange {
+    public init(from startToken: Token, to endToken: Token, in buffer: SourceBuffer) {
+        self.init(
+            start: SourceLocation(
+                buffer: buffer, offset: startToken.pos.pos, line: startToken.pos.line,
+                column: startToken.pos.col),
+            end: SourceLocation(
+                buffer: buffer, offset: endToken.pos.pos + endToken.pos.len,
+                line: endToken.pos.line, column: endToken.pos.col + endToken.pos.len))
     }
 }
