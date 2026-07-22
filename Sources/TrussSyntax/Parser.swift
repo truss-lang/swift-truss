@@ -72,36 +72,83 @@ public final class Parser {
     public func parse() -> AST.Program {
         var statements: [AST.Statement] = []
         while true {
-            if let t = peek {
-                let statement: AST.Statement?
-                switch t.kind {
-                case .Keyword(let keywordKind):
-                    switch keywordKind {
-                    case .Func: statement = parseFunctionDecl()
-                    case .Let: statement = parseVariableDecl()
-                    case .Var: statement = parseVariableDecl()
-                    default: statement = nil
-                    }
-                case .Separator(let kind):
-                    switch kind {
-                    case .SemiColon:
-                        self.index += 1
-                        statement = AST.EmptyStatement(t)
-                    default: statement = nil
-                    }
-                default:
-                    statement = nil
-                }
-                if let statement = statement {
-                    statements.append(statement)
-                } else {
-                    break
-                }
+            if let statement = parseBasicStatement() {
+                statements.append(statement)
             } else {
                 break
             }
         }
         return AST.Program(lexerResult.id, packageName, statements)
+    }
+    private func parseBasicStatement() -> AST.Statement? {
+        guard let t = peek else {
+            return nil
+        }
+        switch t.kind {
+        case .Keyword(let keywordKind):
+            switch keywordKind {
+            case .Func: return parseFunctionDecl()
+            case .Let: return parseVariableDecl()
+            case .Var: return parseVariableDecl()
+            case .Module: return parseModuleDecl()
+            default: return nil
+            }
+        case .Separator(let kind):
+            switch kind {
+            case .SemiColon:
+                self.index += 1
+                return AST.EmptyStatement(t)
+            default: return nil
+            }
+        default:
+            return nil
+        }
+
+    }
+    private func parseModuleDecl() -> AST.Statement {
+        guard let token = next else {
+            emitEndOfFile()
+            return AST.ErrorStatement()
+        }
+        guard let name = next else {
+            emitError("expected module name after 'module'", at: token)
+            return AST.ErrorStatement()
+        }
+        guard case .Identifier = name.kind else {
+            emitError("expected identifier after 'module', but got '\(name.value)'", at: name)
+            return AST.ErrorStatement()
+        }
+        guard let openToken = next else {
+            emitError("expected '{' after module name", at: name)
+            return AST.ErrorStatement()
+        }
+        guard case .Separator(let kind) = openToken.kind, case .OpenBrace = kind else {
+            emitError("expected '{' after module name, but got '\(openToken.value)'", at: openToken)
+            return AST.ErrorStatement()
+        }
+        var body: [AST.Statement] = []
+        while let closeToken = peek {
+            if case .Separator(let kind) = closeToken.kind, case .CloseBrace = kind {
+                break
+            } else if let statement = parseBasicStatement() {
+                body.append(statement)
+            } else {
+                break
+            }
+        }
+        if let closeToken = peek {
+            if case .Separator(let kind) = closeToken.kind,
+                case .CloseBrace = kind
+            {
+                self.index += 1
+            } else {
+                emitError(
+                    "expected '}' after module body, but got \(closeToken.value)", at: closeToken)
+            }
+        } else {
+            emitEndOfFile()
+        }
+        return AST.ModuleDecl(token, name, body)
     }
     private func parseStatement() -> AST.Statement {
         guard let token = peek else {
@@ -116,7 +163,7 @@ public final class Parser {
             case .Var: return parseVariableDecl()
             case .Return: return parseReturn()
             default:
-                emitError("expected a statement, but found \(token.value)", at: token)
+                emitError("expected a statement, but got \(token.value)", at: token)
                 return AST.ErrorStatement()
             }
         case .Separator(let kind):
@@ -125,7 +172,7 @@ public final class Parser {
                 self.index += 1
                 return AST.EmptyStatement(token)
             default:
-                emitError("expected a statement, but found \(token.value)", at: token)
+                emitError("expected a statement, but got \(token.value)", at: token)
                 return AST.ErrorStatement()
             }
         default:
@@ -185,7 +232,9 @@ public final class Parser {
                     {
                         self.index += 1
                     } else {
-                        emitError("expected '}' after function body, but found \(t.value)", at: t)
+                        emitError(
+                            "expected '}' after function body, but got \(closeToken.value)",
+                            at: closeToken)
                     }
                 } else {
                     emitEndOfFile()
@@ -196,7 +245,7 @@ public final class Parser {
                 self.index += 1
                 body = .Expression(parseExpression())
             default:
-                emitError("expected a statement, but found \(t.value)", at: t)
+                emitError("expected a statement, but got \(t.value)", at: t)
                 return AST.ErrorStatement()
             }
         } else {

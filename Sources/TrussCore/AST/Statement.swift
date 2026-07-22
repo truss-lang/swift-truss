@@ -41,6 +41,16 @@ extension AST {
             visitor.visitReturn(self, additional: additional)
         }
     }
+    public final class ModuleDecl: Statement {
+        public let token: Token
+        public let name: Token
+        public let body: [AST.Statement]
+        public init(_ token: Token, _ name: Token, _ body: [AST.Statement]) {
+            self.token = token
+            self.name = name
+            self.body = body
+        }
+    }
     public final class FunctionDecl: Statement {
         public let token: Token
         public let name: Token

@@ -540,3 +540,109 @@ func firstExpression(_ source: String) -> AST.Expression {
     #expect(vd != nil)
     #expect(vd!.name.value == "y")
 }
+
+@Test func parseEmptyModule() {
+    let statements = parseStatements("module Foo {}")
+    #expect(statements.count == 1)
+    let module = statements[0] as? AST.ModuleDecl
+    #expect(module != nil)
+    #expect(module!.token.kind == .Keyword(.Module))
+    #expect(module!.name.kind == .Identifier)
+    #expect(module!.name.value == "Foo")
+    #expect(module!.body.isEmpty)
+}
+
+@Test func parseModuleWithVariableDecl() {
+    let statements = parseStatements("module Foo { let x }")
+    #expect(statements.count == 1)
+    let module = statements[0] as? AST.ModuleDecl
+    #expect(module != nil)
+    #expect(module!.name.value == "Foo")
+    #expect(module!.body.count == 1)
+    let vd = module!.body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    #expect(vd!.name.value == "x")
+}
+
+@Test func parseModuleWithFunctionDecl() {
+    let statements = parseStatements("module Foo { func bar() {} }")
+    #expect(statements.count == 1)
+    let module = statements[0] as? AST.ModuleDecl
+    #expect(module != nil)
+    #expect(module!.name.value == "Foo")
+    #expect(module!.body.count == 1)
+    let fd = module!.body[0] as? AST.FunctionDecl
+    #expect(fd != nil)
+    #expect(fd!.name.value == "bar")
+    if case .Block(let body) = fd!.body {
+        #expect(body.isEmpty)
+    } else {
+        Issue.record("expected block body")
+    }
+}
+
+@Test func parseModuleWithMultipleDeclarations() {
+    let statements = parseStatements("module Foo { let x func bar() {} var y }")
+    #expect(statements.count == 1)
+    let module = statements[0] as? AST.ModuleDecl
+    #expect(module != nil)
+    #expect(module!.body.count == 3)
+    let vd1 = module!.body[0] as? AST.VariableDecl
+    #expect(vd1 != nil)
+    #expect(vd1!.name.value == "x")
+    let fd = module!.body[1] as? AST.FunctionDecl
+    #expect(fd != nil)
+    #expect(fd!.name.value == "bar")
+    let vd2 = module!.body[2] as? AST.VariableDecl
+    #expect(vd2 != nil)
+    #expect(vd2!.name.value == "y")
+}
+
+@Test func parseModuleWithEmptyStatement() {
+    let statements = parseStatements("module Foo { ; }")
+    #expect(statements.count == 1)
+    let module = statements[0] as? AST.ModuleDecl
+    #expect(module != nil)
+    #expect(module!.body.count == 1)
+    #expect(module!.body[0] is AST.EmptyStatement)
+}
+
+@Test func parseNestedModule() {
+    let statements = parseStatements("module Outer { module Inner {} }")
+    #expect(statements.count == 1)
+    let outer = statements[0] as? AST.ModuleDecl
+    #expect(outer != nil)
+    #expect(outer!.name.value == "Outer")
+    #expect(outer!.body.count == 1)
+    let inner = outer!.body[0] as? AST.ModuleDecl
+    #expect(inner != nil)
+    #expect(inner!.name.value == "Inner")
+    #expect(inner!.body.isEmpty)
+}
+
+@Test func parseModuleWithVariableInitializer() {
+    let statements = parseStatements("module Foo { let x = 42 }")
+    #expect(statements.count == 1)
+    let module = statements[0] as? AST.ModuleDecl
+    #expect(module != nil)
+    #expect(module!.body.count == 1)
+    let vd = module!.body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    #expect(vd!.name.value == "x")
+    let infix = vd!.initializer as? AST.Infix
+    #expect(infix != nil)
+    let lit = infix!.operands[0] as? AST.IntegerLiteral
+    #expect(lit != nil)
+    #expect(lit!.value == 42)
+}
+
+@Test func parseModuleFollowedByDeclaration() {
+    let statements = parseStatements("module Foo {} let x")
+    #expect(statements.count == 2)
+    let module = statements[0] as? AST.ModuleDecl
+    #expect(module != nil)
+    #expect(module!.name.value == "Foo")
+    let vd = statements[1] as? AST.VariableDecl
+    #expect(vd != nil)
+    #expect(vd!.name.value == "x")
+}
