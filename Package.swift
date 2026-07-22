@@ -8,9 +8,12 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/xiaoli-white/swift-abstract.git", from: "1.0.0"),
         .package(url: "https://github.com/pointfreeco/swift-custom-dump.git", from: "1.6.1"),
+        .package(url: "https://github.com/davecom/SwiftGraph.git", from: "4.0.0"),
     ],
     targets: [
-        .target(name: "TrussDiagnosis"),
+        .target(
+            name: "TrussDiagnosis"
+        ),
         .target(
             name: "TrussCore",
             dependencies: [
@@ -25,6 +28,10 @@ let package = Package(
             name: "TrussSemantics",
             dependencies: ["TrussCore"]
         ),
+        .target(
+            name: "TrussOperators",
+            dependencies: ["TrussCore", .product(name: "SwiftGraph", package: "SwiftGraph")]
+        ),
         .executableTarget(
             name: "truss",
             dependencies: [
@@ -33,12 +40,12 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "TrussSyntaxTests",
-            dependencies: ["TrussSyntax", "TrussCore"]
-        ),
-        .testTarget(
             name: "TrussDiagnosisTests",
             dependencies: ["TrussDiagnosis"]
+        ),
+        .testTarget(
+            name: "TrussSyntaxTests",
+            dependencies: ["TrussSyntax", "TrussCore"]
         ),
         .testTarget(
             name: "trussTests",
