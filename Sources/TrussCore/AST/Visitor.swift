@@ -62,16 +62,14 @@ extension AST {
             return nil
         }
 
+        /* This method will do nothing, because we don't want to
+         * visit this node most of the time. It will be individually
+         * processed by the `TrussOperators` module.
+         */
         @discardableResult
         open func visitPrecedenceGroupDecl(
             _ precedenceGroupDecl: AST.PrecedenceGroupDecl, additional: Any? = nil
         ) -> Any? {
-            for higherThan in precedenceGroupDecl.higherThan {
-                visit(higherThan, additional: additional)
-            }
-            for lowerThan in precedenceGroupDecl.lowerThan {
-                visit(lowerThan, additional: additional)
-            }
             return nil
         }
 

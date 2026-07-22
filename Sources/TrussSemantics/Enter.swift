@@ -19,7 +19,11 @@ public final class Enter: AST.Visitor {
             program.packageSymbol = packageSymbol
             self.currentScope = packageSymbol.scope
         }
-        return super.visitProgram(program, additional: additional)
+        super.visitProgram(program, additional: additional)
+        for symbol in program.packageSymbol!.scope.name2Symbol.values {
+            symbol.parent = program.packageSymbol!.id
+        }
+        return nil
     }
 
     @discardableResult
@@ -37,6 +41,7 @@ public final class Enter: AST.Visitor {
                 id: context.nextSymbolId, name: moduleDecl.name.value)
             context.register(symbol: moduleSymbol)
             moduleDecl.symbol = moduleSymbol
+            lastScope!.name2Symbol[moduleSymbol.name] = moduleSymbol
             currentScope = moduleSymbol.scope
         }
         super.visitModuleDecl(moduleDecl, additional: additional)
