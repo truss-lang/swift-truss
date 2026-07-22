@@ -4,7 +4,7 @@ extension AST {
     @abstractClass
     public class Statement: AstNode {
         @abstractInit
-        public override init() {}
+        public override init()
     }
     public final class EmptyStatement: Statement {
         public let token: Token

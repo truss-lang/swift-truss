@@ -21,6 +21,10 @@ let package = Package(
             name: "TrussSyntax",
             dependencies: ["TrussCore"]
         ),
+        .target(
+            name: "TrussSemantics",
+            dependencies: ["TrussCore"]
+        ),
         .executableTarget(
             name: "truss",
             dependencies: [

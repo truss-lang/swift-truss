@@ -16,12 +16,28 @@ public final class Source {
 }
 
 public final class Context {
-    public private(set) var sourceTable: [Id.SourceId: Source] = [:]
     public let diagnositicEngine = DiagnosticEngine()
-
+    public private(set) var sourceTable: [Id.SourceId: Source] = [:]
+    public private(set) var id2Symbol: [Id.SymbolId: Symbol.Symbol] = [:]
+    public private(set) var name2Package: [String: Symbol.PackageSymbol] = [:]
     public init() {}
-
-    public func register(_ source: Source) {
+    @discardableResult
+    public func register(source: Source) -> Context {
         sourceTable[source.id] = source
+        return self
+    }
+    @discardableResult
+    public func register(symbol: Symbol.Symbol) -> Context {
+        self.id2Symbol[symbol.id] = symbol
+        return self
+    }
+    @discardableResult
+    public func register(packageSymbol: Symbol.PackageSymbol) -> Context {
+        self.name2Package[packageSymbol.name] = packageSymbol
+        self.id2Symbol[packageSymbol.id] = packageSymbol
+        return self
+    }
+    public var nextSymbolId: Id.SymbolId {
+        Id.SymbolId(id: UInt64(self.id2Symbol.count))
     }
 }

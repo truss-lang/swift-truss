@@ -4,12 +4,12 @@ extension AST {
     @abstractClass
     public class Expression: AstNode {
         @abstractInit
-        public override init() {}
+        public override init()
     }
     @abstractClass
     public class Literal: Expression {
         @abstractInit
-        public override init() {}
+        public override init()
     }
     public final class ErrorExpression: Expression {
         public override init() {}
