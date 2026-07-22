@@ -1,5 +1,6 @@
 import Testing
 import TrussCore
+import TrussDiagnosis
 import TrussSyntax
 
 func parse(_ source: String) -> AST.Program {
@@ -645,4 +646,145 @@ func firstExpression(_ source: String) -> AST.Expression {
     let vd = statements[1] as? AST.VariableDecl
     #expect(vd != nil)
     #expect(vd!.name.value == "x")
+}
+
+// MARK: - SourceRange tests
+
+@Test func sourceRangeVariableDeclWithoutInitializer() {
+    let statements = parseStatements("let x")
+    let decl = statements[0] as! AST.VariableDecl
+    let range = decl.sourceRange!
+    #expect(range.start.offset == 0)
+    #expect(range.end.offset == 5)
+}
+
+@Test func sourceRangeVariableDeclWithInitializer() {
+    let statements = parseStatements("let x = 42")
+    let decl = statements[0] as! AST.VariableDecl
+    let range = decl.sourceRange!
+    #expect(range.start.offset == 0)
+    #expect(range.end.offset == 10)
+}
+
+@Test func sourceRangeIntegerLiteral() {
+    let expr = firstExpression("42")
+    let infix = expr as! AST.Infix
+    let lit = infix.operands[0] as! AST.IntegerLiteral
+    let range = lit.sourceRange!
+    #expect(range.start.offset == 14)
+    #expect(range.end.offset == 16)
+    #expect(range.start.line == 1)
+    #expect(range.start.column == 15)
+}
+
+@Test func sourceRangeVariable() {
+    let expr = firstExpression("x")
+    let infix = expr as! AST.Infix
+    let varExpr = infix.operands[0] as! AST.Variable
+    let range = varExpr.sourceRange!
+    #expect(range.start.offset == 14)
+    #expect(range.end.offset == 15)
+}
+
+@Test func sourceRangeFunctionDeclBlockBody() {
+    let statements = parseStatements("func main() {}")
+    let decl = statements[0] as! AST.FunctionDecl
+    let range = decl.sourceRange!
+    #expect(range.start.offset == 0)
+    #expect(range.end.offset == 14)
+}
+
+@Test func sourceRangeFunctionDeclExpressionBody() {
+    let statements = parseStatements("func foo() = 42")
+    let decl = statements[0] as! AST.FunctionDecl
+    let range = decl.sourceRange!
+    #expect(range.start.offset == 0)
+    #expect(range.end.offset == 15)
+}
+
+@Test func sourceRangeModuleDecl() {
+    let statements = parseStatements("module Foo {}")
+    let module = statements[0] as! AST.ModuleDecl
+    let range = module.sourceRange!
+    #expect(range.start.offset == 0)
+    #expect(range.end.offset == 13)
+}
+
+@Test func sourceRangeCall() {
+    let expr = firstExpression("foo()")
+    let infix = expr as! AST.Infix
+    let call = infix.operands[0] as! AST.Call
+    let range = call.sourceRange!
+    #expect(range.start.offset == 14)
+    #expect(range.end.offset == 19)
+}
+
+@Test func sourceRangeMemberAccess() {
+    let expr = firstExpression("a.b")
+    let infix = expr as! AST.Infix
+    let member = infix.operands[0] as! AST.MemberAccess
+    let range = member.sourceRange!
+    #expect(range.start.offset == 14)
+    #expect(range.end.offset == 17)
+}
+
+@Test func sourceRangeChainedMemberAccess() {
+    let expr = firstExpression("a.b.c")
+    let infix = expr as! AST.Infix
+    let member = infix.operands[0] as! AST.MemberAccess
+    let range = member.sourceRange!
+    #expect(range.start.offset == 14)
+    #expect(range.end.offset == 19)
+}
+
+@Test func sourceRangeInfixExpression() {
+    let expr = firstExpression("a + b")
+    let infix = expr as! AST.Infix
+    let range = infix.sourceRange!
+    #expect(range.start.offset == 14)
+    #expect(range.end.offset == 19)
+}
+
+@Test func sourceRangeReturnWithValue() {
+    let body = parseBlockStatements("func main() { return 42 }")
+    let ret = body[0] as! AST.Return
+    let range = ret.sourceRange!
+    #expect(range.start.offset == 14)
+    #expect(range.end.offset == 23)
+}
+
+@Test func sourceRangeReturnWithoutValue() {
+    let body = parseBlockStatements("func main() {\nreturn\n}")
+    let ret = body[0] as! AST.Return
+    let range = ret.sourceRange!
+    #expect(range.start.offset == 14)
+    #expect(range.end.offset == 20)
+}
+
+@Test func sourceRangeProgram() {
+    let program = parse("let x let y")
+    let range = program.sourceRange!
+    #expect(range.start.offset == 0)
+    #expect(range.end.offset == 11)
+}
+
+@Test func sourceRangeErrorStatementIsNil() {
+    let program = parse("")
+    #expect(program.sourceRange == nil)
+}
+
+@Test func sourceRangeEmptyStatement() {
+    let statements = parseStatements(";")
+    let empty = statements[0] as! AST.EmptyStatement
+    let range = empty.sourceRange!
+    #expect(range.start.offset == 0)
+    #expect(range.end.offset == 1)
+}
+
+@Test func sourceRangeExpressionStatement() {
+    let body = parseBlockStatements("func main() { 42 }")
+    let exprStmt = body[0] as! AST.ExpressionStatement
+    let range = exprStmt.sourceRange!
+    #expect(range.start.offset == 14)
+    #expect(range.end.offset == 16)
 }

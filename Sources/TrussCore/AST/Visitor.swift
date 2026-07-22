@@ -63,6 +63,19 @@ extension AST {
         }
 
         @discardableResult
+        open func visitPrecedenceGroupDecl(
+            _ precedenceGroupDecl: AST.PrecedenceGroupDecl, additional: Any? = nil
+        ) -> Any? {
+            for higherThan in precedenceGroupDecl.higherThan {
+                visit(higherThan, additional: additional)
+            }
+            for lowerThan in precedenceGroupDecl.lowerThan {
+                visit(lowerThan, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitFunctionDecl(
             _ functionDecl: AST.FunctionDecl, additional: Any? = nil
         ) -> Any? {
