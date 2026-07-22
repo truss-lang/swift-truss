@@ -2,26 +2,27 @@ import TrussCore
 
 public final class Enter: AST.Visitor {
     private let context: Context
-    private var currentPackageSymbol: Symbol.PackageSymbol?
     private var currentScope: Scope? = nil
-    public init(ctx: Context) {
-        self.context = ctx
+    public init(context: Context) {
+        self.context = context
     }
+
+    @discardableResult
     public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         if let packageSymbol = context.name2Package[program.packageName] {
             program.packageSymbol = packageSymbol
-            self.currentPackageSymbol = packageSymbol
             self.currentScope = packageSymbol.scope
         } else {
             let packageSymbol = Symbol.PackageSymbol(
                 id: context.nextSymbolId, name: program.packageName)
             context.register(packageSymbol: packageSymbol)
             program.packageSymbol = packageSymbol
-            self.currentPackageSymbol = packageSymbol
             self.currentScope = packageSymbol.scope
         }
         return super.visitProgram(program, additional: additional)
     }
+
+    @discardableResult
     public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil)
         -> Any?
     {
@@ -45,6 +46,7 @@ public final class Enter: AST.Visitor {
         return nil
     }
 
+    @discardableResult
     public override func visitVariableDecl(_ variableDecl: AST.VariableDecl, additional: Any? = nil)
         -> Any?
     {

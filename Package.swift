@@ -28,7 +28,8 @@ let package = Package(
         .executableTarget(
             name: "truss",
             dependencies: [
-                "TrussSyntax", .product(name: "CustomDump", package: "swift-custom-dump"),
+                "TrussSyntax", "TrussSemantics",
+                .product(name: "CustomDump", package: "swift-custom-dump"),
             ]
         ),
         .testTarget(

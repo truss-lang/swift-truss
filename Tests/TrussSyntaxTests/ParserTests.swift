@@ -10,7 +10,7 @@ func parse(_ source: String) -> AST.Program {
     let lexer = Lexer(input: stream)
     let tokens = lexer.parse().tokens
     let result = LexerResult(id: Id.SourceId(id: 0), tokens: tokens)
-    let parser = Parser(context: context, result, "main")
+    let parser = Parser(context: context, packageName: "main", result)
     return parser.parse()
 }
 

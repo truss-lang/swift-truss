@@ -3,8 +3,8 @@ import TrussDiagnosis
 
 public final class Parser {
     private let context: Context
-    private let lexerResult: LexerResult
     private let packageName: String
+    private let lexerResult: LexerResult
     private let source: Source
     private var index: Int = 0
     public var peek: Token? {
@@ -37,10 +37,10 @@ public final class Parser {
             return nil
         }
     }
-    public init(context: Context, _ lexerResult: LexerResult, _ packageName: String) {
+    public init(context: Context, packageName: String, _ lexerResult: LexerResult) {
         self.context = context
-        self.lexerResult = lexerResult
         self.packageName = packageName
+        self.lexerResult = lexerResult
         self.source = context.sourceTable[lexerResult.id]!
     }
     private func emitError(_ message: String, at range: SourceRange) {
