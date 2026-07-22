@@ -4,6 +4,7 @@ import TrussDiagnosis
 public final class Parser {
     private let context: Context
     private let lexerResult: LexerResult
+    private let packageName: String
     private let source: Source
     private var index: Int = 0
     public var peek: Token? {
@@ -36,9 +37,10 @@ public final class Parser {
             return nil
         }
     }
-    public init(context: Context, _ lexerResult: LexerResult) {
+    public init(context: Context, _ lexerResult: LexerResult, _ packageName: String) {
         self.context = context
         self.lexerResult = lexerResult
+        self.packageName = packageName
         self.source = context.sourceTable[lexerResult.id]!
     }
     private func emitError(_ message: String, at range: SourceRange) {
@@ -99,7 +101,7 @@ public final class Parser {
                 break
             }
         }
-        return AST.Program(lexerResult.id, statements)
+        return AST.Program(lexerResult.id, packageName, statements)
     }
     private func parseStatement() -> AST.Statement {
         guard let token = peek else {

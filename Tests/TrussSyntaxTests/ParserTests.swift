@@ -5,12 +5,12 @@ import TrussSyntax
 func parse(_ source: String) -> AST.Program {
     let context = Context()
     let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
-    context.register(src)
+    context.register(source: src)
     let stream = CharStream(content: source, id: Id.SourceId(id: 0))
     let lexer = Lexer(input: stream)
     let tokens = lexer.parse().tokens
     let result = LexerResult(id: Id.SourceId(id: 0), tokens: tokens)
-    let parser = Parser(context: context, result)
+    let parser = Parser(context: context, result, "main")
     return parser.parse()
 }
 
