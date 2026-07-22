@@ -41,6 +41,7 @@ public final class Enter: AST.Visitor {
             id: context.nextSymbolId, name: functionDecl.name.value, locals: locals,
             scope: scope)
         context.register(symbol: symbol)
+        functionDecl.symbol = symbol
         self.currentScope!.name2Symbol[symbol.name] = symbol
 
         return nil
@@ -54,6 +55,7 @@ public final class Enter: AST.Visitor {
         let symbol = Symbol.VariableSymbol(
             id: context.nextSymbolId, name: variableDecl.name.value)
         context.register(symbol: symbol)
+        variableDecl.symbol = symbol
         self.currentScope!.name2Symbol[symbol.name] = symbol
         return nil
     }

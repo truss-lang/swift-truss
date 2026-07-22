@@ -46,6 +46,7 @@ extension AST {
         public let name: Token
         public let returnTypeExpression: Expression?
         public let body: Body
+        public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ token: Token, _ name: Token, _ returnTypeExpression: Expression?, _ body: Body
         ) {
@@ -68,6 +69,7 @@ extension AST {
         public let name: Token
         public let typeExpression: Expression?
         public let initializer: Expression?
+        public var symbol: Symbol.VariableSymbol? = nil
         public init(
             _ token: Token, _ name: Token, _ typeExpression: Expression?,
             _ initializer: Expression?

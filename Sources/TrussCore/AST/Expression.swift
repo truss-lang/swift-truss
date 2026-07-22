@@ -16,6 +16,7 @@ extension AST {
     }
     public final class Variable: Expression {
         public let name: Token
+        public var symbol: Symbol.Symbol? = nil
         public init(name: Token) {
             self.name = name
         }

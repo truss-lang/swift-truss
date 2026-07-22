@@ -9,6 +9,10 @@ struct truss {
         let source = """
             func f() {
                 var a = 1
+                a
+                f2()
+            }
+            func f2() {
             }
             """
         let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))
@@ -19,6 +23,7 @@ struct truss {
         context.register(source: src)
         let program = Parser(context: context, packageName: "main", lexerResult).parse()
         Enter(context: context).visitProgram(program)
+        NameResolver(context: context).visitProgram(program)
         customDump(program)
 
     }
