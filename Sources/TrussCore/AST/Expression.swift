@@ -150,7 +150,7 @@ extension AST {
             visitor.visitMemberAccess(self, additional: additional)
         }
     }
-    public final class Infix: Expression {
+    public final class SequentialExpression: Expression {
         public let ops: [Token]
         public let operands: [Expression]
         public init(_ ops: [Token], _ operands: [Expression], sourceRange: SourceRange? = nil) {
@@ -159,7 +159,7 @@ extension AST {
             super.init(sourceRange: sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitInfix(self, additional: additional)
+            visitor.visitSequentialExpression(self, additional: additional)
         }
     }
     public final class Binary: Expression {

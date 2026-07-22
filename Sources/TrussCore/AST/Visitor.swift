@@ -191,11 +191,11 @@ extension AST {
         }
 
         @discardableResult
-        open func visitInfix(
-            _ infixExpression: AST.Infix, additional: Any? = nil
+        open func visitSequentialExpression(
+            _ sequentialExpression: AST.SequentialExpression, additional: Any? = nil
         ) -> Any? {
             var last: Any? = nil
-            for operand in infixExpression.operands {
+            for operand in sequentialExpression.operands {
                 last = visit(operand, additional: additional)
             }
             return last

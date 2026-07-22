@@ -251,6 +251,7 @@ public final class Parser {
                     }
                     if let t2 = peek {
                         if case .BooleanLiteral(let v) = t2.kind {
+                            self.index += 1
                             assignment = v
                         } else {
                             emitError(
@@ -280,8 +281,14 @@ public final class Parser {
                         if case .Separator(let kind) = t2.kind, case .CloseBrace = kind {
                             break
                         }
-                        let expr = parseExpression()
-                        if let typeExpression = expr as? AST.TypeExpression {
+                        if case .Identifier = t2.kind,
+                            ["higherThan", "lowerThan", "associativity", "assignment"].contains(
+                                t2.value)
+                        {
+                            break
+                        }
+                        guard let expr = parsePrimary() else { break }
+                        if let typeExpression = extractTypeExpression(expr) {
                             higherThan.append(typeExpression)
                         } else {
                             emitError(
@@ -314,8 +321,14 @@ public final class Parser {
                         if case .Separator(let kind) = t2.kind, case .CloseBrace = kind {
                             break
                         }
-                        let expr = parseExpression()
-                        if let typeExpression = expr as? AST.TypeExpression {
+                        if case .Identifier = t2.kind,
+                            ["higherThan", "lowerThan", "associativity", "assignment"].contains(
+                                t2.value)
+                        {
+                            break
+                        }
+                        guard let expr = parsePrimary() else { break }
+                        if let typeExpression = extractTypeExpression(expr) {
                             lowerThan.append(typeExpression)
                         } else {
                             emitError(
@@ -528,6 +541,15 @@ public final class Parser {
             return AST.Return(token, expr, sourceRange: range)
         }
     }
+    private func extractTypeExpression(_ expr: AST.Expression) -> AST.TypeExpression? {
+        if let te = expr as? AST.TypeExpression { return te }
+        if let sequentialExpression = expr as? AST.SequentialExpression,
+            sequentialExpression.operands.count == 1
+        {
+            return sequentialExpression.operands[0] as? AST.TypeExpression
+        }
+        return nil
+    }
     private func parseExpression() -> AST.Expression {
         var ops: [Token] = []
         var operands: [AST.Expression] = []
@@ -549,7 +571,7 @@ public final class Parser {
         } else {
             range = nil
         }
-        return AST.Infix(ops, operands, sourceRange: range)
+        return AST.SequentialExpression(ops, operands, sourceRange: range)
     }
     private func parsePrimary() -> AST.Expression? {
         guard let token = peek else {
@@ -563,7 +585,8 @@ public final class Parser {
         case .StringLiteral:
             expression = AST.StringLiteral(token, sourceRange: token.sourceRange(in: buffer))
         case .IntegerLiteral(let value):
-            expression = AST.IntegerLiteral(token, value, sourceRange: token.sourceRange(in: buffer))
+            expression = AST.IntegerLiteral(
+                token, value, sourceRange: token.sourceRange(in: buffer))
         case .FloatLiteral(let value):
             expression = AST.FloatLiteral(token, value, sourceRange: token.sourceRange(in: buffer))
         case .CharLiteral(let value):
@@ -587,7 +610,7 @@ public final class Parser {
                         case .Less = k2
                     {
                         self.index += 3
-                        guard let base = expression as? AST.TypeExpression else {
+                        guard let base = extractTypeExpression(expression) else {
                             emitError(
                                 "expected type expression",
                                 at: expression.sourceRange ?? token.sourceRange(in: buffer))
@@ -618,7 +641,9 @@ public final class Parser {
                         } else {
                             fatalError()
                         }
-                        expression = AST.GenericApplication(base: base, genericArguments, sourceRange: SourceRange(from: token, to: closeToken, in: buffer))
+                        expression = AST.GenericApplication(
+                            base: base, genericArguments,
+                            sourceRange: SourceRange(from: token, to: closeToken, in: buffer))
                     } else {
                         break loop
                     }
@@ -632,7 +657,9 @@ public final class Parser {
                         emitError("expected member name after '.'", at: t)
                         break loop
                     }
-                    expression = AST.MemberAccess(expression, t, member, sourceRange: SourceRange(from: token, to: member, in: buffer))
+                    expression = AST.MemberAccess(
+                        expression, t, member,
+                        sourceRange: SourceRange(from: token, to: member, in: buffer))
                 default: break loop
                 }
             default: break loop
