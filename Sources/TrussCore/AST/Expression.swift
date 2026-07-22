@@ -4,6 +4,7 @@ import TrussDiagnosis
 extension AST {
     @abstractClass
     public class Expression: AstNode {
+        public var ty: TrussType.TrussType? = nil
         @abstractInit
         public override init(sourceRange: SourceRange? = nil) {
             super.init(sourceRange: sourceRange)
