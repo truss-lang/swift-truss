@@ -14,6 +14,10 @@ struct truss {
             }
             func f2() {
             }
+            module M {
+                func f3() {
+                }
+            }
             """
         let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))
             .parse()

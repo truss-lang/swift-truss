@@ -53,6 +53,16 @@ extension AST {
         }
 
         @discardableResult
+        open func visitModuleDecl(
+            _ moduleDecl: AST.ModuleDecl, additional: Any? = nil
+        ) -> Any? {
+            for statement in moduleDecl.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitFunctionDecl(
             _ functionDecl: AST.FunctionDecl, additional: Any? = nil
         ) -> Any? {

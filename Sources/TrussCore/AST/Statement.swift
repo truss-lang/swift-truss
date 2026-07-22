@@ -45,10 +45,14 @@ extension AST {
         public let token: Token
         public let name: Token
         public let body: [AST.Statement]
+        public var symbol: Symbol.ModuleSymbol? = nil
         public init(_ token: Token, _ name: Token, _ body: [AST.Statement]) {
             self.token = token
             self.name = name
             self.body = body
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitModuleDecl(self, additional: additional)
         }
     }
     public final class FunctionDecl: Statement {

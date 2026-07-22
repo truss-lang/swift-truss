@@ -23,6 +23,28 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
+        -> Any?
+    {
+        let lastScope = currentScope
+        if let moduleSymbol = lastScope!.name2Symbol[moduleDecl.name.value]
+            as? Symbol.ModuleSymbol
+        {
+            moduleDecl.symbol = moduleSymbol
+            currentScope = moduleSymbol.scope
+        } else {
+            let moduleSymbol = Symbol.ModuleSymbol(
+                id: context.nextSymbolId, name: moduleDecl.name.value)
+            context.register(symbol: moduleSymbol)
+            moduleDecl.symbol = moduleSymbol
+            currentScope = moduleSymbol.scope
+        }
+        super.visitModuleDecl(moduleDecl, additional: additional)
+        currentScope = lastScope
+        return nil
+    }
+
+    @discardableResult
     public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil)
         -> Any?
     {

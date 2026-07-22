@@ -16,6 +16,16 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
+        -> Any?
+    {
+        scopeStack.append(moduleDecl.symbol!.scope)
+        super.visitModuleDecl(moduleDecl, additional: additional)
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
     public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil)
         -> Any?
     {
