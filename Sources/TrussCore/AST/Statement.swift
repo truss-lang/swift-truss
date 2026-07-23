@@ -113,6 +113,25 @@ extension AST {
             visitor.visitStructDecl(self, additional: additional)
         }
     }
+    public final class ClassDecl: Statement {
+        public let token: Token
+        public let name: Token
+        public let inheritanceClauses: [TypeExpression]
+        public let body: [AST.Statement]
+        public init(
+            _ token: Token, _ name: Token, _ conformances: [TypeExpression],
+            _ body: [AST.Statement], sourceRange: SourceRange? = nil
+        ) {
+            self.token = token
+            self.name = name
+            self.inheritanceClauses = conformances
+            self.body = body
+            super.init(sourceRange: sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitClassDecl(self, additional: additional)
+        }
+    }
     public final class ProtocolDecl: Statement {
         public let token: Token
         public let name: Token

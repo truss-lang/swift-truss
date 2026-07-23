@@ -77,6 +77,7 @@ public final class Parser {
                 case .Module: statement = parseModuleDecl()
                 case .PrecedenceGroup: statement = parsePrecedenceGroupDecl()
                 case .Struct: statement = parseStructDecl()
+                case .Class: statement = parseClassDecl()
                 case .ProtocolKw: statement = parseProtocolDecl()
                 case .Func: statement = parseFunctionDecl()
                 case .Let: statement = parseVariableDecl()
@@ -314,7 +315,7 @@ public final class Parser {
                         {
                             break
                         }
-                        guard let expr = parsePrimary() else { break }
+                        let expr = parseExpression()
                         if let typeExpression = extractTypeExpression(expr) {
                             higherThan.append(typeExpression)
                         } else {
@@ -354,7 +355,7 @@ public final class Parser {
                         {
                             break
                         }
-                        guard let expr = parsePrimary() else { break }
+                        let expr = parseExpression()
                         if let typeExpression = extractTypeExpression(expr) {
                             lowerThan.append(typeExpression)
                         } else {
@@ -413,7 +414,7 @@ public final class Parser {
         if let t = peek, case .Separator(let kind) = t.kind, case .Colon = kind {
             self.index += 1
             while let t2 = peek {
-                guard let expr = parsePrimary() else { break }
+                let expr = parseExpression()
                 if let typeExpression = extractTypeExpression(expr) {
                     conformances.append(typeExpression)
                 } else {
@@ -443,7 +444,7 @@ public final class Parser {
             if case .Separator(let kind) = closeToken.kind, case .CloseBrace = kind {
                 break
             }
-            body.append(parseStatement())
+            body.append(parseTypeBodyStatement())
         }
         let endToken: Token
         if let closeToken = peek {
@@ -464,6 +465,74 @@ public final class Parser {
             token, name, conformances, body,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer))
     }
+    private func parseClassDecl() -> AST.Statement {
+        guard let token = next else {
+            emitEndOfFile()
+            return AST.ErrorStatement()
+        }
+        guard let name = next else {
+            emitError("expected module name after 'class'", at: token)
+            return AST.ErrorStatement()
+        }
+        guard case .Identifier = name.kind else {
+            emitError("expected identifier after 'class', but got '\(name.value)'", at: name)
+            return AST.ErrorStatement()
+        }
+        var inheritanceClauses: [AST.TypeExpression] = []
+        if let t = peek, case .Separator(let kind) = t.kind, case .Colon = kind {
+            self.index += 1
+            while let t2 = peek {
+                let expr = parseExpression()
+                if let typeExpression = extractTypeExpression(expr) {
+                    inheritanceClauses.append(typeExpression)
+                } else {
+                    emitError(
+                        "expected type expression",
+                        at: expr.sourceRange ?? t2.sourceRange(in: buffer))
+                }
+                if let t3 = peek, case .Separator(let kind) = t3.kind, case .Comma = kind {
+                    self.index += 1
+                } else {
+                    break
+                }
+            }
+        }
+        guard let openToken = next else {
+            emitError("expected '{' in class type", at: name)
+            return AST.ErrorStatement()
+        }
+        guard case .Separator(let kind) = openToken.kind, case .OpenBrace = kind else {
+            emitError(
+                "expected '{' in class type, but got '\(openToken.value)'",
+                at: openToken)
+            return AST.ErrorStatement()
+        }
+        var body: [AST.Statement] = []
+        while let closeToken = peek {
+            if case .Separator(let kind) = closeToken.kind, case .CloseBrace = kind {
+                break
+            }
+            body.append(parseTypeBodyStatement())
+        }
+        let endToken: Token
+        if let closeToken = peek {
+            if case .Separator(let kind) = closeToken.kind,
+                case .CloseBrace = kind
+            {
+                self.index += 1
+            } else {
+                emitError(
+                    "expected '}' after class body, but got \(closeToken.value)", at: closeToken)
+            }
+            endToken = closeToken
+        } else {
+            emitEndOfFile()
+            endToken = openToken
+        }
+        return AST.ClassDecl(
+            token, name, inheritanceClauses, body,
+            sourceRange: SourceRange(from: token, to: endToken, in: buffer))
+    }
     private func parseProtocolDecl() -> AST.Statement {
         guard let token = next else {
             emitEndOfFile()
@@ -481,7 +550,7 @@ public final class Parser {
         if let t = peek, case .Separator(let kind) = t.kind, case .Colon = kind {
             self.index += 1
             while let t2 = peek {
-                guard let expr = parsePrimary() else { break }
+                let expr = parseExpression()
                 if let typeExpression = extractTypeExpression(expr) {
                     conformances.append(typeExpression)
                 } else {
@@ -509,7 +578,7 @@ public final class Parser {
             if case .Separator(let kind) = closeToken.kind, case .CloseBrace = kind {
                 break
             }
-            body.append(parseStatement())
+            body.append(parseTypeBodyStatement())
         }
         let endToken: Token
         if let closeToken = peek {
@@ -529,6 +598,36 @@ public final class Parser {
         return AST.ProtocolDecl(
             token, name, conformances, body,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer))
+    }
+    private func parseTypeBodyStatement() -> AST.Statement {
+        guard let token = peek else {
+            emitEndOfFile()
+            return AST.ErrorStatement()
+        }
+        switch token.kind {
+        case .Keyword(let kind):
+            switch kind {
+            case .Func: return parseFunctionDecl()
+            case .Let: return parseVariableDecl()
+            case .Var: return parseVariableDecl()
+            case .Return: return parseReturn()
+            default:
+                emitError("expected a statement, but got \(token.value)", at: token)
+                return AST.ErrorStatement()
+            }
+        case .Separator(let kind):
+            switch kind {
+            case .SemiColon:
+                self.index += 1
+                return AST.EmptyStatement(token, sourceRange: token.sourceRange(in: buffer))
+            default:
+                emitError("expected a statement, but got \(token.value)", at: token)
+                return AST.ErrorStatement()
+            }
+        default:
+            emitError("expected a statement, but got \(token.value)", at: token)
+            return AST.ErrorStatement()
+        }
     }
     private func parseStatement() -> AST.Statement {
         guard let token = peek else {

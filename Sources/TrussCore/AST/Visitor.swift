@@ -87,6 +87,19 @@ extension AST {
         }
 
         @discardableResult
+        open func visitClassDecl(
+            _ classDecl: AST.ClassDecl, additional: Any? = nil
+        ) -> Any? {
+            for inheritanceClause in classDecl.inheritanceClauses {
+                visit(inheritanceClause, additional: additional)
+            }
+            for statement in classDecl.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitProtocolDecl(
             _ protocolDecl: AST.ProtocolDecl, additional: Any? = nil
         ) -> Any? {
