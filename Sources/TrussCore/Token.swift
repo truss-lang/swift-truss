@@ -18,20 +18,138 @@ public struct Position {
 }
 
 public enum KeywordKind: CaseIterable, Sendable {
+    case Open
+    case Public
+    case Protected
+    case PackagePrivate
+    case Internal
+    case FilePrivate
+    case Private
+    case Abstract
+    case Final
+    case Mutating
+    case Nonmutating
+    case Convenience
+    case Required
+    case Override
+    case Lazy
+    case Weak
+    case Unowned
+    case Indirect
+    case Module
+    case PrecedenceGroup
+    case Operator
+    case Infix
+    case Prefix
+    case Postfix
+    case TypeAlias
+    case Struct
+    case Class
+    case Enum
+    case Case
+    case Actor
+    case ProtocolKw
+    case AssociatedType
+    case Extension
+    case Init
+    case Deinit
+    case Subscript
+    case SelfKw
+    case SelfTypeKw
+    case SuperKw
     case Func
     case Return
     case Let
     case Var
-    case Module
-    case PrecedenceGroup
+    case Guard
+    case If
+    case Else
+    case While
+    case For
+    case Repeat
+    case Break
+    case Continue
+    case Throw
+    case Throws
+    case Do
+    case Try
+    case Catch
+    case Finally
+    case Defer
+    case Match
+    case Default
+    case As
+    case Is
+    case In
+    case Async
+    case Await
     public var code: String {
         switch self {
+        case .Open: "open"
+        case .Public: "public"
+        case .Protected: "protected"
+        case .PackagePrivate: "packageprivate"
+        case .Internal: "internal"
+        case .FilePrivate: "fileprivate"
+        case .Private: "private"
+        case .Abstract: "abstract"
+        case .Final: "final"
+        case .Mutating: "mutating"
+        case .Nonmutating: "nonmutating"
+        case .Convenience: "convenience"
+        case .Required: "required"
+        case .Override: "override"
+        case .Lazy: "lazy"
+        case .Weak: "weak"
+        case .Unowned: "unowned"
+        case .Indirect: "indirect"
+        case .Module: "module"
+        case .PrecedenceGroup: "precedencegroup"
+        case .Operator: "operator"
+        case .Infix: "infix"
+        case .Prefix: "prefix"
+        case .Postfix: "postfix"
+        case .TypeAlias: "typealias"
+        case .Struct: "struct"
+        case .Class: "class"
+        case .Enum: "enum"
+        case .Case: "case"
+        case .Actor: "actor"
+        case .ProtocolKw: "protocol"
+        case .AssociatedType: "associatedtype"
+        case .Extension: "extension"
+        case .Init: "init"
+        case .Deinit: "deinit"
+        case .Subscript: "subscript"
+        case .SelfKw: "self"
+        case .SelfTypeKw: "Self"
+        case .SuperKw: "super"
         case .Func: "func"
         case .Return: "return"
         case .Let: "let"
         case .Var: "var"
-        case .Module: "module"
-        case .PrecedenceGroup: "precedencegroup"
+        case .Guard: "guard"
+        case .If: "if"
+        case .Else: "else"
+        case .While: "while"
+        case .For: "for"
+        case .Repeat: "repeat"
+        case .Break: "break"
+        case .Continue: "continue"
+        case .Throw: "throw"
+        case .Throws: "throws"
+        case .Do: "do"
+        case .Try: "try"
+        case .Catch: "catch"
+        case .Finally: "finally"
+        case .Defer: "defer"
+        case .Match: "match"
+        case .Default: "default"
+        case .As: "as"
+        case .Is: "is"
+        case .In: "in"
+        case .Async: "async"
+        case .Await: "await"
         }
     }
 }
