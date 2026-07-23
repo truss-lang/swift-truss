@@ -1,10 +1,6 @@
 import TrussDiagnosis
 
-public struct SourceId {
-    public let id: UInt64
-}
-
-public struct Position {
+public struct Position: Hashable, Equatable {
     public let pos: Int
     public let line: Int
     public let col: Int
@@ -30,7 +26,6 @@ public enum KeywordKind: CaseIterable, Sendable {
     case Mutating
     case Nonmutating
     case Convenience
-    case Required
     case Override
     case Lazy
     case Weak
@@ -79,6 +74,7 @@ public enum KeywordKind: CaseIterable, Sendable {
     case Defer
     case Match
     case Default
+    case FallThrough
     case As
     case Is
     case In
@@ -100,7 +96,6 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .Mutating: "mutating"
         case .Nonmutating: "nonmutating"
         case .Convenience: "convenience"
-        case .Required: "required"
         case .Override: "override"
         case .Lazy: "lazy"
         case .Weak: "weak"
@@ -149,6 +144,7 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .Defer: "defer"
         case .Match: "match"
         case .Default: "default"
+        case .FallThrough: "fallthrough"
         case .As: "as"
         case .Is: "is"
         case .In: "in"
@@ -170,6 +166,7 @@ public enum SeparatorKind: Sendable {
     case SemiColon  // ;
     case Comma  // ,
     case Colon  // :
+    case Sharp  // #
 }
 
 public enum OperatorKind: Sendable {
@@ -224,7 +221,7 @@ public enum OperatorKind: Sendable {
     case Elvis  // ?:
 }
 
-public enum TokenKind: Equatable {
+public enum TokenKind: Hashable, Equatable {
     case Identifier
     case Keyword(KeywordKind)
     case Separator(SeparatorKind)
@@ -238,7 +235,7 @@ public enum TokenKind: Equatable {
     case Unknown
 }
 
-public final class Token {
+public final class Token: Hashable, Equatable {
     public let value: String
     public let kind: TokenKind
     public let pos: Position
@@ -248,6 +245,16 @@ public final class Token {
         self.kind = kind
         self.pos = pos
         self.id = id
+    }
+    public static func == (_ lhs: Token, _ rhs: Token) -> Bool {
+        return lhs.value == rhs.value && lhs.kind == rhs.kind && lhs.pos == rhs.pos
+            && lhs.id == rhs.id
+    }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(value)
+        hasher.combine(kind)
+        hasher.combine(pos)
+        hasher.combine(id)
     }
 }
 

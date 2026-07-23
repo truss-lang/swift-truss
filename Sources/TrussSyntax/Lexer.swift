@@ -109,6 +109,8 @@ public final class Lexer {
             return self.singleCharToken(.Separator(.Comma), ",")
         case ":":
             return self.singleCharToken(.Separator(.Colon), ":")
+        case "#":
+            return self.singleCharToken(.Separator(.Sharp), "#")
         case "$":
             return self.singleCharToken(.Operator(.Dollar), "$")
         case "@":
