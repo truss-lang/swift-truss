@@ -24,7 +24,9 @@ struct truss {
                 func f3() {
                 }
             }
-            struct S: P {
+            protocol P {}
+            protocol P2: P {}
+            struct S: P2 {
             }
             """
         let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))
