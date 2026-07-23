@@ -553,12 +553,15 @@ public final class Parser {
     private func parseExpression() -> AST.Expression {
         var ops: [Token] = []
         var operands: [AST.Expression] = []
+        var lastIsExpression = false
         while let token = peek {
             if case .Operator = token.kind {
                 ops.append(token)
                 self.index += 1
-            } else if let expr = parsePrimary() {
+                lastIsExpression = false
+            } else if !lastIsExpression, let expr = parsePrimary() {
                 operands.append(expr)
+                lastIsExpression = true
             } else {
                 break
             }
@@ -639,7 +642,7 @@ public final class Parser {
                             self.index += 1
                             closeToken = t4
                         } else {
-                            fatalError()
+                            emitError("expected '>'", at: t2.sourceRange(in: buffer))
                         }
                         expression = AST.GenericApplication(
                             base: base, genericArguments,
