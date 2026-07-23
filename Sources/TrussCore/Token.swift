@@ -62,6 +62,7 @@ public enum KeywordKind: CaseIterable, Sendable {
     case Let
     case Var
     case Guard
+    case Where
     case If
     case Else
     case While
@@ -83,6 +84,8 @@ public enum KeywordKind: CaseIterable, Sendable {
     case In
     case Async
     case Await
+    case AnyKw
+    case SomeKw
     public var code: String {
         switch self {
         case .Open: "open"
@@ -129,6 +132,7 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .Let: "let"
         case .Var: "var"
         case .Guard: "guard"
+        case .Where: "where"
         case .If: "if"
         case .Else: "else"
         case .While: "while"
@@ -150,6 +154,8 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .In: "in"
         case .Async: "async"
         case .Await: "await"
+        case .AnyKw: "any"
+        case .SomeKw: "some"
         }
     }
 }

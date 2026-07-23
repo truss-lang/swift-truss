@@ -1,7 +1,14 @@
 import CustomDump
 import TrussCore
+import TrussDiagnosis
 import TrussSemantics
 import TrussSyntax
+
+extension SourceLocation: CustomDumpStringConvertible {
+    public var customDumpDescription: String {
+        return "SourceLocation(\n  offset: \(offset),\n  line: \(line),\n  column: \(column)\n)"
+    }
+}
 
 @main
 struct truss {
@@ -11,13 +18,13 @@ struct truss {
                 var a = 1
                 a
                 f2()
-            }
-            func f2() {
                 M.f3()
             }
             module M {
                 func f3() {
                 }
+            }
+            struct S: P {
             }
             """
         let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))
@@ -29,6 +36,6 @@ struct truss {
         Enter(context: context).visitProgram(program)
         NameResolver(context: context).visitProgram(program)
         customDump(program)
-
+        print(TerminalRenderer().render(context.diagnositicEngine.diagnostics))
     }
 }

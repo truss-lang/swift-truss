@@ -74,6 +74,19 @@ extension AST {
         }
 
         @discardableResult
+        open func visitStructDecl(
+            _ structDecl: AST.StructDecl, additional: Any? = nil
+        ) -> Any? {
+            for conformance in structDecl.conformances {
+                visit(conformance, additional: additional)
+            }
+            for statement in structDecl.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitFunctionDecl(
             _ functionDecl: AST.FunctionDecl, additional: Any? = nil
         ) -> Any? {

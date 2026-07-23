@@ -37,18 +37,6 @@ extension AST {
             visitor.visitExpressionStatement(self, additional: additional)
         }
     }
-    public final class Return: Statement {
-        public let token: Token
-        public let value: Expression?
-        public init(_ token: Token, _ value: Expression?, sourceRange: SourceRange? = nil) {
-            self.token = token
-            self.value = value
-            super.init(sourceRange: sourceRange)
-        }
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitReturn(self, additional: additional)
-        }
-    }
     public final class ModuleDecl: Statement {
         public let token: Token
         public let name: Token
@@ -106,6 +94,25 @@ extension AST {
             case None
         }
     }
+    public final class StructDecl: Statement {
+        public let token: Token
+        public let name: Token
+        public let conformances: [TypeExpression]
+        public let body: [AST.Statement]
+        public init(
+            _ token: Token, _ name: Token, _ conformances: [TypeExpression],
+            _ body: [AST.Statement], sourceRange: SourceRange? = nil
+        ) {
+            self.token = token
+            self.name = name
+            self.conformances = conformances
+            self.body = body
+            super.init(sourceRange: sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitStructDecl(self, additional: additional)
+        }
+    }
     public final class FunctionDecl: Statement {
         public let token: Token
         public let name: Token
@@ -150,6 +157,18 @@ extension AST {
         }
         public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitVariableDecl(self, additional: additional)
+        }
+    }
+    public final class Return: Statement {
+        public let token: Token
+        public let value: Expression?
+        public init(_ token: Token, _ value: Expression?, sourceRange: SourceRange? = nil) {
+            self.token = token
+            self.value = value
+            super.init(sourceRange: sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitReturn(self, additional: additional)
         }
     }
 }

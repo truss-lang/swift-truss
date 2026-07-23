@@ -67,8 +67,33 @@ public final class Parser {
     public func parse() -> AST.Program {
         var statements: [AST.Statement] = []
         while true {
-            if let statement = parseBasicStatement() {
-                statements.append(statement)
+            guard let t = peek else {
+                break
+            }
+            var statement: AST.Statement?
+            switch t.kind {
+            case .Keyword(let keywordKind):
+                switch keywordKind {
+                case .Module: statement = parseModuleDecl()
+                case .PrecedenceGroup: statement = parsePrecedenceGroupDecl()
+                case .Struct: statement = parseStructDecl()
+                case .Func: statement = parseFunctionDecl()
+                case .Let: statement = parseVariableDecl()
+                case .Var: statement = parseVariableDecl()
+                default: statement = nil
+                }
+            case .Separator(let kind):
+                switch kind {
+                case .SemiColon:
+                    self.index += 1
+                    statement = AST.EmptyStatement(t, sourceRange: t.sourceRange(in: buffer))
+                default: statement = nil
+                }
+            default:
+                statement = nil
+            }
+            if let stmt = statement {
+                statements.append(stmt)
             } else {
                 break
             }
@@ -90,11 +115,11 @@ public final class Parser {
         switch t.kind {
         case .Keyword(let keywordKind):
             switch keywordKind {
+            case .Module: return parseModuleDecl()
+            case .PrecedenceGroup: return parsePrecedenceGroupDecl()
             case .Func: return parseFunctionDecl()
             case .Let: return parseVariableDecl()
             case .Var: return parseVariableDecl()
-            case .Module: return parseModuleDecl()
-            case .PrecedenceGroup: return parsePrecedenceGroupDecl()
             default: return nil
             }
         case .Separator(let kind):
@@ -140,7 +165,7 @@ public final class Parser {
                 break
             }
         }
-        var endToken: Token = name
+        let endToken: Token
         if let closeToken = peek {
             if case .Separator(let kind) = closeToken.kind,
                 case .CloseBrace = kind
@@ -153,6 +178,7 @@ public final class Parser {
             endToken = closeToken
         } else {
             emitEndOfFile()
+            endToken = openToken
         }
         return AST.ModuleDecl(
             token, name, body, sourceRange: SourceRange(from: token, to: endToken, in: buffer))
@@ -367,6 +393,72 @@ public final class Parser {
             token, name, higherThanToken, higherThan, lowerThanToken, lowerThan, associativityToken,
             associativity,
             assignmentToken, assignment,
+            sourceRange: SourceRange(from: token, to: endToken, in: buffer))
+    }
+    private func parseStructDecl() -> AST.Statement {
+        guard let token = next else {
+            emitEndOfFile()
+            return AST.ErrorStatement()
+        }
+        guard let name = next else {
+            emitError("expected module name after 'module'", at: token)
+            return AST.ErrorStatement()
+        }
+        guard case .Identifier = name.kind else {
+            emitError("expected identifier after 'module', but got '\(name.value)'", at: name)
+            return AST.ErrorStatement()
+        }
+        var conformances: [AST.TypeExpression] = []
+        if let t = peek, case .Separator(let kind) = t.kind, case .Colon = kind {
+            self.index += 1
+            while let t2 = peek {
+                guard let expr = parsePrimary() else { break }
+                if let typeExpression = extractTypeExpression(expr) {
+                    conformances.append(typeExpression)
+                } else {
+                    emitError(
+                        "expected type expression",
+                        at: expr.sourceRange ?? t2.sourceRange(in: buffer))
+                }
+                if let t3 = peek, case .Separator(let kind) = t3.kind, case .Comma = kind {
+                    self.index += 1
+                } else {
+                    break
+                }
+            }
+        }
+        guard let openToken = next else {
+            emitError("expected '{' after module name", at: name)
+            return AST.ErrorStatement()
+        }
+        guard case .Separator(let kind) = openToken.kind, case .OpenBrace = kind else {
+            emitError("expected '{' after module name, but got '\(openToken.value)'", at: openToken)
+            return AST.ErrorStatement()
+        }
+        var body: [AST.Statement] = []
+        while let closeToken = peek {
+            if case .Separator(let kind) = closeToken.kind, case .CloseBrace = kind {
+                break
+            }
+            body.append(parseStatement())
+        }
+        let endToken: Token
+        if let closeToken = peek {
+            if case .Separator(let kind) = closeToken.kind,
+                case .CloseBrace = kind
+            {
+                self.index += 1
+            } else {
+                emitError(
+                    "expected '}' after module body, but got \(closeToken.value)", at: closeToken)
+            }
+            endToken = closeToken
+        } else {
+            emitEndOfFile()
+            endToken = openToken
+        }
+        return AST.StructDecl(
+            token, name, conformances, body,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer))
     }
     private func parseStatement() -> AST.Statement {
