@@ -7,6 +7,13 @@ public final class Parser {
     private let lexerResult: LexerResult
     private let source: Source
     private var index: Int = 0
+    public var last: Token? {
+        if self.index - 1 < self.lexerResult.tokens.count {
+            return lexerResult.tokens[self.index - 1]
+        } else {
+            return nil
+        }
+    }
     public var peek: Token? {
         if self.index < self.lexerResult.tokens.count {
             return lexerResult.tokens[self.index]
@@ -179,7 +186,12 @@ public final class Parser {
             }
             endToken = closeToken
         } else {
-            emitEndOfFile()
+            if let l = last {
+                emitError(
+                    "expected '}' after module body", at: l)
+            } else {
+                emitEndOfFile()
+            }
             endToken = openToken
         }
         return AST.ModuleDecl(
@@ -668,23 +680,23 @@ public final class Parser {
             emitError("expected function name after 'func'", at: token)
             return AST.ErrorStatement()
         }
-        if let t = peek {
-            if case .Separator(let kind) = t.kind, case .OpenParen = kind {
-                self.index += 1
-            } else {
-                emitError("expected '(' after function name", at: t)
-            }
-        } else {
-            emitEndOfFile()
+        guard let t1 = peek else {
+            emitError("expected '(' after function name", at: name)
+            return AST.ErrorStatement()
         }
-        if let t = peek {
-            if case .Separator(let kind) = t.kind, case .CloseParen = kind {
-                self.index += 1
-            } else {
-                emitError("expected ')' after function parameters", at: t)
-            }
+        if case .Separator(let kind) = t1.kind, case .OpenParen = kind {
+            self.index += 1
         } else {
-            emitEndOfFile()
+            emitError("expected '(' after function name, but got '\(t1.value)'", at: t1)
+        }
+        guard let t2 = peek else {
+            emitError("expected ')' after function parameters", at: t1)
+            return AST.ErrorStatement()
+        }
+        if case .Separator(let kind) = t2.kind, case .CloseParen = kind {
+            self.index += 1
+        } else {
+            emitError("expected ')' after function parameters, but got '\(t2.value)'", at: t2)
         }
         let returnTypeExpression: AST.Expression?
         if let t = peek, case .Operator(let kind) = t.kind, case .Arrow = kind {
@@ -956,5 +968,487 @@ public final class Parser {
             range = nil
         }
         return AST.Call(callee: callee, arguments: [], sourceRange: range)
+    }
+    private func parseAnnotations() -> ([AST.Modifier], [AST.Attribute]) {
+        var modifiers: [AST.Modifier] = []
+        var attributes: [AST.Attribute] = []
+        _loop: while let token = peek {
+            switch token.kind {
+            case .Keyword(let kind):
+                switch kind {
+                case .Open:
+                    self.index += 1
+                    if let t = peek, case .Separator(let kind) = t.kind, case .OpenParen = kind {
+                        self.index += 1
+                        guard let t2 = peek else {
+                            emitError("expected 'set' after '('", at: t)
+                            break _loop
+                        }
+                        if case .Identifier = t2.kind, t2.value == "set" {
+                            self.index += 1
+                        } else {
+                            emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
+                        }
+                        guard let t3 = peek else {
+                            emitError("expected ')' after 'set'", at: t2)
+                            break _loop
+                        }
+                        if case .Separator(let kind) = t3.kind,
+                            case .CloseParen = kind
+                        {
+                            self.index += 1
+                            modifiers.append(
+                                AST.Modifier(
+                                    token: token,
+                                    kind: .Open(setter: true),
+                                    sourceRange: SourceRange(from: token, to: t3, in: buffer)
+                                )
+                            )
+                        } else {
+                            emitError("expected ')' after 'set', but got '\(t3.value)'", at: t3)
+                        }
+                    } else {
+                        modifiers.append(
+                            AST.Modifier(
+                                token: token,
+                                kind: .Open(setter: false),
+                                sourceRange: token.sourceRange(in: buffer)
+                            )
+                        )
+                    }
+                case .Public:
+                    self.index += 1
+                    if let t = peek, case .Separator(let kind) = t.kind, case .OpenParen = kind {
+                        self.index += 1
+                        guard let t2 = peek else {
+                            emitError("expected 'set' after '('", at: t)
+                            break _loop
+                        }
+                        if case .Identifier = t2.kind, t2.value == "set" {
+                            self.index += 1
+                        } else {
+                            emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
+                        }
+                        guard let t3 = peek else {
+                            emitError("expected ')' after 'set'", at: t2)
+                            break _loop
+                        }
+                        if case .Separator(let kind) = t3.kind,
+                            case .CloseParen = kind
+                        {
+                            self.index += 1
+                            modifiers.append(
+                                AST.Modifier(
+                                    token: token,
+                                    kind: .Public(setter: true),
+                                    sourceRange: SourceRange(from: token, to: t3, in: buffer)
+                                )
+                            )
+                        } else {
+                            emitError("expected ')' after 'set', but got '\(t3.value)'", at: t3)
+                        }
+                    } else {
+                        modifiers.append(
+                            AST.Modifier(
+                                token: token,
+                                kind: .Public(setter: false),
+                                sourceRange: token.sourceRange(in: buffer)
+                            )
+                        )
+                    }
+                case .Protected:
+                    self.index += 1
+                    if let t = peek, case .Separator(let kind) = t.kind, case .OpenParen = kind {
+                        self.index += 1
+                        guard let t2 = peek else {
+                            emitError("expected 'set' after '('", at: t)
+                            break _loop
+                        }
+                        if case .Identifier = t2.kind, t2.value == "set" {
+                            self.index += 1
+                        } else {
+                            emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
+                        }
+                        guard let t3 = peek else {
+                            emitError("expected ')' after 'set'", at: t2)
+                            break _loop
+                        }
+                        if case .Separator(let kind) = t3.kind,
+                            case .CloseParen = kind
+                        {
+                            self.index += 1
+                            modifiers.append(
+                                AST.Modifier(
+                                    token: token,
+                                    kind: .Protected(setter: true),
+                                    sourceRange: SourceRange(from: token, to: t3, in: buffer)
+                                )
+                            )
+                        } else {
+                            emitError("expected ')' after 'set', but got '\(t3.value)'", at: t3)
+                        }
+                    } else {
+                        modifiers.append(
+                            AST.Modifier(
+                                token: token,
+                                kind: .Protected(setter: false),
+                                sourceRange: token.sourceRange(in: buffer)
+                            )
+                        )
+                    }
+                case .PackagePrivate:
+                    self.index += 1
+                    if let t = peek, case .Separator(let kind) = t.kind, case .OpenParen = kind {
+                        self.index += 1
+                        guard let t2 = peek else {
+                            emitError("expected 'set' after '('", at: t)
+                            break _loop
+                        }
+                        if case .Identifier = t2.kind, t2.value == "set" {
+                            self.index += 1
+                        } else {
+                            emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
+                        }
+                        guard let t3 = peek else {
+                            emitError("expected ')' after 'set'", at: t2)
+                            break _loop
+                        }
+                        if case .Separator(let kind) = t3.kind,
+                            case .CloseParen = kind
+                        {
+                            self.index += 1
+                            modifiers.append(
+                                AST.Modifier(
+                                    token: token,
+                                    kind: .PackagePrivate(setter: true),
+                                    sourceRange: SourceRange(from: token, to: t3, in: buffer)
+                                )
+                            )
+                        } else {
+                            emitError("expected ')' after 'set', but got '\(t3.value)'", at: t3)
+                        }
+                    } else {
+                        modifiers.append(
+                            AST.Modifier(
+                                token: token,
+                                kind: .PackagePrivate(setter: false),
+                                sourceRange: token.sourceRange(in: buffer)
+                            )
+                        )
+                    }
+                case .Internal:
+                    self.index += 1
+                    if let t = peek, case .Separator(let kind) = t.kind, case .OpenParen = kind {
+                        self.index += 1
+                        guard let t2 = peek else {
+                            emitError("expected 'set' after '('", at: t)
+                            break _loop
+                        }
+                        if case .Identifier = t2.kind, t2.value == "set" {
+                            self.index += 1
+                        } else {
+                            emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
+                        }
+                        guard let t3 = peek else {
+                            emitError("expected ')' after 'set'", at: t2)
+                            break _loop
+                        }
+                        if case .Separator(let kind) = t3.kind,
+                            case .CloseParen = kind
+                        {
+                            self.index += 1
+                            modifiers.append(
+                                AST.Modifier(
+                                    token: token,
+                                    kind: .Internal(setter: true),
+                                    sourceRange: SourceRange(from: token, to: t3, in: buffer)
+                                )
+                            )
+                        } else {
+                            emitError("expected ')' after 'set', but got '\(t3.value)'", at: t3)
+                        }
+                    } else {
+                        modifiers.append(
+                            AST.Modifier(
+                                token: token,
+                                kind: .Internal(setter: false),
+                                sourceRange: token.sourceRange(in: buffer)
+                            )
+                        )
+                    }
+                case .FilePrivate:
+                    self.index += 1
+                    if let t = peek, case .Separator(let kind) = t.kind, case .OpenParen = kind {
+                        self.index += 1
+                        guard let t2 = peek else {
+                            emitError("expected 'set' after '('", at: t)
+                            break _loop
+                        }
+                        if case .Identifier = t2.kind, t2.value == "set" {
+                            self.index += 1
+                        } else {
+                            emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
+                        }
+                        guard let t3 = peek else {
+                            emitError("expected ')' after 'set'", at: t2)
+                            break _loop
+                        }
+                        if case .Separator(let kind) = t3.kind,
+                            case .CloseParen = kind
+                        {
+                            self.index += 1
+                            modifiers.append(
+                                AST.Modifier(
+                                    token: token,
+                                    kind: .FilePrivate(setter: true),
+                                    sourceRange: SourceRange(from: token, to: t3, in: buffer)
+                                )
+                            )
+                        } else {
+                            emitError("expected ')' after 'set', but got '\(t3.value)'", at: t3)
+                        }
+                    } else {
+                        modifiers.append(
+                            AST.Modifier(
+                                token: token,
+                                kind: .FilePrivate(setter: false),
+                                sourceRange: token.sourceRange(in: buffer)
+                            )
+                        )
+                    }
+                case .Private:
+                    self.index += 1
+                    if let t = peek, case .Separator(let kind) = t.kind, case .OpenParen = kind {
+                        self.index += 1
+                        guard let t2 = peek else {
+                            emitError("expected 'set' after '('", at: t)
+                            break _loop
+                        }
+                        if case .Identifier = t2.kind, t2.value == "set" {
+                            self.index += 1
+                        } else {
+                            emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
+                        }
+                        guard let t3 = peek else {
+                            emitError("expected ')' after 'set'", at: t2)
+                            break _loop
+                        }
+                        if case .Separator(let kind) = t3.kind,
+                            case .CloseParen = kind
+                        {
+                            self.index += 1
+                            modifiers.append(
+                                AST.Modifier(
+                                    token: token,
+                                    kind: .Private(setter: true),
+                                    sourceRange: SourceRange(from: token, to: t3, in: buffer)
+                                )
+                            )
+                        } else {
+                            emitError("expected ')' after 'set', but got '\(t3.value)'", at: t3)
+                        }
+                    } else {
+                        modifiers.append(
+                            AST.Modifier(
+                                token: token,
+                                kind: .Private(setter: false),
+                                sourceRange: token.sourceRange(in: buffer)
+                            )
+                        )
+                    }
+                case .Abstract:
+                    self.index += 1
+                    modifiers.append(
+                        AST.Modifier(
+                            token: token,
+                            kind: .Abstract,
+                            sourceRange: token.sourceRange(in: buffer)
+                        )
+                    )
+                case .Final:
+                    self.index += 1
+                    modifiers.append(
+                        AST.Modifier(
+                            token: token,
+                            kind: .Final,
+                            sourceRange: token.sourceRange(in: buffer)
+                        )
+                    )
+                case .Mutating:
+                    self.index += 1
+                    modifiers.append(
+                        AST.Modifier(
+                            token: token,
+                            kind: .Mutating,
+                            sourceRange: token.sourceRange(in: buffer)
+                        )
+                    )
+                case .Nonmutating:
+                    self.index += 1
+                    modifiers.append(
+                        AST.Modifier(
+                            token: token,
+                            kind: .Nonmutating,
+                            sourceRange: token.sourceRange(in: buffer)
+                        )
+                    )
+                case .Convenience:
+                    self.index += 1
+                    modifiers.append(
+                        AST.Modifier(
+                            token: token, kind: .Convenience,
+                            sourceRange: token.sourceRange(in: buffer)))
+                case .Override:
+                    self.index += 1
+                    modifiers.append(
+                        AST.Modifier(
+                            token: token,
+                            kind: .Override,
+                            sourceRange: token.sourceRange(in: buffer)
+                        )
+                    )
+                case .Lazy:
+                    self.index += 1
+                    modifiers.append(
+                        AST.Modifier(
+                            token: token,
+                            kind: .Lazy,
+                            sourceRange: token.sourceRange(in: buffer)
+                        )
+                    )
+                case .Weak:
+                    self.index += 1
+                    modifiers.append(
+                        AST.Modifier(
+                            token: token,
+                            kind: .Weak,
+                            sourceRange: token.sourceRange(in: buffer)
+                        )
+                    )
+                case .Unowned:
+                    self.index += 1
+                    modifiers.append(
+                        AST.Modifier(
+                            token: token,
+                            kind: .Unowned,
+                            sourceRange: token.sourceRange(in: buffer)
+                        )
+                    )
+                case .Indirect:
+                    self.index += 1
+                    modifiers.append(
+                        AST.Modifier(
+                            token: token,
+                            kind: .Indirect,
+                            sourceRange: token.sourceRange(in: buffer)
+                        )
+                    )
+                default:
+                    break _loop
+                }
+            case .Separator(let kind) where kind == .Sharp:
+                guard let t = peek2,
+                    case .Separator(let kind) = t.kind,
+                    kind == .OpenBracket
+                else {
+                    break _loop
+                }
+                self.index += 2
+                guard let name = peek else {
+                    emitError("expected attribute name after '#['", at: t)
+                    break _loop
+                }
+                guard case .Identifier = name.kind else {
+                    emitError(
+                        "expected attribute name after '#[' but got '\(name.value)'", at: name)
+                    break _loop
+                }
+                self.index += 1
+                guard let t2 = peek else {
+                    emitError("expected '(' or ']' after attribute name", at: name)
+                    break _loop
+                }
+                guard case .Separator(let t2Kind) = t2.kind else {
+                    emitError(
+                        "expected '(' or ']' after attribute name, but got '\(t2.value)'", at: t2)
+                    break _loop
+                }
+                var arguments: [[Token]] = []
+                var labeledArguments: [Token: [Token]] = [:]
+                if case .OpenParen = t2Kind {
+                    self.index += 1
+                    while let t = peek {
+                        self.index += 1
+                        if case .Identifier = t.kind, let t2 = peek,
+                            case .Separator(let kind) = t2.kind,
+                            case .Colon = kind
+                        {
+                            self.index += 1
+                            var args: [Token] = []
+                            while let t2 = peek {
+                                if case .Separator(let kind) = t2.kind, case .CloseParen = kind {
+                                    break
+                                }
+                                self.index += 1
+                                if case .Separator(let kind) = t2.kind, case .Comma = kind {
+                                    break
+                                }
+                                args.append(t2)
+                            }
+                            labeledArguments[t] = args
+                        } else {
+                            var args: [Token] = [t]
+                            while let t2 = peek {
+                                if case .Separator(let kind) = t2.kind, case .CloseParen = kind {
+                                    break
+                                }
+                                self.index += 1
+                                if case .Separator(let kind) = t2.kind, case .Comma = kind {
+                                    break
+                                }
+                                args.append(t2)
+                            }
+                            arguments.append(args)
+                        }
+                    }
+                    if let t = peek {
+                        if case .Separator(let kind) = t.kind,
+                            case .CloseParen = kind
+                        {
+                            self.index += 1
+                        } else {
+                            emitError(
+                                "expected ')' after attribute arguments, but got '\(t.value)'",
+                                at: t)
+                        }
+                    } else if let l = last {
+                        emitError("expected ')' after attribute arguments", at: l)
+                        break _loop
+                    } else {
+                        emitEndOfFile()
+                        break _loop
+                    }
+                }
+                if let t = peek {
+                    if case .Separator(let kind) = t.kind, case .CloseBracket = kind {
+                        self.index += 1
+                    } else {
+                        emitError(
+                            "expected ']' after attribute arguments, but got '\(t.value)'",
+                            at: t)
+                    }
+                } else if let l = last {
+                    emitError("expected ']' in attribute", at: l)
+                    break _loop
+                } else {
+                    emitEndOfFile()
+                    break _loop
+                }
+
+            default:
+                break _loop
+            }
+        }
+        return (modifiers, attributes)
     }
 }
