@@ -91,7 +91,7 @@ public struct TerminalRenderer: DiagnosticRenderer {
         output += colorize("\(lineNumStr) | ", color: .cyan)
         output += "\(lineContent)\n"
 
-        let indent = String(repeating: " ", count: lineNumStr.count + 3)
+        let indent = String(repeating: " ", count: lineNumStr.count + 1)
         output += colorize("\(indent)| ", color: .cyan)
 
         let prefixSpaces = String(repeating: " ", count: max(0, loc.column - 1))
