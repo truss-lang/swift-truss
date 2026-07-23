@@ -1,5 +1,5 @@
+import SwiftBetterDiagnosis
 import TrussCore
-import TrussDiagnosis
 
 public final class Parser {
     private let context: Context

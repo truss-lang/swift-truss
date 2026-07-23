@@ -1,5 +1,5 @@
 {
-  "originHash" : "19f0d24804330882a448ac7dfe2d20aaa6cbacb8e789cf2245e9a9c1f7ebfea9",
+  "originHash" : "7948e440b503d36465dbf879fac189a61bb128d5dd6b5abd0eaa0c40dc8b3bdf",
   "pins" : [
     {
       "identity" : "swift-abstract",
@@ -11,9 +11,18 @@
       }
     },
     {
+      "identity" : "swift-better-diagnosis",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/xiaoli-white/swift-better-diagnosis.git",
+      "state" : {
+        "revision" : "30846928c02ea2583d8c3fed88713c622ba1b6ad",
+        "version" : "1.0.0"
+      }
+    },
+    {
       "identity" : "swift-custom-dump",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-custom-dump",
+      "location" : "https://github.com/pointfreeco/swift-custom-dump.git",
       "state" : {
         "revision" : "a8cd6c976f335ed361dcecddb0dc39ebda51bc3e",
         "version" : "1.6.1"

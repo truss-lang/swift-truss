@@ -1,10 +1,10 @@
 import CustomDump
+import SwiftBetterDiagnosis
 import TrussCore
-import TrussDiagnosis
 import TrussSemantics
 import TrussSyntax
 
-extension SourceLocation: CustomDumpStringConvertible {
+extension SourceLocation: @retroactive CustomDumpStringConvertible {
     public var customDumpDescription: String {
         return "SourceLocation(\n  offset: \(offset),\n  line: \(line),\n  column: \(column)\n)"
     }

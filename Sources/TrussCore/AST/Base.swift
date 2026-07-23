@@ -1,5 +1,5 @@
 import SwiftAbstract
-import TrussDiagnosis
+import SwiftBetterDiagnosis
 
 public enum AST {
     @abstractClass

@@ -1,4 +1,4 @@
-import TrussDiagnosis
+import SwiftBetterDiagnosis
 
 public final class Source {
     public let id: Id.SourceId

@@ -1,4 +1,4 @@
-import TrussDiagnosis
+import SwiftBetterDiagnosis
 
 public struct Position: Hashable, Equatable {
     public let pos: Int
