@@ -71,6 +71,17 @@ public final class Parser {
         emitError("unexpected end of file", atOffset: source.content.utf8.count)
     }
 
+    private func note(_ message: String, at token: Token) -> Diagnostic {
+        Diagnostic(severity: .note, message: message, range: token.sourceRange(in: buffer))
+    }
+
+    private func emitError(_ message: String, at token: Token, notes: [Diagnostic]) {
+        context.diagnositicEngine.emit(
+            Diagnostic(
+                severity: .error, message: message,
+                range: token.sourceRange(in: buffer), notes: notes))
+    }
+
     public func parse() -> AST.Program {
         var statements: [AST.Statement] = []
         while let t = peek {
@@ -255,7 +266,9 @@ public final class Parser {
                     if associativityToken == nil {
                         associativityToken = t
                     } else {
-                        emitError("associativity can only be set once", at: t)
+                        emitError(
+                            "associativity can only be set once", at: t,
+                            notes: [note("previous definition here", at: associativityToken!)])
                     }
                     if let t2 = peek {
                         if case .Separator(let kind) = t2.kind, case .Colon = kind {
@@ -296,7 +309,9 @@ public final class Parser {
                     if assignmentToken == nil {
                         assignmentToken = t
                     } else {
-                        emitError("assignment can only be set once", at: t)
+                        emitError(
+                            "assignment can only be set once", at: t,
+                            notes: [note("previous definition here", at: assignmentToken!)])
                     }
                     if let t2 = peek {
                         if case .Separator(let kind) = t2.kind, case .Colon = kind {
@@ -324,7 +339,9 @@ public final class Parser {
                     if higherThanToken == nil {
                         higherThanToken = t
                     } else {
-                        emitError("higherThan can only be set once", at: t)
+                        emitError(
+                            "higherThan can only be set once", at: t,
+                            notes: [note("previous definition here", at: higherThanToken!)])
                     }
                     if let t2 = peek {
                         if case .Separator(let kind) = t2.kind, case .Colon = kind {
@@ -364,7 +381,9 @@ public final class Parser {
                     if lowerThanToken == nil {
                         lowerThanToken = t
                     } else {
-                        emitError("lowerThan can only be set once", at: t)
+                        emitError(
+                            "lowerThan can only be set once", at: t,
+                            notes: [note("previous definition here", at: lowerThanToken!)])
                     }
                     if let t2 = peek {
                         if case .Separator(let kind) = t2.kind, case .Colon = kind {

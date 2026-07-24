@@ -1,9 +1,9 @@
 import Testing
 import TrussCore
-import TrussDiagnosis
+import SwiftBetterDiagnosis
 import TrussSyntax
 
-func parse(_ source: String) -> AST.Program {
+func parseWithDiagnostics(_ source: String) -> (AST.Program, [Diagnostic]) {
     let context = Context()
     let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
     context.register(source: src)
@@ -12,7 +12,11 @@ func parse(_ source: String) -> AST.Program {
     let tokens = lexer.parse().tokens
     let result = LexerResult(id: Id.SourceId(id: 0), tokens: tokens)
     let parser = Parser(context: context, packageName: "main", result)
-    return parser.parse()
+    return (parser.parse(), context.diagnositicEngine.diagnostics)
+}
+
+func parse(_ source: String) -> AST.Program {
+    parseWithDiagnostics(source).0
 }
 
 func parseStatements(_ source: String) -> [AST.Statement] {
@@ -775,6 +779,19 @@ func firstExpression(_ source: String) -> AST.Expression {
     let vd = statements[1] as? AST.VariableDecl
     #expect(vd != nil)
     #expect(vd!.name.value == "x")
+}
+
+@Test func parsePrecedenceGroupDuplicateHigherThanReportsFirstDefinition() {
+    let (_, diagnostics) = parseWithDiagnostics(
+        "precedencegroup Foo { higherThan: Bar higherThan: Baz }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    #expect(errors.count == 1)
+    #expect(errors[0].message == "higherThan can only be set once")
+    #expect(errors[0].notes.count == 1)
+    let note = errors[0].notes[0]
+    #expect(note.severity == .note)
+    #expect(note.message == "previous definition here")
+    #expect(note.range.start.offset < errors[0].range.start.offset)
 }
 
 @Test func sourceRangeVariableDeclWithoutInitializer() {
