@@ -58,6 +58,13 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[8].kind == .Separator(.Colon))
 }
 
+@Test func lexSharpSeparator() {
+    let tokens = lex("#")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .Separator(.Sharp))
+    #expect(tokens[0].value == "#")
+}
+
 @Test func lexSingleCharOperators() {
     let tokens = lex("$ @ ~ . ? < > & | ^ ! = + - * / %")
     #expect(tokens.count == 17)
@@ -268,10 +275,10 @@ func lex(_ source: String) -> [Token] {
 }
 
 @Test func lexUnknownCharacter() {
-    let tokens = lex("#")
+    let tokens = lex("`")
     #expect(tokens.count == 1)
     #expect(tokens[0].kind == .Unknown)
-    #expect(tokens[0].value == "#")
+    #expect(tokens[0].value == "`")
 }
 
 @Test func lexMixedTokens() {

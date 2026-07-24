@@ -38,6 +38,7 @@ public enum KeywordKind: CaseIterable, Sendable {
     case Prefix
     case Postfix
     case TypeAlias
+    case Extern
     case Struct
     case Class
     case Enum
@@ -82,6 +83,7 @@ public enum KeywordKind: CaseIterable, Sendable {
     case Await
     case AnyKw
     case SomeKw
+    case Asm
     public var code: String {
         switch self {
         case .Open: "open"
@@ -108,6 +110,7 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .Prefix: "prefix"
         case .Postfix: "postfix"
         case .TypeAlias: "typealias"
+        case .Extern: "extern"
         case .Struct: "struct"
         case .Class: "class"
         case .Enum: "enum"
@@ -152,6 +155,7 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .Await: "await"
         case .AnyKw: "any"
         case .SomeKw: "some"
+        case .Asm: "asm"
         }
     }
 }
