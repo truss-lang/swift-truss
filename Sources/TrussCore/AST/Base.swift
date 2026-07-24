@@ -34,10 +34,15 @@ public enum AST {
         public let name: Token
         public let arguments: [[Token]]
         public let labeledArguments: [Token: [Token]]
-        public init(_ name: Token, _ arguments: [[Token]], _ labeledArguments: [Token: [Token]]) {
+        public let sourceRange: SourceRange
+        public init(
+            name: Token, arguments: [[Token]], labeledArguments: [Token: [Token]],
+            sourceRange: SourceRange
+        ) {
             self.name = name
             self.arguments = arguments
             self.labeledArguments = labeledArguments
+            self.sourceRange = sourceRange
         }
     }
     public final class Modifier {
