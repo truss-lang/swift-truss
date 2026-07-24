@@ -89,6 +89,8 @@ public final class Lexer {
             return self.parseCharLiteral()
         case _ where c >= "0" && c <= "9":
             return self.parseNumber()
+        case "`":
+            return self.parseBacktickIdentifier()
         case _ where c.isLetter || c == "_":
             return self.parseIdentifier()
         case "(":
@@ -178,6 +180,25 @@ public final class Lexer {
             return Token(value: value, kind: .Keyword(keyword), pos: pos, id: self.input.id)
         }
         return Token(value: value, kind: .Identifier, pos: pos, id: self.input.id)
+    }
+    private func parseBacktickIdentifier() -> Token {
+        let begin = self.input.currentPosition
+        _ = self.input.next()
+        var chars: [Character] = []
+        while let c = self.input.peek, c != "`" {
+            chars.append(c)
+            _ = self.input.next()
+        }
+        if self.input.peek == "`" {
+            _ = self.input.next()
+            let pos = self.makePosition(begin)
+            if chars.isEmpty {
+                return Token(value: "``", kind: .Unknown, pos: pos, id: self.input.id)
+            }
+            return Token(value: String(chars), kind: .Identifier, pos: pos, id: self.input.id)
+        }
+        let pos = self.makePosition(begin)
+        return Token(value: "`" + String(chars), kind: .Unknown, pos: pos, id: self.input.id)
     }
     private func parseStringLiteral() -> Token {
         let begin = self.input.currentPosition

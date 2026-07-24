@@ -44,6 +44,60 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[3].kind == .IntegerLiteral(5))
 }
 
+@Test func lexBacktickKeywordAsIdentifier() {
+    let tokens = lex("`public`")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .Identifier)
+    #expect(tokens[0].value == "public")
+}
+
+@Test func lexBacktickRegularIdentifier() {
+    let tokens = lex("`foo`")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .Identifier)
+    #expect(tokens[0].value == "foo")
+}
+
+@Test func lexBacktickKeywordInContext() {
+    let tokens = lex("let `func` = 5")
+    #expect(tokens.count == 4)
+    #expect(tokens[0].kind == .Keyword(.Let))
+    #expect(tokens[1].kind == .Identifier)
+    #expect(tokens[1].value == "func")
+    #expect(tokens[2].kind == .Operator(.Assign))
+    #expect(tokens[3].kind == .IntegerLiteral(5))
+}
+
+@Test func lexMultipleBacktickKeywords() {
+    let tokens = lex("`public` `private` `class`")
+    #expect(tokens.count == 3)
+    #expect(tokens[0].kind == .Identifier)
+    #expect(tokens[0].value == "public")
+    #expect(tokens[1].kind == .Identifier)
+    #expect(tokens[1].value == "private")
+    #expect(tokens[2].kind == .Identifier)
+    #expect(tokens[2].value == "class")
+}
+
+@Test func lexBacktickPositionTracking() {
+    let tokens = lex("`public`")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].pos.col == 1)
+    #expect(tokens[0].pos.len == 8)
+}
+
+@Test func lexUnclosedBacktick() {
+    let tokens = lex("`public")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .Unknown)
+}
+
+@Test func lexEmptyBackticks() {
+    let tokens = lex("``")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .Unknown)
+}
+
 @Test func lexSeparators() {
     let tokens = lex("()[]{},;:")
     #expect(tokens.count == 9)
