@@ -7,13 +7,7 @@ public final class Parser {
     private let lexerResult: LexerResult
     private let source: Source
     private var index: Int = 0
-    public var last: Token? {
-        if self.index - 1 < self.lexerResult.tokens.count {
-            return lexerResult.tokens[self.index - 1]
-        } else {
-            return nil
-        }
-    }
+    private var buffer: SourceBuffer { source.stringSourceBuffer }
     public var peek: Token? {
         if self.index < self.lexerResult.tokens.count {
             return lexerResult.tokens[self.index]
@@ -50,25 +44,25 @@ public final class Parser {
         self.lexerResult = lexerResult
         self.source = context.sourceTable[lexerResult.id]!
     }
-    private var buffer: SourceBuffer { source.stringSourceBuffer }
+    private var endOfFile: SourceLocation {
+        let converter = LocationConverter(source: source.content)
+        let (line, column) = converter.lineAndColumn(for: source.content.utf8.count)
+        return SourceLocation(
+            buffer: buffer, offset: source.content.utf8.count, line: line, column: column)
+    }
     private func emitError(_ message: String, at range: SourceRange) {
         context.diagnositicEngine.emit(Diagnostic(severity: .error, message: message, range: range))
+    }
+    private func emitError(_ message: String, at location: SourceLocation) {
+        emitError(message, at: SourceRange(location: location))
     }
 
     private func emitError(_ message: String, at token: Token) {
         emitError(message, at: token.sourceRange(in: buffer))
     }
 
-    private func emitError(_ message: String, atOffset offset: Int) {
-        let buffer = source.stringSourceBuffer
-        let converter = LocationConverter(source: source.content)
-        let (line, column) = converter.lineAndColumn(for: offset)
-        let loc = SourceLocation(buffer: buffer, offset: offset, line: line, column: column)
-        emitError(message, at: SourceRange(start: loc, end: loc))
-    }
-
     private func emitEndOfFile() {
-        emitError("unexpected end of file", atOffset: source.content.utf8.count)
+        emitError("unexpected end of file", at: SourceRange(location: endOfFile))
     }
 
     private func note(_ message: String, at token: Token) -> Diagnostic {
@@ -88,7 +82,7 @@ public final class Parser {
             let (modifiers, attributes) = parseAnnotations()
             guard let token = peek else {
                 if !modifiers.isEmpty || !attributes.isEmpty {
-                    emitError("expected statement", at: last!)
+                    emitError("expected statement", at: endOfFile)
                 }
                 break
             }
@@ -138,7 +132,7 @@ public final class Parser {
             if modifiers.isEmpty && attributes.isEmpty {
                 return nil
             } else {
-                emitError("expected statement", at: last!)
+                emitError("expected statement", at: endOfFile)
                 return AST.ErrorStatement()
             }
         }
@@ -171,11 +165,10 @@ public final class Parser {
         -> AST.Statement
     {
         guard let token = next else {
-            emitEndOfFile()
-            return AST.ErrorStatement()
+            fatalError("unreachable")
         }
         guard let name = next else {
-            emitError("expected module name after 'module'", at: token)
+            emitError("expected module name after 'module'", at: endOfFile)
             return AST.ErrorStatement()
         }
         guard case .Identifier = name.kind else {
@@ -183,7 +176,7 @@ public final class Parser {
             return AST.ErrorStatement()
         }
         guard let openToken = next else {
-            emitError("expected '{' after module name", at: name)
+            emitError("expected '{' after module name", at: endOfFile)
             return AST.ErrorStatement()
         }
         guard case .Separator(let kind) = openToken.kind, case .OpenBrace = kind else {
@@ -212,12 +205,7 @@ public final class Parser {
             }
             endToken = closeToken
         } else {
-            if let l = last {
-                emitError(
-                    "expected '}' after module body", at: l)
-            } else {
-                emitEndOfFile()
-            }
+            emitError("expected '}' after module body", at: endOfFile)
             endToken = openToken
         }
         return AST.ModuleDecl(
@@ -228,20 +216,21 @@ public final class Parser {
         _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute]
     ) -> AST.Statement {
         guard let token = next else {
-            emitEndOfFile()
-            return AST.ErrorStatement()
+            fatalError("unreachable")
         }
         guard let name = next else {
-            emitError("expected module name after 'precedencegroup'", at: token)
+            emitError("expected module name after 'precedencegroup'", at: endOfFile)
             return AST.ErrorStatement()
         }
         guard case .Identifier = name.kind else {
             emitError(
-                "expected identifier after 'precedencegroup', but got '\(name.value)'", at: name)
+                "expected identifier after 'precedencegroup', but got '\(name.value)'",
+                at: name
+            )
             return AST.ErrorStatement()
         }
         guard let openToken = next else {
-            emitError("expected '{' after precedencegroup name", at: name)
+            emitError("expected '{' after precedencegroup name", at: endOfFile)
             return AST.ErrorStatement()
         }
         guard case .Separator(let kind) = openToken.kind, case .OpenBrace = kind else {
@@ -274,10 +263,13 @@ public final class Parser {
                         if case .Separator(let kind) = t2.kind, case .Colon = kind {
                             self.index += 1
                         } else {
-                            emitError("expected ':' after 'associativity'", at: t2)
+                            emitError(
+                                "expected ':' after 'associativity', but got '\(t2.value)'",
+                                at: t2
+                            )
                         }
                     } else {
-                        emitEndOfFile()
+                        emitError("expected ':' after 'associativity", at: endOfFile)
                     }
                     if let t2 = peek {
                         if case .Identifier = t2.kind {
@@ -293,16 +285,21 @@ public final class Parser {
                                 associativity = .None
                             default:
                                 emitError(
-                                    "expected 'left', 'right' or 'none' after ':' in associativity",
-                                    at: t2)
+                                    "expected 'left', 'right' or 'none' after ':' in associativity, but got '\(t2.value)'",
+                                    at: t2
+                                )
                             }
                         } else {
                             emitError(
-                                "expected 'left', 'right' or 'none' after ':' in associativity",
-                                at: t2)
+                                "expected 'left', 'right' or 'none' after ':' in associativity, but got '\(t2.value)'",
+                                at: t2
+                            )
                         }
                     } else {
-                        emitEndOfFile()
+                        emitError(
+                            "expected 'left', 'right' or 'none' after ':' in associativity",
+                            at: endOfFile
+                        )
                     }
                 case "assignment":
                     self.index += 1
@@ -310,17 +307,22 @@ public final class Parser {
                         assignmentToken = t
                     } else {
                         emitError(
-                            "assignment can only be set once", at: t,
-                            notes: [note("previous definition here", at: assignmentToken!)])
+                            "assignment can only be set once",
+                            at: t,
+                            notes: [note("previous definition here", at: assignmentToken!)]
+                        )
                     }
                     if let t2 = peek {
                         if case .Separator(let kind) = t2.kind, case .Colon = kind {
                             self.index += 1
                         } else {
-                            emitError("expected ':' after 'assignment'", at: t2)
+                            emitError(
+                                "expected ':' after 'assignment', but got '\(t2.value)'",
+                                at: t2
+                            )
                         }
                     } else {
-                        emitEndOfFile()
+                        emitError("expected ':' after 'assignment'", at: endOfFile)
                     }
                     if let t2 = peek {
                         if case .BooleanLiteral(let v) = t2.kind {
@@ -328,11 +330,15 @@ public final class Parser {
                             assignment = v
                         } else {
                             emitError(
-                                "expected 'true' or 'false' after ':' in assignment",
-                                at: t2)
+                                "expected 'true' or 'false' after ':' in assignment, but got '\(t2.value)'",
+                                at: t2
+                            )
                         }
                     } else {
-                        emitEndOfFile()
+                        emitError(
+                            "expected 'true' or 'false' after ':' in assignment",
+                            at: endOfFile
+                        )
                     }
                 case "higherThan":
                     self.index += 1
@@ -341,10 +347,13 @@ public final class Parser {
                         if case .Separator(let kind) = t2.kind, case .Colon = kind {
                             self.index += 1
                         } else {
-                            emitError("expected ':' after 'higherThan'", at: t2)
+                            emitError(
+                                "expected ':' after 'higherThan', but got '\(t2.value)'",
+                                at: t2
+                            )
                         }
                     } else {
-                        emitEndOfFile()
+                        emitError("expected ':' after 'higherThan'", at: endOfFile)
                     }
                     while let t2 = peek {
                         if case .Separator(let kind) = t2.kind, case .CloseBrace = kind {
@@ -377,10 +386,13 @@ public final class Parser {
                         if case .Separator(let kind) = t2.kind, case .Colon = kind {
                             self.index += 1
                         } else {
-                            emitError("expected ':' after 'lowerThan'", at: t2)
+                            emitError(
+                                "expected ':' after 'lowerThan', but got '\(t2.value)'",
+                                at: t2
+                            )
                         }
                     } else {
-                        emitEndOfFile()
+                        emitError("expected ':' after 'lowerThan'", at: endOfFile)
                     }
                     while let t2 = peek {
                         if case .Separator(let kind) = t2.kind, case .CloseBrace = kind {
@@ -426,7 +438,7 @@ public final class Parser {
             }
             endToken = closeToken
         } else {
-            emitEndOfFile()
+            emitError("expected '}' after precedencegroup body", at: endOfFile)
         }
         return AST.PrecedenceGroupDecl(
             modifiers, attributes, token, name, higherThanTokens, higherThan, lowerThanTokens,
@@ -437,11 +449,10 @@ public final class Parser {
         -> AST.Statement
     {
         guard let token = next else {
-            emitEndOfFile()
-            return AST.ErrorStatement()
+            fatalError("unreachable")
         }
         guard let name = next else {
-            emitError("expected module name after 'struct'", at: token)
+            emitError("expected module name after 'struct'", at: endOfFile)
             return AST.ErrorStatement()
         }
         guard case .Identifier = name.kind else {
@@ -468,7 +479,7 @@ public final class Parser {
             }
         }
         guard let openToken = next else {
-            emitError("expected '{' in struct type", at: name)
+            emitError("expected '{' in struct type", at: endOfFile)
             return AST.ErrorStatement()
         }
         guard case .Separator(let kind) = openToken.kind, case .OpenBrace = kind else {
@@ -494,11 +505,13 @@ public final class Parser {
                 self.index += 1
             } else {
                 emitError(
-                    "expected '}' after struct body, but got \(closeToken.value)", at: closeToken)
+                    "expected '}' after struct body, but got \(closeToken.value)",
+                    at: closeToken
+                )
             }
             endToken = closeToken
         } else {
-            emitEndOfFile()
+            emitError("expected '}' after struct body", at: endOfFile)
             endToken = openToken
         }
         return AST.StructDecl(
@@ -509,11 +522,10 @@ public final class Parser {
         -> AST.Statement
     {
         guard let token = next else {
-            emitEndOfFile()
-            return AST.ErrorStatement()
+            fatalError("unreachable")
         }
         guard let name = next else {
-            emitError("expected module name after 'class'", at: token)
+            emitError("expected module name after 'class'", at: endOfFile)
             return AST.ErrorStatement()
         }
         guard case .Identifier = name.kind else {
@@ -540,7 +552,7 @@ public final class Parser {
             }
         }
         guard let openToken = next else {
-            emitError("expected '{' in class type", at: name)
+            emitError("expected '{' in class type", at: endOfFile)
             return AST.ErrorStatement()
         }
         guard case .Separator(let kind) = openToken.kind, case .OpenBrace = kind else {
@@ -566,11 +578,13 @@ public final class Parser {
                 self.index += 1
             } else {
                 emitError(
-                    "expected '}' after class body, but got \(closeToken.value)", at: closeToken)
+                    "expected '}' after class body, but got \(closeToken.value)",
+                    at: closeToken
+                )
             }
             endToken = closeToken
         } else {
-            emitEndOfFile()
+            emitError("expected '}' after class body", at: endOfFile)
             endToken = openToken
         }
         return AST.ClassDecl(
@@ -581,11 +595,10 @@ public final class Parser {
         -> AST.Statement
     {
         guard let token = next else {
-            emitEndOfFile()
-            return AST.ErrorStatement()
+            fatalError("unreachable")
         }
         guard let name = next else {
-            emitError("expected module name after 'protocol'", at: token)
+            emitError("expected module name after 'protocol'", at: endOfFile)
             return AST.ErrorStatement()
         }
         guard case .Identifier = name.kind else {
@@ -612,7 +625,7 @@ public final class Parser {
             }
         }
         guard let openToken = next else {
-            emitError("expected '{' in protocol type", at: name)
+            emitError("expected '{' in protocol type", at: endOfFile)
             return AST.ErrorStatement()
         }
         guard case .Separator(let kind) = openToken.kind, case .OpenBrace = kind else {
@@ -636,11 +649,13 @@ public final class Parser {
                 self.index += 1
             } else {
                 emitError(
-                    "expected '}' after protocol body, but got \(closeToken.value)", at: closeToken)
+                    "expected '}' after protocol body, but got \(closeToken.value)",
+                    at: closeToken
+                )
             }
             endToken = closeToken
         } else {
-            emitEndOfFile()
+            emitError("expected '}' after protocol body", at: endOfFile)
             endToken = openToken
         }
         return AST.ProtocolDecl(
@@ -653,7 +668,7 @@ public final class Parser {
             if modifiers.isEmpty && attributes.isEmpty {
                 return nil
             } else {
-                emitError("expected statement", at: last!)
+                emitError("expected statement", at: endOfFile)
                 return AST.ErrorStatement()
             }
         }
@@ -687,7 +702,7 @@ public final class Parser {
             if modifiers.isEmpty && attributes.isEmpty {
                 return nil
             } else {
-                emitError("expected statement", at: last!)
+                emitError("expected statement", at: endOfFile)
                 return AST.ErrorStatement()
             }
         }
@@ -723,7 +738,7 @@ public final class Parser {
             return AST.ErrorStatement()
         }
         guard let name = next else {
-            emitError("expected function name after 'func'", at: token)
+            emitError("expected function name after 'func'", at: endOfFile)
             return AST.ErrorStatement()
         }
         guard let t1 = peek else {
@@ -736,7 +751,7 @@ public final class Parser {
             emitError("expected '(' after function name, but got '\(t1.value)'", at: t1)
         }
         guard let t2 = peek else {
-            emitError("expected ')' after function parameters", at: t1)
+            emitError("expected ')' after function parameters", at: endOfFile)
             return AST.ErrorStatement()
         }
         if case .Separator(let kind) = t2.kind, case .CloseParen = kind {
@@ -774,11 +789,12 @@ public final class Parser {
                     } else {
                         emitError(
                             "expected '}' after function body, but got \(closeToken.value)",
-                            at: closeToken)
+                            at: closeToken
+                        )
                     }
                     endToken = closeToken
                 } else {
-                    emitEndOfFile()
+                    emitError("expected '}' after function body", at: endOfFile)
                 }
 
                 body = .Block(statements)
@@ -791,7 +807,7 @@ public final class Parser {
                 return AST.ErrorStatement()
             }
         } else {
-            emitEndOfFile()
+            emitError("expected function body", at: endOfFile)
             return AST.ErrorStatement()
         }
         let range: SourceRange?
@@ -812,11 +828,10 @@ public final class Parser {
         -> AST.Statement
     {
         guard let token = next else {
-            emitEndOfFile()
-            return AST.ErrorStatement()
+            fatalError("unreachable")
         }
         guard let name = next else {
-            emitError("expected variable name", at: token)
+            emitError("expected variable name", at: endOfFile)
             return AST.ErrorStatement()
         }
         let typeExpression: AST.Expression?
@@ -843,8 +858,7 @@ public final class Parser {
     }
     private func parseReturn() -> AST.Statement {
         guard let token = next else {
-            emitEndOfFile()
-            return AST.ErrorStatement()
+            fatalError("unreachable")
         }
         guard let t = peek else {
             return AST.Return(token, nil, sourceRange: token.sourceRange(in: buffer))
@@ -896,8 +910,7 @@ public final class Parser {
     }
     private func parsePrimary() -> AST.Expression? {
         guard let token = peek else {
-            emitEndOfFile()
-            return nil
+            fatalError("unreachable")
         }
         var expression: AST.Expression
         switch token.kind {
@@ -1001,8 +1014,14 @@ public final class Parser {
                 case .Dot:
                     self.index += 1
                     guard let member = next else {
-                        emitError("expected member name after '.'", at: t)
+                        emitError("expected member name after '.'", at: endOfFile)
                         break loop
+                    }
+                    if member.kind != .Identifier {
+                        emitError(
+                            "expected identifier after '.', but got '\(member.value)'",
+                            at: member
+                        )
                     }
                     expression = AST.MemberAccess(
                         expression, t, member,
@@ -1014,6 +1033,12 @@ public final class Parser {
         }
         return expression
     }
+    private func parseIf() -> AST.Expression {
+        guard let token = next else {
+            return AST.ErrorExpression()
+        }
+        fatalError()
+    }
     private func parseCall(_ callee: AST.Expression) -> AST.Call {
         self.index += 1
         var endToken: Token? = nil
@@ -1024,11 +1049,11 @@ public final class Parser {
                 self.index += 1
                 endToken = t
             } else {
-                emitError("expected ')' after call arguments", at: t)
+                emitError("expected ')' after call arguments, but got '\(t.value)'", at: t)
                 endToken = t
             }
         } else {
-            emitEndOfFile()
+            emitError("expected ')' after call arguments", at: endOfFile)
         }
         let range: SourceRange?
         if let endToken = endToken, let calleeRange = callee.sourceRange {
@@ -1053,7 +1078,7 @@ public final class Parser {
                     if let t = peek, case .Separator(let kind) = t.kind, case .OpenParen = kind {
                         self.index += 1
                         guard let t2 = peek else {
-                            emitError("expected 'set' after '('", at: t)
+                            emitError("expected 'set' after '('", at: endOfFile)
                             break _loop
                         }
                         if case .Identifier = t2.kind, t2.value == "set" {
@@ -1062,7 +1087,7 @@ public final class Parser {
                             emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
                         }
                         guard let t3 = peek else {
-                            emitError("expected ')' after 'set'", at: t2)
+                            emitError("expected ')' after 'set'", at: endOfFile)
                             break _loop
                         }
                         if case .Separator(let kind) = t3.kind,
@@ -1093,7 +1118,7 @@ public final class Parser {
                     if let t = peek, case .Separator(let kind) = t.kind, case .OpenParen = kind {
                         self.index += 1
                         guard let t2 = peek else {
-                            emitError("expected 'set' after '('", at: t)
+                            emitError("expected 'set' after '('", at: endOfFile)
                             break _loop
                         }
                         if case .Identifier = t2.kind, t2.value == "set" {
@@ -1102,7 +1127,7 @@ public final class Parser {
                             emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
                         }
                         guard let t3 = peek else {
-                            emitError("expected ')' after 'set'", at: t2)
+                            emitError("expected ')' after 'set'", at: endOfFile)
                             break _loop
                         }
                         if case .Separator(let kind) = t3.kind,
@@ -1133,7 +1158,7 @@ public final class Parser {
                     if let t = peek, case .Separator(let kind) = t.kind, case .OpenParen = kind {
                         self.index += 1
                         guard let t2 = peek else {
-                            emitError("expected 'set' after '('", at: t)
+                            emitError("expected 'set' after '('", at: endOfFile)
                             break _loop
                         }
                         if case .Identifier = t2.kind, t2.value == "set" {
@@ -1142,7 +1167,7 @@ public final class Parser {
                             emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
                         }
                         guard let t3 = peek else {
-                            emitError("expected ')' after 'set'", at: t2)
+                            emitError("expected ')' after 'set'", at: endOfFile)
                             break _loop
                         }
                         if case .Separator(let kind) = t3.kind,
@@ -1173,7 +1198,7 @@ public final class Parser {
                     if let t = peek, case .Separator(let kind) = t.kind, case .OpenParen = kind {
                         self.index += 1
                         guard let t2 = peek else {
-                            emitError("expected 'set' after '('", at: t)
+                            emitError("expected 'set' after '('", at: endOfFile)
                             break _loop
                         }
                         if case .Identifier = t2.kind, t2.value == "set" {
@@ -1182,7 +1207,7 @@ public final class Parser {
                             emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
                         }
                         guard let t3 = peek else {
-                            emitError("expected ')' after 'set'", at: t2)
+                            emitError("expected ')' after 'set'", at: endOfFile)
                             break _loop
                         }
                         if case .Separator(let kind) = t3.kind,
@@ -1213,7 +1238,7 @@ public final class Parser {
                     if let t = peek, case .Separator(let kind) = t.kind, case .OpenParen = kind {
                         self.index += 1
                         guard let t2 = peek else {
-                            emitError("expected 'set' after '('", at: t)
+                            emitError("expected 'set' after '('", at: endOfFile)
                             break _loop
                         }
                         if case .Identifier = t2.kind, t2.value == "set" {
@@ -1222,7 +1247,7 @@ public final class Parser {
                             emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
                         }
                         guard let t3 = peek else {
-                            emitError("expected ')' after 'set'", at: t2)
+                            emitError("expected ')' after 'set'", at: endOfFile)
                             break _loop
                         }
                         if case .Separator(let kind) = t3.kind,
@@ -1253,7 +1278,7 @@ public final class Parser {
                     if let t = peek, case .Separator(let kind) = t.kind, case .OpenParen = kind {
                         self.index += 1
                         guard let t2 = peek else {
-                            emitError("expected 'set' after '('", at: t)
+                            emitError("expected 'set' after '('", at: endOfFile)
                             break _loop
                         }
                         if case .Identifier = t2.kind, t2.value == "set" {
@@ -1262,7 +1287,7 @@ public final class Parser {
                             emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
                         }
                         guard let t3 = peek else {
-                            emitError("expected ')' after 'set'", at: t2)
+                            emitError("expected ')' after 'set'", at: endOfFile)
                             break _loop
                         }
                         if case .Separator(let kind) = t3.kind,
@@ -1293,7 +1318,7 @@ public final class Parser {
                     if let t = peek, case .Separator(let kind) = t.kind, case .OpenParen = kind {
                         self.index += 1
                         guard let t2 = peek else {
-                            emitError("expected 'set' after '('", at: t)
+                            emitError("expected 'set' after '('", at: endOfFile)
                             break _loop
                         }
                         if case .Identifier = t2.kind, t2.value == "set" {
@@ -1302,7 +1327,7 @@ public final class Parser {
                             emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
                         }
                         guard let t3 = peek else {
-                            emitError("expected ')' after 'set'", at: t2)
+                            emitError("expected ')' after 'set'", at: endOfFile)
                             break _loop
                         }
                         if case .Separator(let kind) = t3.kind,
@@ -1427,7 +1452,7 @@ public final class Parser {
                 }
                 self.index += 2
                 guard let name = peek else {
-                    emitError("expected attribute name after '#['", at: t)
+                    emitError("expected attribute name after '#['", at: endOfFile)
                     break _loop
                 }
                 guard case .Identifier = name.kind else {
@@ -1437,7 +1462,7 @@ public final class Parser {
                 }
                 self.index += 1
                 guard let t2 = peek else {
-                    emitError("expected '(' or ']' after attribute name", at: name)
+                    emitError("expected '(' or ']' after attribute name", at: endOfFile)
                     break _loop
                 }
                 guard case .Separator(let t2Kind) = t2.kind else {
@@ -1493,11 +1518,8 @@ public final class Parser {
                                 "expected ')' after attribute arguments, but got '\(t.value)'",
                                 at: t)
                         }
-                    } else if let l = last {
-                        emitError("expected ')' after attribute arguments", at: l)
-                        break _loop
                     } else {
-                        emitEndOfFile()
+                        emitError("expected ')' after attribute arguments", at: endOfFile)
                         break _loop
                     }
                 }
@@ -1509,11 +1531,8 @@ public final class Parser {
                             "expected ']' after attribute arguments, but got '\(t.value)'",
                             at: t)
                     }
-                } else if let l = last {
-                    emitError("expected ']' in attribute", at: l)
-                    break _loop
                 } else {
-                    emitEndOfFile()
+                    emitError("expected ']' in attribute", at: endOfFile)
                     break _loop
                 }
                 attributes.append(
@@ -1521,7 +1540,10 @@ public final class Parser {
                         name: name,
                         arguments: arguments,
                         labeledArguments: labeledArguments,
-                        sourceRange: SourceRange(from: token, to: last!, in: buffer)
+                        sourceRange: SourceRange(
+                            start: token.sourceRange(in: buffer).start,
+                            end: endOfFile
+                        )
                     )
                 )
             default:

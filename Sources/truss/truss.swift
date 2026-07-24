@@ -32,6 +32,7 @@ struct truss {
                 associativity: left
                 associativity: right
             }
+            precedencegroup
             """
         let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))
             .parse()
