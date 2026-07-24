@@ -357,7 +357,7 @@ public final class Parser {
                             break
                         }
                         let expr = parseExpression()
-                        if let typeExpression = extractTypeExpression(expr) {
+                        if let typeExpression = expr as? AST.TypeExpression {
                             higherThan.append(typeExpression)
                         } else {
                             emitError(
@@ -393,7 +393,7 @@ public final class Parser {
                             break
                         }
                         let expr = parseExpression()
-                        if let typeExpression = extractTypeExpression(expr) {
+                        if let typeExpression = expr as? AST.TypeExpression {
                             lowerThan.append(typeExpression)
                         } else {
                             emitError(
@@ -453,7 +453,7 @@ public final class Parser {
             self.index += 1
             while let t2 = peek {
                 let expr = parseExpression()
-                if let typeExpression = extractTypeExpression(expr) {
+                if let typeExpression = expr as? AST.TypeExpression {
                     conformances.append(typeExpression)
                 } else {
                     emitError(
@@ -525,7 +525,7 @@ public final class Parser {
             self.index += 1
             while let t2 = peek {
                 let expr = parseExpression()
-                if let typeExpression = extractTypeExpression(expr) {
+                if let typeExpression = expr as? AST.TypeExpression {
                     inheritanceClauses.append(typeExpression)
                 } else {
                     emitError(
@@ -597,7 +597,7 @@ public final class Parser {
             self.index += 1
             while let t2 = peek {
                 let expr = parseExpression()
-                if let typeExpression = extractTypeExpression(expr) {
+                if let typeExpression = expr as? AST.TypeExpression {
                     conformances.append(typeExpression)
                 } else {
                     emitError(
@@ -864,15 +864,6 @@ public final class Parser {
             return AST.Return(token, expr, sourceRange: range)
         }
     }
-    private func extractTypeExpression(_ expr: AST.Expression) -> AST.TypeExpression? {
-        if let te = expr as? AST.TypeExpression { return te }
-        if let sequentialExpression = expr as? AST.SequentialExpression,
-            sequentialExpression.operands.count == 1
-        {
-            return sequentialExpression.operands[0] as? AST.TypeExpression
-        }
-        return nil
-    }
     private func parseExpression() -> AST.Expression {
         var ops: [Token] = []
         var operands: [AST.Expression] = []
@@ -889,15 +880,19 @@ public final class Parser {
                 break
             }
         }
-        let range: SourceRange?
-        if let firstRange = operands.first?.sourceRange,
-            let lastRange = operands.last?.sourceRange
-        {
-            range = SourceRange(start: firstRange.start, end: lastRange.end)
+        if ops.isEmpty && operands.count == 1 {
+            return operands[0]
         } else {
-            range = nil
+            let range: SourceRange?
+            if let firstRange = operands.first?.sourceRange,
+                let lastRange = operands.last?.sourceRange
+            {
+                range = SourceRange(start: firstRange.start, end: lastRange.end)
+            } else {
+                range = nil
+            }
+            return AST.SequentialExpression(ops, operands, sourceRange: range)
         }
-        return AST.SequentialExpression(ops, operands, sourceRange: range)
     }
     private func parsePrimary() -> AST.Expression? {
         guard let token = peek else {
@@ -936,7 +931,7 @@ public final class Parser {
                         case .Less = k2
                     {
                         self.index += 3
-                        guard let base = extractTypeExpression(expression) else {
+                        guard let base = expression as? AST.TypeExpression else {
                             emitError(
                                 "expected type expression",
                                 at: expression.sourceRange ?? token.sourceRange(in: buffer))
