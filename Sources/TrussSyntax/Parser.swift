@@ -370,13 +370,14 @@ public final class Parser {
                         {
                             break
                         }
-                        let expr = parseExpression()
+                        let expr = parsePrimary()
                         if let typeExpression = expr as? AST.TypeExpression {
                             higherThan.append(typeExpression)
                         } else {
                             emitError(
                                 "expected type expression",
-                                at: expr.sourceRange ?? t2.sourceRange(in: buffer))
+                                at: expr?.sourceRange ?? t2.sourceRange(in: buffer)
+                            )
                         }
                         if let t3 = peek, case .Separator(.Comma) = t3.kind {
                             self.index += 1
@@ -409,13 +410,14 @@ public final class Parser {
                         {
                             break
                         }
-                        let expr = parseExpression()
+                        let expr = parsePrimary()
                         if let typeExpression = expr as? AST.TypeExpression {
                             lowerThan.append(typeExpression)
                         } else {
                             emitError(
                                 "expected type expression",
-                                at: expr.sourceRange ?? t2.sourceRange(in: buffer))
+                                at: expr?.sourceRange ?? t2.sourceRange(in: buffer)
+                            )
                         }
                         if let t3 = peek, case .Separator(.Comma) = t3.kind {
                             self.index += 1
@@ -465,14 +467,16 @@ public final class Parser {
         var conformances: [AST.TypeExpression] = []
         if let t = peek, case .Separator(.Colon) = t.kind {
             self.index += 1
-            while let t2 = peek {
-                let expr = parseExpression()
+            while peek != nil {
+                let expr = parsePrimary()
                 if let typeExpression = expr as? AST.TypeExpression {
                     conformances.append(typeExpression)
                 } else {
                     emitError(
                         "expected type expression",
-                        at: expr.sourceRange ?? t2.sourceRange(in: buffer))
+                        at: expr?.sourceRange ?? peek?.sourceRange(in: buffer)
+                            ?? SourceRange(location: endOfFile)
+                    )
                 }
                 if let t3 = peek, case .Separator(.Comma) = t3.kind {
                     self.index += 1
@@ -536,14 +540,16 @@ public final class Parser {
         var inheritanceClauses: [AST.TypeExpression] = []
         if let t = peek, case .Separator(.Colon) = t.kind {
             self.index += 1
-            while let t2 = peek {
-                let expr = parseExpression()
+            while peek != nil {
+                let expr = parsePrimary()
                 if let typeExpression = expr as? AST.TypeExpression {
                     inheritanceClauses.append(typeExpression)
                 } else {
                     emitError(
                         "expected type expression",
-                        at: expr.sourceRange ?? t2.sourceRange(in: buffer))
+                        at: expr?.sourceRange ?? peek?.sourceRange(in: buffer)
+                            ?? SourceRange(location: endOfFile)
+                    )
                 }
                 if let t3 = peek, case .Separator(.Comma) = t3.kind {
                     self.index += 1
@@ -607,14 +613,16 @@ public final class Parser {
         var conformances: [AST.TypeExpression] = []
         if let t = peek, case .Separator(.Colon) = t.kind {
             self.index += 1
-            while let t2 = peek {
-                let expr = parseExpression()
+            while peek != nil {
+                let expr = parsePrimary()
                 if let typeExpression = expr as? AST.TypeExpression {
                     conformances.append(typeExpression)
                 } else {
                     emitError(
                         "expected type expression",
-                        at: expr.sourceRange ?? t2.sourceRange(in: buffer))
+                        at: expr?.sourceRange ?? peek?.sourceRange(in: buffer)
+                            ?? SourceRange(location: endOfFile)
+                    )
                 }
                 if let t3 = peek, case .Separator(.Comma) = t3.kind {
                     self.index += 1
@@ -829,10 +837,20 @@ public final class Parser {
             emitError("expected variable name", at: endOfFile)
             return AST.ErrorStatement()
         }
-        let typeExpression: AST.Expression?
+        let typeExpression: AST.TypeExpression?
         if let t = peek, case .Separator(.Colon) = t.kind {
             self.index += 1
-            typeExpression = parseExpression()
+            let expr = parsePrimary()
+            if let typeExpr = expr as? AST.TypeExpression {
+                typeExpression = typeExpr
+            } else {
+                emitError(
+                    "expected a type expression",
+                    at: expr?.sourceRange ?? peek?.sourceRange(in: buffer)
+                        ?? SourceRange(location: endOfFile)
+                )
+                typeExpression = nil
+            }
         } else {
             typeExpression = nil
         }
@@ -951,6 +969,45 @@ public final class Parser {
             default:
                 return nil
             }
+        case .Separator(let kind):
+            switch kind {
+            case .OpenParen:
+                self.index += 1
+                expression = parseExpression()
+                if let t = peek {
+                    if case .Separator(.CloseParen) = t.kind {
+                        self.index += 1
+                    } else {
+                        emitError("expected ')' after expression, but got '\(t.value)'", at: t)
+                    }
+                } else {
+                    emitError("expected ')' after expression", at: token)
+                    return expression
+                }
+            default: return nil
+            }
+        case .Operator(let kind):
+            switch kind {
+            case .Dot:
+                self.index += 1
+                guard let member = next else {
+                    emitError("expected member name after '.'", at: endOfFile)
+                    return nil
+                }
+                if member.kind != .Identifier {
+                    emitError(
+                        "expected identifier after '.', but got '\(member.value)'",
+                        at: member
+                    )
+                }
+                expression = AST.ImplicitMemberAccess(
+                    token,
+                    member,
+                    sourceRange: token.sourceRange(in: buffer)
+                )
+            default:
+                return nil
+            }
         default: return nil
         }
         loop: while let t = peek {
@@ -968,7 +1025,9 @@ public final class Parser {
                         guard let base = expression as? AST.TypeExpression else {
                             emitError(
                                 "expected type expression",
-                                at: expression.sourceRange ?? token.sourceRange(in: buffer))
+                                at: expression.sourceRange ?? peek?.sourceRange(in: buffer)
+                                    ?? SourceRange(location: endOfFile)
+                            )
                             return AST.ErrorExpression()
                         }
                         var genericArguments: [AST.TypeExpression] = []
@@ -976,13 +1035,15 @@ public final class Parser {
                             if case .Operator(.Greater) = t4.kind {
                                 break
                             }
-                            let expr = parseExpression()
+                            let expr = parsePrimary()
                             if let typeExpression = expr as? AST.TypeExpression {
                                 genericArguments.append(typeExpression)
                             } else {
                                 emitError(
                                     "expected type expression",
-                                    at: expr.sourceRange ?? t2.sourceRange(in: buffer))
+                                    at: expr?.sourceRange ?? peek?.sourceRange(in: buffer)
+                                        ?? SourceRange(location: endOfFile)
+                                )
                             }
                         }
                         var closeToken: Token = token

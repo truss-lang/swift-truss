@@ -210,6 +210,15 @@ extension AST {
             visitor.visitSuperExpression(self, additional: additional)
         }
     }
+    public final class ImplicitMemberAccess: Expression {
+        public let token: Token
+        public let name: Token
+        public init(_ token: Token, _ name: Token, sourceRange: SourceRange? = nil) {
+            self.token = token
+            self.name = name
+            super.init(sourceRange)
+        }
+    }
     public final class SequentialExpression: Expression {
         public let ops: [Token]
         public let operands: [Expression]
