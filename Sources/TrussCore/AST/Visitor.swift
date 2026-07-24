@@ -210,6 +210,27 @@ extension AST {
         }
 
         @discardableResult
+        open func visitIf(
+            _ ifExpression: AST.If, additional: Any? = nil
+        ) -> Any? {
+            visit(ifExpression.condition, additional: additional)
+            for statement in ifExpression.then {
+                visit(statement, additional: additional)
+            }
+            if let elseKind = ifExpression.elseKind {
+                switch elseKind {
+                case .Block(let statements):
+                    for statement in statements {
+                        visit(statement, additional: additional)
+                    }
+                case .If(let elseIfExpression):
+                    visitIf(elseIfExpression, additional: additional)
+                }
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitCall(
             _ call: AST.Call, additional: Any? = nil
         ) -> Any? {
@@ -225,6 +246,27 @@ extension AST {
             _ memberAccess: AST.MemberAccess, additional: Any? = nil
         ) -> Any? {
             return visit(memberAccess.object, additional: additional)
+        }
+
+        @discardableResult
+        open func visitSelfTypeExpression(
+            _ selfTypeExpression: AST.SelfTypeExpression, additional: Any? = nil
+        ) -> Any? {
+            return nil
+        }
+
+        @discardableResult
+        open func visitSelfExpression(
+            _ selfExpression: AST.SelfExpression, additional: Any? = nil
+        ) -> Any? {
+            return nil
+        }
+
+        @discardableResult
+        open func visitSuperExpression(
+            _ superExpression: AST.SuperExpression, additional: Any? = nil
+        ) -> Any? {
+            return nil
         }
 
         @discardableResult

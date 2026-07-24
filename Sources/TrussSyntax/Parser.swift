@@ -8,6 +8,13 @@ public final class Parser {
     private let source: Source
     private var index: Int = 0
     private var buffer: SourceBuffer { source.stringSourceBuffer }
+    public var last: Token? {
+        if self.index - 1 < self.lexerResult.tokens.count {
+            return lexerResult.tokens[self.index - 1]
+        } else {
+            return nil
+        }
+    }
     public var peek: Token? {
         if self.index < self.lexerResult.tokens.count {
             return lexerResult.tokens[self.index]
@@ -219,7 +226,7 @@ public final class Parser {
             fatalError("unreachable")
         }
         guard let name = next else {
-            emitError("expected module name after 'precedencegroup'", at: endOfFile)
+            emitError("expected precedence group name after 'precedencegroup'", at: endOfFile)
             return AST.ErrorStatement()
         }
         guard case .Identifier = name.kind else {
@@ -452,7 +459,7 @@ public final class Parser {
             fatalError("unreachable")
         }
         guard let name = next else {
-            emitError("expected module name after 'struct'", at: endOfFile)
+            emitError("expected struct name after 'struct'", at: endOfFile)
             return AST.ErrorStatement()
         }
         guard case .Identifier = name.kind else {
@@ -525,7 +532,7 @@ public final class Parser {
             fatalError("unreachable")
         }
         guard let name = next else {
-            emitError("expected module name after 'class'", at: endOfFile)
+            emitError("expected class name after 'class'", at: endOfFile)
             return AST.ErrorStatement()
         }
         guard case .Identifier = name.kind else {
@@ -598,7 +605,7 @@ public final class Parser {
             fatalError("unreachable")
         }
         guard let name = next else {
-            emitError("expected module name after 'protocol'", at: endOfFile)
+            emitError("expected protocol name after 'protocol'", at: endOfFile)
             return AST.ErrorStatement()
         }
         guard case .Identifier = name.kind else {
@@ -1035,9 +1042,91 @@ public final class Parser {
     }
     private func parseIf() -> AST.Expression {
         guard let token = next else {
+            fatalError("unreachable")
+        }
+        let condition = parseExpression()
+        guard let openToken = next else {
+            emitError("expected '{' after if condition", at: endOfFile)
             return AST.ErrorExpression()
         }
-        fatalError()
+        guard case .Separator(let kind) = openToken.kind, case .OpenBrace = kind else {
+            emitError(
+                "expected '{' after if condition, but got '\(openToken.value)'",
+                at: openToken
+            )
+            return AST.ErrorExpression()
+        }
+        var then: [AST.Statement] = []
+        while let closeToken = peek {
+            if case .Separator(let kind) = closeToken.kind, case .CloseBrace = kind {
+                break
+            }
+            if let stmt = parseStatement() {
+                then.append(stmt)
+            }
+        }
+        guard let closeToken = peek else {
+            emitError("expected '}' after if body", at: endOfFile)
+            return AST.ErrorExpression()
+        }
+
+        var endToken = closeToken
+        if case .Separator(.CloseBrace) = closeToken.kind {
+            self.index += 1
+        } else {
+            emitError(
+                "expected '}' after if body, but got \(closeToken.value)",
+                at: closeToken
+            )
+        }
+        let elseKind: AST.If.ElseKind?
+        if let elseToken = peek, case .Keyword(.Else) = elseToken.kind, let t = peek2 {
+            self.index += 1
+            switch t.kind {
+            case .Keyword(.If):
+                if let ifExpression = parseIf() as? AST.If {
+                    elseKind = .If(ifExpression)
+                    endToken = last!
+                } else {
+                    elseKind = nil
+                }
+            case .Separator(.OpenBrace):
+                self.index += 1
+                var statements: [AST.Statement] = []
+                while let closeToken2 = peek {
+                    if case .Separator(.CloseBrace) = closeToken2.kind {
+                        break
+                    }
+                    if let stmt = parseStatement() {
+                        statements.append(stmt)
+                    }
+                }
+                guard let closeToken2 = peek else {
+                    emitError("expected '}' after if body", at: endOfFile)
+                    elseKind = .Block(statements)
+                    endToken = last!
+                    break
+                }
+                if case .Separator(.CloseBrace) = closeToken2.kind {
+                    self.index += 1
+                } else {
+                    emitError(
+                        "expected '}' after if body, but got \(closeToken2.value)",
+                        at: closeToken2
+                    )
+                }
+                elseKind = .Block(statements)
+                endToken = last!
+            default:
+                elseKind = nil
+            }
+        } else {
+            elseKind = nil
+        }
+        return AST.If(
+            token, condition, then, elseKind,
+            sourceRange: SourceRange(from: token, to: endToken, in: buffer)
+        )
     }
     private func parseCall(_ callee: AST.Expression) -> AST.Call {
         self.index += 1

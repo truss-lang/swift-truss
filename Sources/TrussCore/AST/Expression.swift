@@ -123,6 +123,29 @@ extension AST {
             visitor.visitNullLiteral(self, additional: additional)
         }
     }
+    public final class If: Expression {
+        public let token: Token
+        public let condition: Expression
+        public let then: [Statement]
+        public let elseKind: ElseKind?
+        public init(
+            _ token: Token, _ condition: Expression, _ then: [Statement], _ elseKind: ElseKind?,
+            sourceRange: SourceRange? = nil
+        ) {
+            self.token = token
+            self.condition = condition
+            self.then = then
+            self.elseKind = elseKind
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitIf(self, additional: additional)
+        }
+        public enum ElseKind {
+            case Block([Statement])
+            case If(If)
+        }
+    }
     public final class Call: Expression {
         public let callee: Expression
         public let arguments: [Expression]
@@ -159,6 +182,9 @@ extension AST {
             self.token = token
             super.init(sourceRange)
         }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitSelfTypeExpression(self, additional: additional)
+        }
     }
     public final class SelfExpression: Expression {
         public let token: Token
@@ -168,6 +194,9 @@ extension AST {
             self.token = token
             super.init(sourceRange)
         }
+        public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitSelfExpression(self, additional: additional)
+        }
     }
     public final class SuperExpression: Expression {
         public let token: Token
@@ -176,6 +205,9 @@ extension AST {
         ) {
             self.token = token
             super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitSuperExpression(self, additional: additional)
         }
     }
     public final class SequentialExpression: Expression {
