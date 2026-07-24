@@ -149,6 +149,26 @@ extension AST {
             visitor.visitClassDecl(self, additional: additional)
         }
     }
+    public final class ActorDecl: Decl {
+        public let token: Token
+        public let name: Token
+        public let conformances: [TypeExpression]
+        public let body: [AST.Statement]
+        public init(
+            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
+            _ name: Token, _ conformances: [TypeExpression], _ body: [AST.Statement],
+            sourceRange: SourceRange? = nil
+        ) {
+            self.token = token
+            self.name = name
+            self.conformances = conformances
+            self.body = body
+            super.init(modifiers, attributes, sourceRange: sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitActorDecl(self, additional: additional)
+        }
+    }
     public final class ProtocolDecl: Decl {
         public let token: Token
         public let name: Token

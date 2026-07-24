@@ -218,6 +218,9 @@ extension AST {
             self.name = name
             super.init(sourceRange)
         }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitImplicitMemberAccess(self, additional: additional)
+        }
     }
     public final class SequentialExpression: Expression {
         public let ops: [Token]

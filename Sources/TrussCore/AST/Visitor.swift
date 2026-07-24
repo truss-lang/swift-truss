@@ -100,6 +100,19 @@ extension AST {
         }
 
         @discardableResult
+        open func visitActorDecl(
+            _ actorDecl: AST.ActorDecl, additional: Any? = nil
+        ) -> Any? {
+            for conformance in actorDecl.conformances {
+                visit(conformance, additional: additional)
+            }
+            for statement in actorDecl.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitProtocolDecl(
             _ protocolDecl: AST.ProtocolDecl, additional: Any? = nil
         ) -> Any? {
@@ -265,6 +278,13 @@ extension AST {
         @discardableResult
         open func visitSuperExpression(
             _ superExpression: AST.SuperExpression, additional: Any? = nil
+        ) -> Any? {
+            return nil
+        }
+
+        @discardableResult
+        open func visitImplicitMemberAccess(
+            _ implicitMemberAccess: AST.ImplicitMemberAccess, additional: Any? = nil
         ) -> Any? {
             return nil
         }
