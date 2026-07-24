@@ -72,9 +72,9 @@ extension AST {
     public final class PrecedenceGroupDecl: Decl {
         public let token: Token
         public let name: Token
-        public let higherThanToken: Token?
+        public let higherThanTokens: [Token]
         public let higherThan: [TypeExpression]
-        public let lowerThanToken: Token?
+        public let lowerThanTokens: [Token]
         public let lowerThan: [TypeExpression]
         public let associativityToken: Token?
         public let associativity: Associativity
@@ -82,16 +82,16 @@ extension AST {
         public let assignment: Bool
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ higherThanToken: Token?, _ higherThan: [TypeExpression],
-            _ lowerThanToken: Token?, _ lowerThan: [TypeExpression], _ associativityToken: Token?,
+            _ name: Token, _ higherThanTokens: [Token], _ higherThan: [TypeExpression],
+            _ lowerThanTokens: [Token], _ lowerThan: [TypeExpression], _ associativityToken: Token?,
             _ associativity: Associativity, _ assignmentToken: Token?, _ assignment: Bool,
             sourceRange: SourceRange? = nil
         ) {
             self.token = token
             self.name = name
-            self.higherThanToken = higherThanToken
+            self.higherThanTokens = higherThanTokens
             self.higherThan = higherThan
-            self.lowerThanToken = lowerThanToken
+            self.lowerThanTokens = lowerThanTokens
             self.lowerThan = lowerThan
             self.associativityToken = associativityToken
             self.associativity = associativity

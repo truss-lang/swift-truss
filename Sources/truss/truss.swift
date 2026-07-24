@@ -29,8 +29,8 @@ struct truss {
             struct S: P2 {
             }
             precedencegroup Precedence {
-                higherThan: Precedence1
-                higherThan: Precedence2
+                associativity: left
+                associativity: right
             }
             """
         let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))

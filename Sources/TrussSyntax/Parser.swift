@@ -250,9 +250,9 @@ public final class Parser {
                 at: openToken)
             return AST.ErrorStatement()
         }
-        var higherThanToken: Token? = nil
+        var higherThanTokens: [Token] = []
         var higherThan: [AST.TypeExpression] = []
-        var lowerThanToken: Token? = nil
+        var lowerThanTokens: [Token] = []
         var lowerThan: [AST.TypeExpression] = []
         var associativityToken: Token? = nil
         var associativity: AST.PrecedenceGroupDecl.Associativity = .None
@@ -336,13 +336,7 @@ public final class Parser {
                     }
                 case "higherThan":
                     self.index += 1
-                    if higherThanToken == nil {
-                        higherThanToken = t
-                    } else {
-                        emitError(
-                            "higherThan can only be set once", at: t,
-                            notes: [note("previous definition here", at: higherThanToken!)])
-                    }
+                    higherThanTokens.append(t)
                     if let t2 = peek {
                         if case .Separator(let kind) = t2.kind, case .Colon = kind {
                             self.index += 1
@@ -378,13 +372,7 @@ public final class Parser {
                     }
                 case "lowerThan":
                     self.index += 1
-                    if lowerThanToken == nil {
-                        lowerThanToken = t
-                    } else {
-                        emitError(
-                            "lowerThan can only be set once", at: t,
-                            notes: [note("previous definition here", at: lowerThanToken!)])
-                    }
+                    lowerThanTokens.append(t)
                     if let t2 = peek {
                         if case .Separator(let kind) = t2.kind, case .Colon = kind {
                             self.index += 1
@@ -441,7 +429,7 @@ public final class Parser {
             emitEndOfFile()
         }
         return AST.PrecedenceGroupDecl(
-            modifiers, attributes, token, name, higherThanToken, higherThan, lowerThanToken,
+            modifiers, attributes, token, name, higherThanTokens, higherThan, lowerThanTokens,
             lowerThan, associativityToken, associativity, assignmentToken, assignment,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer))
     }
