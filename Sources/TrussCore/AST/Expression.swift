@@ -6,27 +6,27 @@ extension AST {
     public class Expression: AstNode {
         public var ty: TrussType.TrussType? = nil
         @abstractInit
-        public override init(sourceRange: SourceRange? = nil) {
-            super.init(sourceRange: sourceRange)
+        public override init(_ sourceRange: SourceRange? = nil) {
+            super.init(sourceRange)
         }
     }
     @abstractClass
     public class TypeExpression: Expression {
         @abstractInit
-        public override init(sourceRange: SourceRange? = nil) {
-            super.init(sourceRange: sourceRange)
+        public override init(_ sourceRange: SourceRange? = nil) {
+            super.init(sourceRange)
         }
     }
     @abstractClass
     public class Literal: Expression {
         @abstractInit
-        public override init(sourceRange: SourceRange? = nil) {
-            super.init(sourceRange: sourceRange)
+        public override init(_ sourceRange: SourceRange? = nil) {
+            super.init(sourceRange)
         }
     }
     public final class ErrorExpression: Expression {
-        public override init(sourceRange: SourceRange? = nil) {
-            super.init(sourceRange: sourceRange)
+        public override init(_ sourceRange: SourceRange? = nil) {
+            super.init(sourceRange)
         }
     }
     public final class Variable: TypeExpression {
@@ -34,7 +34,7 @@ extension AST {
         public var symbol: Symbol.Symbol? = nil
         public init(name: Token, sourceRange: SourceRange? = nil) {
             self.name = name
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitVariable(self, additional: additional)
@@ -49,7 +49,7 @@ extension AST {
         ) {
             self.base = base
             self.genericArguments = genericArguments
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitGenericApplication(self, additional: additional)
@@ -61,7 +61,7 @@ extension AST {
         public init(_ token: Token, _ value: Int128, sourceRange: SourceRange? = nil) {
             self.token = token
             self.value = value
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitIntegerLiteral(self, additional: additional)
@@ -73,7 +73,7 @@ extension AST {
         public init(_ token: Token, _ value: Double, sourceRange: SourceRange? = nil) {
             self.token = token
             self.value = value
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitFloatLiteral(self, additional: additional)
@@ -83,7 +83,7 @@ extension AST {
         public let token: Token
         public init(_ token: Token, sourceRange: SourceRange? = nil) {
             self.token = token
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitStringLiteral(self, additional: additional)
@@ -95,7 +95,7 @@ extension AST {
         public init(_ token: Token, _ value: Character, sourceRange: SourceRange? = nil) {
             self.token = token
             self.value = value
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitCharLiteral(self, additional: additional)
@@ -107,7 +107,7 @@ extension AST {
         public init(_ token: Token, _ value: Bool, sourceRange: SourceRange? = nil) {
             self.token = token
             self.value = value
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitBoolLiteral(self, additional: additional)
@@ -117,7 +117,7 @@ extension AST {
         public let token: Token
         public init(_ token: Token, sourceRange: SourceRange? = nil) {
             self.token = token
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitNullLiteral(self, additional: additional)
@@ -129,7 +129,7 @@ extension AST {
         public init(callee: Expression, arguments: [Expression], sourceRange: SourceRange? = nil) {
             self.callee = callee
             self.arguments = arguments
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitCall(self, additional: additional)
@@ -145,10 +145,37 @@ extension AST {
             self.object = object
             self.token = token
             self.member = member
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitMemberAccess(self, additional: additional)
+        }
+    }
+    public final class SelfTypeExpression: TypeExpression {
+        public let token: Token
+        public init(
+            _ token: Token, sourceRange: SourceRange? = nil
+        ) {
+            self.token = token
+            super.init(sourceRange)
+        }
+    }
+    public final class SelfExpression: Expression {
+        public let token: Token
+        public init(
+            _ token: Token, sourceRange: SourceRange? = nil
+        ) {
+            self.token = token
+            super.init(sourceRange)
+        }
+    }
+    public final class SuperExpression: Expression {
+        public let token: Token
+        public init(
+            _ token: Token, sourceRange: SourceRange? = nil
+        ) {
+            self.token = token
+            super.init(sourceRange)
         }
     }
     public final class SequentialExpression: Expression {
@@ -157,7 +184,7 @@ extension AST {
         public init(_ ops: [Token], _ operands: [Expression], sourceRange: SourceRange? = nil) {
             self.ops = ops
             self.operands = operands
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitSequentialExpression(self, additional: additional)
@@ -174,7 +201,7 @@ extension AST {
             self.left = left
             self.right = right
             self.operatorToken = operatorToken
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitBinary(self, additional: additional)
@@ -188,7 +215,7 @@ extension AST {
         ) {
             self.operatorToken = operatorToken
             self.expression = expression
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitPrefix(self, additional: additional)
@@ -202,7 +229,7 @@ extension AST {
         ) {
             self.expression = expression
             self.operatorToken = operatorToken
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitPostfix(self, additional: additional)

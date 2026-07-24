@@ -902,23 +902,49 @@ public final class Parser {
         var expression: AST.Expression
         switch token.kind {
         case .Identifier:
+            self.index += 1
             expression = AST.Variable(name: token, sourceRange: token.sourceRange(in: buffer))
         case .StringLiteral:
+            self.index += 1
             expression = AST.StringLiteral(token, sourceRange: token.sourceRange(in: buffer))
         case .IntegerLiteral(let value):
+            self.index += 1
             expression = AST.IntegerLiteral(
-                token, value, sourceRange: token.sourceRange(in: buffer))
+                token,
+                value,
+                sourceRange: token.sourceRange(in: buffer)
+            )
         case .FloatLiteral(let value):
+            self.index += 1
             expression = AST.FloatLiteral(token, value, sourceRange: token.sourceRange(in: buffer))
         case .CharLiteral(let value):
+            self.index += 1
             expression = AST.CharLiteral(token, value, sourceRange: token.sourceRange(in: buffer))
         case .BooleanLiteral(let value):
+            self.index += 1
             expression = AST.BoolLiteral(token, value, sourceRange: token.sourceRange(in: buffer))
         case .NullLiteral:
+            self.index += 1
             expression = AST.NullLiteral(token, sourceRange: token.sourceRange(in: buffer))
+        case .Keyword(let kind):
+            switch kind {
+            case .SelfKw:
+                self.index += 1
+                expression = AST.SelfExpression(token, sourceRange: token.sourceRange(in: buffer))
+            case .SelfTypeKw:
+                self.index += 1
+                expression = AST.SelfTypeExpression(
+                    token,
+                    sourceRange: token.sourceRange(in: buffer)
+                )
+            case .SuperKw:
+                self.index += 1
+                expression = AST.SuperExpression(token, sourceRange: token.sourceRange(in: buffer))
+            default:
+                return nil
+            }
         default: return nil
         }
-        self.index += 1
         loop: while let t = peek {
             switch t.kind {
             case .Separator(let kind):

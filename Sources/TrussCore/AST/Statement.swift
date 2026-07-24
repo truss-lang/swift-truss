@@ -5,8 +5,8 @@ extension AST {
     @abstractClass
     public class Statement: AstNode {
         @abstractInit
-        public override init(sourceRange: SourceRange? = nil) {
-            super.init(sourceRange: sourceRange)
+        public override init(_ sourceRange: SourceRange? = nil) {
+            super.init(sourceRange)
         }
     }
     @abstractClass
@@ -20,22 +20,22 @@ extension AST {
         ) {
             self.modifiers = modifiers
             self.attributes = attributes
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
     }
     public final class EmptyStatement: Statement {
         public let token: Token
         public init(_ token: Token, sourceRange: SourceRange? = nil) {
             self.token = token
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitEmptyStatement(self, additional: additional)
         }
     }
     public final class ErrorStatement: Statement {
-        public override init(sourceRange: SourceRange? = nil) {
-            super.init(sourceRange: sourceRange)
+        public init(sourceRange: SourceRange? = nil) {
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitErrorStatement(self, additional: additional)
@@ -45,7 +45,7 @@ extension AST {
         public let expression: Expression
         public init(_ expression: Expression, sourceRange: SourceRange? = nil) {
             self.expression = expression
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitExpressionStatement(self, additional: additional)
@@ -222,7 +222,7 @@ extension AST {
         public init(_ token: Token, _ value: Expression?, sourceRange: SourceRange? = nil) {
             self.token = token
             self.value = value
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitReturn(self, additional: additional)

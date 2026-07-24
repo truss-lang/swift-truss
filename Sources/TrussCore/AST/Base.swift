@@ -6,7 +6,7 @@ public enum AST {
     public class AstNode {
         public var sourceRange: SourceRange? = nil
         @abstractInit
-        public init(sourceRange: SourceRange? = nil) {
+        public init(_ sourceRange: SourceRange? = nil) {
             self.sourceRange = sourceRange
         }
         @abstract
@@ -24,7 +24,7 @@ public enum AST {
             self.id = id
             self.packageName = packageName
             self.statements = statements
-            super.init(sourceRange: sourceRange)
+            super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitProgram(self, additional: additional)
