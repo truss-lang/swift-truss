@@ -1,6 +1,6 @@
+import SwiftBetterDiagnostic
 import Testing
 import TrussCore
-import SwiftBetterDiagnosis
 import TrussSyntax
 
 func parseWithDiagnostics(_ source: String) -> (AST.Program, [Diagnostic]) {

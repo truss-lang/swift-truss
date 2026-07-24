@@ -1,5 +1,5 @@
 import SwiftAbstract
-import SwiftBetterDiagnosis
+import SwiftBetterDiagnostic
 
 extension AST {
     @abstractClass

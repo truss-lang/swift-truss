@@ -1,4 +1,4 @@
-import SwiftBetterDiagnosis
+import SwiftBetterDiagnostic
 import TrussCore
 
 public final class Parser {

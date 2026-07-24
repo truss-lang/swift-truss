@@ -1,4 +1,4 @@
-import SwiftBetterDiagnosis
+import SwiftBetterDiagnostic
 
 public final class Source {
     public let id: Id.SourceId

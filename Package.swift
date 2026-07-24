@@ -7,7 +7,7 @@ let package = Package(
     name: "swift-truss",
     dependencies: [
         .package(url: "https://github.com/xiaoli-white/swift-abstract.git", from: "1.0.0"),
-        .package(url: "https://github.com/xiaoli-white/swift-better-diagnosis.git", from: "1.0.0"),
+        .package(url: "https://github.com/xiaoli-white/swift-better-diagnostic.git", from: "1.0.0"),
         .package(url: "https://github.com/pointfreeco/swift-custom-dump.git", from: "1.6.1"),
         .package(url: "https://github.com/davecom/SwiftGraph.git", from: "4.0.0"),
     ],
@@ -15,7 +15,7 @@ let package = Package(
         .target(
             name: "TrussCore",
             dependencies: [
-                .product(name: "SwiftBetterDiagnosis", package: "swift-better-diagnosis"),
+                .product(name: "SwiftBetterDiagnostic", package: "swift-better-diagnostic"),
                 .product(name: "SwiftAbstract", package: "swift-abstract"),
             ]
         ),
@@ -31,6 +31,9 @@ let package = Package(
             name: "TrussOperators",
             dependencies: ["TrussCore", .product(name: "SwiftGraph", package: "SwiftGraph")]
         ),
+        .target(
+            name: "TrussPackageManager"
+        ),
         .executableTarget(
             name: "truss",
             dependencies: [
@@ -40,7 +43,10 @@ let package = Package(
         ),
         .testTarget(
             name: "TrussSyntaxTests",
-            dependencies: ["TrussSyntax", "TrussCore"]
+            dependencies: [
+                "TrussSyntax", "TrussCore",
+                .product(name: "SwiftBetterDiagnostic", package: "swift-better-diagnostic"),
+            ]
         ),
         .testTarget(
             name: "trussTests",

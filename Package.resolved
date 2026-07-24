@@ -1,5 +1,5 @@
 {
-  "originHash" : "7948e440b503d36465dbf879fac189a61bb128d5dd6b5abd0eaa0c40dc8b3bdf",
+  "originHash" : "921c0555856f0cdc5ea014cbb25c17600be6c7dd94ff169120fdc5b01ab23ba9",
   "pins" : [
     {
       "identity" : "swift-abstract",
@@ -11,11 +11,11 @@
       }
     },
     {
-      "identity" : "swift-better-diagnosis",
+      "identity" : "swift-better-diagnostic",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/xiaoli-white/swift-better-diagnosis.git",
+      "location" : "https://github.com/xiaoli-white/swift-better-diagnostic.git",
       "state" : {
-        "revision" : "30846928c02ea2583d8c3fed88713c622ba1b6ad",
+        "revision" : "3df6fe49efab2843ff5d214a2b0f93ce342191aa",
         "version" : "1.0.0"
       }
     },

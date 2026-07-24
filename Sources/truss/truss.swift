@@ -1,5 +1,5 @@
 import CustomDump
-import SwiftBetterDiagnosis
+import SwiftBetterDiagnostic
 import TrussCore
 import TrussSemantics
 import TrussSyntax
@@ -27,6 +27,10 @@ struct truss {
             protocol P {}
             protocol P2: P {}
             struct S: P2 {
+            }
+            precedencegroup Precedence {
+                higherThan: Precedence1
+                higherThan: Precedence2
             }
             """
         let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))
