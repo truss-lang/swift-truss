@@ -95,11 +95,7 @@ func firstExpression(_ source: String) -> AST.Expression {
     #expect(decl!.name.value == "x")
     #expect(decl!.typeExpression == nil)
     #expect(decl!.initializer != nil)
-    let sequentialExpression = decl!.initializer as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    #expect(sequentialExpression!.ops.isEmpty)
-    #expect(sequentialExpression!.operands.count == 1)
-    let intLit = sequentialExpression!.operands[0] as? AST.IntegerLiteral
+    let intLit = decl!.initializer as? AST.IntegerLiteral
     #expect(intLit != nil)
     #expect(intLit!.value == 42)
 }
@@ -112,10 +108,7 @@ func firstExpression(_ source: String) -> AST.Expression {
     #expect(decl!.name.value == "x")
     #expect(decl!.typeExpression != nil)
     #expect(decl!.initializer == nil)
-    let typesequentialExpression = decl!.typeExpression as? AST.SequentialExpression
-    #expect(typesequentialExpression != nil)
-    #expect(typesequentialExpression!.operands.count == 1)
-    let typeVar = typesequentialExpression!.operands[0] as? AST.Variable
+    let typeVar = decl!.typeExpression as? AST.Variable
     #expect(typeVar != nil)
     #expect(typeVar!.name.value == "Int")
 }
@@ -126,9 +119,7 @@ func firstExpression(_ source: String) -> AST.Expression {
     let decl = statements[0] as? AST.VariableDecl
     #expect(decl != nil)
     #expect(decl!.name.value == "flag")
-    let initsequentialExpression = decl!.initializer as? AST.SequentialExpression
-    #expect(initsequentialExpression != nil)
-    let boolLit = initsequentialExpression!.operands[0] as? AST.BoolLiteral
+    let boolLit = decl?.initializer as? AST.BoolLiteral
     #expect(boolLit != nil)
     #expect(boolLit!.value == true)
 }
@@ -156,10 +147,7 @@ func firstExpression(_ source: String) -> AST.Expression {
     #expect(decl != nil)
     #expect(decl!.returnTypeExpression == nil)
     if case .Expression(let expr) = decl!.body {
-        let sequentialExpression = expr as? AST.SequentialExpression
-        #expect(sequentialExpression != nil)
-        #expect(sequentialExpression!.operands.count == 1)
-        let intLit = sequentialExpression!.operands[0] as? AST.IntegerLiteral
+        let intLit = expr as? AST.IntegerLiteral
         #expect(intLit != nil)
         #expect(intLit!.value == 42)
     } else {
@@ -201,83 +189,62 @@ func firstExpression(_ source: String) -> AST.Expression {
 
 @Test func parseExpressionStatementWithIdentifier() {
     let expr = firstExpression("x")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    #expect(sequentialExpression!.operands.count == 1)
-    let varExpr = sequentialExpression!.operands[0] as? AST.Variable
+    let varExpr = expr as? AST.Variable
     #expect(varExpr != nil)
     #expect(varExpr!.name.value == "x")
 }
 
 @Test func parseIntegerLiteralExpression() {
     let expr = firstExpression("42")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    #expect(sequentialExpression!.operands.count == 1)
-    let lit = sequentialExpression!.operands[0] as? AST.IntegerLiteral
+    let lit = expr as? AST.IntegerLiteral
     #expect(lit != nil)
     #expect(lit!.value == 42)
 }
 
 @Test func parseFloatLiteralExpression() {
     let expr = firstExpression("3.14")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let lit = sequentialExpression!.operands[0] as? AST.FloatLiteral
+    let lit = expr as? AST.FloatLiteral
     #expect(lit != nil)
     #expect(lit!.value == 3.14)
 }
 
 @Test func parseStringLiteralExpression() {
     let expr = firstExpression("\"hello\"")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let lit = sequentialExpression!.operands[0] as? AST.StringLiteral
+    let lit = expr as? AST.StringLiteral
     #expect(lit != nil)
     #expect(lit!.token.value == "\"hello\"")
 }
 
 @Test func parseCharLiteralExpression() {
     let expr = firstExpression("'a'")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let lit = sequentialExpression!.operands[0] as? AST.CharLiteral
+    let lit = expr as? AST.CharLiteral
     #expect(lit != nil)
     #expect(lit!.value == "a")
 }
 
 @Test func parseBooleanTrueLiteralExpression() {
     let expr = firstExpression("true")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let lit = sequentialExpression!.operands[0] as? AST.BoolLiteral
+    let lit = expr as? AST.BoolLiteral
     #expect(lit != nil)
     #expect(lit!.value == true)
 }
 
 @Test func parseBooleanFalseLiteralExpression() {
     let expr = firstExpression("false")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let lit = sequentialExpression!.operands[0] as? AST.BoolLiteral
+    let lit = expr as? AST.BoolLiteral
     #expect(lit != nil)
     #expect(lit!.value == false)
 }
 
 @Test func parseNullLiteralExpression() {
     let expr = firstExpression("null")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let lit = sequentialExpression!.operands[0] as? AST.NullLiteral
+    let lit = expr as? AST.NullLiteral
     #expect(lit != nil)
 }
 
 @Test func parseFunctionCallNoArgs() {
     let expr = firstExpression("foo()")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    #expect(sequentialExpression!.operands.count == 1)
-    let call = sequentialExpression!.operands[0] as? AST.Call
+    let call = expr as? AST.Call
     #expect(call != nil)
     let callee = call!.callee as? AST.Variable
     #expect(callee != nil)
@@ -287,9 +254,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 
 @Test func parseMemberAccess() {
     let expr = firstExpression("a.b")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let member = sequentialExpression!.operands[0] as? AST.MemberAccess
+    let member = expr as? AST.MemberAccess
     #expect(member != nil)
     let obj = member!.object as? AST.Variable
     #expect(obj != nil)
@@ -300,9 +265,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 
 @Test func parseChainedMemberAccess() {
     let expr = firstExpression("a.b.c")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let member = sequentialExpression!.operands[0] as? AST.MemberAccess
+    let member = expr as? AST.MemberAccess
     #expect(member != nil)
     #expect(member!.member.value == "c")
     let innerMember = member!.object as? AST.MemberAccess
@@ -315,9 +278,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 
 @Test func parseCallOnMemberAccess() {
     let expr = firstExpression("a.b()")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let call = sequentialExpression!.operands[0] as? AST.Call
+    let call = expr as? AST.Call
     #expect(call != nil)
     #expect(call!.arguments.isEmpty)
     let callee = call!.callee as? AST.MemberAccess
@@ -330,9 +291,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 
 @Test func parseCallOnCall() {
     let expr = firstExpression("foo()()")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let outer = sequentialExpression!.operands[0] as? AST.Call
+    let outer = expr as? AST.Call
     #expect(outer != nil)
     let inner = outer!.callee as? AST.Call
     #expect(inner != nil)
@@ -444,36 +403,28 @@ func firstExpression(_ source: String) -> AST.Expression {
 
 @Test func parseHexStringLiteral() {
     let expr = firstExpression("0xFF")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let lit = sequentialExpression!.operands[0] as? AST.IntegerLiteral
+    let lit = expr as? AST.IntegerLiteral
     #expect(lit != nil)
     #expect(lit!.value == 255)
 }
 
 @Test func parseBinaryStringLiteral() {
     let expr = firstExpression("0b1010")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let lit = sequentialExpression!.operands[0] as? AST.IntegerLiteral
+    let lit = expr as? AST.IntegerLiteral
     #expect(lit != nil)
     #expect(lit!.value == 10)
 }
 
 @Test func parseUnderscoredIntegerLiteral() {
     let expr = firstExpression("1_000_000")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let lit = sequentialExpression!.operands[0] as? AST.IntegerLiteral
+    let lit = expr as? AST.IntegerLiteral
     #expect(lit != nil)
     #expect(lit!.value == 1_000_000)
 }
 
 @Test func parseScientificFloatLiteral() {
     let expr = firstExpression("1.5e-3")
-    let sequentialExpression = expr as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let lit = sequentialExpression!.operands[0] as? AST.FloatLiteral
+    let lit = expr as? AST.FloatLiteral
     #expect(lit != nil)
     #expect(lit!.value == 0.0015)
 }
@@ -484,10 +435,7 @@ func firstExpression(_ source: String) -> AST.Expression {
     let ret = body[0] as? AST.Return
     #expect(ret != nil)
     #expect(ret!.token.kind == .Keyword(.Return))
-    let sequentialExpression = ret!.value as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    #expect(sequentialExpression!.operands.count == 1)
-    let lit = sequentialExpression!.operands[0] as? AST.IntegerLiteral
+    let lit = ret!.value as? AST.IntegerLiteral
     #expect(lit != nil)
     #expect(lit!.value == 42)
 }
@@ -535,9 +483,7 @@ func firstExpression(_ source: String) -> AST.Expression {
     #expect(body.count == 3)
     let ret = body[0] as? AST.Return
     #expect(ret != nil)
-    let sequentialExpression = ret!.value as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let varExpr = sequentialExpression!.operands[0] as? AST.Variable
+    let varExpr = ret!.value as? AST.Variable
     #expect(varExpr != nil)
     #expect(varExpr!.name.value == "x")
     #expect(body[1] is AST.EmptyStatement)
@@ -634,9 +580,7 @@ func firstExpression(_ source: String) -> AST.Expression {
     let vd = module!.body[0] as? AST.VariableDecl
     #expect(vd != nil)
     #expect(vd!.name.value == "x")
-    let sequentialExpression = vd!.initializer as? AST.SequentialExpression
-    #expect(sequentialExpression != nil)
-    let lit = sequentialExpression!.operands[0] as? AST.IntegerLiteral
+    let lit = vd!.initializer as? AST.IntegerLiteral
     #expect(lit != nil)
     #expect(lit!.value == 42)
 }
@@ -715,7 +659,7 @@ func firstExpression(_ source: String) -> AST.Expression {
     let bar = pg!.higherThan[0] as? AST.Variable
     #expect(bar != nil)
     #expect(bar!.name.value == "Bar")
-    #expect(pg!.higherThanToken != nil)
+    #expect(pg!.higherThanTokens.count == 1)
 }
 
 @Test func parsePrecedenceGroupHigherThanMultiple() {
@@ -741,7 +685,7 @@ func firstExpression(_ source: String) -> AST.Expression {
     let bar = pg!.lowerThan[0] as? AST.Variable
     #expect(bar != nil)
     #expect(bar!.name.value == "Bar")
-    #expect(pg!.lowerThanToken != nil)
+    #expect(pg!.lowerThanTokens.count == 1)
 }
 
 @Test func parsePrecedenceGroupLowerThanMultiple() {
@@ -781,12 +725,29 @@ func firstExpression(_ source: String) -> AST.Expression {
     #expect(vd!.name.value == "x")
 }
 
-@Test func parsePrecedenceGroupDuplicateHigherThanReportsFirstDefinition() {
-    let (_, diagnostics) = parseWithDiagnostics(
+@Test func parsePrecedenceGroupMultipleHigherThanClauses() {
+    let (program, diagnostics) = parseWithDiagnostics(
         "precedencegroup Foo { higherThan: Bar higherThan: Baz }")
     let errors = diagnostics.filter { $0.severity == .error }
-    #expect(errors.count == 1)
-    #expect(errors[0].message == "higherThan can only be set once")
+    #expect(errors.isEmpty)
+    let pg = program.statements[0] as? AST.PrecedenceGroupDecl
+    #expect(pg != nil)
+    #expect(pg!.higherThan.count == 2)
+    #expect(pg!.higherThanTokens.count == 2)
+    let bar = pg!.higherThan[0] as? AST.Variable
+    #expect(bar != nil)
+    #expect(bar!.name.value == "Bar")
+    let baz = pg!.higherThan[1] as? AST.Variable
+    #expect(baz != nil)
+    #expect(baz!.name.value == "Baz")
+}
+
+@Test func parsePrecedenceGroupDuplicateAssociativityReportsFirstDefinition() throws {
+    let (_, diagnostics) = parseWithDiagnostics(
+        "precedencegroup Foo { associativity: left associativity: right }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "associativity can only be set once")
     #expect(errors[0].notes.count == 1)
     let note = errors[0].notes[0]
     #expect(note.severity == .note)
@@ -812,19 +773,19 @@ func firstExpression(_ source: String) -> AST.Expression {
 
 @Test func sourceRangeIntegerLiteral() {
     let expr = firstExpression("42")
-    let sequentialExpression = expr as! AST.SequentialExpression
-    let lit = sequentialExpression.operands[0] as! AST.IntegerLiteral
-    let range = lit.sourceRange!
-    #expect(range.start.offset == 14)
-    #expect(range.end.offset == 16)
-    #expect(range.start.line == 1)
-    #expect(range.start.column == 15)
+    let lit = expr as? AST.IntegerLiteral
+    #expect(lit != nil)
+    let range = lit?.sourceRange
+    #expect(range != nil)
+    #expect(range?.start.offset == 14)
+    #expect(range?.end.offset == 16)
+    #expect(range?.start.line == 1)
+    #expect(range?.start.column == 15)
 }
 
 @Test func sourceRangeVariable() {
     let expr = firstExpression("x")
-    let sequentialExpression = expr as! AST.SequentialExpression
-    let varExpr = sequentialExpression.operands[0] as! AST.Variable
+    let varExpr = expr as! AST.Variable
     let range = varExpr.sourceRange!
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 15)
@@ -856,8 +817,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 
 @Test func sourceRangeCall() {
     let expr = firstExpression("foo()")
-    let sequentialExpression = expr as! AST.SequentialExpression
-    let call = sequentialExpression.operands[0] as! AST.Call
+    let call = expr as! AST.Call
     let range = call.sourceRange!
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 19)
@@ -865,8 +825,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 
 @Test func sourceRangeMemberAccess() {
     let expr = firstExpression("a.b")
-    let sequentialExpression = expr as! AST.SequentialExpression
-    let member = sequentialExpression.operands[0] as! AST.MemberAccess
+    let member = expr as! AST.MemberAccess
     let range = member.sourceRange!
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 17)
@@ -874,8 +833,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 
 @Test func sourceRangeChainedMemberAccess() {
     let expr = firstExpression("a.b.c")
-    let sequentialExpression = expr as! AST.SequentialExpression
-    let member = sequentialExpression.operands[0] as! AST.MemberAccess
+    let member = expr as! AST.MemberAccess
     let range = member.sourceRange!
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 19)
