@@ -849,6 +849,7 @@ public final class Parser {
             case .Return: return parseReturn()
             case .While: return parseWhile()
             case .Repeat: return parseRepeatWhile()
+            case .Guard: return parseGuard()
             case .Defer: return parseDefer()
             default:
                 emitError("expected a statement, but got \(token.value)", at: token)
@@ -1092,6 +1093,57 @@ public final class Parser {
         return AST.RepeatWhile(
             token, openToken, body, closeToken, whileToken, condition,
             sourceRange: SourceRange(from: token, to: whileToken, in: buffer)
+        )
+    }
+    private func parseGuard() -> AST.Statement {
+        let token = next!
+        let condition = parseExpression()
+        guard let t = next else {
+            emitError("expected 'else' after guard condition", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        guard case .Keyword(.Else) = t.kind else {
+            emitError(
+                "expected 'else' after guard condition, but got '\(t.value)'",
+                at: t
+            )
+            return errorStatement(from: token, to: t)
+        }
+        guard let openToken = next else {
+            emitError("expected '{' after 'else'", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        guard case .Separator(.OpenBrace) = openToken.kind else {
+            emitError(
+                "expected '{' after 'else', but got '\(openToken.value)'",
+                at: openToken
+            )
+            return errorStatement(from: token, to: openToken)
+        }
+        var body: [AST.Statement] = []
+        while let closeToken = peek {
+            if case .Separator(.CloseBrace) = closeToken.kind {
+                break
+            }
+            if let stmt = parseStatement() {
+                body.append(stmt)
+            }
+        }
+        guard let closeToken = peek else {
+            emitError("expected '}' after guard body", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        if case .Separator(.CloseBrace) = closeToken.kind {
+            self.index += 1
+        } else {
+            emitError(
+                "expected '}' after guard body, but got \(closeToken.value)",
+                at: closeToken
+            )
+        }
+        return AST.Guard(
+            token, condition, openToken, body, closeToken,
+            sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
         )
     }
     private func parseDefer() -> AST.Statement {
