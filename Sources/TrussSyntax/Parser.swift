@@ -1347,13 +1347,16 @@ public final class Parser {
                 switch kind {
                 case .Dot:
                     self.index += 1
-                    guard let member = next else {
+                    guard let member = peek else {
                         emitError("expected member name after '.'", at: endOfFile)
                         break loop
                     }
-                    if member.kind != .Identifier {
+                    switch member.kind {
+                    case .Identifier, .IntegerLiteral:
+                        self.index += 1
+                    default:
                         emitError(
-                            "expected identifier after '.', but got '\(member.value)'",
+                            "expected identifier or integer literal after '.', but got '\(member.value)'",
                             at: member
                         )
                     }
