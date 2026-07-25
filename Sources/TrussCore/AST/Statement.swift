@@ -300,4 +300,23 @@ extension AST {
             visitor.visitRepeatWhile(self, additional: additional)
         }
     }
+    public final class Defer: Statement {
+        public let token: Token
+        public let beginToken: Token
+        public let body: [Statement]
+        public let endToken: Token
+        public init(
+            _ token: Token, _ beginToken: Token, _ body: [Statement], _ endToken: Token,
+            sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.beginToken = beginToken
+            self.body = body
+            self.endToken = endToken
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitDefer(self, additional: additional)
+        }
+    }
 }

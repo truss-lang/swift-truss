@@ -88,6 +88,14 @@ extension AST {
         }
 
         @discardableResult
+        open func visitDefer(_ deferStatement: AST.Defer, additional: Any? = nil) -> Any? {
+            for statement in deferStatement.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitModuleDecl(
             _ moduleDecl: AST.ModuleDecl, additional: Any? = nil
         ) -> Any? {

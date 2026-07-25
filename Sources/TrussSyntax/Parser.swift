@@ -849,6 +849,7 @@ public final class Parser {
             case .Return: return parseReturn()
             case .While: return parseWhile()
             case .Repeat: return parseRepeatWhile()
+            case .Defer: return parseDefer()
             default:
                 emitError("expected a statement, but got \(token.value)", at: token)
                 return errorStatement(from: startToken ?? token, to: token)
@@ -1091,6 +1092,45 @@ public final class Parser {
         return AST.RepeatWhile(
             token, openToken, body, closeToken, whileToken, condition,
             sourceRange: SourceRange(from: token, to: whileToken, in: buffer)
+        )
+    }
+    private func parseDefer() -> AST.Statement {
+        let token = next!
+        guard let openToken = next else {
+            emitError("expected '{' after 'defer'", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        guard case .Separator(.OpenBrace) = openToken.kind else {
+            emitError(
+                "expected '{' after 'defer', but got '\(openToken.value)'",
+                at: openToken
+            )
+            return errorStatement(from: token, to: openToken)
+        }
+        var body: [AST.Statement] = []
+        while let closeToken = peek {
+            if case .Separator(.CloseBrace) = closeToken.kind {
+                break
+            }
+            if let stmt = parseStatement() {
+                body.append(stmt)
+            }
+        }
+        guard let closeToken = peek else {
+            emitError("expected '}' after defer body", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        if case .Separator(.CloseBrace) = closeToken.kind {
+            self.index += 1
+        } else {
+            emitError(
+                "expected '}' after defer body, but got \(closeToken.value)",
+                at: closeToken
+            )
+        }
+        return AST.Defer(
+            token, openToken, body, closeToken,
+            sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
         )
     }
     private func parseExpression(excepts: [OperatorKind]? = nil) -> AST.Expression {
