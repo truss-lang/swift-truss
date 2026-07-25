@@ -847,6 +847,7 @@ public final class Parser {
             case .Let: return parseVariableDecl(modifiers, attributes)
             case .Var: return parseVariableDecl(modifiers, attributes)
             case .Return: return parseReturn()
+            case .While: return parseWhile()
             default:
                 emitError("expected a statement, but got \(token.value)", at: token)
                 return errorStatement(from: startToken ?? token, to: token)
@@ -999,6 +1000,46 @@ public final class Parser {
                 start: token.sourceRange(in: buffer).start, end: expr.sourceRange.end)
             return AST.Return(token, expr, sourceRange: range)
         }
+    }
+    private func parseWhile() -> AST.Statement {
+        let token = next!
+        let condition = parseExpression()
+        guard let openToken = next else {
+            emitError("expected '{' after if condition", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        guard case .Separator(.OpenBrace) = openToken.kind else {
+            emitError(
+                "expected '{' after while condition, but got '\(openToken.value)'",
+                at: openToken
+            )
+            return errorStatement(from: token, to: openToken)
+        }
+        var body: [AST.Statement] = []
+        while let closeToken = peek {
+            if case .Separator(.CloseBrace) = closeToken.kind {
+                break
+            }
+            if let stmt = parseStatement() {
+                body.append(stmt)
+            }
+        }
+        guard let closeToken = peek else {
+            emitError("expected '}' after while body", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        if case .Separator(.CloseBrace) = closeToken.kind {
+            self.index += 1
+        } else {
+            emitError(
+                "expected '}' after while body, but got \(closeToken.value)",
+                at: closeToken
+            )
+        }
+        return AST.While(
+            token, condition, openToken, body, closeToken,
+            sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
+        )
     }
     private func parseExpression(excepts: [OperatorKind]? = nil) -> AST.Expression {
         var ops: [Token] = []
@@ -1209,7 +1250,6 @@ public final class Parser {
             emitError("expected '}' after if body", at: endOfFile)
             return errorExpression(from: token, to: endOfFile)
         }
-
         var endToken = closeToken
         if case .Separator(.CloseBrace) = closeToken.kind {
             self.index += 1

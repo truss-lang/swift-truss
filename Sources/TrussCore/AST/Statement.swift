@@ -256,4 +256,25 @@ extension AST {
             visitor.visitReturn(self, additional: additional)
         }
     }
+    public final class While: Statement {
+        public let token: Token
+        public let condition: Expression
+        public let beginToken: Token
+        public let body: [Statement]
+        public let endToken: Token
+        public init(
+            _ token: Token, _ condition: Expression, _ beginToken: Token, _ body: [Statement],
+            _ endToken: Token, sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.condition = condition
+            self.beginToken = beginToken
+            self.body = body
+            self.endToken = endToken
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitWhile(self, additional: additional)
+        }
+    }
 }

@@ -71,6 +71,15 @@ extension AST {
         }
 
         @discardableResult
+        open func visitWhile(_ whileStatement: AST.While, additional: Any? = nil) -> Any? {
+            visit(whileStatement.condition, additional: additional)
+            for statement in whileStatement.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitModuleDecl(
             _ moduleDecl: AST.ModuleDecl, additional: Any? = nil
         ) -> Any? {
