@@ -340,4 +340,28 @@ extension AST {
             visitor.visitDefer(self, additional: additional)
         }
     }
+    public final class Break: Statement {
+        public let token: Token
+        public let label: Token?
+        public init(_ token: Token, _ label: Token?, sourceRange: SourceRange) {
+            self.token = token
+            self.label = label
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitBreak(self, additional: additional)
+        }
+    }
+    public final class Continue: Statement {
+        public let token: Token
+        public let label: Token?
+        public init(_ token: Token, _ label: Token?, sourceRange: SourceRange) {
+            self.token = token
+            self.label = label
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitContinue(self, additional: additional)
+        }
+    }
 }

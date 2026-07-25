@@ -851,6 +851,8 @@ public final class Parser {
             case .Repeat: return parseRepeatWhile()
             case .Guard: return parseGuard()
             case .Defer: return parseDefer()
+            case .Break: return parseBreak()
+            case .Continue: return parseContinue()
             default:
                 emitError("expected a statement, but got \(token.value)", at: token)
                 return errorStatement(from: startToken ?? token, to: token)
@@ -1184,6 +1186,32 @@ public final class Parser {
             token, openToken, body, closeToken,
             sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
         )
+    }
+    private func parseBreak() -> AST.Statement {
+        let token = next!
+        guard let t = peek, token.pos.line == t.pos.line else {
+            return AST.Break(token, nil, sourceRange: token.sourceRange(in: buffer))
+        }
+        if case .Identifier = t.kind {
+            self.index += 1
+            return AST.Break(token, t, sourceRange: SourceRange(from: token, to: t, in: buffer))
+        } else {
+            emitError("expected identifier after 'break', but got '\(t.value)'", at: t)
+            return AST.Break(token, nil, sourceRange: token.sourceRange(in: buffer))
+        }
+    }
+    private func parseContinue() -> AST.Statement {
+        let token = next!
+        guard let t = peek, token.pos.line == t.pos.line else {
+            return AST.Continue(token, nil, sourceRange: token.sourceRange(in: buffer))
+        }
+        if case .Identifier = t.kind {
+            self.index += 1
+            return AST.Continue(token, t, sourceRange: SourceRange(from: token, to: t, in: buffer))
+        } else {
+            emitError("expected identifier after 'continue', but got '\(t.value)'", at: t)
+            return AST.Continue(token, nil, sourceRange: token.sourceRange(in: buffer))
+        }
     }
     private func parseExpression(excepts: [OperatorKind]? = nil) -> AST.Expression {
         var ops: [Token] = []

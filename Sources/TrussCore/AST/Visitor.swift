@@ -105,6 +105,16 @@ extension AST {
         }
 
         @discardableResult
+        open func visitBreak(_ breakStatement: AST.Break, additional: Any? = nil) -> Any? {
+            return nil
+        }
+
+        @discardableResult
+        open func visitContinue(_ continueStatement: AST.Continue, additional: Any? = nil) -> Any? {
+            return nil
+        }
+
+        @discardableResult
         open func visitModuleDecl(
             _ moduleDecl: AST.ModuleDecl, additional: Any? = nil
         ) -> Any? {
