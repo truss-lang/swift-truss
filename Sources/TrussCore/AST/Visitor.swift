@@ -21,6 +21,24 @@ extension AST {
         }
 
         @discardableResult
+        open func visitGenericDecl(_ genericDecl: GenericDecl, additional: Any? = nil) -> Any? {
+            for generic in genericDecl.generics {
+                visitGenericParameter(generic, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
+        open func visitGenericParameter(
+            _ genericParameter: GenericParameter, additional: Any? = nil
+        ) -> Any? {
+            if let constraint = genericParameter.constraint {
+                visit(constraint, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitEmptyStatement(
             _ emptyStatement: AST.EmptyStatement, additional: Any? = nil
         ) -> Any? {
@@ -77,6 +95,9 @@ extension AST {
         open func visitStructDecl(
             _ structDecl: AST.StructDecl, additional: Any? = nil
         ) -> Any? {
+            if let genericDecl = structDecl.genericDecl {
+                visitGenericDecl(genericDecl, additional: additional)
+            }
             for conformance in structDecl.conformances {
                 visit(conformance, additional: additional)
             }
@@ -90,6 +111,9 @@ extension AST {
         open func visitClassDecl(
             _ classDecl: AST.ClassDecl, additional: Any? = nil
         ) -> Any? {
+            if let genericDecl = classDecl.genericDecl {
+                visitGenericDecl(genericDecl, additional: additional)
+            }
             for inheritanceClause in classDecl.inheritanceClauses {
                 visit(inheritanceClause, additional: additional)
             }
@@ -103,6 +127,9 @@ extension AST {
         open func visitActorDecl(
             _ actorDecl: AST.ActorDecl, additional: Any? = nil
         ) -> Any? {
+            if let genericDecl = actorDecl.genericDecl {
+                visitGenericDecl(genericDecl, additional: additional)
+            }
             for conformance in actorDecl.conformances {
                 visit(conformance, additional: additional)
             }
@@ -116,6 +143,9 @@ extension AST {
         open func visitProtocolDecl(
             _ protocolDecl: AST.ProtocolDecl, additional: Any? = nil
         ) -> Any? {
+            if let genericDecl = protocolDecl.genericDecl {
+                visitGenericDecl(genericDecl, additional: additional)
+            }
             for conformance in protocolDecl.conformances {
                 visit(conformance, additional: additional)
             }

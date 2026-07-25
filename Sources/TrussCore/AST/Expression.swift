@@ -6,33 +6,26 @@ extension AST {
     public class Expression: AstNode {
         public var ty: TrussType.TrussType? = nil
         @abstractInit
-        public override init(_ sourceRange: SourceRange? = nil) {
-            super.init(sourceRange)
-        }
-    }
-    @abstractClass
-    public class TypeExpression: Expression {
-        @abstractInit
-        public override init(_ sourceRange: SourceRange? = nil) {
+        public override init(_ sourceRange: SourceRange) {
             super.init(sourceRange)
         }
     }
     @abstractClass
     public class Literal: Expression {
         @abstractInit
-        public override init(_ sourceRange: SourceRange? = nil) {
+        public override init(_ sourceRange: SourceRange) {
             super.init(sourceRange)
         }
     }
     public final class ErrorExpression: Expression {
-        public override init(_ sourceRange: SourceRange? = nil) {
+        public override init(_ sourceRange: SourceRange) {
             super.init(sourceRange)
         }
     }
-    public final class Variable: TypeExpression {
+    public final class Variable: Expression {
         public let name: Token
         public var symbol: Symbol.Symbol? = nil
-        public init(name: Token, sourceRange: SourceRange? = nil) {
+        public init(name: Token, sourceRange: SourceRange) {
             self.name = name
             super.init(sourceRange)
         }
@@ -40,12 +33,12 @@ extension AST {
             visitor.visitVariable(self, additional: additional)
         }
     }
-    public final class GenericApplication: TypeExpression {
-        public let base: TypeExpression
-        public let genericArguments: [TypeExpression]
+    public final class GenericApplication: Expression {
+        public let base: Expression
+        public let genericArguments: [Expression]
         public init(
-            base: TypeExpression, _ genericArguments: [TypeExpression],
-            sourceRange: SourceRange? = nil
+            _ base: Expression, _ genericArguments: [Expression],
+            sourceRange: SourceRange
         ) {
             self.base = base
             self.genericArguments = genericArguments
@@ -58,7 +51,7 @@ extension AST {
     public final class IntegerLiteral: Literal {
         public let token: Token
         public let value: Int128
-        public init(_ token: Token, _ value: Int128, sourceRange: SourceRange? = nil) {
+        public init(_ token: Token, _ value: Int128, sourceRange: SourceRange) {
             self.token = token
             self.value = value
             super.init(sourceRange)
@@ -70,7 +63,7 @@ extension AST {
     public final class FloatLiteral: Literal {
         public let token: Token
         public let value: Double
-        public init(_ token: Token, _ value: Double, sourceRange: SourceRange? = nil) {
+        public init(_ token: Token, _ value: Double, sourceRange: SourceRange) {
             self.token = token
             self.value = value
             super.init(sourceRange)
@@ -81,7 +74,7 @@ extension AST {
     }
     public final class StringLiteral: Literal {
         public let token: Token
-        public init(_ token: Token, sourceRange: SourceRange? = nil) {
+        public init(_ token: Token, sourceRange: SourceRange) {
             self.token = token
             super.init(sourceRange)
         }
@@ -92,7 +85,7 @@ extension AST {
     public final class CharLiteral: Literal {
         public let token: Token
         public let value: Character
-        public init(_ token: Token, _ value: Character, sourceRange: SourceRange? = nil) {
+        public init(_ token: Token, _ value: Character, sourceRange: SourceRange) {
             self.token = token
             self.value = value
             super.init(sourceRange)
@@ -104,7 +97,7 @@ extension AST {
     public final class BoolLiteral: Literal {
         public let token: Token
         public let value: Bool
-        public init(_ token: Token, _ value: Bool, sourceRange: SourceRange? = nil) {
+        public init(_ token: Token, _ value: Bool, sourceRange: SourceRange) {
             self.token = token
             self.value = value
             super.init(sourceRange)
@@ -115,7 +108,7 @@ extension AST {
     }
     public final class NullLiteral: Literal {
         public let token: Token
-        public init(_ token: Token, sourceRange: SourceRange? = nil) {
+        public init(_ token: Token, sourceRange: SourceRange) {
             self.token = token
             super.init(sourceRange)
         }
@@ -130,7 +123,7 @@ extension AST {
         public let elseKind: ElseKind?
         public init(
             _ token: Token, _ condition: Expression, _ then: [Statement], _ elseKind: ElseKind?,
-            sourceRange: SourceRange? = nil
+            sourceRange: SourceRange
         ) {
             self.token = token
             self.condition = condition
@@ -149,7 +142,7 @@ extension AST {
     public final class Call: Expression {
         public let callee: Expression
         public let arguments: [Expression]
-        public init(callee: Expression, arguments: [Expression], sourceRange: SourceRange? = nil) {
+        public init(callee: Expression, arguments: [Expression], sourceRange: SourceRange) {
             self.callee = callee
             self.arguments = arguments
             super.init(sourceRange)
@@ -158,12 +151,12 @@ extension AST {
             visitor.visitCall(self, additional: additional)
         }
     }
-    public final class MemberAccess: TypeExpression {
+    public final class MemberAccess: Expression {
         public let object: Expression
         public let token: Token
         public let member: Token
         public init(
-            _ object: Expression, _ token: Token, _ member: Token, sourceRange: SourceRange? = nil
+            _ object: Expression, _ token: Token, _ member: Token, sourceRange: SourceRange
         ) {
             self.object = object
             self.token = token
@@ -174,10 +167,10 @@ extension AST {
             visitor.visitMemberAccess(self, additional: additional)
         }
     }
-    public final class SelfTypeExpression: TypeExpression {
+    public final class SelfTypeExpression: Expression {
         public let token: Token
         public init(
-            _ token: Token, sourceRange: SourceRange? = nil
+            _ token: Token, sourceRange: SourceRange
         ) {
             self.token = token
             super.init(sourceRange)
@@ -189,7 +182,7 @@ extension AST {
     public final class SelfExpression: Expression {
         public let token: Token
         public init(
-            _ token: Token, sourceRange: SourceRange? = nil
+            _ token: Token, sourceRange: SourceRange
         ) {
             self.token = token
             super.init(sourceRange)
@@ -201,7 +194,7 @@ extension AST {
     public final class SuperExpression: Expression {
         public let token: Token
         public init(
-            _ token: Token, sourceRange: SourceRange? = nil
+            _ token: Token, sourceRange: SourceRange
         ) {
             self.token = token
             super.init(sourceRange)
@@ -213,7 +206,7 @@ extension AST {
     public final class ImplicitMemberAccess: Expression {
         public let token: Token
         public let name: Token
-        public init(_ token: Token, _ name: Token, sourceRange: SourceRange? = nil) {
+        public init(_ token: Token, _ name: Token, sourceRange: SourceRange) {
             self.token = token
             self.name = name
             super.init(sourceRange)
@@ -225,7 +218,7 @@ extension AST {
     public final class SequentialExpression: Expression {
         public let ops: [Token]
         public let operands: [Expression]
-        public init(_ ops: [Token], _ operands: [Expression], sourceRange: SourceRange? = nil) {
+        public init(_ ops: [Token], _ operands: [Expression], sourceRange: SourceRange) {
             self.ops = ops
             self.operands = operands
             super.init(sourceRange)
@@ -240,7 +233,7 @@ extension AST {
         public let operatorToken: Token
         public init(
             _ left: Expression, _ right: Expression, _ operatorToken: Token,
-            sourceRange: SourceRange? = nil
+            sourceRange: SourceRange
         ) {
             self.left = left
             self.right = right
@@ -255,7 +248,7 @@ extension AST {
         public let operatorToken: Token
         public let expression: Expression
         public init(
-            _ operatorToken: Token, _ expression: Expression, sourceRange: SourceRange? = nil
+            _ operatorToken: Token, _ expression: Expression, sourceRange: SourceRange
         ) {
             self.operatorToken = operatorToken
             self.expression = expression
@@ -269,7 +262,7 @@ extension AST {
         public let expression: Expression
         public let operatorToken: Token
         public init(
-            _ expression: Expression, _ operatorToken: Token, sourceRange: SourceRange? = nil
+            _ expression: Expression, _ operatorToken: Token, sourceRange: SourceRange
         ) {
             self.expression = expression
             self.operatorToken = operatorToken

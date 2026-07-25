@@ -5,7 +5,7 @@ extension AST {
     @abstractClass
     public class Statement: AstNode {
         @abstractInit
-        public override init(_ sourceRange: SourceRange? = nil) {
+        public override init(_ sourceRange: SourceRange) {
             super.init(sourceRange)
         }
     }
@@ -16,7 +16,7 @@ extension AST {
         @abstractInit
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute],
-            sourceRange: SourceRange? = nil
+            sourceRange: SourceRange
         ) {
             self.modifiers = modifiers
             self.attributes = attributes
@@ -25,7 +25,7 @@ extension AST {
     }
     public final class EmptyStatement: Statement {
         public let token: Token
-        public init(_ token: Token, sourceRange: SourceRange? = nil) {
+        public init(_ token: Token, sourceRange: SourceRange) {
             self.token = token
             super.init(sourceRange)
         }
@@ -34,7 +34,7 @@ extension AST {
         }
     }
     public final class ErrorStatement: Statement {
-        public init(sourceRange: SourceRange? = nil) {
+        public init(sourceRange: SourceRange) {
             super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -43,7 +43,7 @@ extension AST {
     }
     public final class ExpressionStatement: Statement {
         public let expression: Expression
-        public init(_ expression: Expression, sourceRange: SourceRange? = nil) {
+        public init(_ expression: Expression, sourceRange: SourceRange) {
             self.expression = expression
             super.init(sourceRange)
         }
@@ -58,7 +58,7 @@ extension AST {
         public var symbol: Symbol.ModuleSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ body: [AST.Statement], sourceRange: SourceRange? = nil
+            _ name: Token, _ body: [AST.Statement], sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
@@ -73,19 +73,19 @@ extension AST {
         public let token: Token
         public let name: Token
         public let higherThanTokens: [Token]
-        public let higherThan: [TypeExpression]
+        public let higherThan: [Expression]
         public let lowerThanTokens: [Token]
-        public let lowerThan: [TypeExpression]
+        public let lowerThan: [Expression]
         public let associativityToken: Token?
         public let associativity: Associativity
         public let assignmentToken: Token?
         public let assignment: Bool
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ higherThanTokens: [Token], _ higherThan: [TypeExpression],
-            _ lowerThanTokens: [Token], _ lowerThan: [TypeExpression], _ associativityToken: Token?,
+            _ name: Token, _ higherThanTokens: [Token], _ higherThan: [Expression],
+            _ lowerThanTokens: [Token], _ lowerThan: [Expression], _ associativityToken: Token?,
             _ associativity: Associativity, _ assignmentToken: Token?, _ assignment: Bool,
-            sourceRange: SourceRange? = nil
+            sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
@@ -112,15 +112,17 @@ extension AST {
     public final class StructDecl: Decl {
         public let token: Token
         public let name: Token
-        public let conformances: [TypeExpression]
+        public let genericDecl: GenericDecl?
+        public let conformances: [Expression]
         public let body: [AST.Statement]
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ conformances: [TypeExpression], _ body: [AST.Statement],
-            sourceRange: SourceRange? = nil
+            _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
+            _ body: [AST.Statement], sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
+            self.genericDecl = genericDecl
             self.conformances = conformances
             self.body = body
             super.init(modifiers, attributes, sourceRange: sourceRange)
@@ -132,15 +134,17 @@ extension AST {
     public final class ClassDecl: Decl {
         public let token: Token
         public let name: Token
-        public let inheritanceClauses: [TypeExpression]
+        public let genericDecl: GenericDecl?
+        public let inheritanceClauses: [Expression]
         public let body: [AST.Statement]
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ conformances: [TypeExpression], _ body: [AST.Statement],
-            sourceRange: SourceRange? = nil
+            _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
+            _ body: [AST.Statement], sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
+            self.genericDecl = genericDecl
             self.inheritanceClauses = conformances
             self.body = body
             super.init(modifiers, attributes, sourceRange: sourceRange)
@@ -152,15 +156,17 @@ extension AST {
     public final class ActorDecl: Decl {
         public let token: Token
         public let name: Token
-        public let conformances: [TypeExpression]
+        public let genericDecl: GenericDecl?
+        public let conformances: [Expression]
         public let body: [AST.Statement]
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ conformances: [TypeExpression], _ body: [AST.Statement],
-            sourceRange: SourceRange? = nil
+            _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
+            _ body: [AST.Statement], sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
+            self.genericDecl = genericDecl
             self.conformances = conformances
             self.body = body
             super.init(modifiers, attributes, sourceRange: sourceRange)
@@ -172,15 +178,17 @@ extension AST {
     public final class ProtocolDecl: Decl {
         public let token: Token
         public let name: Token
-        public let conformances: [TypeExpression]
+        public let genericDecl: GenericDecl?
+        public let conformances: [Expression]
         public let body: [AST.Statement]
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ conformances: [TypeExpression], _ body: [AST.Statement],
-            sourceRange: SourceRange? = nil
+            _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
+            _ body: [AST.Statement], sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
+            self.genericDecl = genericDecl
             self.conformances = conformances
             self.body = body
             super.init(modifiers, attributes, sourceRange: sourceRange)
@@ -198,7 +206,7 @@ extension AST {
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ returnTypeExpression: Expression?, _ body: Body,
-            sourceRange: SourceRange? = nil
+            sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
@@ -224,7 +232,7 @@ extension AST {
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ typeExpression: Expression?, _ initializer: Expression?,
-            sourceRange: SourceRange? = nil
+            sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
@@ -239,7 +247,7 @@ extension AST {
     public final class Return: Statement {
         public let token: Token
         public let value: Expression?
-        public init(_ token: Token, _ value: Expression?, sourceRange: SourceRange? = nil) {
+        public init(_ token: Token, _ value: Expression?, sourceRange: SourceRange) {
             self.token = token
             self.value = value
             super.init(sourceRange)

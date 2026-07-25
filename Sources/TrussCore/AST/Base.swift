@@ -4,9 +4,9 @@ import SwiftBetterDiagnostic
 public enum AST {
     @abstractClass
     public class AstNode {
-        public var sourceRange: SourceRange? = nil
+        public var sourceRange: SourceRange
         @abstractInit
-        public init(_ sourceRange: SourceRange? = nil) {
+        public init(_ sourceRange: SourceRange) {
             self.sourceRange = sourceRange
         }
         @abstract
@@ -19,7 +19,7 @@ public enum AST {
         public weak var packageSymbol: Symbol.PackageSymbol? = nil
         public init(
             _ id: Id.SourceId, _ packageName: String, _ statements: [Statement],
-            sourceRange: SourceRange? = nil
+            sourceRange: SourceRange
         ) {
             self.id = id
             self.packageName = packageName
@@ -73,5 +73,38 @@ public enum AST {
         case Weak
         case Unowned
         case Indirect
+    }
+    public final class GenericDecl: AstNode {
+        public let begin: Token
+        public let generics: [GenericParameter]
+        public let end: Token
+        public init(
+            _ begin: Token, _ generics: [GenericParameter], _ end: Token, sourceRange: SourceRange
+        ) {
+            self.begin = begin
+            self.generics = generics
+            self.end = end
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitGenericDecl(self, additional: additional)
+        }
+    }
+    public final class GenericParameter: AstNode {
+        public let eachToken: Token?
+        public let name: Token
+        public let constraint: Expression?
+        public init(
+            _ eachToken: Token? = nil, _ name: Token, _ constraint: Expression?,
+            sourceRange: SourceRange
+        ) {
+            self.eachToken = eachToken
+            self.name = name
+            self.constraint = constraint
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitGenericParameter(self, additional: additional)
+        }
     }
 }

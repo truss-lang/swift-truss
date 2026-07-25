@@ -758,7 +758,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 @Test func sourceRangeVariableDeclWithoutInitializer() {
     let statements = parseStatements("let x")
     let decl = statements[0] as! AST.VariableDecl
-    let range = decl.sourceRange!
+    let range = decl.sourceRange
     #expect(range.start.offset == 0)
     #expect(range.end.offset == 5)
 }
@@ -766,7 +766,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 @Test func sourceRangeVariableDeclWithInitializer() {
     let statements = parseStatements("let x = 42")
     let decl = statements[0] as! AST.VariableDecl
-    let range = decl.sourceRange!
+    let range = decl.sourceRange
     #expect(range.start.offset == 0)
     #expect(range.end.offset == 10)
 }
@@ -786,7 +786,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 @Test func sourceRangeVariable() {
     let expr = firstExpression("x")
     let varExpr = expr as! AST.Variable
-    let range = varExpr.sourceRange!
+    let range = varExpr.sourceRange
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 15)
 }
@@ -794,7 +794,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 @Test func sourceRangeFunctionDeclBlockBody() {
     let statements = parseStatements("func main() {}")
     let decl = statements[0] as! AST.FunctionDecl
-    let range = decl.sourceRange!
+    let range = decl.sourceRange
     #expect(range.start.offset == 0)
     #expect(range.end.offset == 14)
 }
@@ -802,7 +802,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 @Test func sourceRangeFunctionDeclExpressionBody() {
     let statements = parseStatements("func foo() = 42")
     let decl = statements[0] as! AST.FunctionDecl
-    let range = decl.sourceRange!
+    let range = decl.sourceRange
     #expect(range.start.offset == 0)
     #expect(range.end.offset == 15)
 }
@@ -810,7 +810,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 @Test func sourceRangeModuleDecl() {
     let statements = parseStatements("module Foo {}")
     let module = statements[0] as! AST.ModuleDecl
-    let range = module.sourceRange!
+    let range = module.sourceRange
     #expect(range.start.offset == 0)
     #expect(range.end.offset == 13)
 }
@@ -818,7 +818,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 @Test func sourceRangeCall() {
     let expr = firstExpression("foo()")
     let call = expr as! AST.Call
-    let range = call.sourceRange!
+    let range = call.sourceRange
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 19)
 }
@@ -826,7 +826,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 @Test func sourceRangeMemberAccess() {
     let expr = firstExpression("a.b")
     let member = expr as! AST.MemberAccess
-    let range = member.sourceRange!
+    let range = member.sourceRange
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 17)
 }
@@ -834,7 +834,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 @Test func sourceRangeChainedMemberAccess() {
     let expr = firstExpression("a.b.c")
     let member = expr as! AST.MemberAccess
-    let range = member.sourceRange!
+    let range = member.sourceRange
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 19)
 }
@@ -842,7 +842,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 @Test func sourceRangeInfixExpression() {
     let expr = firstExpression("a + b")
     let sequentialExpression = expr as! AST.SequentialExpression
-    let range = sequentialExpression.sourceRange!
+    let range = sequentialExpression.sourceRange
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 19)
 }
@@ -850,7 +850,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 @Test func sourceRangeReturnWithValue() {
     let body = parseBlockStatements("func main() { return 42 }")
     let ret = body[0] as! AST.Return
-    let range = ret.sourceRange!
+    let range = ret.sourceRange
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 23)
 }
@@ -858,27 +858,28 @@ func firstExpression(_ source: String) -> AST.Expression {
 @Test func sourceRangeReturnWithoutValue() {
     let body = parseBlockStatements("func main() {\nreturn\n}")
     let ret = body[0] as! AST.Return
-    let range = ret.sourceRange!
+    let range = ret.sourceRange
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 20)
 }
 
 @Test func sourceRangeProgram() {
     let program = parse("let x let y")
-    let range = program.sourceRange!
+    let range = program.sourceRange
     #expect(range.start.offset == 0)
     #expect(range.end.offset == 11)
 }
 
-@Test func sourceRangeErrorStatementIsNil() {
+@Test func sourceRangeEmptyProgram() {
     let program = parse("")
-    #expect(program.sourceRange == nil)
+    #expect(program.sourceRange.start.offset == 0)
+    #expect(program.sourceRange.end.offset == 0)
 }
 
 @Test func sourceRangeEmptyStatement() {
     let statements = parseStatements(";")
     let empty = statements[0] as! AST.EmptyStatement
-    let range = empty.sourceRange!
+    let range = empty.sourceRange
     #expect(range.start.offset == 0)
     #expect(range.end.offset == 1)
 }
@@ -886,7 +887,7 @@ func firstExpression(_ source: String) -> AST.Expression {
 @Test func sourceRangeExpressionStatement() {
     let body = parseBlockStatements("func main() { 42 }")
     let exprStmt = body[0] as! AST.ExpressionStatement
-    let range = exprStmt.sourceRange!
+    let range = exprStmt.sourceRange
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 16)
 }

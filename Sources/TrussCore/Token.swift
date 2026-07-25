@@ -53,6 +53,7 @@ public enum KeywordKind: CaseIterable, Sendable {
     case SelfKw
     case SelfTypeKw
     case SuperKw
+    case Each
     case Func
     case Return
     case Let
@@ -125,6 +126,7 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .SelfKw: "self"
         case .SelfTypeKw: "Self"
         case .SuperKw: "super"
+        case .Each: "each"
         case .Func: "func"
         case .Return: "return"
         case .Let: "let"
