@@ -277,4 +277,27 @@ extension AST {
             visitor.visitWhile(self, additional: additional)
         }
     }
+    public final class RepeatWhile: Statement {
+        public let token: Token
+        public let beginToken: Token
+        public let body: [Statement]
+        public let endToken: Token
+        public let whileToken: Token
+        public let condition: Expression
+        public init(
+            _ token: Token, _ beginToken: Token, _ body: [Statement], _ endToken: Token,
+            _ whileToken: Token, _ condition: Expression, sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.beginToken = beginToken
+            self.body = body
+            self.endToken = endToken
+            self.whileToken = whileToken
+            self.condition = condition
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitRepeatWhile(self, additional: additional)
+        }
+    }
 }

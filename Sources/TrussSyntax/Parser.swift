@@ -848,6 +848,7 @@ public final class Parser {
             case .Var: return parseVariableDecl(modifiers, attributes)
             case .Return: return parseReturn()
             case .While: return parseWhile()
+            case .Repeat: return parseRepeatWhile()
             default:
                 emitError("expected a statement, but got \(token.value)", at: token)
                 return errorStatement(from: startToken ?? token, to: token)
@@ -1005,7 +1006,7 @@ public final class Parser {
         let token = next!
         let condition = parseExpression()
         guard let openToken = next else {
-            emitError("expected '{' after if condition", at: endOfFile)
+            emitError("expected '{' after while condition", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
         }
         guard case .Separator(.OpenBrace) = openToken.kind else {
@@ -1039,6 +1040,57 @@ public final class Parser {
         return AST.While(
             token, condition, openToken, body, closeToken,
             sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
+        )
+    }
+    private func parseRepeatWhile() -> AST.Statement {
+        let token = next!
+        guard let openToken = next else {
+            emitError("expected '{' after 'repeat", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        guard case .Separator(.OpenBrace) = openToken.kind else {
+            emitError(
+                "expected '{' after 'repeat', but got '\(openToken.value)'",
+                at: openToken
+            )
+            return errorStatement(from: token, to: openToken)
+        }
+        var body: [AST.Statement] = []
+        while let closeToken = peek {
+            if case .Separator(.CloseBrace) = closeToken.kind {
+                break
+            }
+            if let stmt = parseStatement() {
+                body.append(stmt)
+            }
+        }
+        guard let closeToken = next else {
+            emitError("expected '}' after repeat body", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        guard case .Separator(.CloseBrace) = closeToken.kind else {
+            emitError(
+                "expected '}' after repeat body, but got \(closeToken.value)",
+                at: closeToken
+            )
+            return errorStatement(from: token, to: closeToken)
+        }
+        guard let whileToken = peek else {
+            emitError("expected 'while' after '}'", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        if case .Keyword(.While) = whileToken.kind {
+            self.index += 1
+        } else {
+            emitError(
+                "expected 'while' after '}', but got \(whileToken.value)",
+                at: whileToken
+            )
+        }
+        let condition = parseExpression()
+        return AST.RepeatWhile(
+            token, openToken, body, closeToken, whileToken, condition,
+            sourceRange: SourceRange(from: token, to: whileToken, in: buffer)
         )
     }
     private func parseExpression(excepts: [OperatorKind]? = nil) -> AST.Expression {

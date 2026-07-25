@@ -80,6 +80,14 @@ extension AST {
         }
 
         @discardableResult
+        open func visitRepeatWhile(_ repeatWhile: AST.RepeatWhile, additional: Any? = nil) -> Any? {
+            for statement in repeatWhile.body {
+                visit(statement, additional: additional)
+            }
+            return visit(repeatWhile.condition, additional: additional)
+        }
+
+        @discardableResult
         open func visitModuleDecl(
             _ moduleDecl: AST.ModuleDecl, additional: Any? = nil
         ) -> Any? {
