@@ -2039,3 +2039,54 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(seq != nil)
     #expect(seq!.ops.count == 2)
 }
+
+// MARK: - parseExpression: ops-only and nil return
+
+@Test func parseOperatorOnlyReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { + }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected expression after operator '+'")
+}
+
+@Test func parseOperatorOnlyPointsAfterOperator() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { + }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    let op = errors[0].range
+    let source = "func main() { + }"
+    let plusIndex = source.firstIndex(of: "+")!
+    let afterPlusOffset = source.distance(from: source.startIndex, to: source.index(after: plusIndex))
+    #expect(op.start.offset == afterPlusOffset)
+}
+
+@Test func parseOperatorOnlyReturnsErrorExpression() {
+    let body = parseBlockStatements("func main() { + }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    #expect(exprStmt!.expression is AST.ErrorExpression)
+}
+
+@Test func parseEmptyParenthesesReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { () }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected expression after '('")
+}
+
+@Test func parseOperatorOnlyInConformanceReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("struct Foo: + {}")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count >= 1)
+    let expr = errors.first { $0.message == "expected expression after operator '+'" }
+    #expect(expr != nil)
+}
+
+@Test func parseOperatorOnlyInReturnTypeReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func foo() -> + {}")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count >= 1)
+    let expr = errors.first { $0.message == "expected expression after operator '+'" }
+    #expect(expr != nil)
+}
