@@ -129,6 +129,7 @@ public final class Parser {
                 case .Class: statement = parseClassDecl(modifiers, attributes)
                 case .ProtocolKw: statement = parseProtocolDecl(modifiers, attributes)
                 case .Extension: statement = parseExtensionDecl(modifiers, attributes)
+                case .Actor: statement = parseActorDecl(modifiers, attributes)
                 case .Func: statement = parseFunctionDecl(modifiers, attributes)
                 case .Let: statement = parseVariableDecl(modifiers, attributes)
                 case .Var: statement = parseVariableDecl(modifiers, attributes)
@@ -179,6 +180,7 @@ public final class Parser {
             case .Struct: return parseStructDecl(modifiers, attributes)
             case .Class: return parseClassDecl(modifiers, attributes)
             case .ProtocolKw: return parseProtocolDecl(modifiers, attributes)
+            case .Actor: return parseActorDecl(modifiers, attributes)
             case .Func: return parseFunctionDecl(modifiers, attributes)
             case .Let: return parseVariableDecl(modifiers, attributes)
             case .Var: return parseVariableDecl(modifiers, attributes)
@@ -709,9 +711,7 @@ public final class Parser {
             if case .Separator(.CloseBrace) = t.kind {
                 break
             }
-            if t.kind == .Keyword(.AssociatedType) {
-
-            } else if let stmt = parseTypeBodyStatement(isProtocolContext: true) {
+            if let stmt = parseTypeBodyStatement(isProtocolContext: true) {
                 body.append(stmt)
             }
         }
@@ -830,7 +830,7 @@ public final class Parser {
                 let constraint: AST.Expression?
                 if let t2 = peek, case .Separator(.Colon) = t2.kind {
                     self.index += 1
-                    constraint = parseExpression()
+                    constraint = parseExpression(excepts: [.Greater])
                 } else {
                     constraint = nil
                 }
@@ -876,6 +876,7 @@ public final class Parser {
             case .Let: return parseVariableDecl(modifiers, attributes)
             case .Var: return parseVariableDecl(modifiers, attributes)
             default:
+                self.index += 1
                 emitError("expected a statement, but got \(token.value)", at: token)
                 return errorStatement(from: startToken ?? token, to: token)
             }
@@ -885,10 +886,12 @@ public final class Parser {
                 self.index += 1
                 return AST.EmptyStatement(token, sourceRange: token.sourceRange(in: buffer))
             default:
+                self.index += 1
                 emitError("expected a statement, but got \(token.value)", at: token)
                 return errorStatement(from: startToken ?? token, to: token)
             }
         default:
+            self.index += 1
             emitError("expected a statement, but got \(token.value)", at: token)
             return errorStatement(from: startToken ?? token, to: token)
         }
@@ -919,8 +922,14 @@ public final class Parser {
             case .Continue: return parseContinue()
             case .Goto: return parseGoto()
             default:
-                emitError("expected a statement, but got \(token.value)", at: token)
-                return errorStatement(from: startToken ?? token, to: token)
+                let savedIndex = self.index
+                let expr = parseExpression()
+                if self.index == savedIndex {
+                    self.index += 1
+                    emitError("expected a statement, but got \(token.value)", at: token)
+                    return errorStatement(from: startToken ?? token, to: token)
+                }
+                return AST.ExpressionStatement(expr, sourceRange: expr.sourceRange)
             }
         case .Separator(let kind):
             switch kind {
@@ -928,8 +937,15 @@ public final class Parser {
                 self.index += 1
                 return AST.EmptyStatement(token, sourceRange: token.sourceRange(in: buffer))
             default:
-                emitError("expected a statement, but got \(token.value)", at: token)
-                return errorStatement(from: startToken ?? token, to: token)
+                let savedIndex = self.index
+                let expr = parseExpression()
+                if self.index == savedIndex {
+                    self.index += 1
+                    emitError("expected a statement, but got \(token.value)", at: token)
+                    return errorStatement(from: startToken ?? token, to: token)
+                } else {
+                    return AST.ExpressionStatement(expr, sourceRange: expr.sourceRange)
+                }
             }
         default:
             let expr = parseExpression()
@@ -967,7 +983,7 @@ public final class Parser {
         let returnTypeExpression: AST.Expression?
         if let t = peek, case .Operator(.Arrow) = t.kind {
             self.index += 1
-            returnTypeExpression = parseExpression()
+            returnTypeExpression = parseExpression(excepts: [.Assign])
         } else {
             returnTypeExpression = nil
         }
@@ -1134,7 +1150,7 @@ public final class Parser {
             let (modifiers, attributes) = parseAnnotations()
             guard let t2 = peek else {
                 emitError(
-                    "expected 'get', 'set', 'wiilSet', 'didSet' or getter body", at: endOfFile)
+                    "expected 'get', 'set', 'willSet', 'didSet' or getter body", at: endOfFile)
                 hasError = true
                 break
             }
@@ -1677,7 +1693,7 @@ public final class Parser {
             emitError("expected identifier after 'goto'", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
         }
-        if case .Identifier = t.kind {
+        if t.kind != .Identifier {
             emitError("expected identifier after 'goto', but got '\(t.value)'", at: t)
         }
         return AST.Goto(token, t, sourceRange: SourceRange(from: token, to: t, in: buffer))
@@ -1761,6 +1777,8 @@ public final class Parser {
             case .SuperKw:
                 self.index += 1
                 expression = AST.SuperExpression(token, sourceRange: token.sourceRange(in: buffer))
+            case .If:
+                expression = parseIf()
             default:
                 return nil
             }
@@ -1822,6 +1840,9 @@ public final class Parser {
                         while let t4 = peek {
                             if case .Operator(.Greater) = t4.kind {
                                 break
+                            }
+                            if case .Separator(.Comma) = t4.kind {
+                                self.index += 1
                             }
                             genericArguments.append(parseExpression(excepts: [.Greater]))
                         }
@@ -2368,6 +2389,7 @@ public final class Parser {
                 if case .OpenParen = t2Kind {
                     self.index += 1
                     while let t = peek {
+                        if case .Separator(.CloseParen) = t.kind { break }
                         self.index += 1
                         if case .Identifier = t.kind, let t2 = peek,
                             case .Separator(.Colon) = t2.kind
@@ -2430,10 +2452,7 @@ public final class Parser {
                         name: name,
                         arguments: arguments,
                         labeledArguments: labeledArguments,
-                        sourceRange: SourceRange(
-                            start: token.sourceRange(in: buffer).start,
-                            end: endOfFile
-                        )
+                        sourceRange: SourceRange(from: token, to: last!, in: buffer)
                     )
                 )
             default:
