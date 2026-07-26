@@ -891,3 +891,47 @@ func firstExpression(_ source: String) -> AST.Expression {
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 16)
 }
+
+@Test func parseStoredPropertyWithAccessorReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("var a = 1 { get { 1 } set(v) {} }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "stored property cannot have a getter or setter")
+    #expect(errors[0].notes.count == 1)
+    let note = errors[0].notes[0]
+    #expect(note.severity == .note)
+    #expect(note.message == "initializer makes this a stored property")
+}
+
+@Test func parseComputedPropertyWithObserverReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("var a: Int { get { 1 } willSet {} }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "computed property cannot have 'willSet' or 'didSet' observers")
+}
+
+@Test func parseSetterWithoutGetterReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("var a: Int { set(v) {} }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "setter requires a getter")
+}
+
+@Test func parseComputedPropertyWithoutTypeAnnotationReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("var a { get { 1 } }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "computed property must have a type annotation")
+}
+
+@Test func parseStoredPropertyWithObserversIsValid() {
+    let (_, diagnostics) = parseWithDiagnostics("var a: Int = 0 { willSet {} didSet {} }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    #expect(errors.isEmpty)
+}
+
+@Test func parseComputedPropertyWithGetAndSetIsValid() {
+    let (_, diagnostics) = parseWithDiagnostics("var a: Int { get { 1 } set(v) {} }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    #expect(errors.isEmpty)
+}

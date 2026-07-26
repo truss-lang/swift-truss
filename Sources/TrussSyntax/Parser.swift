@@ -705,11 +705,13 @@ public final class Parser {
             return errorStatement(from: token, to: openToken)
         }
         var body: [AST.Statement] = []
-        while let closeToken = peek {
-            if case .Separator(.CloseBrace) = closeToken.kind {
+        while let t = peek {
+            if case .Separator(.CloseBrace) = t.kind {
                 break
             }
-            if let stmt = parseTypeBodyStatement(isProtocolContext: true) {
+            if t.kind == .Keyword(.AssociatedType) {
+
+            } else if let stmt = parseTypeBodyStatement(isProtocolContext: true) {
                 body.append(stmt)
             }
         }
@@ -1004,11 +1006,11 @@ public final class Parser {
                 let expr = parseExpression()
                 body = .Expression(expr)
             default:
-                emitError("expected a statement, but got \(t.value)", at: t)
+                emitError("expected '=' or '{', but got \(t.value)", at: t)
                 return errorStatement(from: token, to: t)
             }
         } else {
-            emitError("expected function body", at: endOfFile)
+            emitError("expected '=' or '{'", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
         }
         let range: SourceRange
@@ -1045,13 +1047,380 @@ public final class Parser {
         } else {
             initializer = nil
         }
+        let accessors: [AST.Accessor]
+        if let t = peek, case .Separator(.OpenBrace) = t.kind {
+            accessors = parseAccessors()
+            let hasGet = accessors.contains { $0.kind == .Get }
+            let hasSet = accessors.contains { $0.kind == .Set }
+            let hasObserver = accessors.contains {
+                $0.kind == .WillSet || $0.kind == .DidSet
+            }
+            if let initializer = initializer, hasGet || hasSet {
+                let accessor = accessors.first {
+                    $0.kind == .Get || $0.kind == .Set
+                }!
+                context.diagnositicEngine.emit(
+                    Diagnostic(
+                        severity: .error,
+                        message: "stored property cannot have a getter or setter",
+                        range: accessor.sourceRange,
+                        notes: [
+                            Diagnostic(
+                                severity: .note,
+                                message: "initializer makes this a stored property",
+                                range: initializer.sourceRange)
+                        ]))
+            }
+            if initializer == nil, hasGet, hasObserver {
+                let observer = accessors.first {
+                    $0.kind == .WillSet || $0.kind == .DidSet
+                }!
+                emitError(
+                    "computed property cannot have 'willSet' or 'didSet' observers",
+                    at: observer.sourceRange)
+            }
+            if hasSet, !hasGet {
+                let setter = accessors.first { $0.kind == .Set }!
+                emitError("setter requires a getter", at: setter.sourceRange)
+            }
+            if initializer == nil, (hasGet || hasSet), typeExpression == nil {
+                emitError("computed property must have a type annotation", at: name)
+            }
+        } else {
+            accessors = []
+        }
         let endRange =
             initializer?.sourceRange ?? typeExpression?.sourceRange
             ?? name.sourceRange(in: buffer)
-        let range = SourceRange(
-            start: token.sourceRange(in: buffer).start, end: endRange.end)
         return AST.VariableDecl(
-            modifiers, attributes, token, name, typeExpression, initializer, sourceRange: range)
+            modifiers, attributes, token, name, typeExpression, initializer, accessors,
+            sourceRange: SourceRange(start: token.sourceRange(in: buffer).start, end: endRange.end)
+        )
+    }
+    private func parseAccessors() -> [AST.Accessor] {
+        let beginToken = next!
+        var hasError = false
+        var accessors: [AST.Accessor] = []
+        _loop: while let t = peek {
+            if t.kind == .Separator(.CloseBrace) {
+                break
+            }
+            let (modifiers, attributes) = parseAnnotations()
+            guard let t2 = peek else {
+                emitError(
+                    "expected 'get', 'set', 'wiilSet', 'didSet' or getter body", at: endOfFile)
+                hasError = true
+                break
+            }
+            guard case .Identifier = t2.kind else {
+                break
+            }
+            self.index += 1
+            switch t2.value {
+            case "get":
+                guard let t3 = peek else {
+                    emitError("expected '=' or '{'", at: endOfFile)
+                    hasError = true
+                    break _loop
+                }
+                let body: AST.FunctionDecl.Body
+                switch t3.kind {
+                case .Separator(.OpenBrace):
+                    self.index += 1
+                    var statements: [AST.Statement] = []
+                    while let closeToken = peek {
+                        if case .Separator(.CloseBrace) = closeToken.kind {
+                            break
+                        }
+                        if let stmt = parseStatement() {
+                            statements.append(stmt)
+                        }
+                    }
+                    if let closeToken = peek {
+                        if case .Separator(.CloseBrace) = closeToken.kind {
+                            self.index += 1
+                        } else {
+                            emitError(
+                                "expected '}' after getter body, but got \(closeToken.value)",
+                                at: closeToken
+                            )
+                        }
+                    } else {
+                        emitError("expected '}' after getter body", at: endOfFile)
+                    }
+
+                    body = .Block(statements)
+                case .Operator(.Assign):
+                    self.index += 1
+                    let expr = parseExpression()
+                    body = .Expression(expr)
+                default:
+                    emitError("expected '=' or '{', but got \(t3.value)", at: t3)
+                    hasError = true
+                    break _loop
+                }
+                accessors.append(
+                    AST.Accessor(
+                        modifiers, attributes, t2, nil, body, kind: .Get,
+                        sourceRange: SourceRange(from: t, to: last!, in: buffer)
+                    )
+                )
+            case "set":
+                let parameterName: Token?
+                if let t3 = peek, case .Separator(.OpenParen) = t3.kind {
+                    self.index += 1
+                    if let name = peek {
+                        self.index += 1
+                        parameterName = name
+                        if name.kind != .Identifier {
+                            emitError(
+                                "expected identifier after '(', but got '\(name.value)'", at: name)
+                        }
+                    } else {
+                        emitError("expected parameter name", at: endOfFile)
+                        hasError = true
+                        break _loop
+                    }
+                    if let t4 = peek {
+                        if case .Separator(.CloseParen) = t4.kind {
+                            self.index += 1
+                        } else {
+                            emitError("expected ')', but got '\(t4.value)'", at: t4)
+                        }
+                    } else {
+                        emitError("expected ')'", at: endOfFile)
+                        hasError = true
+                        break _loop
+                    }
+                } else {
+                    parameterName = nil
+                }
+                guard let t3 = peek else {
+                    emitError("expected '{'", at: endOfFile)
+                    hasError = true
+                    break _loop
+                }
+                guard case .Separator(.OpenBrace) = t3.kind else {
+                    emitError("expected '{', but got \(t3.value)", at: t3)
+                    hasError = true
+                    break _loop
+                }
+                self.index += 1
+                var statements: [AST.Statement] = []
+                while let closeToken = peek {
+                    if case .Separator(.CloseBrace) = closeToken.kind {
+                        break
+                    }
+                    if let stmt = parseStatement() {
+                        statements.append(stmt)
+                    }
+                }
+                if let closeToken = peek {
+                    if case .Separator(.CloseBrace) = closeToken.kind {
+                        self.index += 1
+                    } else {
+                        emitError(
+                            "expected '}' after setter body, but got \(closeToken.value)",
+                            at: closeToken
+                        )
+                    }
+                } else {
+                    emitError("expected '}' after setter body", at: endOfFile)
+                }
+
+                let body: AST.FunctionDecl.Body = .Block(statements)
+                accessors.append(
+                    AST.Accessor(
+                        modifiers, attributes, t2, parameterName, body, kind: .Set,
+                        sourceRange: SourceRange(from: t, to: last!, in: buffer)
+                    )
+                )
+            case "willSet":
+                let parameterName: Token?
+                if let t3 = peek, case .Separator(.OpenParen) = t3.kind {
+                    self.index += 1
+                    if let name = peek {
+                        self.index += 1
+                        parameterName = name
+                        if name.kind != .Identifier {
+                            emitError(
+                                "expected identifier after '(', but got '\(name.value)'", at: name)
+                        }
+                    } else {
+                        emitError("expected parameter name", at: endOfFile)
+                        hasError = true
+                        break _loop
+                    }
+                    if let t4 = peek {
+                        if case .Separator(.CloseParen) = t4.kind {
+                            self.index += 1
+                        } else {
+                            emitError("expected ')', but got '\(t4.value)'", at: t4)
+                        }
+                    } else {
+                        emitError("expected ')'", at: endOfFile)
+                        hasError = true
+                        break _loop
+                    }
+                } else {
+                    parameterName = nil
+                }
+                guard let t3 = peek else {
+                    emitError("expected '{'", at: endOfFile)
+                    hasError = true
+                    break _loop
+                }
+                guard case .Separator(.OpenBrace) = t3.kind else {
+                    emitError("expected '{', but got \(t3.value)", at: t3)
+                    hasError = true
+                    break _loop
+                }
+                self.index += 1
+                var statements: [AST.Statement] = []
+                while let closeToken = peek {
+                    if case .Separator(.CloseBrace) = closeToken.kind {
+                        break
+                    }
+                    if let stmt = parseStatement() {
+                        statements.append(stmt)
+                    }
+                }
+                if let closeToken = peek {
+                    if case .Separator(.CloseBrace) = closeToken.kind {
+                        self.index += 1
+                    } else {
+                        emitError(
+                            "expected '}' after willSet body, but got \(closeToken.value)",
+                            at: closeToken
+                        )
+                    }
+                } else {
+                    emitError("expected '}' after willSet body", at: endOfFile)
+                }
+                let body: AST.FunctionDecl.Body = .Block(statements)
+                accessors.append(
+                    AST.Accessor(
+                        modifiers, attributes, t2, parameterName, body, kind: .WillSet,
+                        sourceRange: SourceRange(from: t, to: last!, in: buffer)
+                    )
+                )
+            case "didSet":
+                let parameterName: Token?
+                if let t3 = peek, case .Separator(.OpenParen) = t3.kind {
+                    self.index += 1
+                    if let name = peek {
+                        self.index += 1
+                        parameterName = name
+                        if name.kind != .Identifier {
+                            emitError(
+                                "expected identifier after '(', but got '\(name.value)'", at: name)
+                        }
+                    } else {
+                        emitError("expected parameter name", at: endOfFile)
+                        hasError = true
+                        break _loop
+                    }
+                    if let t4 = peek {
+                        if case .Separator(.CloseParen) = t4.kind {
+                            self.index += 1
+                        } else {
+                            emitError("expected ')', but got '\(t4.value)'", at: t4)
+                        }
+                    } else {
+                        emitError("expected ')'", at: endOfFile)
+                        hasError = true
+                        break _loop
+                    }
+                } else {
+                    parameterName = nil
+                }
+                guard let t3 = peek else {
+                    emitError("expected '{'", at: endOfFile)
+                    hasError = true
+                    break _loop
+                }
+                guard case .Separator(.OpenBrace) = t3.kind else {
+                    emitError("expected '{', but got \(t3.value)", at: t3)
+                    hasError = true
+                    break _loop
+                }
+                self.index += 1
+                var statements: [AST.Statement] = []
+                while let closeToken = peek {
+                    if case .Separator(.CloseBrace) = closeToken.kind {
+                        break
+                    }
+                    if let stmt = parseStatement() {
+                        statements.append(stmt)
+                    }
+                }
+                if let closeToken = peek {
+                    if case .Separator(.CloseBrace) = closeToken.kind {
+                        self.index += 1
+                    } else {
+                        emitError(
+                            "expected '}' after didSet body, but got \(closeToken.value)",
+                            at: closeToken
+                        )
+                    }
+                } else {
+                    emitError("expected '}' after didSet body", at: endOfFile)
+                }
+                let body: AST.FunctionDecl.Body = .Block(statements)
+                accessors.append(
+                    AST.Accessor(
+                        modifiers, attributes, t2, parameterName, body, kind: .DidSet,
+                        sourceRange: SourceRange(from: t, to: last!, in: buffer)
+                    )
+                )
+            default:
+                break _loop
+            }
+        }
+        if !hasError && accessors.isEmpty {
+            var statements: [AST.Statement] = []
+            while let closeToken = peek {
+                if case .Separator(.CloseBrace) = closeToken.kind {
+                    break
+                }
+                if let stmt = parseStatement() {
+                    statements.append(stmt)
+                }
+            }
+            if let closeToken = peek {
+                if case .Separator(.CloseBrace) = closeToken.kind {
+                    self.index += 1
+                } else {
+                    emitError(
+                        "expected '}' after didSet body, but got \(closeToken.value)",
+                        at: closeToken
+                    )
+                }
+            } else {
+                emitError("expected '}' after didSet body", at: endOfFile)
+            }
+            let body: AST.FunctionDecl.Body = .Block(statements)
+            accessors.append(
+                AST.Accessor(
+                    [], [], nil, nil, body, kind: .Get,
+                    sourceRange: SourceRange(from: beginToken, to: last!, in: buffer)
+                )
+            )
+        } else {
+            if let closeToken = peek {
+                if case .Separator(.CloseBrace) = closeToken.kind {
+                    self.index += 1
+                } else {
+                    emitError(
+                        "expected '}' after accessors, but got \(closeToken.value)",
+                        at: closeToken
+                    )
+                }
+            } else {
+                emitError("expected '}' after accessors", at: endOfFile)
+            }
+        }
+        return accessors
     }
     private func parseReturn() -> AST.Statement {
         let token = next!

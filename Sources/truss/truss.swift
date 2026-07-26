@@ -15,7 +15,13 @@ struct truss {
     static func main() {
         let source = """
             func f() {
-                var a = 1
+                var a = 1 {
+                    get {
+                        1
+                    }
+                    set(v) {
+                    }
+                }
                 a
                 f2()
                 M.f3()
@@ -27,12 +33,25 @@ struct truss {
             protocol P {}
             protocol P2: P {}
             struct S: P2 {
+                public func m() {
+                    let t: Result = .None
+                }
             }
             precedencegroup Precedence {
                 associativity: left
                 associativity: right
             }
-            precedencegroup
+            struct S3<E, each T> {
+                var v: Int32 {
+                    2
+                }
+            }
+            extension Array<
+            T> {
+                func f() {
+
+                    }
+            }
             """
         let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))
             .parse()

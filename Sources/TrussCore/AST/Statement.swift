@@ -248,16 +248,18 @@ extension AST {
         public let name: Token
         public let typeExpression: Expression?
         public let initializer: Expression?
+        public let accessors: [Accessor]
         public var symbol: Symbol.VariableSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ typeExpression: Expression?, _ initializer: Expression?,
-            sourceRange: SourceRange
+            _ accessors: [Accessor], sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
             self.typeExpression = typeExpression
             self.initializer = initializer
+            self.accessors = accessors
             super.init(modifiers, attributes, sourceRange: sourceRange)
         }
         public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
@@ -394,6 +396,35 @@ extension AST {
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitGoto(self, additional: additional)
+        }
+    }
+    public final class Accessor: AstNode {
+        public let modifiers: [AST.Modifier]
+        public let attributes: [AST.Attribute]
+        public let token: Token?
+        public let parameterName: Token?
+        public let body: FunctionDecl.Body
+        public let kind: Kind
+        public init(
+            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token?,
+            _ parameterName: Token?, _ body: FunctionDecl.Body, kind: Kind, sourceRange: SourceRange
+        ) {
+            self.modifiers = modifiers
+            self.attributes = attributes
+            self.token = token
+            self.parameterName = parameterName
+            self.body = body
+            self.kind = kind
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitAccessor(self, additional: additional)
+        }
+        public enum Kind {
+            case Get
+            case Set
+            case WillSet
+            case DidSet
         }
     }
 }

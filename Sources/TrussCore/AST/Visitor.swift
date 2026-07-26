@@ -187,6 +187,9 @@ extension AST {
             if let initializer = variableDecl.initializer {
                 visit(initializer, additional: additional)
             }
+            for accessor in variableDecl.accessors {
+                visitAccessor(accessor, additional: additional)
+            }
             return nil
         }
 
@@ -248,6 +251,20 @@ extension AST {
         @discardableResult
         open func visitGoto(_ gotoStatement: AST.Goto, additional: Any? = nil) -> Any? {
             return nil
+        }
+
+        @discardableResult
+        open func visitAccessor(_ accessor: AST.Accessor, additional: Any? = nil) -> Any? {
+            switch accessor.body {
+            case .Block(let statements):
+                var last: Any? = nil
+                for statement in statements {
+                    last = visit(statement, additional: additional)
+                }
+                return last
+            case .Expression(let expression):
+                return visit(expression, additional: additional)
+            }
         }
 
         @discardableResult
