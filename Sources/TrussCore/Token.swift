@@ -31,13 +31,14 @@ public enum KeywordKind: CaseIterable, Sendable {
     case Weak
     case Unowned
     case Indirect
+    case Import
+    case TypeAlias
     case Module
     case PrecedenceGroup
     case Operator
     case Infix
     case Prefix
     case Postfix
-    case TypeAlias
     case Extern
     case Struct
     case Class
@@ -105,13 +106,14 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .Weak: "weak"
         case .Unowned: "unowned"
         case .Indirect: "indirect"
+        case .Import: "import"
+        case .TypeAlias: "typealias"
         case .Module: "module"
         case .PrecedenceGroup: "precedencegroup"
         case .Operator: "operator"
         case .Infix: "infix"
         case .Prefix: "prefix"
         case .Postfix: "postfix"
-        case .TypeAlias: "typealias"
         case .Extern: "extern"
         case .Struct: "struct"
         case .Class: "class"

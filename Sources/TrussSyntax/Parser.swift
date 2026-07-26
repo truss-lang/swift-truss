@@ -129,6 +129,7 @@ public final class Parser {
             switch token.kind {
             case .Keyword(let keywordKind):
                 switch keywordKind {
+                case .TypeAlias: statement = parseTypeAliasDecl(modifiers, attributes)
                 case .Module: statement = parseModuleDecl(modifiers, attributes)
                 case .PrecedenceGroup: statement = parsePrecedenceGroupDecl(modifiers, attributes)
                 case .Struct: statement = parseStructDecl(modifiers, attributes)
@@ -181,6 +182,7 @@ public final class Parser {
         switch t.kind {
         case .Keyword(let keywordKind):
             switch keywordKind {
+            case .TypeAlias: return parseTypeAliasDecl(modifiers, attributes)
             case .Module: return parseModuleDecl(modifiers, attributes)
             case .PrecedenceGroup: return parsePrecedenceGroupDecl(modifiers, attributes)
             case .Struct: return parseStructDecl(modifiers, attributes)
@@ -203,6 +205,37 @@ public final class Parser {
             return nil
         }
 
+    }
+    private func parseTypeAliasDecl(_ modifiers: [AST.Modifier], _ attributes: [AST.Attribute])
+        -> AST.Statement
+    {
+        let token = next!
+        guard let name = next else {
+            emitError("expected type name after 'typealias'", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        if name.kind != .Identifier {
+            emitError("expected identifier after 'typealias', but got '\(name.value)'", at: name)
+        }
+        guard let equalToken = next else {
+            emitError("expected '=' after type alias name", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        if equalToken.kind != .Operator(.Assign) {
+            emitError(
+                "expected '=' after type alias name, but got '\(equalToken.value)'",
+                at: equalToken
+            )
+        }
+        var typeExpression = parseExpression()
+        if typeExpression == nil {
+            emitError("expected type expression after '='", at: locationAfter(equalToken))
+            typeExpression = AST.ErrorExpression(SourceRange(location: locationAfter(equalToken)))
+        }
+        return AST.TypeAliasDecl(
+            modifiers, attributes, token, name, typeExpression!,
+            sourceRange: token.sourceRange(in: buffer)
+        )
     }
     private func parseModuleDecl(_ modifiers: [AST.Modifier], _ attributes: [AST.Attribute])
         -> AST.Statement
@@ -996,11 +1029,11 @@ public final class Parser {
             emitError("expected '(' after function name", at: name)
             return errorStatement(from: token, to: name)
         }
-        if case .Separator(.OpenParen) = t1.kind {
-            self.index += 1
-        } else {
+        guard case .Separator(.OpenParen) = t1.kind else {
             emitError("expected '(' after function name, but got '\(t1.value)'", at: t1)
+            return errorStatement(from: token, to: t1)
         }
+        self.index += 1
         guard let t2 = peek else {
             emitError("expected ')' after function parameters", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -1018,7 +1051,6 @@ public final class Parser {
             returnTypeExpression = nil
         }
         let body: AST.FunctionDecl.Body?
-        var endToken: Token = peek ?? last!
         if let t = peek {
             switch t.kind {
             case .Separator(.OpenBrace):
@@ -1041,7 +1073,6 @@ public final class Parser {
                             at: closeToken
                         )
                     }
-                    endToken = closeToken
                 } else {
                     emitError("expected '}' after function body", at: endOfFile)
                 }
@@ -1057,18 +1088,9 @@ public final class Parser {
         } else {
             body = nil
         }
-        let range: SourceRange
-        switch body {
-        case .Block:
-            range = SourceRange(from: token, to: endToken, in: buffer)
-        case .Expression(let expr):
-            range = SourceRange(
-                start: token.sourceRange(in: buffer).start, end: expr.sourceRange.end)
-        default:
-            range = SourceRange(from: token, to: endToken, in: buffer)
-        }
         return AST.FunctionDecl(
-            modifiers, attributes, token, name, returnTypeExpression, body, sourceRange: range
+            modifiers, attributes, token, name, returnTypeExpression, body,
+            sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
     private func parseVariableDecl(
@@ -1161,12 +1183,9 @@ public final class Parser {
         } else {
             accessors = []
         }
-        let endRange =
-            initializer?.sourceRange ?? typeExpression?.sourceRange
-            ?? name.sourceRange(in: buffer)
         return AST.VariableDecl(
             modifiers, attributes, token, name, typeExpression, initializer, accessors,
-            sourceRange: SourceRange(start: token.sourceRange(in: buffer).start, end: endRange.end)
+            sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
     private func parseAccessors() -> [AST.Accessor] {
@@ -1507,14 +1526,15 @@ public final class Parser {
             guard let expr = parseExpression() else {
                 return AST.Return(token, nil, sourceRange: token.sourceRange(in: buffer))
             }
-            let range = SourceRange(
-                start: token.sourceRange(in: buffer).start, end: expr.sourceRange.end)
-            return AST.Return(token, expr, sourceRange: range)
+            return AST.Return(
+                token, expr, sourceRange: SourceRange(from: token, to: last!, in: buffer)
+            )
         }
     }
     private func parseWhile() -> AST.Statement {
         let token = next!
-        let condition = parseExpression() ?? errorExpression(from: token, to: token)
+        let condition =
+            parseExpression() ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
         guard let openToken = next else {
             emitError("expected '{' after while condition", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -1597,7 +1617,9 @@ public final class Parser {
                 at: whileToken
             )
         }
-        let condition = parseExpression() ?? errorExpression(from: whileToken, to: whileToken)
+        let condition =
+            parseExpression()
+            ?? AST.ErrorExpression(SourceRange(location: locationAfter(whileToken)))
         return AST.RepeatWhile(
             token, openToken, body, closeToken, whileToken, condition,
             sourceRange: SourceRange(from: token, to: whileToken, in: buffer)
@@ -1605,7 +1627,8 @@ public final class Parser {
     }
     private func parseGuard() -> AST.Statement {
         let token = next!
-        let condition = parseExpression() ?? errorExpression(from: token, to: token)
+        let condition =
+            parseExpression() ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
         guard let t = next else {
             emitError("expected 'else' after guard condition", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)

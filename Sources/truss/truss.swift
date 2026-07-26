@@ -42,16 +42,13 @@ struct truss {
                 associativity: right
             }
             struct S3<E, each T> {
-                var v: Int32 {
-                    2
-                }
             }
             extension Array<
             T> {
                 func f() {
-
-                    }
+                }
             }
+            typealias SS = S
             """
         let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))
             .parse()

@@ -60,6 +60,13 @@ extension AST {
         }
 
         @discardableResult
+        open func visitTypeAliasDecl(
+            _ typeAliasDecl: AST.TypeAliasDecl, additional: Any? = nil
+        ) -> Any? {
+            return visit(typeAliasDecl.typeExpression, additional: additional)
+        }
+
+        @discardableResult
         open func visitModuleDecl(
             _ moduleDecl: AST.ModuleDecl, additional: Any? = nil
         ) -> Any? {

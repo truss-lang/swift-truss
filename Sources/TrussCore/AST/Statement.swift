@@ -51,6 +51,23 @@ extension AST {
             visitor.visitExpressionStatement(self, additional: additional)
         }
     }
+    public final class TypeAliasDecl: Decl {
+        public let token: Token
+        public let name: Token
+        public let typeExpression: Expression
+        public init(
+            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
+            _ name: Token, _ typeExpression: Expression, sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.name = name
+            self.typeExpression = typeExpression
+            super.init(modifiers, attributes, sourceRange: sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitTypeAliasDecl(self, additional: additional)
+        }
+    }
     public final class ModuleDecl: Decl {
         public let token: Token
         public let name: Token
