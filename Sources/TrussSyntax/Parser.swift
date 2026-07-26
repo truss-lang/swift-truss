@@ -915,6 +915,7 @@ public final class Parser {
             case .Defer: return parseDefer()
             case .Break: return parseBreak()
             case .Continue: return parseContinue()
+            case .Goto: return parseGoto()
             default:
                 emitError("expected a statement, but got \(token.value)", at: token)
                 return errorStatement(from: startToken ?? token, to: token)
@@ -1274,6 +1275,17 @@ public final class Parser {
             emitError("expected identifier after 'continue', but got '\(t.value)'", at: t)
             return AST.Continue(token, nil, sourceRange: token.sourceRange(in: buffer))
         }
+    }
+    private func parseGoto() -> AST.Statement {
+        let token = next!
+        guard let t = next else {
+            emitError("expected identifier after 'goto'", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        if case .Identifier = t.kind {
+            emitError("expected identifier after 'goto', but got '\(t.value)'", at: t)
+        }
+        return AST.Goto(token, t, sourceRange: SourceRange(from: token, to: t, in: buffer))
     }
     private func parseExpression(excepts: [OperatorKind]? = nil) -> AST.Expression {
         var ops: [Token] = []

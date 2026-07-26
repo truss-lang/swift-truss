@@ -384,4 +384,16 @@ extension AST {
             visitor.visitContinue(self, additional: additional)
         }
     }
+    public final class Goto: Statement {
+        public let token: Token
+        public let label: Token
+        public init(_ token: Token, _ label: Token, sourceRange: SourceRange) {
+            self.token = token
+            self.label = label
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitGoto(self, additional: additional)
+        }
+    }
 }

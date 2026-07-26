@@ -60,61 +60,6 @@ extension AST {
         }
 
         @discardableResult
-        open func visitReturn(
-            _ ret: AST.Return, additional: Any? = nil
-        ) -> Any? {
-            if let value = ret.value {
-                visit(value, additional: additional)
-            } else {
-                nil
-            }
-        }
-
-        @discardableResult
-        open func visitWhile(_ whileStatement: AST.While, additional: Any? = nil) -> Any? {
-            visit(whileStatement.condition, additional: additional)
-            for statement in whileStatement.body {
-                visit(statement, additional: additional)
-            }
-            return nil
-        }
-
-        @discardableResult
-        open func visitRepeatWhile(_ repeatWhile: AST.RepeatWhile, additional: Any? = nil) -> Any? {
-            for statement in repeatWhile.body {
-                visit(statement, additional: additional)
-            }
-            return visit(repeatWhile.condition, additional: additional)
-        }
-
-        @discardableResult
-        open func visitGuard(_ guardStatement: AST.Guard, additional: Any? = nil) -> Any? {
-            visit(guardStatement.condition, additional: additional)
-            for statement in guardStatement.body {
-                visit(statement, additional: additional)
-            }
-            return nil
-        }
-
-        @discardableResult
-        open func visitDefer(_ deferStatement: AST.Defer, additional: Any? = nil) -> Any? {
-            for statement in deferStatement.body {
-                visit(statement, additional: additional)
-            }
-            return nil
-        }
-
-        @discardableResult
-        open func visitBreak(_ breakStatement: AST.Break, additional: Any? = nil) -> Any? {
-            return nil
-        }
-
-        @discardableResult
-        open func visitContinue(_ continueStatement: AST.Continue, additional: Any? = nil) -> Any? {
-            return nil
-        }
-
-        @discardableResult
         open func visitModuleDecl(
             _ moduleDecl: AST.ModuleDecl, additional: Any? = nil
         ) -> Any? {
@@ -242,6 +187,66 @@ extension AST {
             if let initializer = variableDecl.initializer {
                 visit(initializer, additional: additional)
             }
+            return nil
+        }
+
+        @discardableResult
+        open func visitReturn(
+            _ ret: AST.Return, additional: Any? = nil
+        ) -> Any? {
+            if let value = ret.value {
+                visit(value, additional: additional)
+            } else {
+                nil
+            }
+        }
+
+        @discardableResult
+        open func visitWhile(_ whileStatement: AST.While, additional: Any? = nil) -> Any? {
+            visit(whileStatement.condition, additional: additional)
+            for statement in whileStatement.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
+        open func visitRepeatWhile(_ repeatWhile: AST.RepeatWhile, additional: Any? = nil) -> Any? {
+            for statement in repeatWhile.body {
+                visit(statement, additional: additional)
+            }
+            return visit(repeatWhile.condition, additional: additional)
+        }
+
+        @discardableResult
+        open func visitGuard(_ guardStatement: AST.Guard, additional: Any? = nil) -> Any? {
+            visit(guardStatement.condition, additional: additional)
+            for statement in guardStatement.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
+        open func visitDefer(_ deferStatement: AST.Defer, additional: Any? = nil) -> Any? {
+            for statement in deferStatement.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
+        open func visitBreak(_ breakStatement: AST.Break, additional: Any? = nil) -> Any? {
+            return nil
+        }
+
+        @discardableResult
+        open func visitContinue(_ continueStatement: AST.Continue, additional: Any? = nil) -> Any? {
+            return nil
+        }
+
+        @discardableResult
+        open func visitGoto(_ gotoStatement: AST.Goto, additional: Any? = nil) -> Any? {
             return nil
         }
 

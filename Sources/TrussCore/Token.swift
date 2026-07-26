@@ -67,6 +67,7 @@ public enum KeywordKind: CaseIterable, Sendable {
     case Repeat
     case Break
     case Continue
+    case Goto
     case Throw
     case Throws
     case Do
@@ -140,6 +141,7 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .Repeat: "repeat"
         case .Break: "break"
         case .Continue: "continue"
+        case .Goto: "goto"
         case .Throw: "throw"
         case .Throws: "throws"
         case .Do: "do"
