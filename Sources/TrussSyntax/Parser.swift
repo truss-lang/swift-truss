@@ -757,7 +757,8 @@ public final class Parser {
         -> AST.Statement
     {
         let token = next!
-        let base = parseExpression(excepts: [.Less])
+        let base =
+            parseExpression(excepts: [.Less])
             ?? errorExpression(from: token, to: token)
         if let t = peek, case .Operator(.Less) = t.kind {
             let genericDecl = parseGenericDecl()
@@ -1016,8 +1017,8 @@ public final class Parser {
         } else {
             returnTypeExpression = nil
         }
-        let body: AST.FunctionDecl.Body
-        var endToken: Token = name
+        let body: AST.FunctionDecl.Body?
+        var endToken: Token = peek ?? last!
         if let t = peek {
             switch t.kind {
             case .Separator(.OpenBrace):
@@ -1051,12 +1052,10 @@ public final class Parser {
                 let expr = parseExpression() ?? errorExpression(from: t, to: t)
                 body = .Expression(expr)
             default:
-                emitError("expected '=' or '{', but got \(t.value)", at: t)
-                return errorStatement(from: token, to: t)
+                body = nil
             }
         } else {
-            emitError("expected '=' or '{'", at: endOfFile)
-            return errorStatement(from: token, to: endOfFile)
+            body = nil
         }
         let range: SourceRange
         switch body {
@@ -1065,6 +1064,8 @@ public final class Parser {
         case .Expression(let expr):
             range = SourceRange(
                 start: token.sourceRange(in: buffer).start, end: expr.sourceRange.end)
+        default:
+            range = SourceRange(from: token, to: endToken, in: buffer)
         }
         return AST.FunctionDecl(
             modifiers, attributes, token, name, returnTypeExpression, body, sourceRange: range

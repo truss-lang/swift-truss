@@ -221,11 +221,11 @@ extension AST {
         public let token: Token
         public let name: Token
         public let returnTypeExpression: Expression?
-        public let body: Body
+        public let body: Body?
         public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ returnTypeExpression: Expression?, _ body: Body,
+            _ name: Token, _ returnTypeExpression: Expression?, _ body: Body?,
             sourceRange: SourceRange
         ) {
             self.token = token

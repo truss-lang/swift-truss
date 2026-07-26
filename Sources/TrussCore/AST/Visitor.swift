@@ -174,6 +174,8 @@ extension AST {
                 return last
             case .Expression(let expression):
                 return visit(expression, additional: additional)
+            default:
+                return nil
             }
         }
 
