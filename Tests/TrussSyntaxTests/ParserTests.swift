@@ -38,6 +38,24 @@ func firstExpression(_ source: String) -> AST.Expression {
     return exprStmt.expression
 }
 
+func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -> Bool {
+    switch (kind, expected) {
+    case (.Open(let a), .Open(let b)): return a == b
+    case (.Public(let a), .Public(let b)): return a == b
+    case (.Protected(let a), .Protected(let b)): return a == b
+    case (.PackagePrivate(let a), .PackagePrivate(let b)): return a == b
+    case (.Internal(let a), .Internal(let b)): return a == b
+    case (.FilePrivate(let a), .FilePrivate(let b)): return a == b
+    case (.Private(let a), .Private(let b)): return a == b
+    case (.Abstract, .Abstract), (.Final, .Final), (.Mutating, .Mutating),
+         (.Nonmutating, .Nonmutating), (.Convenience, .Convenience),
+         (.Override, .Override), (.Lazy, .Lazy), (.Weak, .Weak),
+         (.Unowned, .Unowned), (.Indirect, .Indirect):
+        return true
+    default: return false
+    }
+}
+
 @Test func parseProgramIdPropagation() {
     let program = parse("let x")
     #expect(program.id.id == 0)
@@ -934,4 +952,1090 @@ func firstExpression(_ source: String) -> AST.Expression {
     let (_, diagnostics) = parseWithDiagnostics("var a: Int { get { 1 } set(v) {} }")
     let errors = diagnostics.filter { $0.severity == .error }
     #expect(errors.isEmpty)
+}
+
+@Test func parseDuplicateAccessorReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("var a: Int { get { 1 } get { 2 } }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "duplicate 'get' accessor")
+    #expect(errors[0].notes.count == 1)
+    let note = errors[0].notes[0]
+    #expect(note.severity == .note)
+    #expect(note.message == "first declared here")
+}
+
+@Test func parseObserverInFunctionContextReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { var a: Int = 0 { willSet {} didSet {} } }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "property observers are not allowed in function context")
+}
+
+// MARK: - Struct Declarations
+
+@Test func parseEmptyStruct() {
+    let statements = parseStatements("struct Foo {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.token.kind == .Keyword(.Struct))
+    #expect(decl!.name.value == "Foo")
+    #expect(decl!.genericDecl == nil)
+    #expect(decl!.conformances.isEmpty)
+    #expect(decl!.body.isEmpty)
+}
+
+@Test func parseStructWithMembers() {
+    let statements = parseStatements("struct Foo { let x var y func bar() {} }")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.body.count == 3)
+    let vd1 = decl!.body[0] as? AST.VariableDecl
+    #expect(vd1 != nil)
+    #expect(vd1!.name.value == "x")
+    let vd2 = decl!.body[1] as? AST.VariableDecl
+    #expect(vd2 != nil)
+    #expect(vd2!.name.value == "y")
+    let fd = decl!.body[2] as? AST.FunctionDecl
+    #expect(fd != nil)
+    #expect(fd!.name.value == "bar")
+}
+
+@Test func parseStructWithConformances() {
+    let statements = parseStatements("struct Foo: P, Q {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.conformances.count == 2)
+    let p = decl!.conformances[0] as? AST.Variable
+    #expect(p != nil)
+    #expect(p!.name.value == "P")
+    let q = decl!.conformances[1] as? AST.Variable
+    #expect(q != nil)
+    #expect(q!.name.value == "Q")
+}
+
+@Test func parseStructWithEmptyStatementInBody() {
+    let statements = parseStatements("struct Foo { ; }")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.body.count == 1)
+    #expect(decl!.body[0] is AST.EmptyStatement)
+}
+
+@Test func parseStructWithGenericPlainParametersDropped() {
+    let statements = parseStatements("struct Foo<T, U> {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.genericDecl != nil)
+    #expect(decl!.genericDecl!.generics.isEmpty)
+}
+
+@Test func parseStructWithGenericEachParameter() {
+    let statements = parseStatements("struct Foo<each T> {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.genericDecl != nil)
+    #expect(decl!.genericDecl!.generics.count == 1)
+    let param = decl!.genericDecl!.generics[0]
+    #expect(param.eachToken != nil)
+    #expect(param.name.value == "T")
+    #expect(param.constraint == nil)
+}
+
+@Test func parseStructWithGenericEachParameterWithConstraint() {
+    let statements = parseStatements("struct Foo<each T: P> {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.genericDecl!.generics.count == 1)
+    let param = decl!.genericDecl!.generics[0]
+    #expect(param.eachToken != nil)
+    #expect(param.name.value == "T")
+    let constraint = param.constraint as? AST.Variable
+    #expect(constraint != nil)
+    #expect(constraint!.name.value == "P")
+}
+
+@Test func parseStructWithMixedGenericParameters() {
+    let statements = parseStatements("struct Foo<T, each U: P> {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.genericDecl!.generics.count == 1)
+    #expect(decl!.genericDecl!.generics[0].name.value == "U")
+}
+
+// MARK: - Class Declarations
+
+@Test func parseEmptyClass() {
+    let statements = parseStatements("class Foo {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ClassDecl
+    #expect(decl != nil)
+    #expect(decl!.token.kind == .Keyword(.Class))
+    #expect(decl!.name.value == "Foo")
+    #expect(decl!.genericDecl == nil)
+    #expect(decl!.inheritanceClauses.isEmpty)
+    #expect(decl!.body.isEmpty)
+}
+
+@Test func parseClassWithInheritance() {
+    let statements = parseStatements("class Foo: Base, P {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ClassDecl
+    #expect(decl != nil)
+    #expect(decl!.inheritanceClauses.count == 2)
+    let base = decl!.inheritanceClauses[0] as? AST.Variable
+    #expect(base != nil)
+    #expect(base!.name.value == "Base")
+    let p = decl!.inheritanceClauses[1] as? AST.Variable
+    #expect(p != nil)
+    #expect(p!.name.value == "P")
+}
+
+@Test func parseClassWithMembers() {
+    let statements = parseStatements("class Foo { var x func bar() {} }")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ClassDecl
+    #expect(decl != nil)
+    #expect(decl!.body.count == 2)
+    let vd = decl!.body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    #expect(vd!.name.value == "x")
+    let fd = decl!.body[1] as? AST.FunctionDecl
+    #expect(fd != nil)
+    #expect(fd!.name.value == "bar")
+}
+
+// MARK: - Protocol Declarations
+
+@Test func parseEmptyProtocol() {
+    let statements = parseStatements("protocol Foo {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ProtocolDecl
+    #expect(decl != nil)
+    #expect(decl!.token.kind == .Keyword(.ProtocolKw))
+    #expect(decl!.name.value == "Foo")
+    #expect(decl!.conformances.isEmpty)
+    #expect(decl!.body.isEmpty)
+}
+
+@Test func parseProtocolWithMembers() {
+    let statements = parseStatements("protocol Foo { func bar() {} var x: Int }")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ProtocolDecl
+    #expect(decl != nil)
+    #expect(decl!.body.count == 2)
+    let fd = decl!.body[0] as? AST.FunctionDecl
+    #expect(fd != nil)
+    #expect(fd!.name.value == "bar")
+    let vd = decl!.body[1] as? AST.VariableDecl
+    #expect(vd != nil)
+    #expect(vd!.name.value == "x")
+}
+
+@Test func parseProtocolWithConformances() {
+    let statements = parseStatements("protocol Foo: P {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ProtocolDecl
+    #expect(decl != nil)
+    #expect(decl!.conformances.count == 1)
+    let p = decl!.conformances[0] as? AST.Variable
+    #expect(p != nil)
+    #expect(p!.name.value == "P")
+}
+
+// MARK: - Extension Declarations
+
+@Test func parseEmptyExtension() {
+    let statements = parseStatements("extension Foo {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ExtensionDecl
+    #expect(decl != nil)
+    #expect(decl!.token.kind == .Keyword(.Extension))
+    let base = decl!.base as? AST.Variable
+    #expect(base != nil)
+    #expect(base!.name.value == "Foo")
+    #expect(decl!.conformances.isEmpty)
+    #expect(decl!.body.isEmpty)
+}
+
+@Test func parseExtensionWithConformances() {
+    let statements = parseStatements("extension Foo: P, Q {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ExtensionDecl
+    #expect(decl != nil)
+    #expect(decl!.conformances.count == 2)
+    let p = decl!.conformances[0] as? AST.Variable
+    #expect(p != nil)
+    #expect(p!.name.value == "P")
+    let q = decl!.conformances[1] as? AST.Variable
+    #expect(q != nil)
+    #expect(q!.name.value == "Q")
+}
+
+@Test func parseExtensionWithMembers() {
+    let statements = parseStatements("extension Foo { func bar() {} }")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ExtensionDecl
+    #expect(decl != nil)
+    #expect(decl!.body.count == 1)
+    let fd = decl!.body[0] as? AST.FunctionDecl
+    #expect(fd != nil)
+    #expect(fd!.name.value == "bar")
+}
+
+@Test func parseExtensionGenericReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("extension Foo<T> {}")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "declaring generic type in extension is not allowed")
+}
+
+// MARK: - While Statements
+
+@Test func parseWhileWithEmptyBody() {
+    let body = parseBlockStatements("func main() { while true {} }")
+    #expect(body.count == 1)
+    let whileStmt = body[0] as? AST.While
+    #expect(whileStmt != nil)
+    #expect(whileStmt!.token.kind == .Keyword(.While))
+    let cond = whileStmt!.condition as? AST.BoolLiteral
+    #expect(cond != nil)
+    #expect(cond!.value == true)
+    #expect(whileStmt!.body.isEmpty)
+    #expect(whileStmt!.beginToken.kind == .Separator(.OpenBrace))
+    #expect(whileStmt!.endToken.kind == .Separator(.CloseBrace))
+}
+
+@Test func parseWhileWithBody() {
+    let body = parseBlockStatements("func main() { while x { let y } }")
+    #expect(body.count == 1)
+    let whileStmt = body[0] as? AST.While
+    #expect(whileStmt != nil)
+    let cond = whileStmt!.condition as? AST.Variable
+    #expect(cond != nil)
+    #expect(cond!.name.value == "x")
+    #expect(whileStmt!.body.count == 1)
+    let vd = whileStmt!.body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    #expect(vd!.name.value == "y")
+}
+
+// MARK: - Repeat-While Statements
+
+@Test func parseRepeatWhileEmptyBody() {
+    let body = parseBlockStatements("func main() { repeat {} while true }")
+    #expect(body.count == 1)
+    let repeatStmt = body[0] as? AST.RepeatWhile
+    #expect(repeatStmt != nil)
+    #expect(repeatStmt!.token.kind == .Keyword(.Repeat))
+    #expect(repeatStmt!.body.isEmpty)
+    #expect(repeatStmt!.whileToken.kind == .Keyword(.While))
+    let cond = repeatStmt!.condition as? AST.BoolLiteral
+    #expect(cond != nil)
+    #expect(cond!.value == true)
+}
+
+@Test func parseRepeatWhileWithBody() {
+    let body = parseBlockStatements("func main() { repeat { let y } while x }")
+    #expect(body.count == 1)
+    let repeatStmt = body[0] as? AST.RepeatWhile
+    #expect(repeatStmt != nil)
+    #expect(repeatStmt!.body.count == 1)
+    let vd = repeatStmt!.body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    #expect(vd!.name.value == "y")
+    let cond = repeatStmt!.condition as? AST.Variable
+    #expect(cond != nil)
+    #expect(cond!.name.value == "x")
+}
+
+// MARK: - Guard Statements
+
+@Test func parseGuardWithEmptyBody() {
+    let body = parseBlockStatements("func main() { guard x else {} }")
+    #expect(body.count == 1)
+    let guardStmt = body[0] as? AST.Guard
+    #expect(guardStmt != nil)
+    #expect(guardStmt!.token.kind == .Keyword(.Guard))
+    let cond = guardStmt!.condition as? AST.Variable
+    #expect(cond != nil)
+    #expect(cond!.name.value == "x")
+    #expect(guardStmt!.body.isEmpty)
+    #expect(guardStmt!.beginToken.kind == .Separator(.OpenBrace))
+    #expect(guardStmt!.endToken.kind == .Separator(.CloseBrace))
+}
+
+@Test func parseGuardWithBody() {
+    let body = parseBlockStatements("func main() { guard x else { return } }")
+    #expect(body.count == 1)
+    let guardStmt = body[0] as? AST.Guard
+    #expect(guardStmt != nil)
+    #expect(guardStmt!.body.count == 1)
+    #expect(guardStmt!.body[0] is AST.Return)
+}
+
+// MARK: - Defer Statements
+
+@Test func parseDeferWithEmptyBody() {
+    let body = parseBlockStatements("func main() { defer {} }")
+    #expect(body.count == 1)
+    let deferStmt = body[0] as? AST.Defer
+    #expect(deferStmt != nil)
+    #expect(deferStmt!.token.kind == .Keyword(.Defer))
+    #expect(deferStmt!.body.isEmpty)
+    #expect(deferStmt!.beginToken.kind == .Separator(.OpenBrace))
+    #expect(deferStmt!.endToken.kind == .Separator(.CloseBrace))
+}
+
+@Test func parseDeferWithBody() {
+    let body = parseBlockStatements("func main() { defer { let x } }")
+    #expect(body.count == 1)
+    let deferStmt = body[0] as? AST.Defer
+    #expect(deferStmt != nil)
+    #expect(deferStmt!.body.count == 1)
+    let vd = deferStmt!.body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    #expect(vd!.name.value == "x")
+}
+
+// MARK: - Break / Continue / Goto
+
+@Test func parseBreakWithoutLabel() {
+    let body = parseBlockStatements("func main() { break }")
+    #expect(body.count == 1)
+    let breakStmt = body[0] as? AST.Break
+    #expect(breakStmt != nil)
+    #expect(breakStmt!.token.kind == .Keyword(.Break))
+    #expect(breakStmt!.label == nil)
+}
+
+@Test func parseBreakWithLabel() {
+    let body = parseBlockStatements("func main() { break label }")
+    #expect(body.count == 1)
+    let breakStmt = body[0] as? AST.Break
+    #expect(breakStmt != nil)
+    #expect(breakStmt!.label != nil)
+    #expect(breakStmt!.label!.value == "label")
+}
+
+@Test func parseBreakLabelOnDifferentLineHasNoLabel() {
+    let body = parseBlockStatements("func main() {\nbreak\nlabel\n}")
+    let breakStmt = body[0] as? AST.Break
+    #expect(breakStmt != nil)
+    #expect(breakStmt!.label == nil)
+}
+
+@Test func parseContinueWithoutLabel() {
+    let body = parseBlockStatements("func main() { continue }")
+    #expect(body.count == 1)
+    let continueStmt = body[0] as? AST.Continue
+    #expect(continueStmt != nil)
+    #expect(continueStmt!.token.kind == .Keyword(.Continue))
+    #expect(continueStmt!.label == nil)
+}
+
+@Test func parseContinueWithLabel() {
+    let body = parseBlockStatements("func main() { continue label }")
+    #expect(body.count == 1)
+    let continueStmt = body[0] as? AST.Continue
+    #expect(continueStmt != nil)
+    #expect(continueStmt!.label != nil)
+    #expect(continueStmt!.label!.value == "label")
+}
+
+@Test func parseContinueLabelOnDifferentLineHasNoLabel() {
+    let body = parseBlockStatements("func main() {\ncontinue\nlabel\n}")
+    let continueStmt = body[0] as? AST.Continue
+    #expect(continueStmt != nil)
+    #expect(continueStmt!.label == nil)
+}
+
+@Test func parseGotoProducesGotoNode() {
+    let body = parseBlockStatements("func main() { goto label }")
+    #expect(body.count == 1)
+    let gotoStmt = body[0] as? AST.Goto
+    #expect(gotoStmt != nil)
+    #expect(gotoStmt!.token.kind == .Keyword(.Goto))
+    #expect(gotoStmt!.label.value == "label")
+}
+
+// MARK: - Accessor Success Paths
+
+@Test func parseGetterWithBlockBody() {
+    let statements = parseStatements("var x: Int { get { 1 } }")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(decl!.accessors.count == 1)
+    let accessor = decl!.accessors[0]
+    #expect(accessor.kind == .Get)
+    #expect(accessor.token?.value == "get")
+    #expect(accessor.parameterName == nil)
+    if case .Block(let stmts) = accessor.body {
+        #expect(stmts.count == 1)
+    } else {
+        Issue.record("expected block body")
+    }
+}
+
+@Test func parseGetterWithExpressionBody() {
+    let statements = parseStatements("var x: Int { get = 1 }")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(decl!.accessors.count == 1)
+    let accessor = decl!.accessors[0]
+    #expect(accessor.kind == .Get)
+    if case .Expression(let expr) = accessor.body {
+        let lit = expr as? AST.IntegerLiteral
+        #expect(lit != nil)
+        #expect(lit!.value == 1)
+    } else {
+        Issue.record("expected expression body")
+    }
+}
+
+@Test func parseSetterWithoutParameterName() {
+    let statements = parseStatements("var x: Int { get { 1 } set {} }")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(decl!.accessors.count == 2)
+    #expect(decl!.accessors[0].kind == .Get)
+    let setter = decl!.accessors[1]
+    #expect(setter.kind == .Set)
+    #expect(setter.token?.value == "set")
+    #expect(setter.parameterName == nil)
+    if case .Block = setter.body {
+    } else {
+        Issue.record("expected block body")
+    }
+}
+
+@Test func parseSetterWithParameterName() {
+    let statements = parseStatements("var x: Int { get { 1 } set(newValue) {} }")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    let setter = decl!.accessors[1]
+    #expect(setter.kind == .Set)
+    #expect(setter.parameterName != nil)
+    #expect(setter.parameterName!.value == "newValue")
+}
+
+@Test func parseWillSetWithoutParameterName() {
+    let statements = parseStatements("var x: Int = 0 { willSet {} }")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(decl!.accessors.count == 1)
+    let observer = decl!.accessors[0]
+    #expect(observer.kind == .WillSet)
+    #expect(observer.token?.value == "willSet")
+    #expect(observer.parameterName == nil)
+}
+
+@Test func parseWillSetWithParameterName() {
+    let statements = parseStatements("var x: Int = 0 { willSet(new) {} }")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    let observer = decl!.accessors[0]
+    #expect(observer.kind == .WillSet)
+    #expect(observer.parameterName != nil)
+    #expect(observer.parameterName!.value == "new")
+}
+
+@Test func parseDidSetWithoutParameterName() {
+    let statements = parseStatements("var x: Int = 0 { didSet {} }")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    let observer = decl!.accessors[0]
+    #expect(observer.kind == .DidSet)
+    #expect(observer.token?.value == "didSet")
+    #expect(observer.parameterName == nil)
+}
+
+@Test func parseDidSetWithParameterName() {
+    let statements = parseStatements("var x: Int = 0 { didSet(old) {} }")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    let observer = decl!.accessors[0]
+    #expect(observer.kind == .DidSet)
+    #expect(observer.parameterName != nil)
+    #expect(observer.parameterName!.value == "old")
+}
+
+@Test func parseShorthandGetter() {
+    let statements = parseStatements("var x: Int { 1 }")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(decl!.accessors.count == 1)
+    let accessor = decl!.accessors[0]
+    #expect(accessor.kind == .Get)
+    #expect(accessor.token == nil)
+    if case .Block(let stmts) = accessor.body {
+        #expect(stmts.count == 1)
+    } else {
+        Issue.record("expected block body")
+    }
+}
+
+@Test func parseStoredPropertyWithWillSetAndDidSet() {
+    let statements = parseStatements("var x: Int = 0 { willSet {} didSet {} }")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(decl!.accessors.count == 2)
+    #expect(decl!.accessors[0].kind == .WillSet)
+    #expect(decl!.accessors[1].kind == .DidSet)
+}
+
+// MARK: - Modifiers
+
+@Test func parsePublicModifierOnStruct() {
+    let statements = parseStatements("public struct Foo {}")
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.modifiers.count == 1)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Public(setter: false)))
+}
+
+@Test func parsePublicSetModifierOnStruct() {
+    let statements = parseStatements("public(set) struct Foo {}")
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.modifiers.count == 1)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Public(setter: true)))
+}
+
+@Test func parsePrivateModifierOnVariable() {
+    let statements = parseStatements("private var x")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(decl!.modifiers.count == 1)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Private(setter: false)))
+}
+
+@Test func parsePrivateSetModifierOnVariable() {
+    let statements = parseStatements("private(set) var x")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Private(setter: true)))
+}
+
+@Test func parseInternalModifierOnFunction() {
+    let statements = parseStatements("internal func foo() {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Internal(setter: false)))
+}
+
+@Test func parseFilePrivateModifierOnStruct() {
+    let statements = parseStatements("fileprivate struct Foo {}")
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .FilePrivate(setter: false)))
+}
+
+@Test func parseProtectedSetModifierOnClass() {
+    let statements = parseStatements("protected(set) class Foo {}")
+    let decl = statements[0] as? AST.ClassDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Protected(setter: true)))
+}
+
+@Test func parsePackagePrivateModifierOnStruct() {
+    let statements = parseStatements("packageprivate struct Foo {}")
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .PackagePrivate(setter: false)))
+}
+
+@Test func parseOpenModifierOnClass() {
+    let statements = parseStatements("open class Foo {}")
+    let decl = statements[0] as? AST.ClassDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Open(setter: false)))
+}
+
+@Test func parseFinalModifierOnClass() {
+    let statements = parseStatements("final class Foo {}")
+    let decl = statements[0] as? AST.ClassDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Final))
+}
+
+@Test func parseOverrideModifierOnFunction() {
+    let statements = parseStatements("override func foo() {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Override))
+}
+
+@Test func parseMultipleModifiersOnStruct() {
+    let statements = parseStatements("public final struct Foo {}")
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.modifiers.count == 2)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Public(setter: false)))
+    #expect(modifierKind(decl!.modifiers[1].kind, equals: .Final))
+}
+
+@Test func parseMutatingModifierOnFunction() {
+    let statements = parseStatements("mutating func foo() {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Mutating))
+}
+
+@Test func parseLazyModifierOnVariable() {
+    let statements = parseStatements("lazy var x: Int")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Lazy))
+}
+
+// MARK: - Attributes
+
+@Test func parseAttributeWithoutArguments() {
+    let statements = parseStatements("#[attr] struct Foo {}")
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.attributes.count == 1)
+    #expect(decl!.attributes[0].name.value == "attr")
+    #expect(decl!.attributes[0].arguments.isEmpty)
+}
+
+@Test func parseAttributeWithModifiers() {
+    let statements = parseStatements("#[attr] public struct Foo {}")
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.attributes.count == 1)
+    #expect(decl!.modifiers.count == 1)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Public(setter: false)))
+}
+
+@Test func parseAttributeWithArguments() {
+    let statements = parseStatements("#[attr(a b)] struct Foo {}")
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.attributes.count == 1)
+    #expect(decl!.attributes[0].arguments.count == 1)
+    #expect(decl!.attributes[0].arguments[0].count == 2)
+    #expect(decl!.attributes[0].arguments[0][0].value == "a")
+    #expect(decl!.attributes[0].arguments[0][1].value == "b")
+}
+
+@Test func parseAttributeWithLabeledArguments() {
+    let statements = parseStatements("#[attr(label: a b)] struct Foo {}")
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.attributes.count == 1)
+    let attr = decl!.attributes[0]
+    #expect(attr.labeledArguments.count == 1)
+    let labelToken = attr.labeledArguments.first { $0.key.value == "label" }
+    #expect(labelToken != nil)
+    #expect(labelToken!.value.count == 2)
+    #expect(labelToken!.value[0].value == "a")
+    #expect(labelToken!.value[1].value == "b")
+}
+
+// MARK: - Self / SelfType / Super Expressions
+
+@Test func parseSelfExpression() {
+    let expr = firstExpression("self")
+    let selfExpr = expr as? AST.SelfExpression
+    #expect(selfExpr != nil)
+}
+
+@Test func parseSelfTypeExpression() {
+    let expr = firstExpression("Self")
+    let selfExpr = expr as? AST.SelfTypeExpression
+    #expect(selfExpr != nil)
+}
+
+@Test func parseSuperExpression() {
+    let expr = firstExpression("super")
+    let superExpr = expr as? AST.SuperExpression
+    #expect(superExpr != nil)
+}
+
+// MARK: - Implicit Member Access
+
+@Test func parseImplicitMemberAccess() {
+    let expr = firstExpression(".foo")
+    let implicit = expr as? AST.ImplicitMemberAccess
+    #expect(implicit != nil)
+    #expect(implicit!.name.value == "foo")
+}
+
+// MARK: - Generic Application
+
+@Test func parseGenericApplicationSingleArg() {
+    let expr = firstExpression("Foo::<Int>")
+    let generic = expr as? AST.GenericApplication
+    #expect(generic != nil)
+    let base = generic!.base as? AST.Variable
+    #expect(base != nil)
+    #expect(base!.name.value == "Foo")
+    #expect(generic!.genericArguments.count == 1)
+    let arg = generic!.genericArguments[0] as? AST.Variable
+    #expect(arg != nil)
+    #expect(arg!.name.value == "Int")
+}
+
+@Test func parseGenericApplicationMultipleArgs() {
+    let expr = firstExpression("Foo::<Int, String>")
+    let generic = expr as? AST.GenericApplication
+    #expect(generic != nil)
+    #expect(generic!.genericArguments.count == 2)
+    let arg0 = generic!.genericArguments[0] as? AST.Variable
+    #expect(arg0 != nil)
+    #expect(arg0!.name.value == "Int")
+    let arg1 = generic!.genericArguments[1] as? AST.Variable
+    #expect(arg1 != nil)
+    #expect(arg1!.name.value == "String")
+}
+
+// MARK: - Parenthesized Expression
+
+@Test func parseParenthesizedVariable() {
+    let expr = firstExpression("(x)")
+    let varExpr = expr as? AST.Variable
+    #expect(varExpr != nil)
+    #expect(varExpr!.name.value == "x")
+}
+
+@Test func parseParenthesizedSequentialExpression() {
+    let expr = firstExpression("(a + b)")
+    let seq = expr as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops.count == 1)
+    #expect(seq!.ops[0].kind == .Operator(.Plus))
+    #expect(seq!.operands.count == 2)
+}
+
+// MARK: - Compound Assignment Operators
+
+@Test func parsePlusAssignExpression() {
+    let expr = firstExpression("x += 1")
+    let seq = expr as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops.count == 1)
+    #expect(seq!.ops[0].kind == .Operator(.PlusAssign))
+    #expect(seq!.operands.count == 2)
+    let target = seq!.operands[0] as? AST.Variable
+    #expect(target != nil)
+    #expect(target!.name.value == "x")
+    let value = seq!.operands[1] as? AST.IntegerLiteral
+    #expect(value != nil)
+    #expect(value!.value == 1)
+}
+
+@Test func parseMultiplyAssignExpression() {
+    let expr = firstExpression("x *= 2")
+    let seq = expr as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops[0].kind == .Operator(.MultiplyAssign))
+}
+
+@Test func parseMinusAssignExpression() {
+    let expr = firstExpression("x -= 3")
+    let seq = expr as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops[0].kind == .Operator(.MinusAssign))
+}
+
+// MARK: - Function Return Type
+
+@Test func parseFunctionWithReturnType() {
+    let statements = parseStatements("func foo() -> Int {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.returnTypeExpression != nil)
+    let returnType = decl!.returnTypeExpression as? AST.Variable
+    #expect(returnType != nil)
+    #expect(returnType!.name.value == "Int")
+}
+
+@Test func parseFunctionWithReturnTypeAndBlockBody() {
+    let statements = parseStatements("func foo() -> Int { return 42 }")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.returnTypeExpression != nil)
+    if case .Block(let body) = decl!.body {
+        #expect(body.count == 1)
+        #expect(body[0] is AST.Return)
+    } else {
+        Issue.record("expected block body")
+    }
+}
+
+// MARK: - Error Recovery
+
+@Test func parseStructMissingNameReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("struct")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected struct name after 'struct'")
+}
+
+@Test func parseStructNonIdentifierNameReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("struct 42 {}")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected identifier after 'struct', but got '42'")
+}
+
+@Test func parseClassMissingNameReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("class")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected class name after 'class'")
+}
+
+@Test func parseWhileMissingOpenBraceReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { while x let }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected '{' after while condition, but got 'let'")
+}
+
+@Test func parseGuardMissingOpenBraceAfterElseReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { guard x else let }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected '{' after 'else', but got 'let'")
+}
+
+@Test func parseDeferMissingOpenBraceReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { defer x }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected '{' after 'defer', but got 'x'")
+}
+
+@Test func parseBreakWithNonIdentifierLabelReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { break 42 }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected identifier after 'break', but got '42'")
+}
+
+@Test func parseContinueWithNonIdentifierLabelReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { continue 42 }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected identifier after 'continue', but got '42'")
+}
+
+// MARK: - Fixed Bug Regressions
+
+@Test func parseGotoWithIdentifierLabelDoesNotReportError() {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { goto label }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    #expect(errors.isEmpty)
+}
+
+@Test func parseFunctionWithReturnTypeAndExpressionBody() {
+    let statements = parseStatements("func foo() -> Int = 42")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.returnTypeExpression != nil)
+    let returnType = decl!.returnTypeExpression as? AST.Variable
+    #expect(returnType != nil)
+    #expect(returnType!.name.value == "Int")
+    if case .Expression(let expr) = decl!.body {
+        let lit = expr as? AST.IntegerLiteral
+        #expect(lit != nil)
+        #expect(lit!.value == 42)
+    } else {
+        Issue.record("expected expression body")
+    }
+}
+
+// MARK: - Actor Declarations (previously dead code)
+
+@Test func parseEmptyActor() {
+    let statements = parseStatements("actor Foo {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ActorDecl
+    #expect(decl != nil)
+    #expect(decl!.token.kind == .Keyword(.Actor))
+    #expect(decl!.name.value == "Foo")
+    #expect(decl!.genericDecl == nil)
+    #expect(decl!.conformances.isEmpty)
+    #expect(decl!.body.isEmpty)
+}
+
+@Test func parseActorWithMembers() {
+    let statements = parseStatements("actor Foo { let x func bar() {} }")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ActorDecl
+    #expect(decl != nil)
+    #expect(decl!.body.count == 2)
+    let vd = decl!.body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    #expect(vd!.name.value == "x")
+    let fd = decl!.body[1] as? AST.FunctionDecl
+    #expect(fd != nil)
+    #expect(fd!.name.value == "bar")
+}
+
+// MARK: - If Statements (previously dead code)
+
+@Test func parseIfStatementWithEmptyThen() {
+    let body = parseBlockStatements("func main() { if true {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let ifExpr = exprStmt!.expression as? AST.If
+    #expect(ifExpr != nil)
+    let cond = ifExpr!.condition as? AST.BoolLiteral
+    #expect(cond != nil)
+    #expect(cond!.value == true)
+    #expect(ifExpr!.then.isEmpty)
+    #expect(ifExpr!.elseKind == nil)
+}
+
+@Test func parseIfStatementWithThenBody() {
+    let body = parseBlockStatements("func main() { if x { return } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let ifExpr = exprStmt!.expression as? AST.If
+    #expect(ifExpr != nil)
+    #expect(ifExpr!.then.count == 1)
+    #expect(ifExpr!.then[0] is AST.Return)
+}
+
+@Test func parseIfElseStatement() {
+    let body = parseBlockStatements("func main() { if x { return 1 } else { return 2 } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let ifExpr = exprStmt!.expression as? AST.If
+    #expect(ifExpr != nil)
+    #expect(ifExpr!.then.count == 1)
+    if case .Block(let elseBody) = ifExpr!.elseKind {
+        #expect(elseBody.count == 1)
+    } else {
+        Issue.record("expected block else")
+    }
+}
+
+@Test func parseIfElseIfChain() {
+    let body = parseBlockStatements("func main() { if x {} else if y {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let ifExpr = exprStmt!.expression as? AST.If
+    #expect(ifExpr != nil)
+    if case .If(let innerIf) = ifExpr!.elseKind {
+        let cond = innerIf.condition as? AST.Variable
+        #expect(cond != nil)
+        #expect(cond!.name.value == "y")
+    } else {
+        Issue.record("expected else if")
+    }
+}
+
+// MARK: - If as Expression (parsePrimary)
+
+@Test func parseIfExpressionWithoutElse() {
+    let expr = firstExpression("if true {}")
+    let ifExpr = expr as? AST.If
+    #expect(ifExpr != nil)
+    let cond = ifExpr!.condition as? AST.BoolLiteral
+    #expect(cond != nil)
+    #expect(cond!.value == true)
+    #expect(ifExpr!.then.isEmpty)
+    #expect(ifExpr!.elseKind == nil)
+}
+
+@Test func parseIfExpressionAsAssignmentValue() {
+    let expr = firstExpression("x = if true {} else {}")
+    let seq = expr as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops.count == 1)
+    #expect(seq!.ops[0].kind == .Operator(.Assign))
+    #expect(seq!.operands.count == 2)
+    let target = seq!.operands[0] as? AST.Variable
+    #expect(target != nil)
+    #expect(target!.name.value == "x")
+    let ifExpr = seq!.operands[1] as? AST.If
+    #expect(ifExpr != nil)
+    if case .Block(let elseBody) = ifExpr!.elseKind {
+        #expect(elseBody.isEmpty)
+    } else {
+        Issue.record("expected block else")
+    }
+}
+
+@Test func parseIfExpressionAsReturnValue() {
+    let body = parseBlockStatements("func main() { return if true { 1 } else { 2 } }")
+    #expect(body.count == 1)
+    let ret = body[0] as? AST.Return
+    #expect(ret != nil)
+    let ifExpr = ret!.value as? AST.If
+    #expect(ifExpr != nil)
+    #expect(ifExpr!.then.count == 1)
+    if case .Block(let elseBody) = ifExpr!.elseKind {
+        #expect(elseBody.count == 1)
+    } else {
+        Issue.record("expected block else")
+    }
+}
+
+@Test func parseIfExpressionWithMemberAccess() {
+    let expr = firstExpression("(if true { 1 } else { 2 }).foo")
+    let member = expr as? AST.MemberAccess
+    #expect(member != nil)
+    #expect(member!.member.value == "foo")
+    let ifExpr = member!.object as? AST.If
+    #expect(ifExpr != nil)
+}
+
+@Test func parseIfExpressionElseIfChainAsValue() {
+    let expr = firstExpression("x = if a {} else if b {} else {}")
+    let seq = expr as? AST.SequentialExpression
+    #expect(seq != nil)
+    let ifExpr = seq!.operands[1] as? AST.If
+    #expect(ifExpr != nil)
+    if case .If(let innerIf) = ifExpr!.elseKind {
+        if case .Block = innerIf.elseKind {
+        } else {
+            Issue.record("expected block else in inner if")
+        }
+    } else {
+        Issue.record("expected else if")
+    }
+}
+
+@Test func parseNestedIfExpressionInThenBody() {
+    let body = parseBlockStatements("func main() { if x { if y {} } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let outerIf = exprStmt!.expression as? AST.If
+    #expect(outerIf != nil)
+    #expect(outerIf!.then.count == 1)
+    let innerStmt = outerIf!.then[0] as? AST.ExpressionStatement
+    #expect(innerStmt != nil)
+    let innerIf = innerStmt!.expression as? AST.If
+    #expect(innerIf != nil)
+    let cond = innerIf!.condition as? AST.Variable
+    #expect(cond != nil)
+    #expect(cond!.name.value == "y")
+}
+
+@Test func parseIfExpressionWithComplexCondition() {
+    let expr = firstExpression("if a + b == c {}")
+    let ifExpr = expr as? AST.If
+    #expect(ifExpr != nil)
+    let seq = ifExpr!.condition as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops.count == 2)
 }
