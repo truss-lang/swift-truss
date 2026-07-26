@@ -908,8 +908,8 @@ public final class Parser {
         case .Keyword(let kind):
             switch kind {
             case .Func: return parseFunctionDecl(modifiers, attributes)
-            case .Let: return parseVariableDecl(modifiers, attributes)
-            case .Var: return parseVariableDecl(modifiers, attributes)
+            case .Let: return parseVariableDecl(modifiers, attributes, inFunctionContext: true)
+            case .Var: return parseVariableDecl(modifiers, attributes, inFunctionContext: true)
             case .Return: return parseReturn()
             case .While: return parseWhile()
             case .Repeat: return parseRepeatWhile()
@@ -1025,7 +1025,9 @@ public final class Parser {
             modifiers, attributes, token, name, returnTypeExpression, body, sourceRange: range
         )
     }
-    private func parseVariableDecl(_ modifiers: [AST.Modifier], _ attributes: [AST.Attribute])
+    private func parseVariableDecl(
+        _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], inFunctionContext: Bool = false
+    )
         -> AST.Statement
     {
         let token = next!
@@ -1055,6 +1057,27 @@ public final class Parser {
             let hasObserver = accessors.contains {
                 $0.kind == .WillSet || $0.kind == .DidSet
             }
+            var seenKinds: Set<AST.Accessor.Kind> = []
+            for accessor in accessors {
+                if seenKinds.contains(accessor.kind) {
+                    let first = accessors.first { $0.kind == accessor.kind }!
+                    emitError(
+                        "duplicate '\(accessor.token!.value)' accessor",
+                        at: accessor.token!,
+                        notes: [note("first declared here", at: first.token!)]
+                    )
+                }
+                seenKinds.insert(accessor.kind)
+            }
+            if inFunctionContext, hasObserver {
+                let observer = accessors.first {
+                    $0.kind == .WillSet || $0.kind == .DidSet
+                }!
+                emitError(
+                    "property observers are not allowed in function context",
+                    at: observer.sourceRange
+                )
+            }
             if let initializer = initializer, hasGet || hasSet {
                 let accessor = accessors.first {
                     $0.kind == .Get || $0.kind == .Set
@@ -1069,7 +1092,9 @@ public final class Parser {
                                 severity: .note,
                                 message: "initializer makes this a stored property",
                                 range: initializer.sourceRange)
-                        ]))
+                        ]
+                    )
+                )
             }
             if initializer == nil, hasGet, hasObserver {
                 let observer = accessors.first {
@@ -1077,13 +1102,14 @@ public final class Parser {
                 }!
                 emitError(
                     "computed property cannot have 'willSet' or 'didSet' observers",
-                    at: observer.sourceRange)
+                    at: observer.sourceRange
+                )
             }
             if hasSet, !hasGet {
                 let setter = accessors.first { $0.kind == .Set }!
                 emitError("setter requires a getter", at: setter.sourceRange)
             }
-            if initializer == nil, (hasGet || hasSet), typeExpression == nil {
+            if initializer == nil, hasGet || hasSet, typeExpression == nil {
                 emitError("computed property must have a type annotation", at: name)
             }
         } else {
