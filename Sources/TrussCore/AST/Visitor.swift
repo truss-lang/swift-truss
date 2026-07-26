@@ -200,6 +200,20 @@ extension AST {
         }
 
         @discardableResult
+        open func visitExtensionDecl(
+            _ extensionDecl: AST.ExtensionDecl, additional: Any? = nil
+        ) -> Any? {
+            visit(extensionDecl.base, additional: additional)
+            for conformance in extensionDecl.conformances {
+                visit(conformance, additional: additional)
+            }
+            for statement in extensionDecl.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitFunctionDecl(
             _ functionDecl: AST.FunctionDecl, additional: Any? = nil
         ) -> Any? {

@@ -128,6 +128,7 @@ public final class Parser {
                 case .Struct: statement = parseStructDecl(modifiers, attributes)
                 case .Class: statement = parseClassDecl(modifiers, attributes)
                 case .ProtocolKw: statement = parseProtocolDecl(modifiers, attributes)
+                case .Extension: statement = parseExtensionDecl(modifiers, attributes)
                 case .Func: statement = parseFunctionDecl(modifiers, attributes)
                 case .Let: statement = parseVariableDecl(modifiers, attributes)
                 case .Var: statement = parseVariableDecl(modifiers, attributes)
@@ -729,6 +730,67 @@ public final class Parser {
         }
         return AST.ProtocolDecl(
             modifiers, attributes, token, name, genericDecl, conformances, body,
+            sourceRange: SourceRange(from: token, to: endToken, in: buffer)
+        )
+    }
+    private func parseExtensionDecl(_ modifiers: [AST.Modifier], _ attributes: [AST.Attribute])
+        -> AST.Statement
+    {
+        let token = next!
+        let base = parseExpression(excepts: [.Less])
+        if let t = peek, case .Operator(.Less) = t.kind {
+            let genericDecl = parseGenericDecl()
+            emitError(
+                "declaring generic type in extension is not allowed",
+                at: genericDecl?.sourceRange ?? t.sourceRange(in: buffer)
+            )
+        }
+        var conformances: [AST.Expression] = []
+        if let t = peek, case .Separator(.Colon) = t.kind {
+            self.index += 1
+            while peek != nil {
+                conformances.append(parseExpression())
+                if let t3 = peek, case .Separator(.Comma) = t3.kind {
+                    self.index += 1
+                } else {
+                    break
+                }
+            }
+        }
+        guard let openToken = next else {
+            emitError("expected '{' in extension", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        guard case .Separator(.OpenBrace) = openToken.kind else {
+            emitError("expected '{' in extension, but got '\(openToken.value)'", at: openToken)
+            return errorStatement(from: token, to: openToken)
+        }
+        var body: [AST.Statement] = []
+        while let closeToken = peek {
+            if case .Separator(.CloseBrace) = closeToken.kind {
+                break
+            }
+            if let stmt = parseTypeBodyStatement(isProtocolContext: true) {
+                body.append(stmt)
+            }
+        }
+        let endToken: Token
+        if let closeToken = peek {
+            if case .Separator(.CloseBrace) = closeToken.kind {
+                self.index += 1
+            } else {
+                emitError(
+                    "expected '}' after extension body, but got \(closeToken.value)",
+                    at: closeToken
+                )
+            }
+            endToken = closeToken
+        } else {
+            emitError("expected '}' after extension body", at: endOfFile)
+            endToken = openToken
+        }
+        return AST.ExtensionDecl(
+            modifiers, attributes, token, base, conformances, body,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
     }

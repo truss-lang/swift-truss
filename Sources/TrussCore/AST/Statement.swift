@@ -197,6 +197,26 @@ extension AST {
             visitor.visitProtocolDecl(self, additional: additional)
         }
     }
+    public final class ExtensionDecl: Decl {
+        public let token: Token
+        public let base: Expression
+        public let conformances: [Expression]
+        public let body: [AST.Statement]
+        public init(
+            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
+            _ base: Expression, _ conformances: [Expression], _ body: [AST.Statement],
+            sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.base = base
+            self.conformances = conformances
+            self.body = body
+            super.init(modifiers, attributes, sourceRange: sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitExtensionDecl(self, additional: additional)
+        }
+    }
     public final class FunctionDecl: Decl {
         public let token: Token
         public let name: Token
