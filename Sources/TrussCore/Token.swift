@@ -177,6 +177,7 @@ public enum SeparatorKind: Sendable {
     case Comma  // ,
     case Colon  // :
     case Sharp  // #
+    case Arrow  // ->
 }
 
 public enum OperatorKind: Sendable {
@@ -209,7 +210,7 @@ public enum OperatorKind: Sendable {
     case BitXorAssign  // ^=
     case BitOrAssign  // |=
 
-    case Arrow  // ->
+    case RightArrow  // =>
 
     case Inc  // ++
     case Dec  // --

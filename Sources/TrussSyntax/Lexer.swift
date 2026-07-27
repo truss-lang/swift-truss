@@ -40,7 +40,7 @@ let operatorTable: [String: OperatorKind] = [
     "+=": .PlusAssign,
     "-": .Minus,
     "--": .Dec,
-    "->": .Arrow,
+    "=>": .RightArrow,
     "-=": .MinusAssign,
     "/": .Divide,
     "/=": .DivideAssign,
@@ -119,18 +119,26 @@ public final class Lexer {
             return self.singleCharToken(.Operator(.At), "@")
         case "?":
             return self.parseQuestion()
-        case "~", "!", "%", "&", "*", "+", "-", "<", ">", "=", "^", "|", ".":
+        case "-":
+            if self.input.peek2 == ">" {
+                self.input.incrementPosition()
+                self.input.incrementPosition()
+                return self.singleCharToken(.Separator(.Arrow), "->")
+            } else {
+                return self.parseOperator()
+            }
+        case "~", "!", "%", "&", "*", "+", "<", ">", "=", "^", "|", ".":
             return self.parseOperator()
         case "/":
             let next = self.input.peek2
             if next == "/" {
-                _ = self.input.next()
-                _ = self.input.next()
+                self.input.incrementPosition()
+                self.input.incrementPosition()
                 self.skipLineComment()
                 return nil
             } else if next == "*" {
-                _ = self.input.next()
-                _ = self.input.next()
+                self.input.incrementPosition()
+                self.input.incrementPosition()
                 self.skipBlockComment()
                 return nil
             } else {
@@ -138,7 +146,7 @@ public final class Lexer {
             }
         default:
             let begin = self.input.currentPosition
-            _ = self.input.next()
+            self.input.incrementPosition()
             return Token(
                 value: String(c), kind: .Unknown,
                 pos: self.makePosition(begin), id: self.input.id)
@@ -146,7 +154,7 @@ public final class Lexer {
     }
     private func singleCharToken(_ kind: TokenKind, _ value: String) -> Token {
         let begin = self.input.currentPosition
-        _ = self.input.next()
+        self.input.incrementPosition()
         return Token(value: value, kind: kind, pos: self.makePosition(begin), id: self.input.id)
     }
     private func makePosition(_ begin: Position) -> Position {
@@ -162,7 +170,7 @@ public final class Lexer {
         var chars: [Character] = []
         while let c = self.input.peek, c.isLetter || c.isNumber || c == "_" {
             chars.append(c)
-            _ = self.input.next()
+            self.input.incrementPosition()
         }
         let value = String(chars)
         let pos = self.makePosition(begin)
@@ -183,14 +191,14 @@ public final class Lexer {
     }
     private func parseBacktickIdentifier() -> Token {
         let begin = self.input.currentPosition
-        _ = self.input.next()
+        self.input.incrementPosition()
         var chars: [Character] = []
         while let c = self.input.peek, c != "`" {
             chars.append(c)
-            _ = self.input.next()
+            self.input.incrementPosition()
         }
         if self.input.peek == "`" {
-            _ = self.input.next()
+            self.input.incrementPosition()
             let pos = self.makePosition(begin)
             if chars.isEmpty {
                 return Token(value: "``", kind: .Unknown, pos: pos, id: self.input.id)
@@ -207,29 +215,29 @@ public final class Lexer {
         while let c = self.input.peek, c != "\"" {
             if c == "\\" {
                 chars.append(c)
-                _ = self.input.next()
+                self.input.incrementPosition()
                 if let escaped = self.input.peek {
                     chars.append(escaped)
-                    _ = self.input.next()
+                    self.input.incrementPosition()
                     if escaped == "u" && self.input.peek == "{" {
                         while let u = self.input.peek, u != "}" {
                             chars.append(u)
-                            _ = self.input.next()
+                            self.input.incrementPosition()
                         }
                         if self.input.peek == "}" {
                             chars.append("}")
-                            _ = self.input.next()
+                            self.input.incrementPosition()
                         }
                     }
                 }
             } else {
                 chars.append(c)
-                _ = self.input.next()
+                self.input.incrementPosition()
             }
         }
         if self.input.peek == "\"" {
             chars.append("\"")
-            _ = self.input.next()
+            self.input.incrementPosition()
         }
         let value = String(chars)
         let pos = self.makePosition(begin)
@@ -296,7 +304,7 @@ public final class Lexer {
                 if let c = self.input.next() { chars.append(c) }
                 while let c = self.input.peek, c.isHexDigit || c == "_" {
                     chars.append(c)
-                    _ = self.input.next()
+                    self.input.incrementPosition()
                 }
                 let digits = String(chars.dropFirst(2)).filter { $0 != "_" }
                 let intValue = Int128(digits, radix: 16) ?? 0
@@ -309,7 +317,7 @@ public final class Lexer {
                 if let c = self.input.next() { chars.append(c) }
                 while let c = self.input.peek, c == "0" || c == "1" || c == "_" {
                     chars.append(c)
-                    _ = self.input.next()
+                    self.input.incrementPosition()
                 }
                 let digits = String(chars.dropFirst(2)).filter { $0 != "_" }
                 let intValue = Int128(digits, radix: 2) ?? 0
@@ -322,7 +330,7 @@ public final class Lexer {
                 if let c = self.input.next() { chars.append(c) }
                 while let c = self.input.peek, (c >= "0" && c <= "7") || c == "_" {
                     chars.append(c)
-                    _ = self.input.next()
+                    self.input.incrementPosition()
                 }
                 let digits = String(chars.dropFirst(2)).filter { $0 != "_" }
                 let intValue = Int128(digits, radix: 8) ?? 0
@@ -334,27 +342,27 @@ public final class Lexer {
         }
         while let c = self.input.peek, (c >= "0" && c <= "9") || c == "_" {
             chars.append(c)
-            _ = self.input.next()
+            self.input.incrementPosition()
         }
         if self.input.peek == ".", let next = self.input.peek2, next >= "0" && next <= "9" {
             isFloat = true
             if let c = self.input.next() { chars.append(c) }
             while let c = self.input.peek, (c >= "0" && c <= "9") || c == "_" {
                 chars.append(c)
-                _ = self.input.next()
+                self.input.incrementPosition()
             }
         }
         if let c = self.input.peek, c == "e" || c == "E" {
             isFloat = true
             chars.append(c)
-            _ = self.input.next()
+            self.input.incrementPosition()
             if let sign = self.input.peek, sign == "+" || sign == "-" {
                 chars.append(sign)
-                _ = self.input.next()
+                self.input.incrementPosition()
             }
             while let c = self.input.peek, (c >= "0" && c <= "9") || c == "_" {
                 chars.append(c)
-                _ = self.input.next()
+                self.input.incrementPosition()
             }
         }
         let value = String(chars)
@@ -371,15 +379,15 @@ public final class Lexer {
     }
     private func parseQuestion() -> Token {
         let begin = self.input.currentPosition
-        _ = self.input.next()
+        self.input.incrementPosition()
         if let c = self.input.peek {
             if c == "." {
-                _ = self.input.next()
+                self.input.incrementPosition()
                 return Token(
                     value: "?.", kind: .Operator(.QuestionMarkDot),
                     pos: self.makePosition(begin), id: self.input.id)
             } else if c == ":" {
-                _ = self.input.next()
+                self.input.incrementPosition()
                 return Token(
                     value: "?:", kind: .Operator(.Elvis),
                     pos: self.makePosition(begin), id: self.input.id)
@@ -400,7 +408,7 @@ public final class Lexer {
                 }
             }
             chars.append(c)
-            _ = self.input.next()
+            self.input.incrementPosition()
         }
         let value = String(chars)
         let pos = self.makePosition(begin)
@@ -409,7 +417,7 @@ public final class Lexer {
     }
     private func skipLineComment() {
         while let c = self.input.peek, c != "\n" {
-            _ = self.input.next()
+            self.input.incrementPosition()
         }
     }
     private func skipBlockComment() {
@@ -417,21 +425,21 @@ public final class Lexer {
         while depth > 0 {
             guard let c = self.input.peek else { break }
             if c == "/" && self.input.peek2 == "*" {
-                _ = self.input.next()
-                _ = self.input.next()
+                self.input.incrementPosition()
+                self.input.incrementPosition()
                 depth += 1
             } else if c == "*" && self.input.peek2 == "/" {
-                _ = self.input.next()
-                _ = self.input.next()
+                self.input.incrementPosition()
+                self.input.incrementPosition()
                 depth -= 1
             } else {
-                _ = self.input.next()
+                self.input.incrementPosition()
             }
         }
     }
     private func skipWhitechars() {
         while let c = self.input.peek, c.isWhitespace {
-            _ = self.input.next()
+            self.input.incrementPosition()
         }
     }
 }
