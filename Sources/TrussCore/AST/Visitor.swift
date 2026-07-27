@@ -416,6 +416,14 @@ extension AST {
         }
 
         @discardableResult
+        open func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
+            for statement in closure.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitSequentialExpression(
             _ sequentialExpression: AST.SequentialExpression, additional: Any? = nil
         ) -> Any? {

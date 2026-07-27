@@ -1876,6 +1876,8 @@ public final class Parser {
                         return expression
                     }
                 }
+            case .OpenBrace:
+                expression = parseClosure()
             default: return nil
             }
         case .Operator(let kind):
@@ -2053,6 +2055,26 @@ public final class Parser {
             token, condition, then, elseKind,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
+    }
+    private func parseClosure() -> AST.Closure {
+        let beginToken = next!
+        var body: [AST.Statement] = []
+        while let t = peek {
+            if t.kind == .Separator(.CloseBrace) {
+                break
+            }
+            if let stmt = parseStatement() {
+                body.append(stmt)
+            }
+        }
+        if let t = next {
+            if t.kind != .Separator(.CloseBrace) {
+                emitError("expected '}' after closure body, but got '\(t.value)'", at: t)
+            }
+        } else {
+            emitError("expected '}' after closure body", at: endOfFile)
+        }
+        return AST.Closure(body, sourceRange: SourceRange(from: beginToken, to: last!, in: buffer))
     }
     private func parseCall(_ callee: AST.Expression) -> AST.Call {
         self.index += 1

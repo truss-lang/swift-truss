@@ -227,6 +227,16 @@ extension AST {
             visitor.visitImplicitMemberAccess(self, additional: additional)
         }
     }
+    public final class Closure: Expression {
+        public let body: [Statement]
+        public init(_ body: [Statement], sourceRange: SourceRange) {
+            self.body = body
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitClosure(self, additional: additional)
+        }
+    }
     public final class SequentialExpression: Expression {
         public let ops: [Token]
         public let operands: [Expression]
