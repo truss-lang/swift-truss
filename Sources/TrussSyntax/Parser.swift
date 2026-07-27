@@ -1044,7 +1044,7 @@ public final class Parser {
             emitError("expected ')' after function parameters, but got '\(t2.value)'", at: t2)
         }
         let returnTypeExpression: AST.Expression?
-        if let t = peek, case .Operator(.Arrow) = t.kind {
+        if let t = peek, case .Separator(.Arrow) = t.kind {
             self.index += 1
             returnTypeExpression = parseExpression(excepts: [.Assign])
         } else {
@@ -1850,23 +1850,31 @@ public final class Parser {
             switch kind {
             case .OpenParen:
                 self.index += 1
-                guard let expr = parseExpression() else {
-                    emitError("expected expression after '('", at: locationAfter(token))
-                    if let t = peek, case .Separator(.CloseParen) = t.kind {
-                        self.index += 1
-                    }
-                    return nil
-                }
-                expression = expr
-                if let t = peek {
-                    if case .Separator(.CloseParen) = t.kind {
-                        self.index += 1
-                    } else {
-                        emitError("expected ')' after expression, but got '\(t.value)'", at: t)
-                    }
+                if let t = peek, t.kind == .Separator(.CloseParen) {
+                    self.index += 1
+                    expression = AST.VoidLiteral(
+                        token, t,
+                        sourceRange: SourceRange(from: token, to: t, in: buffer)
+                    )
                 } else {
-                    emitError("expected ')' after expression", at: token)
-                    return expression
+                    guard let expr = parseExpression() else {
+                        emitError("expected expression after '('", at: locationAfter(token))
+                        if let t = peek, case .Separator(.CloseParen) = t.kind {
+                            self.index += 1
+                        }
+                        return nil
+                    }
+                    expression = expr
+                    if let t = peek {
+                        if case .Separator(.CloseParen) = t.kind {
+                            self.index += 1
+                        } else {
+                            emitError("expected ')' after expression, but got '\(t.value)'", at: t)
+                        }
+                    } else {
+                        emitError("expected ')' after expression", at: token)
+                        return expression
+                    }
                 }
             default: return nil
             }

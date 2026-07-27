@@ -342,6 +342,13 @@ extension AST {
         }
 
         @discardableResult
+        open func visitVoidLiteral(
+            _ voidLiteral: AST.VoidLiteral, additional: Any? = nil
+        ) -> Any? {
+            return nil
+        }
+
+        @discardableResult
         open func visitIf(
             _ ifExpression: AST.If, additional: Any? = nil
         ) -> Any? {

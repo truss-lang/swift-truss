@@ -116,6 +116,18 @@ extension AST {
             visitor.visitNullLiteral(self, additional: additional)
         }
     }
+    public final class VoidLiteral: Literal {
+        public let openToken: Token
+        public let closeToken: Token
+        public init(_ openToken: Token, _ closeToken: Token, sourceRange: SourceRange) {
+            self.openToken = openToken
+            self.closeToken = closeToken
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitVoidLiteral(self, additional: additional)
+        }
+    }
     public final class If: Expression {
         public let token: Token
         public let condition: Expression

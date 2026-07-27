@@ -81,7 +81,6 @@ public enum KeywordKind: CaseIterable, Sendable {
     case FallThrough
     case As
     case Is
-    case In
     case Async
     case Await
     case AnyKw
@@ -156,7 +155,6 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .FallThrough: "fallthrough"
         case .As: "as"
         case .Is: "is"
-        case .In: "in"
         case .Async: "async"
         case .Await: "await"
         case .AnyKw: "any"
