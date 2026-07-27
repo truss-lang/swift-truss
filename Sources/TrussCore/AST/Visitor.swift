@@ -424,6 +424,14 @@ extension AST {
         }
 
         @discardableResult
+        open func visitClosureType(
+            _ closureType: AST.ClosureType, additional: Any? = nil
+        ) -> Any? {
+            visit(closureType.parameterTypes, additional: additional)
+            return visit(closureType.returnType, additional: additional)
+        }
+
+        @discardableResult
         open func visitSequentialExpression(
             _ sequentialExpression: AST.SequentialExpression, additional: Any? = nil
         ) -> Any? {

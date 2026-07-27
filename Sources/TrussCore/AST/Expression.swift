@@ -237,6 +237,20 @@ extension AST {
             visitor.visitClosure(self, additional: additional)
         }
     }
+    public final class ClosureType: Expression {
+        public let parameterTypes: Expression
+        public let returnType: Expression
+        public init(
+            _ parameterTypes: Expression, _ returnType: Expression, sourceRange: SourceRange
+        ) {
+            self.parameterTypes = parameterTypes
+            self.returnType = returnType
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitClosureType(self, additional: additional)
+        }
+    }
     public final class SequentialExpression: Expression {
         public let ops: [Token]
         public let operands: [Expression]

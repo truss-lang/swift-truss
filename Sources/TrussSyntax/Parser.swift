@@ -1766,7 +1766,7 @@ public final class Parser {
                     self.index += 1
                     lastIsExpression = false
                 }
-            } else if !lastIsExpression, let expr = parsePrimary() {
+            } else if !lastIsExpression, let expr = parsePrimary(excepts) {
                 operands.append(expr)
                 lastIsExpression = true
             } else {
@@ -1798,7 +1798,7 @@ public final class Parser {
         }
         return AST.SequentialExpression(ops, operands, sourceRange: range)
     }
-    private func parsePrimary() -> AST.Expression? {
+    private func parsePrimary(_ excepts: [OperatorKind]?) -> AST.Expression? {
         let token = peek!
         var expression: AST.Expression
         switch token.kind {
@@ -1904,7 +1904,7 @@ public final class Parser {
             }
         default: return nil
         }
-        loop: while let t = peek {
+        _loop: while let t = peek {
             switch t.kind {
             case .Separator(let kind):
                 switch kind {
@@ -1940,9 +1940,11 @@ public final class Parser {
                             base, genericArguments,
                             sourceRange: SourceRange(from: token, to: closeToken, in: buffer))
                     } else {
-                        break loop
+                        break _loop
                     }
-                default: break loop
+                case .Arrow:
+                    expression = parseClosureType(expression, excepts)
+                default: break _loop
                 }
             case .Operator(let kind):
                 switch kind {
@@ -1950,7 +1952,7 @@ public final class Parser {
                     self.index += 1
                     guard let member = peek else {
                         emitError("expected member name after '.'", at: endOfFile)
-                        break loop
+                        break _loop
                     }
                     switch member.kind {
                     case .Identifier, .IntegerLiteral:
@@ -1964,9 +1966,9 @@ public final class Parser {
                     expression = AST.MemberAccess(
                         expression, t, member,
                         sourceRange: SourceRange(from: token, to: member, in: buffer))
-                default: break loop
+                default: break _loop
                 }
-            default: break loop
+            default: break _loop
             }
         }
         return expression
@@ -2075,6 +2077,26 @@ public final class Parser {
             emitError("expected '}' after closure body", at: endOfFile)
         }
         return AST.Closure(body, sourceRange: SourceRange(from: beginToken, to: last!, in: buffer))
+    }
+    private func parseClosureType(_ parameterTypes: AST.Expression, _ excepts: [OperatorKind]?)
+        -> AST.ClosureType
+    {
+        let token = next!
+        if token.kind != .Separator(.Arrow) {
+            emitError(
+                "expected '->' after closure type parameters, but got '\(token.value)'",
+                at: token
+            )
+        }
+        let returnTypeExpression =
+            parseExpression(excepts: excepts)
+            ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
+        return AST.ClosureType(
+            parameterTypes, returnTypeExpression,
+            sourceRange: SourceRange(
+                start: parameterTypes.sourceRange.start, end: returnTypeExpression.sourceRange.end
+            )
+        )
     }
     private func parseCall(_ callee: AST.Expression) -> AST.Call {
         self.index += 1

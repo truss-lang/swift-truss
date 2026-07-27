@@ -48,7 +48,7 @@ struct truss {
                 func f() {
                 }
             }
-            typealias SS = S
+            typealias SS = (S) -> S
             """
         let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))
             .parse()
