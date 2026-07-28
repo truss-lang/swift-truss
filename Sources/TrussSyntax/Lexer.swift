@@ -401,6 +401,14 @@ public final class Lexer {
         let begin = self.input.currentPosition
         var chars: [Character] = []
         while let c = self.input.peek, operatorChars.contains(c) {
+            if c == "." {
+                if !chars.isEmpty {
+                    break
+                }
+                chars.append(c)
+                self.input.incrementPosition()
+                break
+            }
             if c == "/" && !chars.isEmpty {
                 let next = self.input.peek2
                 if next == "/" || next == "*" {

@@ -2090,3 +2090,263 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let expr = errors.first { $0.message == "expected expression after operator '+'" }
     #expect(expr != nil)
 }
+
+// MARK: - Import
+
+@Test func parseImportSimple() {
+    let statements = parseStatements("import A")
+    #expect(statements.count == 1)
+    let decl = statements[0] as! AST.ImportDecl
+    #expect(decl.path.components.count == 1)
+    if case .identifier(let t) = decl.path.components[0] {
+        #expect(t.value == "A")
+    } else {
+        Issue.record("expected identifier component")
+    }
+    if case .wholeModule(let alias) = decl.selector {
+        #expect(alias == nil)
+    } else {
+        Issue.record("expected wholeModule selector")
+    }
+}
+
+@Test func parseImportWildcard() {
+    let statements = parseStatements("import A.*")
+    #expect(statements.count == 1)
+    let decl = statements[0] as! AST.ImportDecl
+    #expect(decl.path.components.count == 1)
+    if case .wildcard = decl.selector {
+    } else {
+        Issue.record("expected wildcard selector")
+    }
+}
+
+@Test func parseImportNestedPath() {
+    let statements = parseStatements("import A.B")
+    #expect(statements.count == 1)
+    let decl = statements[0] as! AST.ImportDecl
+    #expect(decl.path.components.count == 2)
+    if case .identifier(let t) = decl.path.components[1] {
+        #expect(t.value == "B")
+    } else {
+        Issue.record("expected identifier component")
+    }
+    if case .wholeModule(let alias) = decl.selector {
+        #expect(alias == nil)
+    } else {
+        Issue.record("expected wholeModule selector")
+    }
+}
+
+@Test func parseImportNestedWildcard() {
+    let statements = parseStatements("import A.B.*")
+    #expect(statements.count == 1)
+    let decl = statements[0] as! AST.ImportDecl
+    #expect(decl.path.components.count == 2)
+    if case .wildcard = decl.selector {
+    } else {
+        Issue.record("expected wildcard selector")
+    }
+}
+
+@Test func parseImportExplicitSelector() {
+    let statements = parseStatements("import A.{self, B, C}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as! AST.ImportDecl
+    #expect(decl.path.components.count == 1)
+    if case .explicit(let items) = decl.selector {
+        #expect(items.count == 3)
+        if case .self_ = items[0].kind {
+        } else { Issue.record("expected self_ item") }
+        #expect(items[0].alias == nil)
+        if case .name(let t) = items[1].kind {
+            #expect(t.value == "B")
+        } else { Issue.record("expected name item") }
+        if case .name(let t) = items[2].kind {
+            #expect(t.value == "C")
+        } else { Issue.record("expected name item") }
+    } else {
+        Issue.record("expected explicit selector")
+    }
+}
+
+@Test func parseImportSelfPrefix() {
+    let statements = parseStatements("import Self.A")
+    #expect(statements.count == 1)
+    let decl = statements[0] as! AST.ImportDecl
+    #expect(decl.path.components.count == 2)
+    if case .self_ = decl.path.components[0] {
+    } else {
+        Issue.record("expected self_ path component")
+    }
+    if case .identifier(let t) = decl.path.components[1] {
+        #expect(t.value == "A")
+    } else {
+        Issue.record("expected identifier component")
+    }
+    if case .wholeModule(let alias) = decl.selector {
+        #expect(alias == nil)
+    } else {
+        Issue.record("expected wholeModule selector")
+    }
+}
+
+@Test func parseImportSelfPrefixExplicit() {
+    let statements = parseStatements("import Self.{A, B}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as! AST.ImportDecl
+    #expect(decl.path.components.count == 1)
+    if case .self_ = decl.path.components[0] {
+    } else {
+        Issue.record("expected self_ path component")
+    }
+    if case .explicit(let items) = decl.selector {
+        #expect(items.count == 2)
+        if case .name(let t) = items[0].kind {
+            #expect(t.value == "A")
+        } else { Issue.record("expected name item") }
+        if case .name(let t) = items[1].kind {
+            #expect(t.value == "B")
+        } else { Issue.record("expected name item") }
+    } else {
+        Issue.record("expected explicit selector")
+    }
+}
+
+@Test func parseImportAliasModule() {
+    let statements = parseStatements("import A as B")
+    #expect(statements.count == 1)
+    let decl = statements[0] as! AST.ImportDecl
+    if case .wholeModule(let alias) = decl.selector {
+        #expect(alias?.value == "B")
+    } else {
+        Issue.record("expected wholeModule selector")
+    }
+}
+
+@Test func parseImportAliasNestedModule() {
+    let statements = parseStatements("import A.B as C")
+    #expect(statements.count == 1)
+    let decl = statements[0] as! AST.ImportDecl
+    #expect(decl.path.components.count == 2)
+    if case .wholeModule(let alias) = decl.selector {
+        #expect(alias?.value == "C")
+    } else {
+        Issue.record("expected wholeModule selector")
+    }
+}
+
+@Test func parseImportAliasExplicitItems() {
+    let statements = parseStatements("import A.{B as b, C as c}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as! AST.ImportDecl
+    if case .explicit(let items) = decl.selector {
+        #expect(items.count == 2)
+        if case .name(let t) = items[0].kind {
+            #expect(t.value == "B")
+            #expect(items[0].alias?.value == "b")
+        } else { Issue.record("expected name item") }
+        if case .name(let t) = items[1].kind {
+            #expect(t.value == "C")
+            #expect(items[1].alias?.value == "c")
+        } else { Issue.record("expected name item") }
+    } else {
+        Issue.record("expected explicit selector")
+    }
+}
+
+@Test func parseImportAliasSelfItem() {
+    let statements = parseStatements("import A.{self as a, B as b}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as! AST.ImportDecl
+    if case .explicit(let items) = decl.selector {
+        #expect(items.count == 2)
+        if case .self_ = items[0].kind {
+            #expect(items[0].alias?.value == "a")
+        } else { Issue.record("expected self_ item") }
+        if case .name(let t) = items[1].kind {
+            #expect(t.value == "B")
+            #expect(items[1].alias?.value == "b")
+        } else { Issue.record("expected name item") }
+    } else {
+        Issue.record("expected explicit selector")
+    }
+}
+
+@Test func parseImportAliasUnderscore() {
+    let statements = parseStatements("import A as _")
+    #expect(statements.count == 1)
+    let decl = statements[0] as! AST.ImportDecl
+    if case .wholeModule(let alias) = decl.selector {
+        #expect(alias?.value == "_")
+    } else {
+        Issue.record("expected wholeModule selector")
+    }
+}
+
+@Test func parseImportNestedPathExplicitSelector() {
+    let statements = parseStatements("import A.B.{self, C}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as! AST.ImportDecl
+    #expect(decl.path.components.count == 2)
+    if case .explicit(let items) = decl.selector {
+        #expect(items.count == 2)
+        if case .self_ = items[0].kind {
+        } else { Issue.record("expected self_ item") }
+        if case .name(let t) = items[1].kind {
+            #expect(t.value == "C")
+        } else { Issue.record("expected name item") }
+    } else {
+        Issue.record("expected explicit selector")
+    }
+}
+
+@Test func parseImportSourceRange() {
+    let statements = parseStatements("import A.B")
+    let decl = statements[0] as! AST.ImportDecl
+    let range = decl.sourceRange
+    #expect(range.start.offset == 0)
+    #expect(range.end.offset == 10)
+}
+
+@Test func parseImportNoPathError() {
+    let (_, diagnostics) = parseWithDiagnostics("import")
+    let errors = diagnostics.filter { $0.severity == .error }
+    #expect(errors.count >= 1)
+    #expect(errors[0].message == "expected module path after 'import'")
+}
+
+@Test func parseImportEmptySelectorError() {
+    let (_, diagnostics) = parseWithDiagnostics("import A.{}")
+    let errors = diagnostics.filter { $0.severity == .error }
+    #expect(errors.count >= 1)
+    #expect(errors[0].message == "expected import item after '{'")
+}
+
+@Test func parseImportWildcardAliasError() {
+    let (_, diagnostics) = parseWithDiagnostics("import A.* as B")
+    let errors = diagnostics.filter { $0.severity == .error }
+    #expect(errors.count >= 1)
+    #expect(errors[0].message == "cannot alias a wildcard import")
+}
+
+@Test func parseImportSelfInMiddleError() {
+    let (_, diagnostics) = parseWithDiagnostics("import A.Self.B")
+    let errors = diagnostics.filter { $0.severity == .error }
+    #expect(errors.count >= 1)
+    #expect(errors[0].message == "'Self' can only appear at the beginning of an import path")
+}
+
+@Test func parseImportLowercaseSelfInPathError() {
+    let (_, diagnostics) = parseWithDiagnostics("import self.A")
+    let errors = diagnostics.filter { $0.severity == .error }
+    #expect(errors.count >= 1)
+    #expect(errors[0].message == "'self' is not allowed in import path, use 'Self' instead")
+}
+
+@Test func parseImportDoubleAliasError() {
+    let (_, diagnostics) = parseWithDiagnostics("import A as B as C")
+    let errors = diagnostics.filter { $0.severity == .error }
+    #expect(errors.count >= 1)
+    #expect(errors[0].message == "unexpected 'as'")
+}

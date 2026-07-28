@@ -41,6 +41,50 @@ extension AST {
             visitor.visitErrorStatement(self, additional: additional)
         }
     }
+    public enum PathComponent {
+        case identifier(Token)
+        case self_(Token)
+    }
+    public struct ImportPath {
+        public let components: [PathComponent]
+        public init(_ components: [PathComponent]) {
+            self.components = components
+        }
+    }
+    public struct ImportItem {
+        public let kind: Kind
+        public let alias: Token?
+        public init(_ kind: Kind, alias: Token? = nil) {
+            self.kind = kind
+            self.alias = alias
+        }
+        public enum Kind {
+            case self_(Token)
+            case name(Token)
+        }
+    }
+    public enum ImportSelector {
+        case wholeModule(alias: Token?)
+        case wildcard
+        case explicit([ImportItem])
+    }
+    public final class ImportDecl: Statement {
+        public let token: Token
+        public let path: ImportPath
+        public let selector: ImportSelector
+        public init(
+            _ token: Token, _ path: ImportPath, _ selector: ImportSelector,
+            sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.path = path
+            self.selector = selector
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitImportDecl(self, additional: additional)
+        }
+    }
     public final class ExpressionStatement: Statement {
         public let expression: Expression
         public init(_ expression: Expression, sourceRange: SourceRange) {

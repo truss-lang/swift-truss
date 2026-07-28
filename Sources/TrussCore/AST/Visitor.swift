@@ -53,6 +53,13 @@ extension AST {
         }
 
         @discardableResult
+        open func visitImportDecl(
+            _ importDecl: AST.ImportDecl, additional: Any? = nil
+        ) -> Any? {
+            return nil
+        }
+
+        @discardableResult
         open func visitExpressionStatement(
             _ expressionStatement: AST.ExpressionStatement, additional: Any? = nil
         ) -> Any? {

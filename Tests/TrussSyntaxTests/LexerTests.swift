@@ -172,7 +172,7 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[9].value == "++")
     #expect(tokens[10].kind == .Operator(.Dec))
     #expect(tokens[10].value == "--")
-    #expect(tokens[11].kind == .Operator(.Arrow))
+    #expect(tokens[11].kind == .Separator(.Arrow))
     #expect(tokens[11].value == "->")
     #expect(tokens[12].kind == .Operator(.PlusAssign))
     #expect(tokens[12].value == "+=")
