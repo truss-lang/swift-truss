@@ -2350,3 +2350,117 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(errors.count >= 1)
     #expect(errors[0].message == "unexpected 'as'")
 }
+
+// MARK: - Labeled Statements
+
+@Test func parseLabeledWhile() {
+    let body = parseBlockStatements("func main() { outer: while true { break outer } }")
+    #expect(body.count == 1)
+    let labeled = body[0] as? AST.LabeledStatement
+    #expect(labeled != nil)
+    #expect(labeled!.label.value == "outer")
+    let whileStmt = labeled!.body as? AST.While
+    #expect(whileStmt != nil)
+    #expect(whileStmt!.body.count == 1)
+    let breakStmt = whileStmt!.body[0] as? AST.Break
+    #expect(breakStmt != nil)
+    #expect(breakStmt!.label?.value == "outer")
+}
+
+@Test func parseLabeledRepeatWhile() {
+    let body = parseBlockStatements("func main() { end: repeat { } while false }")
+    #expect(body.count == 1)
+    let labeled = body[0] as? AST.LabeledStatement
+    #expect(labeled != nil)
+    #expect(labeled!.label.value == "end")
+    let repeatStmt = labeled!.body as? AST.RepeatWhile
+    #expect(repeatStmt != nil)
+}
+
+@Test func parseNestedLabels() {
+    let body = parseBlockStatements("func main() { outer: inner: while true { } }")
+    #expect(body.count == 1)
+    let outer = body[0] as? AST.LabeledStatement
+    #expect(outer != nil)
+    #expect(outer!.label.value == "outer")
+    let inner = outer!.body as? AST.LabeledStatement
+    #expect(inner != nil)
+    #expect(inner!.label.value == "inner")
+    let whileStmt = inner!.body as? AST.While
+    #expect(whileStmt != nil)
+}
+
+@Test func parseLabeledReturn() {
+    let body = parseBlockStatements("func main() { end: return 0 }")
+    #expect(body.count == 1)
+    let labeled = body[0] as? AST.LabeledStatement
+    #expect(labeled != nil)
+    #expect(labeled!.label.value == "end")
+    let returnStmt = labeled!.body as? AST.Return
+    #expect(returnStmt != nil)
+}
+
+@Test func parseLabeledEmptyStatement() {
+    let body = parseBlockStatements("func main() { foo: ; }")
+    #expect(body.count == 1)
+    let labeled = body[0] as? AST.LabeledStatement
+    #expect(labeled != nil)
+    #expect(labeled!.label.value == "foo")
+    let empty = labeled!.body as? AST.EmptyStatement
+    #expect(empty != nil)
+}
+
+@Test func parseLabeledExpressionStatement() {
+    let body = parseBlockStatements("func main() { start: x }")
+    #expect(body.count == 1)
+    let labeled = body[0] as? AST.LabeledStatement
+    #expect(labeled != nil)
+    #expect(labeled!.label.value == "start")
+    let exprStmt = labeled!.body as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+}
+
+@Test func parseLabelWithNewline() {
+    let body = parseBlockStatements("func main() {\nouter:\n while true {}\n}")
+    #expect(body.count == 1)
+    let labeled = body[0] as? AST.LabeledStatement
+    #expect(labeled != nil)
+    #expect(labeled!.label.value == "outer")
+    let whileStmt = labeled!.body as? AST.While
+    #expect(whileStmt != nil)
+}
+
+@Test func parseGotoWithLabeledStatement() {
+    let body = parseBlockStatements("func main() { goto end\n end: return 0 }")
+    #expect(body.count == 2)
+    let gotoStmt = body[0] as? AST.Goto
+    #expect(gotoStmt != nil)
+    #expect(gotoStmt!.label.value == "end")
+    let labeled = body[1] as? AST.LabeledStatement
+    #expect(labeled != nil)
+    #expect(labeled!.label.value == "end")
+    let returnStmt = labeled!.body as? AST.Return
+    #expect(returnStmt != nil)
+}
+
+@Test func parseLabeledStatementSourceRangeCoversInnerOnly() {
+    let body = parseBlockStatements("func main() { outer: while true {} }")
+    let labeled = body[0] as? AST.LabeledStatement
+    #expect(labeled != nil)
+    let whileStmt = labeled!.body as? AST.While
+    #expect(whileStmt != nil)
+    #expect(labeled!.sourceRange == whileStmt!.sourceRange)
+}
+
+@Test func parseLabelFollowedByCloseBraceReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { foo: }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    #expect(errors.count >= 1)
+}
+
+@Test func parseLabelAtEOFReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { foo:")
+    let errors = diagnostics.filter { $0.severity == .error }
+    #expect(errors.count >= 1)
+    #expect(errors[0].message == "expected statement after label 'foo:'")
+}

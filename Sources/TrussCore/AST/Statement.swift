@@ -491,6 +491,18 @@ extension AST {
             visitor.visitGoto(self, additional: additional)
         }
     }
+    public final class LabeledStatement: Statement {
+        public let label: Token
+        public let body: Statement
+        public init(_ label: Token, _ body: Statement, sourceRange: SourceRange) {
+            self.label = label
+            self.body = body
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitLabeledStatement(self, additional: additional)
+        }
+    }
     public final class Accessor: AstNode {
         public let modifiers: [AST.Modifier]
         public let attributes: [AST.Attribute]

@@ -290,6 +290,11 @@ extension AST {
         }
 
         @discardableResult
+        open func visitLabeledStatement(_ labeledStatement: AST.LabeledStatement, additional: Any? = nil) -> Any? {
+            return visit(labeledStatement.body, additional: additional)
+        }
+
+        @discardableResult
         open func visitAccessor(_ accessor: AST.Accessor, additional: Any? = nil) -> Any? {
             switch accessor.body {
             case .Block(let statements):

@@ -1323,6 +1323,20 @@ public final class Parser {
         )
     }
     private func parseStatement() -> AST.Statement? {
+        if let labelToken = peek, case .Identifier = labelToken.kind,
+            let colonToken = peek2, case .Separator(.Colon) = colonToken.kind,
+            !(peek3?.kind == .Separator(.Colon))
+        {
+            index += 2
+            guard let body = parseStatement() else {
+                emitError("expected statement after label '\(labelToken.value):'", at: endOfFile)
+                return errorStatement(from: labelToken, to: endOfFile)
+            }
+            return AST.LabeledStatement(
+                labelToken, body,
+                sourceRange: body.sourceRange
+            )
+        }
         let startToken = peek
         let (modifiers, attributes) = parseAnnotations()
         guard let token = peek else {
