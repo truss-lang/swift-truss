@@ -151,6 +151,32 @@ extension AST {
             case If(If)
         }
     }
+    public final class Match: Expression {
+        public let token: Token
+        public let subject: Expression
+        public let cases: [Case]
+        public init(
+            _ token: Token, _ subject: Expression, _ cases: [Case], sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.subject = subject
+            self.cases = cases
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitMatch(self, additional: additional)
+        }
+        public struct Case {
+            public let patterns: [Expression]
+            public let body: [Statement]
+            public let sourceRange: SourceRange
+            public init(_ patterns: [Expression], _ body: [Statement], sourceRange: SourceRange) {
+                self.patterns = patterns
+                self.body = body
+                self.sourceRange = sourceRange
+            }
+        }
+    }
     public final class Call: Expression {
         public let callee: Expression
         public let arguments: [Expression]

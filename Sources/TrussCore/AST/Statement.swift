@@ -87,9 +87,9 @@ extension AST {
     }
     public final class ExpressionStatement: Statement {
         public let expression: Expression
-        public init(_ expression: Expression, sourceRange: SourceRange) {
+        public init(_ expression: Expression) {
             self.expression = expression
-            super.init(sourceRange)
+            super.init(expression.sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitExpressionStatement(self, additional: additional)

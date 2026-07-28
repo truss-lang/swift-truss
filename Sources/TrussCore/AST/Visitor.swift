@@ -397,6 +397,20 @@ extension AST {
         }
 
         @discardableResult
+        open func visitMatch(_ matchExpression: AST.Match, additional: Any? = nil) -> Any? {
+            visit(matchExpression.subject, additional: additional)
+            for matchCase in matchExpression.cases {
+                for pattern in matchCase.patterns {
+                    visit(pattern, additional: additional)
+                }
+                for statement in matchCase.body {
+                    visit(statement, additional: additional)
+                }
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitCall(
             _ call: AST.Call, additional: Any? = nil
         ) -> Any? {

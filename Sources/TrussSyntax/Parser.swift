@@ -789,6 +789,8 @@ public final class Parser {
             }
             if let stmt = parseTypeBodyStatement() {
                 body.append(stmt)
+            } else {
+                break
             }
         }
         let endToken: Token
@@ -862,6 +864,8 @@ public final class Parser {
             }
             if let stmt = parseTypeBodyStatement() {
                 body.append(stmt)
+            } else {
+                break
             }
         }
         let endToken: Token
@@ -935,6 +939,8 @@ public final class Parser {
             }
             if let stmt = parseTypeBodyStatement() {
                 body.append(stmt)
+            } else {
+                break
             }
         }
         let endToken: Token
@@ -1005,6 +1011,8 @@ public final class Parser {
             }
             if let stmt = parseTypeBodyStatement(isProtocolContext: true) {
                 body.append(stmt)
+            } else {
+                break
             }
         }
         let endToken: Token
@@ -1071,6 +1079,8 @@ public final class Parser {
             }
             if let stmt = parseTypeBodyStatement(isProtocolContext: true) {
                 body.append(stmt)
+            } else {
+                break
             }
         }
         let endToken: Token
@@ -1250,6 +1260,8 @@ public final class Parser {
             }
             if let stmt = parseStatement() {
                 body.append(stmt)
+            } else {
+                break
             }
         }
         if let closeToken = peek {
@@ -1289,6 +1301,8 @@ public final class Parser {
             }
             if let stmt = parseStatement() {
                 body.append(stmt)
+            } else {
+                break
             }
         }
         if let closeToken = peek {
@@ -1336,7 +1350,7 @@ public final class Parser {
             default:
                 let savedIndex = index
                 if let expr = parseExpression() {
-                    return AST.ExpressionStatement(expr, sourceRange: expr.sourceRange)
+                    return AST.ExpressionStatement(expr)
                 }
                 if index == savedIndex {
                     index += 1
@@ -1352,7 +1366,7 @@ public final class Parser {
             default:
                 let savedIndex = index
                 if let expr = parseExpression() {
-                    return AST.ExpressionStatement(expr, sourceRange: expr.sourceRange)
+                    return AST.ExpressionStatement(expr)
                 }
                 if index == savedIndex {
                     index += 1
@@ -1363,7 +1377,7 @@ public final class Parser {
         default:
             let savedIndex = index
             if let expr = parseExpression() {
-                return AST.ExpressionStatement(expr, sourceRange: expr.sourceRange)
+                return AST.ExpressionStatement(expr)
             }
             if index == savedIndex {
                 index += 1
@@ -1420,6 +1434,8 @@ public final class Parser {
                     }
                     if let stmt = parseStatement() {
                         statements.append(stmt)
+                    } else {
+                        break
                     }
                 }
                 if let closeToken = peek {
@@ -1587,6 +1603,8 @@ public final class Parser {
                         }
                         if let stmt = parseStatement() {
                             statements.append(stmt)
+                        } else {
+                            break
                         }
                     }
                     if let closeToken = peek {
@@ -1667,6 +1685,8 @@ public final class Parser {
                     }
                     if let stmt = parseStatement() {
                         statements.append(stmt)
+                    } else {
+                        break
                     }
                 }
                 if let closeToken = peek {
@@ -1738,6 +1758,8 @@ public final class Parser {
                     }
                     if let stmt = parseStatement() {
                         statements.append(stmt)
+                    } else {
+                        break
                     }
                 }
                 if let closeToken = peek {
@@ -1808,6 +1830,8 @@ public final class Parser {
                     }
                     if let stmt = parseStatement() {
                         statements.append(stmt)
+                    } else {
+                        break
                     }
                 }
                 if let closeToken = peek {
@@ -1841,6 +1865,8 @@ public final class Parser {
                 }
                 if let stmt = parseStatement() {
                     statements.append(stmt)
+                } else {
+                    break
                 }
             }
             if let closeToken = peek {
@@ -1920,6 +1946,8 @@ public final class Parser {
             }
             if let stmt = parseStatement() {
                 body.append(stmt)
+            } else {
+                break
             }
         }
         guard let closeToken = peek else {
@@ -1960,6 +1988,8 @@ public final class Parser {
             }
             if let stmt = parseStatement() {
                 body.append(stmt)
+            } else {
+                break
             }
         }
         guard let closeToken = next else {
@@ -2027,6 +2057,8 @@ public final class Parser {
             }
             if let stmt = parseStatement() {
                 body.append(stmt)
+            } else {
+                break
             }
         }
         guard let closeToken = peek else {
@@ -2067,6 +2099,8 @@ public final class Parser {
             }
             if let stmt = parseStatement() {
                 body.append(stmt)
+            } else {
+                break
             }
         }
         guard let closeToken = peek else {
@@ -2219,6 +2253,8 @@ public final class Parser {
                 expression = AST.SuperExpression(token, sourceRange: token.sourceRange(in: buffer))
             case .If:
                 expression = parseIf()
+            case .Match:
+                expression = parseMatch()
             default:
                 return nil
             }
@@ -2373,6 +2409,8 @@ public final class Parser {
             }
             if let stmt = parseStatement() {
                 then.append(stmt)
+            } else {
+                break
             }
         }
         guard let closeToken = peek else {
@@ -2408,6 +2446,8 @@ public final class Parser {
                     }
                     if let stmt = parseStatement() {
                         statements.append(stmt)
+                    } else {
+                        break
                     }
                 }
                 guard let closeToken2 = peek else {
@@ -2437,6 +2477,108 @@ public final class Parser {
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
     }
+    private func parseMatch() -> AST.Expression {
+        let token = next!
+        let subject = parseExpression() ?? errorExpression(from: token, to: token)
+        var cases: [AST.Match.Case] = []
+        guard let openToken = next else {
+            emitError("expected '{' after match subject", at: endOfFile)
+            return errorExpression(from: token, to: endOfFile)
+        }
+        guard case .Separator(.OpenBrace) = openToken.kind else {
+            emitError(
+                "expected '{' after match subject, but got '\(openToken.value)'",
+                at: openToken
+            )
+            return errorExpression(from: token, to: openToken)
+        }
+        while let t = peek {
+            if t.kind == .Separator(.CloseBrace) {
+                break
+            }
+            if let matchCase = parseMatchCase() {
+                cases.append(matchCase)
+            }
+        }
+        guard let closeToken = next else {
+            emitError("expected '}' after match cases", at: endOfFile)
+            return errorExpression(from: token, to: endOfFile)
+        }
+        guard case .Separator(.CloseBrace) = closeToken.kind else {
+            emitError(
+                "expected '}' after match cases, but got '\(closeToken.value)'", at: closeToken)
+            return errorExpression(from: token, to: closeToken)
+        }
+        return AST.Match(
+            token, subject, cases, sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
+        )
+    }
+    private func parseMatchCase() -> AST.Match.Case? {
+        let beginToken = peek!
+        var patterns: [AST.Expression] = []
+        _loop: while let t = peek {
+            switch t.kind {
+            case .Separator(.Arrow):
+                break _loop
+            case .Separator(.Comma):
+                self.index += 1
+            default:
+                if let pattern = parseExpression() {
+                    patterns.append(pattern)
+                } else {
+                    break _loop
+                }
+            }
+        }
+        guard let arrowToken = next else {
+            emitError("expected '=>' after match case pattern", at: endOfFile)
+            return nil
+        }
+        guard case .Separator(.Arrow) = arrowToken.kind else {
+            emitError(
+                "expected '=>' after match case pattern, but got '\(arrowToken.value)'",
+                at: arrowToken
+            )
+            return nil
+        }
+        if let t = peek {
+            var body: [AST.Statement] = []
+            switch t.kind {
+            case .Separator(.OpenBrace):
+                self.index += 1
+                while let t = peek {
+                    if case .Separator(.CloseBrace) = t.kind {
+                        break
+                    }
+                    if let stmt = parseStatement() {
+                        body.append(stmt)
+                    } else {
+                        break
+                    }
+                }
+                if let t = next {
+                    if t.kind != .Separator(.CloseBrace) {
+                        emitError("expected '}' after block, but got '\(t.value)'", at: t)
+                    }
+                } else {
+                    emitError("expected '}' after block", at: endOfFile)
+                }
+            default:
+                if let expr = parseExpression() {
+                    body.append(AST.ExpressionStatement(expr))
+                } else {
+                    emitError("expected expression after '=>'", at: locationAfter(arrowToken))
+                    return nil
+                }
+            }
+            return AST.Match.Case(
+                patterns, body,
+                sourceRange: SourceRange(from: beginToken, to: last!, in: buffer))
+        } else {
+            emitError("expected '{' or expression after '=>'", at: endOfFile)
+            return nil
+        }
+    }
 
     private func parseClosure() -> AST.Closure {
         let beginToken = next!
@@ -2447,6 +2589,8 @@ public final class Parser {
             }
             if let stmt = parseStatement() {
                 body.append(stmt)
+            } else {
+                break
             }
         }
         if let t = next {
