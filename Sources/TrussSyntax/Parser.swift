@@ -1400,12 +1400,20 @@ public final class Parser {
     private func parseFunctionDecl(_ modifiers: [AST.Modifier], _ attributes: [AST.Attribute])
         -> AST.Statement
     {
-        guard let token = next else {
-            return AST.ErrorStatement(sourceRange: SourceRange(location: endOfFile))
-        }
+        let token = next!
         guard let name = next else {
-            emitError("expected function name after 'func'", at: endOfFile)
+            emitError("expected function name or operator after 'func'", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
+        }
+        if name.kind != .Identifier {
+            if case .Operator = name.kind {
+                // Do nothing
+            } else {
+                emitError(
+                    "expected identifier or operator after 'func', but got '\(name.value)'",
+                    at: name
+                )
+            }
         }
         guard let t1 = peek else {
             emitError("expected '(' after function name", at: endOfFile)
@@ -2394,7 +2402,9 @@ public final class Parser {
         return parsePostfix(expression, excepts: excepts)
     }
 
-    private func parsePostfix(_ expression: AST.Expression, excepts: [OperatorKind]?) -> AST.Expression {
+    private func parsePostfix(_ expression: AST.Expression, excepts: [OperatorKind]?)
+        -> AST.Expression
+    {
         var expression = expression
         _loop: while let t = peek {
             switch t.kind {
