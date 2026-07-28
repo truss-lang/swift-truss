@@ -59,9 +59,11 @@ struct truss {
         Enter(context: context).visitProgram(program)
         NameResolver(context: context).visitProgram(program)
         customDump(program)
-        print(
-            TerminalRenderer(beforeLines: 1, afterLines: 1)
-                .render(context.diagnositicEngine.diagnostics)
-        )
+        if context.diagnositicEngine.hasErrors {
+            print(
+                TerminalRenderer(beforeLines: 1, afterLines: 1)
+                    .render(context.diagnositicEngine.diagnostics)
+            )
+        }
     }
 }

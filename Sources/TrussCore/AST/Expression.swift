@@ -22,6 +22,16 @@ extension AST {
             super.init(sourceRange)
         }
     }
+    public final class ParentheticalExpression: Expression {
+        public let inner: Expression
+        public init(_ inner: Expression, sourceRange: SourceRange) {
+            self.inner = inner
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitParentheticalExpression(self, additional: additional)
+        }
+    }
     public final class Variable: Expression {
         public let name: Token
         public var symbol: Symbol.Symbol? = nil

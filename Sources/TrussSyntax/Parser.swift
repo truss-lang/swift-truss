@@ -84,10 +84,6 @@ public final class Parser {
         emitError(message, at: token.sourceRange(in: buffer))
     }
 
-    private func emitEndOfFile() {
-        emitError("unexpected end of file", at: SourceRange(location: endOfFile))
-    }
-
     private func note(_ message: String, at token: Token) -> Diagnostic {
         Diagnostic(severity: .note, message: message, range: token.sourceRange(in: buffer))
     }
@@ -2290,16 +2286,22 @@ public final class Parser {
                         }
                         return nil
                     }
-                    expression = expr
-                    if let t = peek {
-                        if case .Separator(.CloseParen) = t.kind {
-                            index += 1
-                        } else {
+                    if let t = next {
+                        if t.kind != .Separator(.CloseParen) {
                             emitError("expected ')' after expression, but got '\(t.value)'", at: t)
                         }
+                        expression = AST.ParentheticalExpression(
+                            expr, sourceRange: SourceRange(from: token, to: t, in: buffer)
+                        )
                     } else {
                         emitError("expected ')' after expression", at: token)
-                        return expression
+                        return AST.ParentheticalExpression(
+                            expr,
+                            sourceRange: SourceRange(
+                                start: token.sourceRange(in: buffer).start,
+                                end: endOfFile
+                            )
+                        )
                     }
                 }
             case .OpenBrace:

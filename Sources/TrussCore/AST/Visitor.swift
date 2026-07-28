@@ -290,7 +290,9 @@ extension AST {
         }
 
         @discardableResult
-        open func visitLabeledStatement(_ labeledStatement: AST.LabeledStatement, additional: Any? = nil) -> Any? {
+        open func visitLabeledStatement(
+            _ labeledStatement: AST.LabeledStatement, additional: Any? = nil
+        ) -> Any? {
             return visit(labeledStatement.body, additional: additional)
         }
 
@@ -313,6 +315,13 @@ extension AST {
             _ errorExpression: AST.ErrorExpression, additional: Any? = nil
         ) -> Any? {
             return nil
+        }
+
+        @discardableResult
+        open func visitParentheticalExpression(
+            _ parentheticalExpression: AST.ParentheticalExpression, additional: Any? = nil
+        ) -> Any? {
+            return visit(parentheticalExpression.inner, additional: additional)
         }
 
         @discardableResult
