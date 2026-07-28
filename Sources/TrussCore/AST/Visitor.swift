@@ -173,6 +173,26 @@ extension AST {
         }
 
         @discardableResult
+        open func visitInitDecl(
+            _ initDecl: AST.InitDecl, additional: Any? = nil
+        ) -> Any? {
+            for statement in initDecl.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
+        open func visitDeinitDecl(
+            _ deinitDecl: AST.DeinitDecl, additional: Any? = nil
+        ) -> Any? {
+            for statement in deinitDecl.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitFunctionDecl(
             _ functionDecl: AST.FunctionDecl, additional: Any? = nil
         ) -> Any? {

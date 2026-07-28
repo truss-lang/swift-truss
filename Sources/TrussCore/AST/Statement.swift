@@ -278,6 +278,38 @@ extension AST {
             visitor.visitExtensionDecl(self, additional: additional)
         }
     }
+    public final class InitDecl: Decl {
+        public let token: Token
+        public let optionalToken: Token?
+        public let body: [Statement]
+        public init(
+            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
+            _ optionalToken: Token?, _ body: [Statement], sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.optionalToken = optionalToken
+            self.body = body
+            super.init(modifiers, attributes, sourceRange: sourceRange)
+        }
+        public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitInitDecl(self, additional: additional)
+        }
+    }
+    public final class DeinitDecl: Decl {
+        public let token: Token
+        public let body: [Statement]
+        public init(
+            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
+            _ body: [Statement], sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.body = body
+            super.init(modifiers, attributes, sourceRange: sourceRange)
+        }
+        public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitDeinitDecl(self, additional: additional)
+        }
+    }
     public final class FunctionDecl: Decl {
         public let token: Token
         public let name: Token
