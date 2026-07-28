@@ -1703,14 +1703,18 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseParenthesizedVariable() {
     let expr = firstExpression("(x)")
-    let varExpr = expr as? AST.Variable
+    let paren = expr as? AST.ParentheticalExpression
+    #expect(paren != nil)
+    let varExpr = paren!.inner as? AST.Variable
     #expect(varExpr != nil)
     #expect(varExpr!.name.value == "x")
 }
 
 @Test func parseParenthesizedSequentialExpression() {
     let expr = firstExpression("(a + b)")
-    let seq = expr as? AST.SequentialExpression
+    let paren = expr as? AST.ParentheticalExpression
+    #expect(paren != nil)
+    let seq = paren!.inner as? AST.SequentialExpression
     #expect(seq != nil)
     #expect(seq!.ops.count == 1)
     #expect(seq!.ops[0].kind == .Operator(.Plus))
@@ -2068,11 +2072,10 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(exprStmt!.expression is AST.ErrorExpression)
 }
 
-@Test func parseEmptyParenthesesReportsError() throws {
-    let (_, diagnostics) = parseWithDiagnostics("func main() { () }")
-    let errors = diagnostics.filter { $0.severity == .error }
-    try #require(errors.count == 1)
-    #expect(errors[0].message == "expected expression after '('")
+@Test func parseEmptyParenthesesIsVoidLiteral() {
+    let expr = firstExpression("()")
+    let void = expr as? AST.VoidLiteral
+    #expect(void != nil)
 }
 
 @Test func parseOperatorOnlyInConformanceReportsError() throws {
@@ -2083,12 +2086,16 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(expr != nil)
 }
 
-@Test func parseOperatorOnlyInReturnTypeReportsError() throws {
-    let (_, diagnostics) = parseWithDiagnostics("func foo() -> + {}")
-    let errors = diagnostics.filter { $0.severity == .error }
-    try #require(errors.count >= 1)
-    let expr = errors.first { $0.message == "expected expression after operator '+'" }
-    #expect(expr != nil)
+@Test func parseOperatorOnlyInReturnTypeParsedAsSequential() {
+    let statements = parseStatements("func foo() -> + {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    let returnType = decl!.returnTypeExpression as? AST.SequentialExpression
+    #expect(returnType != nil)
+    #expect(returnType!.ops.count == 1)
+    #expect(returnType!.ops[0].kind == .Operator(.Plus))
+    #expect(returnType!.operands.count == 1)
+    #expect(returnType!.operands[0] is AST.Closure)
 }
 
 // MARK: - Import
@@ -2463,4 +2470,136 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let errors = diagnostics.filter { $0.severity == .error }
     #expect(errors.count >= 1)
     #expect(errors[0].message == "expected statement after label 'foo:'")
+}
+
+// MARK: - Angle Bracket Generics vs Comparison
+
+@Test func parseBareGenericSingleArg() {
+    let expr = firstExpression("Array<Int32>")
+    let seq = expr as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops.count == 2)
+    #expect(seq!.ops[0].kind == .Operator(.Less))
+    #expect(seq!.ops[1].kind == .Operator(.Greater))
+    #expect(seq!.operands.count == 2)
+    let base = seq!.operands[0] as? AST.Variable
+    #expect(base != nil)
+    #expect(base!.name.value == "Array")
+    let arg = seq!.operands[1] as? AST.Variable
+    #expect(arg != nil)
+    #expect(arg!.name.value == "Int32")
+}
+
+@Test func parseBareGenericMultipleArgs() {
+    let expr = firstExpression("Array<Int32, String>")
+    let seq = expr as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops.count == 3)
+    #expect(seq!.ops[0].kind == .Operator(.Less))
+    #expect(seq!.ops[1].kind == .Separator(.Comma))
+    #expect(seq!.ops[2].kind == .Operator(.Greater))
+    #expect(seq!.operands.count == 3)
+    let arg0 = seq!.operands[0] as? AST.Variable
+    #expect(arg0 != nil)
+    #expect(arg0!.name.value == "Array")
+    let arg1 = seq!.operands[1] as? AST.Variable
+    #expect(arg1 != nil)
+    #expect(arg1!.name.value == "Int32")
+    let arg2 = seq!.operands[2] as? AST.Variable
+    #expect(arg2 != nil)
+    #expect(arg2!.name.value == "String")
+}
+
+@Test func parseComparisonWithAngleBrackets() {
+    let expr = firstExpression("1<2>3")
+    let seq = expr as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops.count == 2)
+    #expect(seq!.ops[0].kind == .Operator(.Less))
+    #expect(seq!.ops[1].kind == .Operator(.Greater))
+    #expect(seq!.operands.count == 3)
+    let first = seq!.operands[0] as? AST.IntegerLiteral
+    #expect(first != nil)
+    #expect(first!.value == 1)
+    let second = seq!.operands[1] as? AST.IntegerLiteral
+    #expect(second != nil)
+    #expect(second!.value == 2)
+    let third = seq!.operands[2] as? AST.IntegerLiteral
+    #expect(third != nil)
+    #expect(third!.value == 3)
+}
+
+@Test func parseGenericApplicationWithCall() {
+    let expr = firstExpression("Array<Int32>()")
+    let call = expr as? AST.Call
+    #expect(call != nil)
+    let callee = call!.callee as? AST.SequentialExpression
+    #expect(callee != nil)
+    #expect(callee!.ops.count == 2)
+    let base = callee!.operands[0] as? AST.Variable
+    #expect(base != nil)
+    #expect(base!.name.value == "Array")
+    let arg = callee!.operands[1] as? AST.Variable
+    #expect(arg != nil)
+    #expect(arg!.name.value == "Int32")
+    #expect(call!.arguments.isEmpty)
+}
+
+@Test func parseSimpleCall() {
+    let expr = firstExpression("foo()")
+    let call = expr as? AST.Call
+    #expect(call != nil)
+    let callee = call!.callee as? AST.Variable
+    #expect(callee != nil)
+    #expect(callee!.name.value == "foo")
+    #expect(call!.arguments.isEmpty)
+}
+
+@Test func parseParenthesizedAfterOperator() {
+    let expr = firstExpression("a + (b)")
+    let seq = expr as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops.count == 1)
+    #expect(seq!.ops[0].kind == .Operator(.Plus))
+    #expect(seq!.operands.count == 2)
+    let first = seq!.operands[0] as? AST.Variable
+    #expect(first != nil)
+    #expect(first!.name.value == "a")
+    let second = seq!.operands[1] as? AST.ParentheticalExpression
+    #expect(second != nil)
+    let inner = second!.inner as? AST.Variable
+    #expect(inner != nil)
+    #expect(inner!.name.value == "b")
+}
+
+@Test func parseCallThenMemberAccess() {
+    let expr = firstExpression("foo().bar")
+    let member = expr as? AST.MemberAccess
+    #expect(member != nil)
+    let call = member!.object as? AST.Call
+    #expect(call != nil)
+    let callee = call!.callee as? AST.Variable
+    #expect(callee != nil)
+    #expect(callee!.name.value == "foo")
+    #expect(member!.member.value == "bar")
+}
+
+@Test func parseNestedGenericRightShift() {
+    let expr = firstExpression("Array<Array<Int32>>")
+    let seq = expr as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops.count == 3)
+    #expect(seq!.ops[0].kind == .Operator(.Less))
+    #expect(seq!.ops[1].kind == .Operator(.Less))
+    #expect(seq!.ops[2].kind == .Operator(.RightShift))
+    #expect(seq!.operands.count == 3)
+    let arg0 = seq!.operands[0] as? AST.Variable
+    #expect(arg0 != nil)
+    #expect(arg0!.name.value == "Array")
+    let arg1 = seq!.operands[1] as? AST.Variable
+    #expect(arg1 != nil)
+    #expect(arg1!.name.value == "Array")
+    let arg2 = seq!.operands[2] as? AST.Variable
+    #expect(arg2 != nil)
+    #expect(arg2!.name.value == "Int32")
 }

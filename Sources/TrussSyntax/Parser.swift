@@ -2175,18 +2175,77 @@ public final class Parser {
         var ops: [Token] = []
         var operands: [AST.Expression] = []
         var lastIsExpression = false
+        var angleDepth = 0
+        var justClosedAngle = false
         while let token = peek {
-            if case .Operator(let kind) = token.kind, kind != .Dot {
+            if case .Separator(.OpenParen) = token.kind, lastIsExpression {
+                angleDepth = 0
+                justClosedAngle = false
+                let callee = operands.removeLast()
+                let callResult = parseCall(callee)
+                let postfixed = parsePostfix(callResult, excepts: excepts)
+                operands.append(postfixed)
+                lastIsExpression = true
+            } else if case .Separator(.OpenParen) = token.kind, justClosedAngle {
+                justClosedAngle = false
+                let range: SourceRange
+                if let firstRange = operands.first?.sourceRange,
+                    let lastRange = operands.last?.sourceRange
+                {
+                    range = SourceRange(start: firstRange.start, end: lastRange.end)
+                } else {
+                    range = SourceRange(location: endOfFile)
+                }
+                let callee = AST.SequentialExpression(ops, operands, sourceRange: range)
+                ops = []
+                operands = []
+                let callResult = parseCall(callee)
+                let postfixed = parsePostfix(callResult, excepts: excepts)
+                operands.append(postfixed)
+                lastIsExpression = true
+            } else if case .Separator(.Comma) = token.kind, angleDepth > 0 {
+                ops.append(token)
+                index += 1
+                lastIsExpression = false
+                justClosedAngle = false
+            } else if case .Operator(let kind) = token.kind, kind != .Dot {
                 if let excepts = excepts, let kind = kind, excepts.contains(kind) {
                     break
-                } else {
-                    ops.append(token)
-                    index += 1
-                    lastIsExpression = false
+                }
+                ops.append(token)
+                index += 1
+                lastIsExpression = false
+                justClosedAngle = false
+                if let kind = kind {
+                    switch kind {
+                    case .Less:
+                        angleDepth += 1
+                    case .Greater:
+                        let prev = angleDepth
+                        angleDepth = max(0, angleDepth - 1)
+                        if prev > 0 && angleDepth == 0 { justClosedAngle = true }
+                    case .RightShift:
+                        let prev = angleDepth
+                        angleDepth = max(0, angleDepth - 2)
+                        if prev > 0 && angleDepth == 0 { justClosedAngle = true }
+                    case .GreaterEqual:
+                        angleDepth = max(0, angleDepth - 1)
+                    case .RightShiftAssign:
+                        angleDepth = max(0, angleDepth - 2)
+                    case .RightShiftLogical:
+                        let prev = angleDepth
+                        angleDepth = max(0, angleDepth - 3)
+                        if prev > 0 && angleDepth == 0 { justClosedAngle = true }
+                    case .RightShiftLogicalAssign:
+                        angleDepth = max(0, angleDepth - 3)
+                    default:
+                        break
+                    }
                 }
             } else if !lastIsExpression, let expr = parsePrimary(excepts) {
                 operands.append(expr)
                 lastIsExpression = true
+                justClosedAngle = false
             } else {
                 break
             }
@@ -2332,12 +2391,15 @@ public final class Parser {
             }
         default: return nil
         }
+        return parsePostfix(expression, excepts: excepts)
+    }
+
+    private func parsePostfix(_ expression: AST.Expression, excepts: [OperatorKind]?) -> AST.Expression {
+        var expression = expression
         _loop: while let t = peek {
             switch t.kind {
             case .Separator(let kind):
                 switch kind {
-                case .OpenParen:
-                    expression = parseCall(expression)
                 case .Colon:
                     if let t2 = peek2, case .Separator(let k) = t2.kind, case .Colon = k,
                         let t3 = peek3, case .Operator(let k2) = t3.kind, let k2 = k2,
@@ -2357,7 +2419,7 @@ public final class Parser {
                                 genericArguments.append(expr)
                             }
                         }
-                        var closeToken: Token = token
+                        var closeToken: Token = t
                         if let t4 = peek, case .Operator(.Greater) = t4.kind {
                             index += 1
                             closeToken = t4
@@ -2366,7 +2428,10 @@ public final class Parser {
                         }
                         expression = AST.GenericApplication(
                             base, genericArguments,
-                            sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
+                            sourceRange: SourceRange(
+                                start: base.sourceRange.start,
+                                end: closeToken.sourceRange(in: buffer).end
+                            )
                         )
                     } else {
                         break _loop
@@ -2394,7 +2459,10 @@ public final class Parser {
                     }
                     expression = AST.MemberAccess(
                         expression, t, member,
-                        sourceRange: SourceRange(from: token, to: member, in: buffer)
+                        sourceRange: SourceRange(
+                            start: expression.sourceRange.start,
+                            end: member.sourceRange(in: buffer).end
+                        )
                     )
                 default: break _loop
                 }
