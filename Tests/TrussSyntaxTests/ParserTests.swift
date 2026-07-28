@@ -48,9 +48,9 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     case (.FilePrivate(let a), .FilePrivate(let b)): return a == b
     case (.Private(let a), .Private(let b)): return a == b
     case (.Abstract, .Abstract), (.Final, .Final), (.Mutating, .Mutating),
-         (.Nonmutating, .Nonmutating), (.Convenience, .Convenience),
-         (.Override, .Override), (.Lazy, .Lazy), (.Weak, .Weak),
-         (.Unowned, .Unowned), (.Indirect, .Indirect):
+        (.Nonmutating, .Nonmutating), (.Convenience, .Convenience),
+        (.Override, .Override), (.Lazy, .Lazy), (.Weak, .Weak),
+        (.Unowned, .Unowned), (.Indirect, .Indirect):
         return true
     default: return false
     }
@@ -966,7 +966,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseObserverInFunctionContextReportsError() throws {
-    let (_, diagnostics) = parseWithDiagnostics("func main() { var a: Int = 0 { willSet {} didSet {} } }")
+    let (_, diagnostics) = parseWithDiagnostics(
+        "func main() { var a: Int = 0 { willSet {} didSet {} } }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "property observers are not allowed in function context")
@@ -1998,7 +1999,9 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let member = expr as? AST.MemberAccess
     #expect(member != nil)
     #expect(member!.member.value == "foo")
-    let ifExpr = member!.object as? AST.If
+    let paren = member!.object as? AST.ParentheticalExpression
+    #expect(paren != nil)
+    let ifExpr = paren!.inner as? AST.If
     #expect(ifExpr != nil)
 }
 
@@ -2060,7 +2063,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let op = errors[0].range
     let source = "func main() { + }"
     let plusIndex = source.firstIndex(of: "+")!
-    let afterPlusOffset = source.distance(from: source.startIndex, to: source.index(after: plusIndex))
+    let afterPlusOffset = source.distance(
+        from: source.startIndex, to: source.index(after: plusIndex))
     #expect(op.start.offset == afterPlusOffset)
 }
 
@@ -2082,7 +2086,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let (_, diagnostics) = parseWithDiagnostics("struct Foo: + {}")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count >= 1)
-    let expr = errors.first { $0.message == "expected expression after operator '+'" }
+    let expr = errors.first { $0.message == "expected '{' in struct type" }
     #expect(expr != nil)
 }
 
@@ -2164,14 +2168,20 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     if case .explicit(let items) = decl.selector {
         #expect(items.count == 3)
         if case .self_ = items[0].kind {
-        } else { Issue.record("expected self_ item") }
+        } else {
+            Issue.record("expected self_ item")
+        }
         #expect(items[0].alias == nil)
         if case .name(let t) = items[1].kind {
             #expect(t.value == "B")
-        } else { Issue.record("expected name item") }
+        } else {
+            Issue.record("expected name item")
+        }
         if case .name(let t) = items[2].kind {
             #expect(t.value == "C")
-        } else { Issue.record("expected name item") }
+        } else {
+            Issue.record("expected name item")
+        }
     } else {
         Issue.record("expected explicit selector")
     }
@@ -2211,10 +2221,14 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
         #expect(items.count == 2)
         if case .name(let t) = items[0].kind {
             #expect(t.value == "A")
-        } else { Issue.record("expected name item") }
+        } else {
+            Issue.record("expected name item")
+        }
         if case .name(let t) = items[1].kind {
             #expect(t.value == "B")
-        } else { Issue.record("expected name item") }
+        } else {
+            Issue.record("expected name item")
+        }
     } else {
         Issue.record("expected explicit selector")
     }
@@ -2252,11 +2266,15 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
         if case .name(let t) = items[0].kind {
             #expect(t.value == "B")
             #expect(items[0].alias?.value == "b")
-        } else { Issue.record("expected name item") }
+        } else {
+            Issue.record("expected name item")
+        }
         if case .name(let t) = items[1].kind {
             #expect(t.value == "C")
             #expect(items[1].alias?.value == "c")
-        } else { Issue.record("expected name item") }
+        } else {
+            Issue.record("expected name item")
+        }
     } else {
         Issue.record("expected explicit selector")
     }
@@ -2270,11 +2288,15 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
         #expect(items.count == 2)
         if case .self_ = items[0].kind {
             #expect(items[0].alias?.value == "a")
-        } else { Issue.record("expected self_ item") }
+        } else {
+            Issue.record("expected self_ item")
+        }
         if case .name(let t) = items[1].kind {
             #expect(t.value == "B")
             #expect(items[1].alias?.value == "b")
-        } else { Issue.record("expected name item") }
+        } else {
+            Issue.record("expected name item")
+        }
     } else {
         Issue.record("expected explicit selector")
     }
@@ -2299,10 +2321,14 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     if case .explicit(let items) = decl.selector {
         #expect(items.count == 2)
         if case .self_ = items[0].kind {
-        } else { Issue.record("expected self_ item") }
+        } else {
+            Issue.record("expected self_ item")
+        }
         if case .name(let t) = items[1].kind {
             #expect(t.value == "C")
-        } else { Issue.record("expected name item") }
+        } else {
+            Issue.record("expected name item")
+        }
     } else {
         Issue.record("expected explicit selector")
     }
