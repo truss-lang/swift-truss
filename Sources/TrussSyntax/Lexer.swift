@@ -181,6 +181,8 @@ public final class Lexer {
             return Token(value: value, kind: .BooleanLiteral(false), pos: pos, id: self.input.id)
         case "null":
             return Token(value: value, kind: .NullLiteral, pos: pos, id: self.input.id)
+        case "nullptr":
+            return Token(value: value, kind: .NullptrLiteral, pos: pos, id: self.input.id)
         default:
             break
         }

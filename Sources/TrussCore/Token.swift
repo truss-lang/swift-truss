@@ -241,6 +241,7 @@ public enum TokenKind: Hashable, Equatable {
     case CharLiteral(Character)
     case BooleanLiteral(Bool)
     case NullLiteral
+    case NullptrLiteral
     case Unknown
 }
 
