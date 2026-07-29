@@ -1424,14 +1424,29 @@ public final class Parser {
             return errorStatement(from: token, to: t1)
         }
         index += 1
-        guard let t2 = peek else {
-            emitError("expected ')' after function parameters", at: endOfFile)
-            return errorStatement(from: token, to: endOfFile)
-        }
-        if case .Separator(.CloseParen) = t2.kind {
+        var parameters: [AST.FunctionDecl.Parameter] = []
+        if let t2 = peek, case .Separator(.CloseParen) = t2.kind {
             index += 1
         } else {
-            emitError("expected ')' after function parameters, but got '\(t2.value)'", at: t2)
+            _paramLoop: while true {
+                let param = parseFunctionParameter()
+                parameters.append(param)
+                if let comma = peek, case .Separator(.Comma) = comma.kind {
+                    index += 1
+                    if let cp = peek, case .Separator(.CloseParen) = cp.kind {
+                        break _paramLoop
+                    }
+                } else {
+                    break _paramLoop
+                }
+            }
+            if let t = peek, case .Separator(.CloseParen) = t.kind {
+                index += 1
+            } else if let t = peek {
+                emitError("expected ')' after function parameters, but got '\(t.value)'", at: t)
+            } else {
+                emitError("expected ')' after function parameters", at: endOfFile)
+            }
         }
         let returnTypeExpression: AST.Expression?
         if let t = peek, case .Separator(.Arrow) = t.kind {
@@ -1481,8 +1496,57 @@ public final class Parser {
             body = nil
         }
         return AST.FunctionDecl(
-            modifiers, attributes, token, name, returnTypeExpression, body,
+            modifiers, attributes, token, name, parameters, returnTypeExpression, body,
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
+        )
+    }
+
+    private func parseFunctionParameter() -> AST.FunctionDecl.Parameter {
+        let startToken = peek!
+        guard let first = next else {
+            emitError("expected parameter", at: endOfFile)
+            return AST.FunctionDecl.Parameter(
+                label: nil, name: errorToken(), type: nil, defaultValue: nil,
+                sourceRange: SourceRange(location: endOfFile)
+            )
+        }
+        guard case .Identifier = first.kind else {
+            emitError("expected identifier in parameter, but got '\(first.value)'", at: first)
+            return AST.FunctionDecl.Parameter(
+                label: nil, name: first, type: nil, defaultValue: nil,
+                sourceRange: first.sourceRange(in: buffer)
+            )
+        }
+        var label: Token? = first
+        var name: Token = first
+        if first.value == "_" {
+            label = nil
+            if let second = peek, case .Identifier = second.kind {
+                index += 1
+                name = second
+            }
+        } else if let second = peek, case .Identifier = second.kind {
+            index += 1
+            name = second
+        }
+        var type: AST.Expression? = nil
+        if let colon = peek, case .Separator(.Colon) = colon.kind {
+            index += 1
+            type = parseExpression(excepts: [.Assign])
+        } else if let t = peek {
+            emitError("expected ':' after parameter name, but got '\(t.value)'", at: t)
+        } else {
+            emitError("expected ':' after parameter name", at: endOfFile)
+        }
+        var defaultValue: AST.Expression? = nil
+        if let assign = peek, case .Operator(.Assign) = assign.kind {
+            index += 1
+            defaultValue = parseExpression()
+        }
+        let endToken = last ?? first
+        return AST.FunctionDecl.Parameter(
+            label: label, name: name, type: type, defaultValue: defaultValue,
+            sourceRange: SourceRange(from: startToken, to: endToken, in: buffer)
         )
     }
 
@@ -2211,6 +2275,41 @@ public final class Parser {
                 let postfixed = parsePostfix(callResult, excepts: excepts)
                 operands.append(postfixed)
                 lastIsExpression = true
+            } else if case .Separator(.OpenBracket) = token.kind, lastIsExpression {
+                angleDepth = 0
+                justClosedAngle = false
+                let base = operands.removeLast()
+                let subscriptResult = parseSubscript(base)
+                let postfixed = parsePostfix(subscriptResult, excepts: excepts)
+                operands.append(postfixed)
+                lastIsExpression = true
+            } else if case .Operator(.Dot) = token.kind, lastIsExpression {
+                index += 1
+                guard let member = peek else {
+                    emitError("expected member name after '.'", at: endOfFile)
+                    break
+                }
+                switch member.kind {
+                case .Identifier, .IntegerLiteral:
+                    index += 1
+                default:
+                    emitError(
+                        "expected identifier or integer literal after '.', but got '\(member.value)'",
+                        at: member
+                    )
+                }
+                let base = operands.removeLast()
+                let memberAccess = AST.MemberAccess(
+                    base, token, member,
+                    sourceRange: SourceRange(
+                        start: base.sourceRange.start,
+                        end: member.sourceRange(in: buffer).end
+                    )
+                )
+                let postfixed = parsePostfix(memberAccess, excepts: excepts)
+                operands.append(postfixed)
+                lastIsExpression = true
+                justClosedAngle = false
             } else if case .Separator(.Comma) = token.kind, angleDepth > 0 {
                 ops.append(token)
                 index += 1
@@ -2373,6 +2472,9 @@ public final class Parser {
                 }
             case .OpenBrace:
                 expression = parseClosure()
+            case .OpenBracket:
+                index += 1
+                expression = parseCollectionLiteral(openBracket: token)
             default: return nil
             }
         case .Operator(let kind):
@@ -2400,6 +2502,112 @@ public final class Parser {
         default: return nil
         }
         return parsePostfix(expression, excepts: excepts)
+    }
+
+    private func parseCollectionLiteral(openBracket: Token) -> AST.Expression {
+        if let t = peek, case .Separator(.CloseBracket) = t.kind {
+            index += 1
+            return AST.ArrayLiteral(
+                [], sourceRange: SourceRange(from: openBracket, to: t, in: buffer)
+            )
+        }
+        if let colon = peek, case .Separator(.Colon) = colon.kind {
+            index += 1
+            if let t = peek, case .Separator(.CloseBracket) = t.kind {
+                index += 1
+                return AST.DictionaryLiteral(
+                    [], sourceRange: SourceRange(from: openBracket, to: t, in: buffer)
+                )
+            }
+            emitError("expected ']' after ':' to form empty dictionary", at: colon)
+        }
+        guard let first = parseExpression() else {
+            emitError("expected expression after '['", at: locationAfter(openBracket))
+            if let t = peek, case .Separator(.CloseBracket) = t.kind {
+                index += 1
+            }
+            return errorExpression(from: openBracket, to: openBracket)
+        }
+        if let colon = peek, case .Separator(.Colon) = colon.kind {
+            index += 1
+            let value = parseExpression() ?? errorExpression(from: colon, to: colon)
+            var entries: [AST.DictionaryLiteral.Entry] = [
+                AST.DictionaryLiteral.Entry(
+                    key: first, value: value,
+                    sourceRange: SourceRange(
+                        start: first.sourceRange.start, end: value.sourceRange.end
+                    )
+                )
+            ]
+            while let comma = peek, case .Separator(.Comma) = comma.kind {
+                index += 1
+                if let cb = peek, case .Separator(.CloseBracket) = cb.kind {
+                    break
+                }
+                let key = parseExpression() ?? errorExpression(from: comma, to: comma)
+                if let colon2 = peek, case .Separator(.Colon) = colon2.kind {
+                    index += 1
+                } else if let t = peek {
+                    emitError("expected ':' in dictionary entry, but got '\(t.value)'", at: t)
+                } else {
+                    emitError("expected ':' in dictionary entry", at: endOfFile)
+                }
+                let val = parseExpression() ?? errorExpression(from: comma, to: comma)
+                entries.append(
+                    AST.DictionaryLiteral.Entry(
+                        key: key, value: val,
+                        sourceRange: SourceRange(
+                            start: key.sourceRange.start, end: val.sourceRange.end
+                        )
+                    )
+                )
+            }
+            if let t = peek, case .Separator(.CloseBracket) = t.kind {
+                index += 1
+                return AST.DictionaryLiteral(
+                    entries, sourceRange: SourceRange(from: openBracket, to: t, in: buffer)
+                )
+            } else if let t = peek {
+                emitError("expected ']' after dictionary literal, but got '\(t.value)'", at: t)
+                return AST.DictionaryLiteral(
+                    entries, sourceRange: SourceRange(from: openBracket, to: t, in: buffer)
+                )
+            } else {
+                emitError("expected ']' after dictionary literal", at: endOfFile)
+                return AST.DictionaryLiteral(
+                    entries, sourceRange: SourceRange(from: openBracket, to: openBracket, in: buffer)
+                )
+            }
+        } else {
+            var elements: [AST.Expression] = [first]
+            while let comma = peek, case .Separator(.Comma) = comma.kind {
+                index += 1
+                if let cb = peek, case .Separator(.CloseBracket) = cb.kind {
+                    break
+                }
+                if let elem = parseExpression() {
+                    elements.append(elem)
+                } else {
+                    break
+                }
+            }
+            if let t = peek, case .Separator(.CloseBracket) = t.kind {
+                index += 1
+                return AST.ArrayLiteral(
+                    elements, sourceRange: SourceRange(from: openBracket, to: t, in: buffer)
+                )
+            } else if let t = peek {
+                emitError("expected ']' after array literal, but got '\(t.value)'", at: t)
+                return AST.ArrayLiteral(
+                    elements, sourceRange: SourceRange(from: openBracket, to: t, in: buffer)
+                )
+            } else {
+                emitError("expected ']' after array literal", at: endOfFile)
+                return AST.ArrayLiteral(
+                    elements, sourceRange: SourceRange(from: openBracket, to: openBracket, in: buffer)
+                )
+            }
+        }
     }
 
     private func parsePostfix(_ expression: AST.Expression, excepts: [OperatorKind]?)
@@ -2448,32 +2656,6 @@ public final class Parser {
                     }
                 case .Arrow:
                     expression = parseClosureType(expression, excepts)
-                default: break _loop
-                }
-            case .Operator(let kind):
-                switch kind {
-                case .Dot:
-                    index += 1
-                    guard let member = peek else {
-                        emitError("expected member name after '.'", at: endOfFile)
-                        break _loop
-                    }
-                    switch member.kind {
-                    case .Identifier, .IntegerLiteral:
-                        index += 1
-                    default:
-                        emitError(
-                            "expected identifier or integer literal after '.', but got '\(member.value)'",
-                            at: member
-                        )
-                    }
-                    expression = AST.MemberAccess(
-                        expression, t, member,
-                        sourceRange: SourceRange(
-                            start: expression.sourceRange.start,
-                            end: member.sourceRange(in: buffer).end
-                        )
-                    )
                 default: break _loop
                 }
             default: break _loop
@@ -2718,19 +2900,53 @@ public final class Parser {
         )
     }
 
+    private func parseArgumentList() -> [AST.LabeledArgument] {
+        var arguments: [AST.LabeledArgument] = []
+        _loop: while true {
+            guard let expr = parseExpression() else {
+                break _loop
+            }
+            var label: Token? = nil
+            var value = expr
+            if let variable = expr as? AST.Variable,
+               let colon = peek, case .Separator(.Colon) = colon.kind
+            {
+                label = variable.name
+                index += 1
+                value = parseExpression() ?? errorExpression(from: colon, to: colon)
+            }
+            let argRange = SourceRange(
+                start: expr.sourceRange.start,
+                end: value.sourceRange.end
+            )
+            arguments.append(AST.LabeledArgument(label: label, value: value, sourceRange: argRange))
+            if let comma = peek, case .Separator(.Comma) = comma.kind {
+                index += 1
+            } else {
+                break _loop
+            }
+        }
+        return arguments
+    }
+
     private func parseCall(_ callee: AST.Expression) -> AST.Call {
         index += 1
+        var arguments: [AST.LabeledArgument] = []
         var endToken: Token? = nil
-        if let t = peek {
-            if case .Separator(.CloseParen) = t.kind {
+        if let t = peek, case .Separator(.CloseParen) = t.kind {
+            index += 1
+            endToken = t
+        } else {
+            arguments = parseArgumentList()
+            if let t = peek, case .Separator(.CloseParen) = t.kind {
                 index += 1
                 endToken = t
-            } else {
+            } else if let t = peek {
                 emitError("expected ')' after call arguments, but got '\(t.value)'", at: t)
                 endToken = t
+            } else {
+                emitError("expected ')' after call arguments", at: endOfFile)
             }
-        } else {
-            emitError("expected ')' after call arguments", at: endOfFile)
         }
         let range: SourceRange
         if let endToken = endToken {
@@ -2740,7 +2956,37 @@ public final class Parser {
         } else {
             range = callee.sourceRange
         }
-        return AST.Call(callee: callee, arguments: [], sourceRange: range)
+        return AST.Call(callee: callee, arguments: arguments, sourceRange: range)
+    }
+
+    private func parseSubscript(_ base: AST.Expression) -> AST.Subscript {
+        index += 1
+        var arguments: [AST.LabeledArgument] = []
+        var endToken: Token? = nil
+        if let t = peek, case .Separator(.CloseBracket) = t.kind {
+            index += 1
+            endToken = t
+        } else {
+            arguments = parseArgumentList()
+            if let t = peek, case .Separator(.CloseBracket) = t.kind {
+                index += 1
+                endToken = t
+            } else if let t = peek {
+                emitError("expected ']' after subscript arguments, but got '\(t.value)'", at: t)
+                endToken = t
+            } else {
+                emitError("expected ']' after subscript arguments", at: endOfFile)
+            }
+        }
+        let range: SourceRange
+        if let endToken = endToken {
+            range = SourceRange(
+                start: base.sourceRange.start, end: endToken.sourceRange(in: buffer).end
+            )
+        } else {
+            range = base.sourceRange
+        }
+        return AST.Subscript(base: base, arguments: arguments, sourceRange: range)
     }
 
     private func parseAnnotations() -> ([AST.Modifier], [AST.Attribute]) {

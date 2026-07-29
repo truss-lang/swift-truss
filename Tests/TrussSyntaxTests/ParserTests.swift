@@ -2629,3 +2629,333 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(arg2 != nil)
     #expect(arg2!.name.value == "Int32")
 }
+
+@Test func parseEmptyArrayLiteral() {
+    let expr = firstExpression("[]")
+    let arr = expr as? AST.ArrayLiteral
+    #expect(arr != nil)
+    #expect(arr!.elements.isEmpty)
+}
+
+@Test func parseSingleElementArrayLiteral() {
+    let expr = firstExpression("[1]")
+    let arr = expr as? AST.ArrayLiteral
+    #expect(arr != nil)
+    #expect(arr!.elements.count == 1)
+    let lit = arr!.elements[0] as? AST.IntegerLiteral
+    #expect(lit != nil)
+    #expect(lit!.value == 1)
+}
+
+@Test func parseMultiElementArrayLiteral() {
+    let expr = firstExpression("[1, 2, 3]")
+    let arr = expr as? AST.ArrayLiteral
+    #expect(arr != nil)
+    #expect(arr!.elements.count == 3)
+    for i in 0..<3 {
+        let lit = arr!.elements[i] as? AST.IntegerLiteral
+        #expect(lit != nil)
+        #expect(lit!.value == Int128(i + 1))
+    }
+}
+
+@Test func parseArrayLiteralWithTrailingComma() {
+    let expr = firstExpression("[1, 2,]")
+    let arr = expr as? AST.ArrayLiteral
+    #expect(arr != nil)
+    #expect(arr!.elements.count == 2)
+}
+
+@Test func parseArrayLiteralWithExpressions() {
+    let expr = firstExpression("[a + b, c]")
+    let arr = expr as? AST.ArrayLiteral
+    #expect(arr != nil)
+    #expect(arr!.elements.count == 2)
+    let seq = arr!.elements[0] as? AST.SequentialExpression
+    #expect(seq != nil)
+    let v = arr!.elements[1] as? AST.Variable
+    #expect(v != nil)
+    #expect(v!.name.value == "c")
+}
+
+@Test func parseEmptyDictionaryLiteral() {
+    let expr = firstExpression("[:]")
+    let dict = expr as? AST.DictionaryLiteral
+    #expect(dict != nil)
+    #expect(dict!.entries.isEmpty)
+}
+
+@Test func parseSingleEntryDictionaryLiteral() {
+    let expr = firstExpression("[1: 2]")
+    let dict = expr as? AST.DictionaryLiteral
+    #expect(dict != nil)
+    #expect(dict!.entries.count == 1)
+    let key = dict!.entries[0].key as? AST.IntegerLiteral
+    #expect(key != nil)
+    #expect(key!.value == 1)
+    let val = dict!.entries[0].value as? AST.IntegerLiteral
+    #expect(val != nil)
+    #expect(val!.value == 2)
+}
+
+@Test func parseMultiEntryDictionaryLiteral() {
+    let expr = firstExpression("[1: 2, 3: 4]")
+    let dict = expr as? AST.DictionaryLiteral
+    #expect(dict != nil)
+    #expect(dict!.entries.count == 2)
+    let key0 = dict!.entries[0].key as? AST.IntegerLiteral
+    #expect(key0!.value == 1)
+    let val0 = dict!.entries[0].value as? AST.IntegerLiteral
+    #expect(val0!.value == 2)
+    let key1 = dict!.entries[1].key as? AST.IntegerLiteral
+    #expect(key1!.value == 3)
+    let val1 = dict!.entries[1].value as? AST.IntegerLiteral
+    #expect(val1!.value == 4)
+}
+
+@Test func parseDictionaryLiteralWithTrailingComma() {
+    let expr = firstExpression("[1: 2,]")
+    let dict = expr as? AST.DictionaryLiteral
+    #expect(dict != nil)
+    #expect(dict!.entries.count == 1)
+}
+
+@Test func parseSubscriptSingleIndex() {
+    let expr = firstExpression("arr[1]")
+    let sub = expr as? AST.Subscript
+    #expect(sub != nil)
+    let base = sub!.base as? AST.Variable
+    #expect(base != nil)
+    #expect(base!.name.value == "arr")
+    #expect(sub!.arguments.count == 1)
+    #expect(sub!.arguments[0].label == nil)
+    let idx = sub!.arguments[0].value as? AST.IntegerLiteral
+    #expect(idx != nil)
+    #expect(idx!.value == 1)
+}
+
+@Test func parseSubscriptMultiIndex() {
+    let expr = firstExpression("arr[1, 2]")
+    let sub = expr as? AST.Subscript
+    #expect(sub != nil)
+    #expect(sub!.arguments.count == 2)
+    #expect(sub!.arguments[0].label == nil)
+    #expect(sub!.arguments[1].label == nil)
+    let idx0 = sub!.arguments[0].value as? AST.IntegerLiteral
+    #expect(idx0!.value == 1)
+    let idx1 = sub!.arguments[1].value as? AST.IntegerLiteral
+    #expect(idx1!.value == 2)
+}
+
+@Test func parseSubscriptWithLabel() {
+    let expr = firstExpression("arr[row: 1, col: 2]")
+    let sub = expr as? AST.Subscript
+    #expect(sub != nil)
+    #expect(sub!.arguments.count == 2)
+    #expect(sub!.arguments[0].label?.value == "row")
+    #expect(sub!.arguments[1].label?.value == "col")
+    let val0 = sub!.arguments[0].value as? AST.IntegerLiteral
+    #expect(val0!.value == 1)
+    let val1 = sub!.arguments[1].value as? AST.IntegerLiteral
+    #expect(val1!.value == 2)
+}
+
+@Test func parseSubscriptWithTrailingComma() {
+    let expr = firstExpression("arr[1, 2,]")
+    let sub = expr as? AST.Subscript
+    #expect(sub != nil)
+    #expect(sub!.arguments.count == 2)
+}
+
+@Test func parseChainedSubscript() {
+    let expr = firstExpression("arr[0][1]")
+    let outer = expr as? AST.Subscript
+    #expect(outer != nil)
+    let inner = outer!.base as? AST.Subscript
+    #expect(inner != nil)
+    let base = inner!.base as? AST.Variable
+    #expect(base!.name.value == "arr")
+    #expect(outer!.arguments.count == 1)
+    #expect(inner!.arguments.count == 1)
+}
+
+@Test func parseSubscriptThenMemberAccess() {
+    let expr = firstExpression("arr[0].field")
+    let member = expr as? AST.MemberAccess
+    #expect(member != nil)
+    #expect(member!.member.value == "field")
+    let sub = member!.object as? AST.Subscript
+    #expect(sub != nil)
+    let base = sub!.base as? AST.Variable
+    #expect(base!.name.value == "arr")
+}
+
+@Test func parseMemberAccessThenSubscript() {
+    let expr = firstExpression("obj.field[0]")
+    let sub = expr as? AST.Subscript
+    #expect(sub != nil)
+    let member = sub!.base as? AST.MemberAccess
+    #expect(member != nil)
+    #expect(member!.member.value == "field")
+    let obj = member!.object as? AST.Variable
+    #expect(obj!.name.value == "obj")
+}
+
+@Test func parseCallWithSingleArgument() {
+    let expr = firstExpression("foo(1)")
+    let call = expr as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.count == 1)
+    #expect(call!.arguments[0].label == nil)
+    let arg = call!.arguments[0].value as? AST.IntegerLiteral
+    #expect(arg != nil)
+    #expect(arg!.value == 1)
+}
+
+@Test func parseCallWithMultipleArguments() {
+    let expr = firstExpression("foo(1, 2, 3)")
+    let call = expr as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.count == 3)
+    for i in 0..<3 {
+        let arg = call!.arguments[i].value as? AST.IntegerLiteral
+        #expect(arg != nil)
+        #expect(arg!.value == Int128(i + 1))
+    }
+}
+
+@Test func parseCallWithLabeledArguments() {
+    let expr = firstExpression("foo(a: 1, b: 2)")
+    let call = expr as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.count == 2)
+    #expect(call!.arguments[0].label?.value == "a")
+    #expect(call!.arguments[1].label?.value == "b")
+    let val0 = call!.arguments[0].value as? AST.IntegerLiteral
+    #expect(val0!.value == 1)
+    let val1 = call!.arguments[1].value as? AST.IntegerLiteral
+    #expect(val1!.value == 2)
+}
+
+@Test func parseCallWithMixedArguments() {
+    let expr = firstExpression("foo(1, b: 2)")
+    let call = expr as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.count == 2)
+    #expect(call!.arguments[0].label == nil)
+    #expect(call!.arguments[1].label?.value == "b")
+}
+
+@Test func parseCallWithTrailingComma() {
+    let expr = firstExpression("foo(1, 2,)")
+    let call = expr as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.count == 2)
+}
+
+@Test func parseCallWithExpressionArgument() {
+    let expr = firstExpression("foo(a + b)")
+    let call = expr as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.count == 1)
+    let seq = call!.arguments[0].value as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops.count == 1)
+    #expect(seq!.ops[0].kind == .Operator(.Plus))
+}
+
+@Test func parseFunctionDeclWithSingleParameter() {
+    let statements = parseStatements("func foo(a: Int) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.parameters.count == 1)
+    #expect(decl!.parameters[0].label?.value == "a")
+    #expect(decl!.parameters[0].name.value == "a")
+    let type = decl!.parameters[0].type as? AST.Variable
+    #expect(type != nil)
+    #expect(type!.name.value == "Int")
+    #expect(decl!.parameters[0].defaultValue == nil)
+}
+
+@Test func parseFunctionDeclWithMultipleParameters() {
+    let statements = parseStatements("func foo(a: Int, b: Int) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.parameters.count == 2)
+    #expect(decl!.parameters[0].name.value == "a")
+    #expect(decl!.parameters[1].name.value == "b")
+}
+
+@Test func parseFunctionDeclWithWildcardLabel() {
+    let statements = parseStatements("func foo(_ a: Int) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.parameters.count == 1)
+    #expect(decl!.parameters[0].label == nil)
+    #expect(decl!.parameters[0].name.value == "a")
+}
+
+@Test func parseFunctionDeclWithExplicitLabel() {
+    let statements = parseStatements("func foo(by a: Int) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.parameters.count == 1)
+    #expect(decl!.parameters[0].label?.value == "by")
+    #expect(decl!.parameters[0].name.value == "a")
+}
+
+@Test func parseFunctionDeclWithDefaultValue() {
+    let statements = parseStatements("func foo(a: Int = 42) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.parameters.count == 1)
+    let defVal = decl!.parameters[0].defaultValue as? AST.IntegerLiteral
+    #expect(defVal != nil)
+    #expect(defVal!.value == 42)
+}
+
+@Test func parseFunctionDeclWithMixedParameters() {
+    let statements = parseStatements("func foo(_ a: Int, b: Int = 0, by c: Int) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.parameters.count == 3)
+    #expect(decl!.parameters[0].label == nil)
+    #expect(decl!.parameters[0].name.value == "a")
+    #expect(decl!.parameters[1].label?.value == "b")
+    #expect(decl!.parameters[1].name.value == "b")
+    let defVal = decl!.parameters[1].defaultValue as? AST.IntegerLiteral
+    #expect(defVal != nil)
+    #expect(defVal!.value == 0)
+    #expect(decl!.parameters[2].label?.value == "by")
+    #expect(decl!.parameters[2].name.value == "c")
+}
+
+@Test func parseFunctionDeclWithTrailingComma() {
+    let statements = parseStatements("func foo(a: Int,) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.parameters.count == 1)
+}
+
+@Test func parseMemberAccessInteger() {
+    let expr = firstExpression("tuple.0")
+    let member = expr as? AST.MemberAccess
+    #expect(member != nil)
+    let obj = member!.object as? AST.Variable
+    #expect(obj!.name.value == "tuple")
+    #expect(member!.member.kind == .IntegerLiteral(0))
+}
+
+@Test func parseArrayLiteralInExpression() {
+    let expr = firstExpression("a + [1, 2]")
+    let seq = expr as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops.count == 1)
+    #expect(seq!.ops[0].kind == .Operator(.Plus))
+    #expect(seq!.operands.count == 2)
+    let left = seq!.operands[0] as? AST.Variable
+    #expect(left!.name.value == "a")
+    let right = seq!.operands[1] as? AST.ArrayLiteral
+    #expect(right != nil)
+    #expect(right!.elements.count == 2)
+}

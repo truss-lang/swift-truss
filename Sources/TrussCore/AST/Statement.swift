@@ -313,16 +313,18 @@ extension AST {
     public final class FunctionDecl: Decl {
         public let token: Token
         public let name: Token
+        public let parameters: [Parameter]
         public let returnTypeExpression: Expression?
         public let body: Body?
         public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ returnTypeExpression: Expression?, _ body: Body?,
-            sourceRange: SourceRange
+            _ name: Token, _ parameters: [Parameter], _ returnTypeExpression: Expression?,
+            _ body: Body?, sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
+            self.parameters = parameters
             self.returnTypeExpression = returnTypeExpression
             self.body = body
             super.init(modifiers, attributes, sourceRange: sourceRange)
@@ -334,6 +336,24 @@ extension AST {
         public enum Body {
             case Block([Statement])
             case Expression(Expression)
+        }
+
+        public struct Parameter {
+            public let label: Token?
+            public let name: Token
+            public let type: Expression?
+            public let defaultValue: Expression?
+            public let sourceRange: SourceRange
+            public init(
+                label: Token?, name: Token, type: Expression?, defaultValue: Expression?,
+                sourceRange: SourceRange
+            ) {
+                self.label = label
+                self.name = name
+                self.type = type
+                self.defaultValue = defaultValue
+                self.sourceRange = sourceRange
+            }
         }
     }
     public final class VariableDecl: Decl {

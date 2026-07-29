@@ -196,6 +196,14 @@ extension AST {
         open func visitFunctionDecl(
             _ functionDecl: AST.FunctionDecl, additional: Any? = nil
         ) -> Any? {
+            for parameter in functionDecl.parameters {
+                if let type = parameter.type {
+                    visit(type, additional: additional)
+                }
+                if let defaultValue = parameter.defaultValue {
+                    visit(defaultValue, additional: additional)
+                }
+            }
             if let returnTypeExpression = functionDecl.returnTypeExpression {
                 visit(returnTypeExpression, additional: additional)
             }
@@ -430,7 +438,7 @@ extension AST {
         ) -> Any? {
             visit(call.callee, additional: additional)
             for argument in call.arguments {
-                visit(argument, additional: additional)
+                visit(argument.value, additional: additional)
             }
             return nil
         }
@@ -517,6 +525,38 @@ extension AST {
             _ postfixExpression: AST.Postfix, additional: Any? = nil
         ) -> Any? {
             return visit(postfixExpression.expression, additional: additional)
+        }
+
+        @discardableResult
+        open func visitArrayLiteral(
+            _ arrayLiteral: AST.ArrayLiteral, additional: Any? = nil
+        ) -> Any? {
+            for element in arrayLiteral.elements {
+                visit(element, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
+        open func visitDictionaryLiteral(
+            _ dictionaryLiteral: AST.DictionaryLiteral, additional: Any? = nil
+        ) -> Any? {
+            for entry in dictionaryLiteral.entries {
+                visit(entry.key, additional: additional)
+                visit(entry.value, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
+        open func visitSubscript(
+            _ subscriptExpr: AST.Subscript, additional: Any? = nil
+        ) -> Any? {
+            visit(subscriptExpr.base, additional: additional)
+            for argument in subscriptExpr.arguments {
+                visit(argument.value, additional: additional)
+            }
+            return nil
         }
     }
 }

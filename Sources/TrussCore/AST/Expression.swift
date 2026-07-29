@@ -187,10 +187,20 @@ extension AST {
             }
         }
     }
+    public struct LabeledArgument {
+        public let label: Token?
+        public let value: Expression
+        public let sourceRange: SourceRange
+        public init(label: Token?, value: Expression, sourceRange: SourceRange) {
+            self.label = label
+            self.value = value
+            self.sourceRange = sourceRange
+        }
+    }
     public final class Call: Expression {
         public let callee: Expression
-        public let arguments: [Expression]
-        public init(callee: Expression, arguments: [Expression], sourceRange: SourceRange) {
+        public let arguments: [LabeledArgument]
+        public init(callee: Expression, arguments: [LabeledArgument], sourceRange: SourceRange) {
             self.callee = callee
             self.arguments = arguments
             super.init(sourceRange)
@@ -342,6 +352,48 @@ extension AST {
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitPostfix(self, additional: additional)
+        }
+    }
+    public final class ArrayLiteral: Expression {
+        public let elements: [Expression]
+        public init(_ elements: [Expression], sourceRange: SourceRange) {
+            self.elements = elements
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitArrayLiteral(self, additional: additional)
+        }
+    }
+    public final class DictionaryLiteral: Expression {
+        public let entries: [Entry]
+        public init(_ entries: [Entry], sourceRange: SourceRange) {
+            self.entries = entries
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitDictionaryLiteral(self, additional: additional)
+        }
+        public struct Entry {
+            public let key: Expression
+            public let value: Expression
+            public let sourceRange: SourceRange
+            public init(key: Expression, value: Expression, sourceRange: SourceRange) {
+                self.key = key
+                self.value = value
+                self.sourceRange = sourceRange
+            }
+        }
+    }
+    public final class Subscript: Expression {
+        public let base: Expression
+        public let arguments: [LabeledArgument]
+        public init(base: Expression, arguments: [LabeledArgument], sourceRange: SourceRange) {
+            self.base = base
+            self.arguments = arguments
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitSubscript(self, additional: additional)
         }
     }
 }
