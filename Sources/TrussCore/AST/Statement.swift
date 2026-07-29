@@ -278,6 +278,68 @@ extension AST {
             visitor.visitExtensionDecl(self, additional: additional)
         }
     }
+    public final class EnumDecl: Decl {
+        public let token: Token
+        public let name: Token
+        public let genericDecl: GenericDecl?
+        public let conformances: [Expression]
+        public let body: [AST.Statement]
+        public init(
+            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
+            _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
+            _ body: [AST.Statement], sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.name = name
+            self.genericDecl = genericDecl
+            self.conformances = conformances
+            self.body = body
+            super.init(modifiers, attributes, sourceRange: sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitEnumDecl(self, additional: additional)
+        }
+    }
+    public final class EnumCaseDecl: Decl {
+        public let token: Token
+        public let elements: [Element]
+        public init(
+            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
+            _ elements: [Element], sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.elements = elements
+            super.init(modifiers, attributes, sourceRange: sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitEnumCaseDecl(self, additional: additional)
+        }
+        public struct Element {
+            public let name: Token
+            public let associatedValues: [AssociatedValue]
+            public let rawValue: Expression?
+            public let sourceRange: SourceRange
+            public init(
+                name: Token, associatedValues: [AssociatedValue], rawValue: Expression?,
+                sourceRange: SourceRange
+            ) {
+                self.name = name
+                self.associatedValues = associatedValues
+                self.rawValue = rawValue
+                self.sourceRange = sourceRange
+            }
+        }
+        public struct AssociatedValue {
+            public let label: Token?
+            public let typeExpression: Expression
+            public let sourceRange: SourceRange
+            public init(label: Token?, typeExpression: Expression, sourceRange: SourceRange) {
+                self.label = label
+                self.typeExpression = typeExpression
+                self.sourceRange = sourceRange
+            }
+        }
+    }
     public final class InitDecl: Decl {
         public let token: Token
         public let optionalToken: Token?

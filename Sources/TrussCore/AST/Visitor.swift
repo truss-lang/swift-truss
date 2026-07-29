@@ -173,6 +173,37 @@ extension AST {
         }
 
         @discardableResult
+        open func visitEnumDecl(
+            _ enumDecl: AST.EnumDecl, additional: Any? = nil
+        ) -> Any? {
+            if let genericDecl = enumDecl.genericDecl {
+                visitGenericDecl(genericDecl, additional: additional)
+            }
+            for conformance in enumDecl.conformances {
+                visit(conformance, additional: additional)
+            }
+            for statement in enumDecl.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
+        open func visitEnumCaseDecl(
+            _ enumCaseDecl: AST.EnumCaseDecl, additional: Any? = nil
+        ) -> Any? {
+            for element in enumCaseDecl.elements {
+                for associatedValue in element.associatedValues {
+                    visit(associatedValue.typeExpression, additional: additional)
+                }
+                if let rawValue = element.rawValue {
+                    visit(rawValue, additional: additional)
+                }
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitInitDecl(
             _ initDecl: AST.InitDecl, additional: Any? = nil
         ) -> Any? {
@@ -556,6 +587,31 @@ extension AST {
             for argument in subscriptExpr.arguments {
                 visit(argument.value, additional: additional)
             }
+            return nil
+        }
+
+        @discardableResult
+        open func visitOptionalBinding(
+            _ optionalBinding: AST.OptionalBinding, additional: Any? = nil
+        ) -> Any? {
+            if let typeExpression = optionalBinding.typeExpression {
+                visit(typeExpression, additional: additional)
+            }
+            return visit(optionalBinding.value, additional: additional)
+        }
+
+        @discardableResult
+        open func visitCaseMatch(
+            _ caseMatch: AST.CaseMatch, additional: Any? = nil
+        ) -> Any? {
+            visit(caseMatch.pattern, additional: additional)
+            return visit(caseMatch.subject, additional: additional)
+        }
+
+        @discardableResult
+        open func visitBindingPattern(
+            _ bindingPattern: AST.BindingPattern, additional: Any? = nil
+        ) -> Any? {
             return nil
         }
     }

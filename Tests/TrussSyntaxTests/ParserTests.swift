@@ -2981,3 +2981,262 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(right != nil)
     #expect(right!.elements.count == 2)
 }
+
+// MARK: - Optional Binding (if let / guard let / while let)
+
+@Test func parseIfLetBasic() {
+    let body = parseBlockStatements("func main() { if let x = a {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let ifExpr = exprStmt!.expression as? AST.If
+    #expect(ifExpr != nil)
+    let binding = ifExpr!.condition as? AST.OptionalBinding
+    #expect(binding != nil)
+    #expect(binding!.token.kind == .Keyword(.Let))
+    #expect(binding!.name.value == "x")
+    #expect(binding!.typeExpression == nil)
+    let value = binding!.value as? AST.Variable
+    #expect(value!.name.value == "a")
+}
+
+@Test func parseIfLetWithTypeAnnotation() {
+    let body = parseBlockStatements("func main() { if let x: Int32 = a {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let binding = ifExpr!.condition as? AST.OptionalBinding
+    #expect(binding != nil)
+    #expect(binding!.name.value == "x")
+    #expect(binding!.typeExpression != nil)
+}
+
+@Test func parseIfVar() {
+    let body = parseBlockStatements("func main() { if var x = a {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let binding = ifExpr!.condition as? AST.OptionalBinding
+    #expect(binding != nil)
+    #expect(binding!.token.kind == .Keyword(.Var))
+}
+
+@Test func parseIfLetWithAndCombination() {
+    let body = parseBlockStatements("func main() { if (let x = a) && (let y = b) {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let seq = ifExpr!.condition as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops.count == 1)
+    #expect(seq!.ops[0].kind == .Operator(.And))
+    let lhs = seq!.operands[0] as? AST.ParentheticalExpression
+    #expect(lhs != nil)
+    let lhsBinding = lhs!.inner as? AST.OptionalBinding
+    #expect(lhsBinding != nil)
+    #expect(lhsBinding!.name.value == "x")
+    let rhs = seq!.operands[1] as? AST.ParentheticalExpression
+    #expect(rhs != nil)
+    let rhsBinding = rhs!.inner as? AST.OptionalBinding
+    #expect(rhsBinding != nil)
+    #expect(rhsBinding!.name.value == "y")
+}
+
+@Test func parseGuardLet() {
+    let body = parseBlockStatements("func main() { guard let x = a else {} }")
+    #expect(body.count == 1)
+    let guardStmt = body[0] as? AST.Guard
+    #expect(guardStmt != nil)
+    let binding = guardStmt!.condition as? AST.OptionalBinding
+    #expect(binding != nil)
+    #expect(binding!.name.value == "x")
+}
+
+@Test func parseWhileLet() {
+    let body = parseBlockStatements("func main() { while let x = a {} }")
+    #expect(body.count == 1)
+    let whileStmt = body[0] as? AST.While
+    #expect(whileStmt != nil)
+    let binding = whileStmt!.condition as? AST.OptionalBinding
+    #expect(binding != nil)
+    #expect(binding!.name.value == "x")
+}
+
+// MARK: - Case Match (if case)
+
+@Test func parseIfCaseDotName() {
+    let body = parseBlockStatements("func main() { if case .foo = a {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let caseMatch = ifExpr!.condition as? AST.CaseMatch
+    #expect(caseMatch != nil)
+    let pattern = caseMatch!.pattern as? AST.ImplicitMemberAccess
+    #expect(pattern != nil)
+    #expect(pattern!.name.value == "foo")
+    let subject = caseMatch!.subject as? AST.Variable
+    #expect(subject!.name.value == "a")
+}
+
+@Test func parseIfCaseWithBinding() {
+    let body = parseBlockStatements("func main() { if case .foo(let x) = a {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let caseMatch = ifExpr!.condition as? AST.CaseMatch
+    #expect(caseMatch != nil)
+    let call = caseMatch!.pattern as? AST.Call
+    #expect(call != nil)
+    let member = call!.callee as? AST.ImplicitMemberAccess
+    #expect(member!.name.value == "foo")
+    #expect(call!.arguments.count == 1)
+    let binding = call!.arguments[0].value as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.token.kind == .Keyword(.Let))
+    #expect(binding!.name.value == "x")
+}
+
+@Test func parseIfCaseNestedPattern() {
+    let body = parseBlockStatements("func main() { if case .some(.some(let x)) = a {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let caseMatch = ifExpr!.condition as? AST.CaseMatch
+    #expect(caseMatch != nil)
+    let outerCall = caseMatch!.pattern as? AST.Call
+    #expect(outerCall != nil)
+    let outerMember = outerCall!.callee as? AST.ImplicitMemberAccess
+    #expect(outerMember!.name.value == "some")
+    let innerCall = outerCall!.arguments[0].value as? AST.Call
+    #expect(innerCall != nil)
+    let innerMember = innerCall!.callee as? AST.ImplicitMemberAccess
+    #expect(innerMember!.name.value == "some")
+    let binding = innerCall!.arguments[0].value as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "x")
+}
+
+@Test func parseIfCaseQualified() {
+    let body = parseBlockStatements("func main() { if case Color.red = a {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let caseMatch = ifExpr!.condition as? AST.CaseMatch
+    #expect(caseMatch != nil)
+    let memberAccess = caseMatch!.pattern as? AST.MemberAccess
+    #expect(memberAccess != nil)
+    let base = memberAccess!.object as? AST.Variable
+    #expect(base!.name.value == "Color")
+    #expect(memberAccess!.member.value == "red")
+}
+
+@Test func parseIfCaseWildcard() {
+    let body = parseBlockStatements("func main() { if case _ = a {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let caseMatch = ifExpr!.condition as? AST.CaseMatch
+    #expect(caseMatch != nil)
+    let wildcard = caseMatch!.pattern as? AST.Variable
+    #expect(wildcard != nil)
+    #expect(wildcard!.name.value == "_")
+}
+
+// MARK: - Enum Declarations
+
+@Test func parseBasicEnum() {
+    let stmts = parseStatements("enum Color { case red\ncase green\ncase blue }")
+    #expect(stmts.count == 1)
+    let enumDecl = stmts[0] as? AST.EnumDecl
+    #expect(enumDecl != nil)
+    #expect(enumDecl!.name.value == "Color")
+    #expect(enumDecl!.genericDecl == nil)
+    #expect(enumDecl!.conformances.isEmpty)
+    #expect(enumDecl!.body.count == 3)
+    let case0 = enumDecl!.body[0] as? AST.EnumCaseDecl
+    #expect(case0 != nil)
+    #expect(case0!.elements.count == 1)
+    #expect(case0!.elements[0].name.value == "red")
+    #expect(case0!.elements[0].associatedValues.isEmpty)
+    #expect(case0!.elements[0].rawValue == nil)
+}
+
+@Test func parseEnumWithAssociatedValues() {
+    let stmts = parseStatements("enum Result { case ok(Int32)\ncase err(String) }")
+    #expect(stmts.count == 1)
+    let enumDecl = stmts[0] as? AST.EnumDecl
+    #expect(enumDecl!.body.count == 2)
+    let case0 = enumDecl!.body[0] as? AST.EnumCaseDecl
+    #expect(case0!.elements[0].name.value == "ok")
+    #expect(case0!.elements[0].associatedValues.count == 1)
+    #expect(case0!.elements[0].associatedValues[0].label == nil)
+    let case1 = enumDecl!.body[1] as? AST.EnumCaseDecl
+    #expect(case1!.elements[0].name.value == "err")
+    #expect(case1!.elements[0].associatedValues.count == 1)
+}
+
+@Test func parseEnumWithNamedAssociatedValues() {
+    let stmts = parseStatements("enum Point { case coord(x: Int32, y: Int32) }")
+    #expect(stmts.count == 1)
+    let enumDecl = stmts[0] as? AST.EnumDecl
+    let case0 = enumDecl!.body[0] as? AST.EnumCaseDecl
+    #expect(case0!.elements[0].associatedValues.count == 2)
+    #expect(case0!.elements[0].associatedValues[0].label?.value == "x")
+    #expect(case0!.elements[0].associatedValues[1].label?.value == "y")
+}
+
+@Test func parseEnumGeneric() {
+    let stmts = parseStatements("enum Result<T> { case ok(T)\ncase err(String) }")
+    #expect(stmts.count == 1)
+    let enumDecl = stmts[0] as? AST.EnumDecl
+    #expect(enumDecl != nil)
+    #expect(enumDecl!.genericDecl != nil)
+    #expect(enumDecl!.body.count == 2)
+    let case0 = enumDecl!.body[0] as? AST.EnumCaseDecl
+    #expect(case0!.elements[0].name.value == "ok")
+    let case1 = enumDecl!.body[1] as? AST.EnumCaseDecl
+    #expect(case1!.elements[0].name.value == "err")
+}
+
+@Test func parseEnumWithRawValue() {
+    let stmts = parseStatements("enum Color: Int32 { case red = 1\ncase green = 2 }")
+    #expect(stmts.count == 1)
+    let enumDecl = stmts[0] as? AST.EnumDecl
+    #expect(enumDecl!.conformances.count == 1)
+    let case0 = enumDecl!.body[0] as? AST.EnumCaseDecl
+    #expect(case0!.elements[0].rawValue != nil)
+    let rawVal = case0!.elements[0].rawValue as? AST.IntegerLiteral
+    #expect(rawVal != nil)
+}
+
+@Test func parseIndirectEnum() {
+    let stmts = parseStatements("indirect enum Tree { case node(Int32, Tree, Tree)\ncase leaf }")
+    #expect(stmts.count == 1)
+    let enumDecl = stmts[0] as? AST.EnumDecl
+    #expect(enumDecl != nil)
+    #expect(enumDecl!.modifiers.count == 1)
+    #expect(modifierKind(enumDecl!.modifiers[0].kind, equals: .Indirect))
+    let case0 = enumDecl!.body[0] as? AST.EnumCaseDecl
+    #expect(case0!.elements[0].associatedValues.count == 3)
+}
+
+@Test func parseEnumWithConformance() {
+    let stmts = parseStatements("enum Foo: Equatable { case a\ncase b }")
+    #expect(stmts.count == 1)
+    let enumDecl = stmts[0] as? AST.EnumDecl
+    #expect(enumDecl!.conformances.count == 1)
+    let conf = enumDecl!.conformances[0] as? AST.Variable
+    #expect(conf!.name.value == "Equatable")
+}
+
+@Test func parseEnumMultipleCasesOnOneLine() {
+    let stmts = parseStatements("enum Color { case red, green, blue }")
+    #expect(stmts.count == 1)
+    let enumDecl = stmts[0] as? AST.EnumDecl
+    #expect(enumDecl!.body.count == 1)
+    let caseDecl = enumDecl!.body[0] as? AST.EnumCaseDecl
+    #expect(caseDecl!.elements.count == 3)
+    #expect(caseDecl!.elements[0].name.value == "red")
+    #expect(caseDecl!.elements[1].name.value == "green")
+    #expect(caseDecl!.elements[2].name.value == "blue")
+}

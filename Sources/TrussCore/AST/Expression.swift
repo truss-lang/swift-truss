@@ -396,4 +396,52 @@ extension AST {
             visitor.visitSubscript(self, additional: additional)
         }
     }
+    public final class OptionalBinding: Expression {
+        public let token: Token
+        public let name: Token
+        public let typeExpression: Expression?
+        public let value: Expression
+        public init(
+            _ token: Token, _ name: Token, _ typeExpression: Expression?, _ value: Expression,
+            sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.name = name
+            self.typeExpression = typeExpression
+            self.value = value
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitOptionalBinding(self, additional: additional)
+        }
+    }
+    public final class CaseMatch: Expression {
+        public let token: Token
+        public let pattern: Expression
+        public let subject: Expression
+        public init(
+            _ token: Token, _ pattern: Expression, _ subject: Expression,
+            sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.pattern = pattern
+            self.subject = subject
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitCaseMatch(self, additional: additional)
+        }
+    }
+    public final class BindingPattern: Expression {
+        public let token: Token
+        public let name: Token
+        public init(_ token: Token, _ name: Token, sourceRange: SourceRange) {
+            self.token = token
+            self.name = name
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitBindingPattern(self, additional: additional)
+        }
+    }
 }
