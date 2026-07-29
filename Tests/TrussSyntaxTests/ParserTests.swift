@@ -3240,3 +3240,60 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(caseDecl!.elements[1].name.value == "green")
     #expect(caseDecl!.elements[2].name.value == "blue")
 }
+
+// MARK: - Match with Bindings
+
+@Test func parseMatchWithBinding() {
+    let expr = firstExpression("match a { .some(let x) -> x, .none -> 0 }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    #expect(matchExpr!.cases.count == 2)
+    let case0 = matchExpr!.cases[0]
+    #expect(case0.patterns.count == 1)
+    let call = case0.patterns[0] as? AST.Call
+    #expect(call != nil)
+    let member = call!.callee as? AST.ImplicitMemberAccess
+    #expect(member!.name.value == "some")
+    let binding = call!.arguments[0].value as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "x")
+}
+
+@Test func parseMatchWithPartialBinding() {
+    let expr = firstExpression("match a { .foo(let x, _) -> x }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let case0 = matchExpr!.cases[0]
+    let call = case0.patterns[0] as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.count == 2)
+    let binding = call!.arguments[0].value as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "x")
+    let wildcard = call!.arguments[1].value as? AST.Variable
+    #expect(wildcard != nil)
+    #expect(wildcard!.name.value == "_")
+}
+
+@Test func parseMatchWithNestedBinding() {
+    let expr = firstExpression("match a { .some(.some(let x)) -> x }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let case0 = matchExpr!.cases[0]
+    let outerCall = case0.patterns[0] as? AST.Call
+    #expect(outerCall != nil)
+    let innerCall = outerCall!.arguments[0].value as? AST.Call
+    #expect(innerCall != nil)
+    let binding = innerCall!.arguments[0].value as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "x")
+}
+
+@Test func parseMatchWithMultiplePatterns() {
+    let expr = firstExpression("match a { .a, .b -> 1, .c -> 2 }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    #expect(matchExpr!.cases.count == 2)
+    #expect(matchExpr!.cases[0].patterns.count == 2)
+    #expect(matchExpr!.cases[1].patterns.count == 1)
+}

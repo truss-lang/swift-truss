@@ -2852,6 +2852,7 @@ public final class Parser {
                         break _loop
                     }
                 case .Arrow:
+                    if inPatternContext { break _loop }
                     expression = parseClosureType(expression, excepts)
                 default: break _loop
                 }
@@ -3038,6 +3039,7 @@ public final class Parser {
     private func parseMatchCase() -> AST.Match.Case? {
         let beginToken = peek!
         var patterns: [AST.Expression] = []
+        inPatternContext = true
         _loop: while let t = peek {
             switch t.kind {
             case .Separator(.Arrow):
@@ -3052,6 +3054,7 @@ public final class Parser {
                 }
             }
         }
+        inPatternContext = false
         guard let arrowToken = next else {
             emitError("expected '=>' after match case pattern", at: endOfFile)
             return nil
