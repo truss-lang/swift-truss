@@ -335,9 +335,18 @@ extension Token {
     public func sourceRange(in buffer: SourceBuffer) -> SourceRange {
         let start = SourceLocation(
             buffer: buffer, offset: pos.pos, line: pos.line, column: pos.col)
+        var endLine = pos.line
+        var endCol = pos.col
+        for ch in value {
+            if ch == "\n" {
+                endLine += 1
+                endCol = 1
+            } else {
+                endCol += 1
+            }
+        }
         let end = SourceLocation(
-            buffer: buffer, offset: pos.pos + pos.len, line: pos.line,
-            column: pos.col + pos.len)
+            buffer: buffer, offset: pos.pos + pos.len, line: endLine, column: endCol)
         return SourceRange(start: start, end: end)
     }
 }
@@ -348,8 +357,6 @@ extension SourceRange {
             start: SourceLocation(
                 buffer: buffer, offset: startToken.pos.pos, line: startToken.pos.line,
                 column: startToken.pos.col),
-            end: SourceLocation(
-                buffer: buffer, offset: endToken.pos.pos + endToken.pos.len,
-                line: endToken.pos.line, column: endToken.pos.col + endToken.pos.len))
+            end: endToken.sourceRange(in: buffer).end)
     }
 }

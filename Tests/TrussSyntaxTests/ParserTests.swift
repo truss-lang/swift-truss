@@ -910,6 +910,28 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(range.end.offset == 16)
 }
 
+@Test func sourceRangeMultiLineStringLiteral() {
+    let expr = firstExpression("\"hello\nworld\"")
+    let lit = expr as? AST.StringLiteral
+    #expect(lit != nil)
+    let range = lit?.sourceRange
+    #expect(range?.start.offset == 14)
+    #expect(range?.start.line == 1)
+    #expect(range?.start.column == 15)
+    #expect(range?.end.offset == 27)
+    #expect(range?.end.line == 2)
+    #expect(range?.end.column == 7)
+}
+
+@Test func sourceRangeFromToWithMultiLineEndToken() {
+    let body = parseBlockStatements("func main() {\nreturn \"a\nb\"\n}")
+    let ret = body[0] as! AST.Return
+    let range = ret.sourceRange
+    #expect(range.start.line == 2)
+    #expect(range.end.line == 3)
+    #expect(range.end.column == 3)
+}
+
 @Test func parseStoredPropertyWithAccessorReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("var a = 1 { get { 1 } set(v) {} }")
     let errors = diagnostics.filter { $0.severity == .error }
