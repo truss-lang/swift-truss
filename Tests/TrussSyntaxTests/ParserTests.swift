@@ -3297,3 +3297,35 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(matchExpr!.cases[0].patterns.count == 2)
     #expect(matchExpr!.cases[1].patterns.count == 1)
 }
+
+@Test func parseMatchMixedLiteralAndBinding() {
+    let expr = firstExpression("match a { .foo(1, let x) -> x }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let case0 = matchExpr!.cases[0]
+    let call = case0.patterns[0] as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.count == 2)
+    let lit = call!.arguments[0].value as? AST.IntegerLiteral
+    #expect(lit != nil)
+    let binding = call!.arguments[1].value as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "x")
+}
+
+@Test func parseIfCaseMixedLiteralAndBinding() {
+    let body = parseBlockStatements("func main() { if case .foo(1, let x) = a {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let caseMatch = ifExpr!.condition as? AST.CaseMatch
+    #expect(caseMatch != nil)
+    let call = caseMatch!.pattern as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.count == 2)
+    let lit = call!.arguments[0].value as? AST.IntegerLiteral
+    #expect(lit != nil)
+    let binding = call!.arguments[1].value as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "x")
+}
