@@ -297,6 +297,74 @@ extension AST {
             visitor.visitClosureType(self, additional: additional)
         }
     }
+    public final class OptionalType: Expression {
+        public let wrappedType: Expression
+        public let token: Token
+        public init(_ wrappedType: Expression, _ token: Token, sourceRange: SourceRange) {
+            self.wrappedType = wrappedType
+            self.token = token
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitOptionalType(self, additional: additional)
+        }
+    }
+    public final class SomeType: Expression {
+        public let token: Token
+        public let wrappedType: Expression
+        public init(_ token: Token, _ wrappedType: Expression, sourceRange: SourceRange) {
+            self.token = token
+            self.wrappedType = wrappedType
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitSomeType(self, additional: additional)
+        }
+    }
+    public final class AnyType: Expression {
+        public let token: Token
+        public let wrappedType: Expression
+        public init(_ token: Token, _ wrappedType: Expression, sourceRange: SourceRange) {
+            self.token = token
+            self.wrappedType = wrappedType
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitAnyType(self, additional: additional)
+        }
+    }
+    public final class ProtocolCompositionType: Expression {
+        public let types: [Expression]
+        public init(_ types: [Expression], sourceRange: SourceRange) {
+            self.types = types
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitProtocolCompositionType(self, additional: additional)
+        }
+    }
+    public final class TupleExpression: Expression {
+        public let elements: [LabeledArgument]
+        public init(_ elements: [LabeledArgument], sourceRange: SourceRange) {
+            self.elements = elements
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitTupleExpression(self, additional: additional)
+        }
+    }
+    public final class IsPattern: Expression {
+        public let token: Token
+        public let typeExpression: Expression
+        public init(_ token: Token, _ typeExpression: Expression, sourceRange: SourceRange) {
+            self.token = token
+            self.typeExpression = typeExpression
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitIsPattern(self, additional: additional)
+        }
+    }
     public final class SequentialExpression: Expression {
         public let ops: [Token]
         public let operands: [Expression]

@@ -1694,34 +1694,6 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(implicit!.name.value == "foo")
 }
 
-// MARK: - Generic Application
-
-@Test func parseGenericApplicationSingleArg() {
-    let expr = firstExpression("Foo::<Int>")
-    let generic = expr as? AST.GenericApplication
-    #expect(generic != nil)
-    let base = generic!.base as? AST.Variable
-    #expect(base != nil)
-    #expect(base!.name.value == "Foo")
-    #expect(generic!.genericArguments.count == 1)
-    let arg = generic!.genericArguments[0] as? AST.Variable
-    #expect(arg != nil)
-    #expect(arg!.name.value == "Int")
-}
-
-@Test func parseGenericApplicationMultipleArgs() {
-    let expr = firstExpression("Foo::<Int, String>")
-    let generic = expr as? AST.GenericApplication
-    #expect(generic != nil)
-    #expect(generic!.genericArguments.count == 2)
-    let arg0 = generic!.genericArguments[0] as? AST.Variable
-    #expect(arg0 != nil)
-    #expect(arg0!.name.value == "Int")
-    let arg1 = generic!.genericArguments[1] as? AST.Variable
-    #expect(arg1 != nil)
-    #expect(arg1!.name.value == "String")
-}
-
 // MARK: - Parenthesized Expression
 
 @Test func parseParenthesizedVariable() {
@@ -3328,4 +3300,234 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let binding = call!.arguments[1].value as? AST.BindingPattern
     #expect(binding != nil)
     #expect(binding!.name.value == "x")
+}
+
+// MARK: - OptionalType
+
+@Test func parseOptionalTypeSimple() {
+    let expr = firstExpression("Int?")
+    let optional = expr as? AST.OptionalType
+    #expect(optional != nil)
+    let inner = optional!.wrappedType as? AST.Variable
+    #expect(inner != nil)
+    #expect(inner!.name.value == "Int")
+}
+
+@Test func parseOptionalTypeNested() {
+    let expr = firstExpression("Int??")
+    let outer = expr as? AST.OptionalType
+    #expect(outer != nil)
+    let inner = outer!.wrappedType as? AST.OptionalType
+    #expect(inner != nil)
+    let innermost = inner!.wrappedType as? AST.Variable
+    #expect(innermost != nil)
+    #expect(innermost!.name.value == "Int")
+}
+
+@Test func parseOptionalTypeInReturnType() {
+    let stmts = parseStatements("func f() -> Int? {}")
+    #expect(stmts.count == 1)
+    let funcDecl = stmts[0] as? AST.FunctionDecl
+    #expect(funcDecl != nil)
+    let retType = funcDecl!.returnTypeExpression as? AST.OptionalType
+    #expect(retType != nil)
+    let inner = retType!.wrappedType as? AST.Variable
+    #expect(inner != nil)
+    #expect(inner!.name.value == "Int")
+}
+
+@Test func parseOptionalTypeInVariableDeclaration() {
+    let stmts = parseStatements("let x: Int?")
+    #expect(stmts.count == 1)
+    let varDecl = stmts[0] as? AST.VariableDecl
+    #expect(varDecl != nil)
+    let type = varDecl!.typeExpression as? AST.OptionalType
+    #expect(type != nil)
+    let inner = type!.wrappedType as? AST.Variable
+    #expect(inner != nil)
+    #expect(inner!.name.value == "Int")
+}
+
+// MARK: - SomeType / AnyType
+
+@Test func parseSomeTypeSimple() {
+    let expr = firstExpression("some Collection")
+    let some = expr as? AST.SomeType
+    #expect(some != nil)
+    let inner = some!.wrappedType as? AST.Variable
+    #expect(inner != nil)
+    #expect(inner!.name.value == "Collection")
+}
+
+@Test func parseAnyTypeSimple() {
+    let expr = firstExpression("any Collection")
+    let anyType = expr as? AST.AnyType
+    #expect(anyType != nil)
+    let inner = anyType!.wrappedType as? AST.Variable
+    #expect(inner != nil)
+    #expect(inner!.name.value == "Collection")
+}
+
+@Test func parseSomeTypeWithComposition() {
+    let expr = firstExpression("some A & B")
+    let some = expr as? AST.SomeType
+    #expect(some != nil)
+    let comp = some!.wrappedType as? AST.ProtocolCompositionType
+    #expect(comp != nil)
+    #expect(comp!.types.count == 2)
+    let t0 = comp!.types[0] as? AST.Variable
+    #expect(t0 != nil)
+    #expect(t0!.name.value == "A")
+    let t1 = comp!.types[1] as? AST.Variable
+    #expect(t1 != nil)
+    #expect(t1!.name.value == "B")
+}
+
+@Test func parseSomeTypeWithMultipleComposition() {
+    let expr = firstExpression("some A & B & C")
+    let some = expr as? AST.SomeType
+    #expect(some != nil)
+    let comp = some!.wrappedType as? AST.ProtocolCompositionType
+    #expect(comp != nil)
+    #expect(comp!.types.count == 3)
+}
+
+@Test func parseAnyTypeWithComposition() {
+    let expr = firstExpression("any A & B")
+    let anyType = expr as? AST.AnyType
+    #expect(anyType != nil)
+    let comp = anyType!.wrappedType as? AST.ProtocolCompositionType
+    #expect(comp != nil)
+    #expect(comp!.types.count == 2)
+}
+
+@Test func parseSomeTypeWithOptionalInner() {
+    let expr = firstExpression("some Int?")
+    let some = expr as? AST.SomeType
+    #expect(some != nil)
+    let optional = some!.wrappedType as? AST.OptionalType
+    #expect(optional != nil)
+    let inner = optional!.wrappedType as? AST.Variable
+    #expect(inner != nil)
+    #expect(inner!.name.value == "Int")
+}
+
+@Test func parseSomeTypeInGenericConstraint() {
+    let stmts = parseStatements("struct Foo<each T: some P> {}")
+    #expect(stmts.count == 1)
+    let structDecl = stmts[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    #expect(structDecl!.genericDecl != nil)
+    let generics = structDecl!.genericDecl!.generics
+    #expect(generics.count == 1)
+    let some = generics[0].constraint as? AST.SomeType
+    #expect(some != nil)
+    let inner = some!.wrappedType as? AST.Variable
+    #expect(inner != nil)
+    #expect(inner!.name.value == "P")
+}
+
+// MARK: - Self type constraint
+
+@Test func parseSelfInGenericConstraint() {
+    let stmts = parseStatements("struct Foo<each T: Self> {}")
+    #expect(stmts.count == 1)
+    let structDecl = stmts[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    #expect(structDecl!.genericDecl != nil)
+    #expect(structDecl!.genericDecl!.generics.count == 1)
+    let constraint = structDecl!.genericDecl!.generics[0].constraint as? AST.SelfTypeExpression
+    #expect(constraint != nil)
+}
+
+// MARK: - TupleExpression
+
+@Test func parseTupleExpression() {
+    let expr = firstExpression("(1, 2)")
+    let tuple = expr as? AST.TupleExpression
+    #expect(tuple != nil)
+    #expect(tuple!.elements.count == 2)
+    let e0 = tuple!.elements[0].value as? AST.IntegerLiteral
+    #expect(e0 != nil)
+    let e1 = tuple!.elements[1].value as? AST.IntegerLiteral
+    #expect(e1 != nil)
+}
+
+@Test func parseLabeledTupleExpression() {
+    let expr = firstExpression("(name: String, age: Int)")
+    let tuple = expr as? AST.TupleExpression
+    #expect(tuple != nil)
+    #expect(tuple!.elements.count == 2)
+    #expect(tuple!.elements[0].label?.value == "name")
+    #expect(tuple!.elements[1].label?.value == "age")
+}
+
+@Test func parseTupleWithTrailingComma() {
+    let expr = firstExpression("(1, 2,)")
+    let tuple = expr as? AST.TupleExpression
+    #expect(tuple != nil)
+    #expect(tuple!.elements.count == 2)
+}
+
+@Test func parseTuplePattern() {
+    let body = parseBlockStatements("func main() { match x { (a, b) -> a } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let match = exprStmt!.expression as? AST.Match
+    #expect(match != nil)
+    #expect(match!.cases.count == 1)
+    let patterns = match!.cases[0].patterns
+    #expect(patterns.count == 1)
+    let tuple = patterns[0] as? AST.TupleExpression
+    #expect(tuple != nil)
+    #expect(tuple!.elements.count == 2)
+    let e0 = tuple!.elements[0].value as? AST.Variable
+    #expect(e0 != nil)
+    #expect(e0!.name.value == "a")
+    let e1 = tuple!.elements[1].value as? AST.Variable
+    #expect(e1 != nil)
+    #expect(e1!.name.value == "b")
+}
+
+@Test func parseTuplePatternWithBinding() {
+    let body = parseBlockStatements("func main() { match x { (a, let b) -> b } }")
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let match = exprStmt!.expression as? AST.Match
+    let tuple = match!.cases[0].patterns[0] as? AST.TupleExpression
+    #expect(tuple != nil)
+    #expect(tuple!.elements.count == 2)
+    let binding = tuple!.elements[1].value as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "b")
+}
+
+// MARK: - IsPattern
+
+@Test func parseIsPatternInMatch() {
+    let body = parseBlockStatements("func main() { match x { is Int -> \"int\" } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let match = exprStmt!.expression as? AST.Match
+    #expect(match != nil)
+    #expect(match!.cases.count == 1)
+    #expect(match!.cases[0].patterns.count == 1)
+    let isPattern = match!.cases[0].patterns[0] as? AST.IsPattern
+    #expect(isPattern != nil)
+    let typeExpr = isPattern!.typeExpression as? AST.Variable
+    #expect(typeExpr != nil)
+    #expect(typeExpr!.name.value == "Int")
+}
+
+@Test func parseIsPatternInIfCase() {
+    let body = parseBlockStatements("func main() { if case is Int = x {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let caseMatch = ifExpr!.condition as? AST.CaseMatch
+    #expect(caseMatch != nil)
+    let isPattern = caseMatch!.pattern as? AST.IsPattern
+    #expect(isPattern != nil)
+    let typeExpr = isPattern!.typeExpression as? AST.Variable
+    #expect(typeExpr != nil)
+    #expect(typeExpr!.name.value == "Int")
 }

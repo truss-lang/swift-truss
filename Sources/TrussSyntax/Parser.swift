@@ -911,8 +911,8 @@ public final class Parser {
                         index += 1
                         break
                     }
-                    var label: Token? = nil
-                    var typeExpr: AST.Expression? = nil
+                    let label: Token?
+                    let typeExpr: AST.Expression?
                     if let ident = peek, case .Identifier = ident.kind,
                         let colon = peek2, case .Separator(.Colon) = colon.kind
                     {
@@ -920,6 +920,7 @@ public final class Parser {
                         index += 2
                         typeExpr = parseExpression()
                     } else {
+                        label = nil
                         typeExpr = parseExpression()
                     }
                     guard let te = typeExpr else {
@@ -2425,7 +2426,7 @@ public final class Parser {
         var lastIsExpression = false
         var angleDepth = 0
         var justClosedAngle = false
-        while let token = peek {
+        _loop: while let token = peek {
             switch token.kind {
             case .Separator(.OpenParen) where lastIsExpression:
                 angleDepth = 0
@@ -2464,7 +2465,7 @@ public final class Parser {
                 index += 1
                 guard let member = peek else {
                     emitError("expected member name after '.'", at: endOfFile)
-                    break
+                    break _loop
                 }
                 switch member.kind {
                 case .Identifier, .IntegerLiteral:
@@ -2492,9 +2493,22 @@ public final class Parser {
                 index += 1
                 lastIsExpression = false
                 justClosedAngle = false
+            case .Operator(.QuestionMark) where lastIsExpression:
+                let base = operands.removeLast()
+                let optional = AST.OptionalType(
+                    base, token,
+                    sourceRange: SourceRange(
+                        start: base.sourceRange.start,
+                        end: token.sourceRange(in: buffer).end
+                    )
+                )
+                let postfixed = parsePostfix(optional, excepts: excepts)
+                operands.append(postfixed)
+                index += 1
+                lastIsExpression = true
             case .Operator(let kind) where kind != .Dot:
                 if let excepts = excepts, let kind = kind, excepts.contains(kind) {
-                    break
+                    break _loop
                 }
                 ops.append(token)
                 index += 1
@@ -2532,7 +2546,7 @@ public final class Parser {
                     lastIsExpression = true
                     justClosedAngle = false
                 } else {
-                    break
+                    break _loop
                 }
             }
         }
@@ -2563,8 +2577,8 @@ public final class Parser {
         return AST.SequentialExpression(ops, operands, sourceRange: range)
     }
 
-    private func parsePrimary(_ excepts: [OperatorKind]?, isCondition: Bool = false) -> AST
-        .Expression?
+    private func parsePrimary(_ excepts: [OperatorKind]?, isCondition: Bool = false)
+        -> AST.Expression?
     {
         let token = peek!
         var expression: AST.Expression
@@ -2634,6 +2648,55 @@ public final class Parser {
                 } else {
                     return nil
                 }
+            case .SomeKw, .AnyKw:
+                index += 1
+                let wrapped =
+                    parseExpression(excepts: excepts, isCondition: isCondition)
+                    ?? errorExpression(from: token, to: token)
+                let inner: AST.Expression
+                if let seq = wrapped as? AST.SequentialExpression,
+                    !seq.ops.isEmpty,
+                    seq.ops.allSatisfy({ op in
+                        if case .Operator(.BitAnd) = op.kind { return true }
+                        return false
+                    })
+                {
+                    inner = AST.ProtocolCompositionType(
+                        seq.operands, sourceRange: seq.sourceRange
+                    )
+                } else {
+                    inner = wrapped
+                }
+                if kind == .SomeKw {
+                    expression = AST.SomeType(
+                        token, inner,
+                        sourceRange: SourceRange(
+                            start: token.sourceRange(in: buffer).start,
+                            end: inner.sourceRange.end
+                        )
+                    )
+                } else {
+                    expression = AST.AnyType(
+                        token, inner,
+                        sourceRange: SourceRange(
+                            start: token.sourceRange(in: buffer).start,
+                            end: inner.sourceRange.end
+                        )
+                    )
+                }
+            case .Is:
+                if !inPatternContext { return nil }
+                index += 1
+                let typeExpr =
+                    parseExpression(excepts: excepts)
+                    ?? errorExpression(from: token, to: token)
+                expression = AST.IsPattern(
+                    token, typeExpr,
+                    sourceRange: SourceRange(
+                        start: token.sourceRange(in: buffer).start,
+                        end: typeExpr.sourceRange.end
+                    )
+                )
             case .Case:
                 if !isCondition { return nil }
                 expression = parseCaseMatch(token)
@@ -2651,29 +2714,101 @@ public final class Parser {
                         sourceRange: SourceRange(from: token, to: t, in: buffer)
                     )
                 } else {
-                    guard let expr = parseExpression(isCondition: isCondition) else {
+                    guard let first = parseExpression(isCondition: isCondition) else {
                         emitError("expected expression after '('", at: locationAfter(token))
                         if let t = peek, case .Separator(.CloseParen) = t.kind {
                             index += 1
                         }
                         return nil
                     }
-                    if let t = next {
-                        if t.kind != .Separator(.CloseParen) {
-                            emitError("expected ')' after expression, but got '\(t.value)'", at: t)
+                    var label: Token? = nil
+                    var value = first
+                    if let variable = first as? AST.Variable,
+                        let colon = peek, case .Separator(.Colon) = colon.kind
+                    {
+                        label = variable.name
+                        index += 1
+                        value =
+                            parseExpression()
+                            ?? errorExpression(from: colon, to: colon)
+                    }
+                    let isTuple =
+                        label != nil
+                        || (peek?.kind == .Separator(.Comma))
+                    if isTuple {
+                        var elements: [AST.LabeledArgument] = [
+                            AST.LabeledArgument(
+                                label: label, value: value,
+                                sourceRange: SourceRange(
+                                    start: first.sourceRange.start,
+                                    end: value.sourceRange.end
+                                )
+                            )
+                        ]
+                        while let comma = peek, case .Separator(.Comma) = comma.kind {
+                            index += 1
+                            if let cp = peek, case .Separator(.CloseParen) = cp.kind {
+                                break
+                            }
+                            guard let elem = parseExpression() else {
+                                emitError("expected expression after ','", at: comma)
+                                break
+                            }
+                            var elemLabel: Token? = nil
+                            var elemValue = elem
+                            if let variable = elem as? AST.Variable,
+                                let colon = peek, case .Separator(.Colon) = colon.kind
+                            {
+                                elemLabel = variable.name
+                                index += 1
+                                elemValue =
+                                    parseExpression()
+                                    ?? errorExpression(from: colon, to: colon)
+                            }
+                            elements.append(
+                                AST.LabeledArgument(
+                                    label: elemLabel, value: elemValue,
+                                    sourceRange: SourceRange(
+                                        start: elem.sourceRange.start,
+                                        end: elemValue.sourceRange.end
+                                    )
+                                )
+                            )
                         }
-                        expression = AST.ParentheticalExpression(
-                            expr, sourceRange: SourceRange(from: token, to: t, in: buffer)
+                        var closeToken: Token = token
+                        if let t = peek, case .Separator(.CloseParen) = t.kind {
+                            index += 1
+                            closeToken = t
+                        } else if let t = peek {
+                            emitError(
+                                "expected ')' after tuple elements, but got '\(t.value)'", at: t)
+                            closeToken = t
+                        } else {
+                            emitError("expected ')' after tuple elements", at: endOfFile)
+                        }
+                        expression = AST.TupleExpression(
+                            elements,
+                            sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
                         )
                     } else {
-                        emitError("expected ')' after expression", at: token)
-                        return AST.ParentheticalExpression(
-                            expr,
-                            sourceRange: SourceRange(
-                                start: token.sourceRange(in: buffer).start,
-                                end: endOfFile
+                        if let t = next {
+                            if t.kind != .Separator(.CloseParen) {
+                                emitError(
+                                    "expected ')' after expression, but got '\(t.value)'", at: t)
+                            }
+                            expression = AST.ParentheticalExpression(
+                                value, sourceRange: SourceRange(from: token, to: t, in: buffer)
                             )
-                        )
+                        } else {
+                            emitError("expected ')' after expression", at: token)
+                            return AST.ParentheticalExpression(
+                                value,
+                                sourceRange: SourceRange(
+                                    start: token.sourceRange(in: buffer).start,
+                                    end: endOfFile
+                                )
+                            )
+                        }
                     }
                 }
             case .OpenBrace:
@@ -2826,42 +2961,6 @@ public final class Parser {
             switch t.kind {
             case .Separator(let kind):
                 switch kind {
-                case .Colon:
-                    if let t2 = peek2, case .Separator(let k) = t2.kind, case .Colon = k,
-                        let t3 = peek3, case .Operator(let k2) = t3.kind, let k2 = k2,
-                        case .Less = k2
-                    {
-                        index += 3
-                        let base = expression
-                        var genericArguments: [AST.Expression] = []
-                        while let t4 = peek {
-                            if case .Operator(.Greater) = t4.kind {
-                                break
-                            }
-                            if case .Separator(.Comma) = t4.kind {
-                                index += 1
-                            }
-                            if let expr = parseExpression(excepts: [.Greater]) {
-                                genericArguments.append(expr)
-                            }
-                        }
-                        var closeToken: Token = t
-                        if let t4 = peek, case .Operator(.Greater) = t4.kind {
-                            index += 1
-                            closeToken = t4
-                        } else {
-                            emitError("expected '>'", at: t2.sourceRange(in: buffer))
-                        }
-                        expression = AST.GenericApplication(
-                            base, genericArguments,
-                            sourceRange: SourceRange(
-                                start: base.sourceRange.start,
-                                end: closeToken.sourceRange(in: buffer).end
-                            )
-                        )
-                    } else {
-                        break _loop
-                    }
                 case .Arrow:
                     if inPatternContext { break _loop }
                     expression = parseClosureType(expression, excepts)
@@ -3196,9 +3295,10 @@ public final class Parser {
 
     private func parseCall(_ callee: AST.Expression) -> AST.Call {
         index += 1
-        var arguments: [AST.LabeledArgument] = []
-        var endToken: Token? = nil
+        let arguments: [AST.LabeledArgument]
+        let endToken: Token?
         if let t = peek, case .Separator(.CloseParen) = t.kind {
+            arguments = []
             index += 1
             endToken = t
         } else {
@@ -3211,6 +3311,7 @@ public final class Parser {
                 endToken = t
             } else {
                 emitError("expected ')' after call arguments", at: endOfFile)
+                endToken = nil
             }
         }
         let range: SourceRange

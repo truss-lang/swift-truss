@@ -526,6 +526,50 @@ extension AST {
         }
 
         @discardableResult
+        open func visitOptionalType(_ optionalType: AST.OptionalType, additional: Any? = nil)
+            -> Any?
+        {
+            return visit(optionalType.wrappedType, additional: additional)
+        }
+
+        @discardableResult
+        open func visitSomeType(_ someType: AST.SomeType, additional: Any? = nil) -> Any? {
+            return visit(someType.wrappedType, additional: additional)
+        }
+
+        @discardableResult
+        open func visitAnyType(_ anyType: AST.AnyType, additional: Any? = nil) -> Any? {
+            return visit(anyType.wrappedType, additional: additional)
+        }
+
+        @discardableResult
+        open func visitProtocolCompositionType(
+            _ protocolCompositionType: AST.ProtocolCompositionType, additional: Any? = nil
+        ) -> Any? {
+            for type in protocolCompositionType.types {
+                visit(type, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
+        open func visitTupleExpression(
+            _ tupleExpression: AST.TupleExpression, additional: Any? = nil
+        ) -> Any? {
+            for element in tupleExpression.elements {
+                visit(element.value, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
+        open func visitIsPattern(
+            _ isPattern: AST.IsPattern, additional: Any? = nil
+        ) -> Any? {
+            return visit(isPattern.typeExpression, additional: additional)
+        }
+
+        @discardableResult
         open func visitSequentialExpression(
             _ sequentialExpression: AST.SequentialExpression, additional: Any? = nil
         ) -> Any? {
