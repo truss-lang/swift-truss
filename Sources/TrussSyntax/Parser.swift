@@ -57,6 +57,12 @@ public final class Parser {
         self.lexerResult = lexerResult
         source = context.sourceTable[lexerResult.id]!
     }
+    private func errorToken() -> Token {
+        return Token(
+            value: "<error>", kind: .Unknown,
+            pos: Position(pos: 0, line: 0, col: 0, len: 0), id: Id.SourceId(id: 0)
+        )
+    }
 
     private var endOfFile: SourceLocation {
         let converter = LocationConverter(source: source.content)
@@ -142,6 +148,7 @@ public final class Parser {
             case .Keyword(let keywordKind):
                 switch keywordKind {
                 case .Import: statement = parseImport()
+                case .Extern: statement = parseExtern(modifiers, attributes)
                 case .TypeAlias: statement = parseTypeAliasDecl(modifiers, attributes)
                 case .Module: statement = parseModuleDecl(modifiers, attributes)
                 case .PrecedenceGroup: statement = parsePrecedenceGroupDecl(modifiers, attributes)
@@ -367,7 +374,7 @@ public final class Parser {
             selector = .wholeModule(alias: alias)
         }
 
-        return AST.ImportDecl(
+        return AST.Import(
             token, AST.ImportPath(components), selector!,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
@@ -424,14 +431,89 @@ public final class Parser {
         }
         return AST.ImportItem(kind, alias: alias)
     }
-
-    private func errorToken() -> Token {
-        return Token(
-            value: "<error>", kind: .Unknown,
-            pos: Position(pos: 0, line: 0, col: 0, len: 0), id: Id.SourceId(id: 0)
-        )
+    private func parseExtern(_ modifiers: [AST.Modifier], _ attributes: [AST.Attribute])
+        -> AST.Statement
+    {
+        let token = next!
+        guard let convention = next else {
+            emitError("expected calling convention after 'extern'", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        guard case .StringLiteral = convention.kind else {
+            emitError("expected calling convention (string literal) after 'extern'", at: convention)
+            return errorStatement(from: token, to: convention)
+        }
+        if let t = peek {
+            let body: AST.ExternDecl.Body
+            if t.kind == .Separator(.OpenBrace) {
+                self.index += 1
+                var statements: [AST.Statement] = []
+                _loop: while peek != nil {
+                    let (modifiers, attributes) = parseAnnotations()
+                    guard let t3 = peek else {
+                        if !modifiers.isEmpty || !attributes.isEmpty {
+                            emitError("expected statement", at: endOfFile)
+                        }
+                        break
+                    }
+                    if case .Keyword(let kind) = t3.kind {
+                        switch kind {
+                        case .Let: statements.append(parseVariableDecl(modifiers, attributes))
+                        case .Var: statements.append(parseVariableDecl(modifiers, attributes))
+                        case .Func: statements.append(parseFunctionDecl(modifiers, attributes))
+                        default: break _loop
+                        }
+                    } else {
+                        break _loop
+                    }
+                }
+                if let closeToken = peek {
+                    if case .Separator(.CloseBrace) = closeToken.kind {
+                        index += 1
+                    } else {
+                        emitError(
+                            "expected '}' after extern body, but got \(closeToken.value)",
+                            at: closeToken
+                        )
+                    }
+                } else {
+                    emitError("expected '}' after extern body", at: endOfFile)
+                }
+                body = .Block(statements)
+            } else {
+                let (modifiers, attributes) = parseAnnotations()
+                guard let t3 = peek else {
+                    if !modifiers.isEmpty || !attributes.isEmpty {
+                        emitError("expected statement", at: endOfFile)
+                    }
+                    return errorStatement(from: token, to: endOfFile)
+                }
+                let decl: AST.Decl?
+                switch t3.kind {
+                case .Keyword(.Let): decl = parseVariableDecl(modifiers, attributes) as? AST.Decl
+                case .Keyword(.Var): decl = parseVariableDecl(modifiers, attributes) as? AST.Decl
+                case .Keyword(.Func): decl = parseFunctionDecl(modifiers, attributes) as? AST.Decl
+                default: decl = nil
+                }
+                if let decl = decl {
+                    body = .Declaration(decl)
+                } else {
+                    emitError(
+                        "expected declaration after extern calling convention, but got \(t3.value)",
+                        at: t3
+                    )
+                    return errorStatement(from: token, to: last!)
+                }
+            }
+            return AST.ExternDecl(
+                modifiers, attributes, token, convention, body,
+                sourceRange: SourceRange(from: token, to: last!, in: buffer)
+            )
+        } else {
+            emitError("expected '{' or declaration after extern calling convention", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
     }
-
     private func parseTypeAliasDecl(_ modifiers: [AST.Modifier], _ attributes: [AST.Attribute])
         -> AST.Statement
     {
@@ -485,10 +567,8 @@ public final class Parser {
             return errorStatement(from: token, to: openToken)
         }
         var body: [AST.Statement] = []
-        while let closeToken = peek {
-            if case .Separator(.CloseBrace) = closeToken.kind {
-                break
-            } else if let statement = parseBasicStatement() {
+        while peek != nil {
+            if let statement = parseBasicStatement() {
                 body.append(statement)
             } else {
                 break

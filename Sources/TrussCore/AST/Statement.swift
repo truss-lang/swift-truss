@@ -15,8 +15,7 @@ extension AST {
         public let attributes: [AST.Attribute]
         @abstractInit
         public init(
-            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute],
-            sourceRange: SourceRange
+            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ sourceRange: SourceRange
         ) {
             self.modifiers = modifiers
             self.attributes = attributes
@@ -68,7 +67,7 @@ extension AST {
         case wildcard
         case explicit([ImportItem])
     }
-    public final class ImportDecl: Statement {
+    public final class Import: Statement {
         public let token: Token
         public let path: ImportPath
         public let selector: ImportSelector
@@ -82,7 +81,28 @@ extension AST {
             super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitImportDecl(self, additional: additional)
+            visitor.visitImport(self, additional: additional)
+        }
+    }
+    public final class ExternDecl: Decl {
+        public let token: Token
+        public let convention: Token
+        public let body: Body
+        public init(
+            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
+            _ convention: Token, _ body: Body, sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.convention = convention
+            self.body = body
+            super.init(modifiers, attributes, sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitExternDecl(self, additional: additional)
+        }
+        public enum Body {
+            case Block([Statement])
+            case Declaration(Decl)
         }
     }
     public final class ExpressionStatement: Statement {
@@ -106,7 +126,7 @@ extension AST {
             self.token = token
             self.name = name
             self.typeExpression = typeExpression
-            super.init(modifiers, attributes, sourceRange: sourceRange)
+            super.init(modifiers, attributes, sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitTypeAliasDecl(self, additional: additional)
@@ -124,7 +144,7 @@ extension AST {
             self.token = token
             self.name = name
             self.body = body
-            super.init(modifiers, attributes, sourceRange: sourceRange)
+            super.init(modifiers, attributes, sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitModuleDecl(self, additional: additional)
@@ -158,7 +178,7 @@ extension AST {
             self.associativity = associativity
             self.assignmentToken = assignmentToken
             self.assignment = assignment
-            super.init(modifiers, attributes, sourceRange: sourceRange)
+            super.init(modifiers, attributes, sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitPrecedenceGroupDecl(self, additional: additional)
@@ -186,7 +206,7 @@ extension AST {
             self.genericDecl = genericDecl
             self.conformances = conformances
             self.body = body
-            super.init(modifiers, attributes, sourceRange: sourceRange)
+            super.init(modifiers, attributes, sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitStructDecl(self, additional: additional)
@@ -208,7 +228,7 @@ extension AST {
             self.genericDecl = genericDecl
             self.inheritanceClauses = conformances
             self.body = body
-            super.init(modifiers, attributes, sourceRange: sourceRange)
+            super.init(modifiers, attributes, sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitClassDecl(self, additional: additional)
@@ -230,7 +250,7 @@ extension AST {
             self.genericDecl = genericDecl
             self.conformances = conformances
             self.body = body
-            super.init(modifiers, attributes, sourceRange: sourceRange)
+            super.init(modifiers, attributes, sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitActorDecl(self, additional: additional)
@@ -252,7 +272,7 @@ extension AST {
             self.genericDecl = genericDecl
             self.conformances = conformances
             self.body = body
-            super.init(modifiers, attributes, sourceRange: sourceRange)
+            super.init(modifiers, attributes, sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitProtocolDecl(self, additional: additional)
@@ -272,7 +292,7 @@ extension AST {
             self.base = base
             self.conformances = conformances
             self.body = body
-            super.init(modifiers, attributes, sourceRange: sourceRange)
+            super.init(modifiers, attributes, sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitExtensionDecl(self, additional: additional)
@@ -294,7 +314,7 @@ extension AST {
             self.genericDecl = genericDecl
             self.conformances = conformances
             self.body = body
-            super.init(modifiers, attributes, sourceRange: sourceRange)
+            super.init(modifiers, attributes, sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitEnumDecl(self, additional: additional)
@@ -309,7 +329,7 @@ extension AST {
         ) {
             self.token = token
             self.elements = elements
-            super.init(modifiers, attributes, sourceRange: sourceRange)
+            super.init(modifiers, attributes, sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitEnumCaseDecl(self, additional: additional)
@@ -351,7 +371,7 @@ extension AST {
             self.token = token
             self.optionalToken = optionalToken
             self.body = body
-            super.init(modifiers, attributes, sourceRange: sourceRange)
+            super.init(modifiers, attributes, sourceRange)
         }
         public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitInitDecl(self, additional: additional)
@@ -366,7 +386,7 @@ extension AST {
         ) {
             self.token = token
             self.body = body
-            super.init(modifiers, attributes, sourceRange: sourceRange)
+            super.init(modifiers, attributes, sourceRange)
         }
         public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitDeinitDecl(self, additional: additional)
@@ -389,7 +409,7 @@ extension AST {
             self.parameters = parameters
             self.returnTypeExpression = returnTypeExpression
             self.body = body
-            super.init(modifiers, attributes, sourceRange: sourceRange)
+            super.init(modifiers, attributes, sourceRange)
         }
         public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitFunctionDecl(self, additional: additional)
@@ -435,7 +455,7 @@ extension AST {
             self.typeExpression = typeExpression
             self.initializer = initializer
             self.accessors = accessors
-            super.init(modifiers, attributes, sourceRange: sourceRange)
+            super.init(modifiers, attributes, sourceRange)
         }
         public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitVariableDecl(self, additional: additional)

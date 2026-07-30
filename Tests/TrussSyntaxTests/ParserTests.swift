@@ -2101,7 +2101,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseImportSimple() {
     let statements = parseStatements("import A")
     #expect(statements.count == 1)
-    let decl = statements[0] as! AST.ImportDecl
+    let decl = statements[0] as! AST.Import
     #expect(decl.path.components.count == 1)
     if case .identifier(let t) = decl.path.components[0] {
         #expect(t.value == "A")
@@ -2118,7 +2118,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseImportWildcard() {
     let statements = parseStatements("import A.*")
     #expect(statements.count == 1)
-    let decl = statements[0] as! AST.ImportDecl
+    let decl = statements[0] as! AST.Import
     #expect(decl.path.components.count == 1)
     if case .wildcard = decl.selector {
     } else {
@@ -2129,7 +2129,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseImportNestedPath() {
     let statements = parseStatements("import A.B")
     #expect(statements.count == 1)
-    let decl = statements[0] as! AST.ImportDecl
+    let decl = statements[0] as! AST.Import
     #expect(decl.path.components.count == 2)
     if case .identifier(let t) = decl.path.components[1] {
         #expect(t.value == "B")
@@ -2146,7 +2146,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseImportNestedWildcard() {
     let statements = parseStatements("import A.B.*")
     #expect(statements.count == 1)
-    let decl = statements[0] as! AST.ImportDecl
+    let decl = statements[0] as! AST.Import
     #expect(decl.path.components.count == 2)
     if case .wildcard = decl.selector {
     } else {
@@ -2157,7 +2157,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseImportExplicitSelector() {
     let statements = parseStatements("import A.{self, B, C}")
     #expect(statements.count == 1)
-    let decl = statements[0] as! AST.ImportDecl
+    let decl = statements[0] as! AST.Import
     #expect(decl.path.components.count == 1)
     if case .explicit(let items) = decl.selector {
         #expect(items.count == 3)
@@ -2184,7 +2184,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseImportSelfPrefix() {
     let statements = parseStatements("import Self.A")
     #expect(statements.count == 1)
-    let decl = statements[0] as! AST.ImportDecl
+    let decl = statements[0] as! AST.Import
     #expect(decl.path.components.count == 2)
     if case .self_ = decl.path.components[0] {
     } else {
@@ -2205,7 +2205,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseImportSelfPrefixExplicit() {
     let statements = parseStatements("import Self.{A, B}")
     #expect(statements.count == 1)
-    let decl = statements[0] as! AST.ImportDecl
+    let decl = statements[0] as! AST.Import
     #expect(decl.path.components.count == 1)
     if case .self_ = decl.path.components[0] {
     } else {
@@ -2231,7 +2231,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseImportAliasModule() {
     let statements = parseStatements("import A as B")
     #expect(statements.count == 1)
-    let decl = statements[0] as! AST.ImportDecl
+    let decl = statements[0] as! AST.Import
     if case .wholeModule(let alias) = decl.selector {
         #expect(alias?.value == "B")
     } else {
@@ -2242,7 +2242,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseImportAliasNestedModule() {
     let statements = parseStatements("import A.B as C")
     #expect(statements.count == 1)
-    let decl = statements[0] as! AST.ImportDecl
+    let decl = statements[0] as! AST.Import
     #expect(decl.path.components.count == 2)
     if case .wholeModule(let alias) = decl.selector {
         #expect(alias?.value == "C")
@@ -2254,7 +2254,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseImportAliasExplicitItems() {
     let statements = parseStatements("import A.{B as b, C as c}")
     #expect(statements.count == 1)
-    let decl = statements[0] as! AST.ImportDecl
+    let decl = statements[0] as! AST.Import
     if case .explicit(let items) = decl.selector {
         #expect(items.count == 2)
         if case .name(let t) = items[0].kind {
@@ -2277,7 +2277,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseImportAliasSelfItem() {
     let statements = parseStatements("import A.{self as a, B as b}")
     #expect(statements.count == 1)
-    let decl = statements[0] as! AST.ImportDecl
+    let decl = statements[0] as! AST.Import
     if case .explicit(let items) = decl.selector {
         #expect(items.count == 2)
         if case .self_ = items[0].kind {
@@ -2299,7 +2299,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseImportAliasUnderscore() {
     let statements = parseStatements("import A as _")
     #expect(statements.count == 1)
-    let decl = statements[0] as! AST.ImportDecl
+    let decl = statements[0] as! AST.Import
     if case .wholeModule(let alias) = decl.selector {
         #expect(alias?.value == "_")
     } else {
@@ -2310,7 +2310,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseImportNestedPathExplicitSelector() {
     let statements = parseStatements("import A.B.{self, C}")
     #expect(statements.count == 1)
-    let decl = statements[0] as! AST.ImportDecl
+    let decl = statements[0] as! AST.Import
     #expect(decl.path.components.count == 2)
     if case .explicit(let items) = decl.selector {
         #expect(items.count == 2)
@@ -2330,7 +2330,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseImportSourceRange() {
     let statements = parseStatements("import A.B")
-    let decl = statements[0] as! AST.ImportDecl
+    let decl = statements[0] as! AST.Import
     let range = decl.sourceRange
     #expect(range.start.offset == 0)
     #expect(range.end.offset == 10)

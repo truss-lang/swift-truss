@@ -53,10 +53,25 @@ extension AST {
         }
 
         @discardableResult
-        open func visitImportDecl(
-            _ importDecl: AST.ImportDecl, additional: Any? = nil
+        open func visitImport(
+            _ importStatement: AST.Import, additional: Any? = nil
         ) -> Any? {
             return nil
+        }
+
+        @discardableResult
+        open func visitExternDecl(
+            _ externDecl: AST.ExternDecl, additional: Any? = nil
+        ) -> Any? {
+            switch externDecl.body {
+            case .Block(let statements):
+                for statement in statements {
+                    visit(statement, additional: additional)
+                }
+                return nil
+            case .Declaration(let decl):
+                return visit(decl, additional: additional)
+            }
         }
 
         @discardableResult
