@@ -512,4 +512,14 @@ extension AST {
             visitor.visitBindingPattern(self, additional: additional)
         }
     }
+    public final class WildcardPattern: Expression {
+        public let token: Token
+        public init(_ token: Token, sourceRange: SourceRange) {
+            self.token = token
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitWildcardPattern(self, additional: additional)
+        }
+    }
 }

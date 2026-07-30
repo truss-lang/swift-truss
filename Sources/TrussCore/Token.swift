@@ -77,8 +77,6 @@ public enum KeywordKind: CaseIterable, Sendable {
     case Finally
     case Defer
     case Match
-    case Default
-    case FallThrough
     case As
     case Is
     case Async
@@ -151,8 +149,6 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .Finally: "finally"
         case .Defer: "defer"
         case .Match: "match"
-        case .Default: "default"
-        case .FallThrough: "fallthrough"
         case .As: "as"
         case .Is: "is"
         case .Async: "async"

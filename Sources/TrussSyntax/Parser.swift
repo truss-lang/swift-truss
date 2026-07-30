@@ -115,7 +115,8 @@ public final class Parser {
         AST.ErrorStatement(
             sourceRange: SourceRange(
                 start: startToken.sourceRange(in: buffer).start, end: endLocation
-            ))
+            )
+        )
     }
 
     private func errorExpression(from startToken: Token, to endToken: Token)
@@ -130,7 +131,8 @@ public final class Parser {
         AST.ErrorExpression(
             SourceRange(
                 start: startToken.sourceRange(in: buffer).start, end: endLocation
-            ))
+            )
+        )
     }
 
     public func parse() -> AST.Program {
@@ -2665,7 +2667,13 @@ public final class Parser {
         switch token.kind {
         case .Identifier:
             index += 1
-            expression = AST.Variable(name: token, sourceRange: token.sourceRange(in: buffer))
+            if inPatternContext && token.value == "_" {
+                expression = AST.WildcardPattern(
+                    token, sourceRange: token.sourceRange(in: buffer)
+                )
+            } else {
+                expression = AST.Variable(name: token, sourceRange: token.sourceRange(in: buffer))
+            }
         case .StringLiteral:
             index += 1
             expression = AST.StringLiteral(token, sourceRange: token.sourceRange(in: buffer))
@@ -3293,7 +3301,8 @@ public final class Parser {
             }
             return AST.Match.Case(
                 patterns, body,
-                sourceRange: SourceRange(from: beginToken, to: last!, in: buffer))
+                sourceRange: SourceRange(from: beginToken, to: last!, in: buffer)
+            )
         } else {
             emitError("expected '{' or expression after '=>'", at: endOfFile)
             return nil

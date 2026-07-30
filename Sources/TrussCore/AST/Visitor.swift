@@ -673,5 +673,12 @@ extension AST {
         ) -> Any? {
             return nil
         }
+
+        @discardableResult
+        open func visitWildcardPattern(
+            _ wildcardPattern: AST.WildcardPattern, additional: Any? = nil
+        ) -> Any? {
+            return nil
+        }
     }
 }

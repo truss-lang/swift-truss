@@ -3109,9 +3109,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let ifExpr = exprStmt!.expression as? AST.If
     let caseMatch = ifExpr!.condition as? AST.CaseMatch
     #expect(caseMatch != nil)
-    let wildcard = caseMatch!.pattern as? AST.Variable
+    let wildcard = caseMatch!.pattern as? AST.WildcardPattern
     #expect(wildcard != nil)
-    #expect(wildcard!.name.value == "_")
 }
 
 // MARK: - Enum Declarations
@@ -3242,9 +3241,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let binding = call!.arguments[0].value as? AST.BindingPattern
     #expect(binding != nil)
     #expect(binding!.name.value == "x")
-    let wildcard = call!.arguments[1].value as? AST.Variable
+    let wildcard = call!.arguments[1].value as? AST.WildcardPattern
     #expect(wildcard != nil)
-    #expect(wildcard!.name.value == "_")
 }
 
 @Test func parseMatchWithNestedBinding() {
@@ -3283,6 +3281,16 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let binding = call!.arguments[1].value as? AST.BindingPattern
     #expect(binding != nil)
     #expect(binding!.name.value == "x")
+}
+
+@Test func parseMatchWithWildcardCatchAll() {
+    let expr = firstExpression("match a { _ -> 42 }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    #expect(matchExpr!.cases.count == 1)
+    let case0 = matchExpr!.cases[0]
+    #expect(case0.patterns.count == 1)
+    #expect(case0.patterns[0] is AST.WildcardPattern)
 }
 
 @Test func parseIfCaseMixedLiteralAndBinding() {
