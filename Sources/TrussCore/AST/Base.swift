@@ -107,4 +107,16 @@ public enum AST {
             visitor.visitGenericParameter(self, additional: additional)
         }
     }
+    public struct WhereRequirement {
+        public let left: Expression
+        public let constraint: Constraint
+        public enum Constraint {
+            case conformance(Expression)
+            case equality(Expression)
+        }
+        public init(_ left: Expression, _ constraint: Constraint) {
+            self.left = left
+            self.constraint = constraint
+        }
+    }
 }

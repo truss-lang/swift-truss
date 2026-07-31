@@ -1357,6 +1357,83 @@ public final class Parser {
         )
     }
 
+    private func parseAssociatedTypeDecl(
+        _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute]
+    ) -> AST.Statement {
+        let token = next!
+        guard let name = peek, name.kind == .Identifier else {
+            if let tok = peek {
+                emitError("expected identifier after 'associatedtype'", at: tok)
+            } else {
+                emitError("expected identifier after 'associatedtype'", at: endOfFile)
+            }
+            return errorStatement(from: token, to: peek ?? token)
+        }
+        index += 1
+        var constraint: AST.Expression?
+        if peek?.kind == .Separator(.Colon) {
+            index += 1
+            constraint = parseExpression()
+        }
+        var whereClause: [AST.WhereRequirement]?
+        if peek?.kind == .Keyword(.Where) {
+            whereClause = parseWhereClause()
+        }
+        return AST.AssociatedTypeDecl(
+            modifiers, attributes, token, name, constraint, whereClause,
+            sourceRange: SourceRange(from: token, to: last!, in: buffer)
+        )
+    }
+
+    private func parseWhereClause() -> [AST.WhereRequirement] {
+        index += 1
+        var requirements: [AST.WhereRequirement] = []
+        while let t = peek {
+            suppressTrailingClosures = true
+            let left = parseExpression() ?? errorExpression(from: t, to: t)
+            suppressTrailingClosures = false
+            let op = peek
+            if op == nil {
+                emitError("expected ':' or '==' in where clause", at: endOfFile)
+                break
+            }
+            switch op!.kind {
+            case .Separator(.Colon):
+                index += 1
+                suppressTrailingClosures = true
+                let right = parseExpression() ?? errorExpression(from: op!, to: op!)
+                suppressTrailingClosures = false
+                requirements.append(
+                    AST.WhereRequirement(left, .conformance(right))
+                )
+            case .Operator(.Assign):
+                if peek2?.kind == .Operator(.Assign) {
+                    index += 2
+                    suppressTrailingClosures = true
+                    let right = parseExpression() ?? errorExpression(from: op!, to: op!)
+                    suppressTrailingClosures = false
+                    requirements.append(
+                        AST.WhereRequirement(left, .equality(right))
+                    )
+                } else {
+                    emitError("expected '==' in where clause, but got '='", at: op!)
+                    break
+                }
+            default:
+                emitError(
+                    "expected ':' or '==' in where clause, but got '\(op!.value)'",
+                    at: op!)
+                break
+            }
+            if peek?.kind == .Separator(.Comma) {
+                index += 1
+            } else {
+                break
+            }
+        }
+        return requirements
+    }
+
     private func parseExtensionDecl(_ modifiers: [AST.Modifier], _ attributes: [AST.Attribute])
         -> AST.Statement
     {
@@ -1527,6 +1604,7 @@ public final class Parser {
             case .Deinit: return parseDeinitDecl(modifiers, attributes)
             case .Func: return parseFunctionDecl(modifiers, attributes)
             case .Subscript: return parseSubscriptDecl(modifiers, attributes)
+            case .AssociatedType: return parseAssociatedTypeDecl(modifiers, attributes)
             case .Let: return parseVariableDecl(modifiers, attributes)
             case .Var: return parseVariableDecl(modifiers, attributes)
             default:

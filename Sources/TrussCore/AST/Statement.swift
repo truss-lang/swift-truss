@@ -654,4 +654,24 @@ extension AST {
             visitor.visitSubscriptDecl(self, additional: additional)
         }
     }
+    public final class AssociatedTypeDecl: Decl {
+        public let token: Token
+        public let name: Token
+        public let constraint: Expression?
+        public let whereClause: [AST.WhereRequirement]?
+        public init(
+            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
+            _ name: Token, _ constraint: Expression?,
+            _ whereClause: [AST.WhereRequirement]?, sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.name = name
+            self.constraint = constraint
+            self.whereClause = whereClause
+            super.init(modifiers, attributes, sourceRange)
+        }
+        public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitAssociatedTypeDecl(self, additional: additional)
+        }
+    }
 }

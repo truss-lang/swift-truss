@@ -720,5 +720,24 @@ extension AST {
             }
             return nil
         }
+
+        @discardableResult
+        open func visitAssociatedTypeDecl(
+            _ associatedTypeDecl: AST.AssociatedTypeDecl, additional: Any? = nil
+        ) -> Any? {
+            if let constraint = associatedTypeDecl.constraint {
+                visit(constraint, additional: additional)
+            }
+            if let whereClause = associatedTypeDecl.whereClause {
+                for requirement in whereClause {
+                    visit(requirement.left, additional: additional)
+                    switch requirement.constraint {
+                    case .conformance(let e), .equality(let e):
+                        visit(e, additional: additional)
+                    }
+                }
+            }
+            return nil
+        }
     }
 }
