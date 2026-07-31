@@ -279,9 +279,36 @@ extension AST {
             visitor.visitImplicitMemberAccess(self, additional: additional)
         }
     }
+    public struct CaptureItem {
+        public let specifier: Token?
+        public let name: Token
+        public init(_ specifier: Token?, _ name: Token) {
+            self.specifier = specifier
+            self.name = name
+        }
+    }
+    public struct ClosureSignature {
+        public let captureList: [CaptureItem]
+        public let parameters: [FunctionDecl.Parameter]
+        public let returnType: Expression?
+        public let inToken: Token
+        public init(
+            _ captureList: [CaptureItem], _ parameters: [FunctionDecl.Parameter],
+            _ returnType: Expression?, _ inToken: Token
+        ) {
+            self.captureList = captureList
+            self.parameters = parameters
+            self.returnType = returnType
+            self.inToken = inToken
+        }
+    }
     public final class Closure: Expression {
+        public let signature: ClosureSignature?
         public let body: [Statement]
-        public init(_ body: [Statement], sourceRange: SourceRange) {
+        public init(
+            _ signature: ClosureSignature?, _ body: [Statement], sourceRange: SourceRange
+        ) {
+            self.signature = signature
             self.body = body
             super.init(sourceRange)
         }

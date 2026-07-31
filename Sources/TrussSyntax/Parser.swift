@@ -3454,6 +3454,12 @@ public final class Parser {
 
     private func parseClosure() -> AST.Closure {
         let beginToken = next!
+        let signature: AST.ClosureSignature?
+        if peek?.kind == .Separator(.OpenParen) || peek?.kind == .Separator(.OpenBracket) {
+            signature = parseClosureSignature()
+        } else {
+            signature = nil
+        }
         var body: [AST.Statement] = []
         while let t = peek {
             if t.kind == .Separator(.CloseBrace) {
@@ -3472,7 +3478,114 @@ public final class Parser {
         } else {
             emitError("expected '}' after closure body", at: endOfFile)
         }
-        return AST.Closure(body, sourceRange: SourceRange(from: beginToken, to: last!, in: buffer))
+        return AST.Closure(
+            signature, body,
+            sourceRange: SourceRange(from: beginToken, to: last!, in: buffer)
+        )
+    }
+
+    private func parseClosureSignature() -> AST.ClosureSignature {
+        var captureList: [AST.CaptureItem] = []
+        if peek?.kind == .Separator(.OpenBracket) {
+            captureList = parseCaptureList()
+        }
+        var parameters: [AST.FunctionDecl.Parameter] = []
+        if peek?.kind == .Separator(.OpenParen) {
+            index += 1
+            while let t = peek {
+                if t.kind == .Separator(.CloseParen) { break }
+                if t.kind == .Separator(.Comma) {
+                    index += 1
+                    continue
+                }
+                parameters.append(parseFunctionParameter())
+            }
+            let t = peek
+            if t?.kind == .Separator(.CloseParen) {
+                index += 1
+            } else {
+                if let tok = peek {
+                    emitError("expected ')' after closure parameters", at: tok)
+                } else {
+                    emitError("expected ')' after closure parameters", at: endOfFile)
+                }
+            }
+        }
+        var returnType: AST.Expression? = nil
+        if peek?.kind == .Separator(.Arrow) {
+            index += 1
+            suppressTrailingClosures = true
+            returnType = parseExpression()
+            suppressTrailingClosures = false
+        }
+        let inToken = peek
+        let isIn = inToken.map { t in
+            if case .Identifier = t.kind, t.value == "in" { return true }
+            return false
+        } ?? false
+        if !isIn {
+            if let tok = peek {
+                emitError("expected 'in' after closure signature", at: tok)
+            } else {
+                emitError("expected 'in' after closure signature", at: endOfFile)
+            }
+            let fallback = peek ?? Token(
+                value: "", kind: .Unknown,
+                pos: Position(pos: 0, line: 0, col: 0, len: 0), id: lexerResult.id
+            )
+            return AST.ClosureSignature(captureList, parameters, returnType, fallback)
+        }
+        index += 1
+        return AST.ClosureSignature(captureList, parameters, returnType, inToken!)
+    }
+
+    private func parseCaptureList() -> [AST.CaptureItem] {
+        index += 1
+        var items: [AST.CaptureItem] = []
+        while let t = peek {
+            if t.kind == .Separator(.CloseBracket) { break }
+            var specifier: Token? = nil
+            if t.value == "weak" || t.value == "unowned" {
+                specifier = t
+                index += 1
+            }
+            let name = peek
+            let isWord: Bool
+            if let n = name {
+                switch n.kind {
+                case .Identifier, .Keyword: isWord = true
+                default: isWord = false
+                }
+            } else {
+                isWord = false
+            }
+            if !isWord {
+                if let tok = peek {
+                    emitError("expected identifier in capture list", at: tok)
+                } else {
+                    emitError("expected identifier in capture list", at: endOfFile)
+                }
+                break
+            }
+            index += 1
+            items.append(AST.CaptureItem(specifier, name!))
+            if peek?.kind == .Separator(.Comma) {
+                index += 1
+            } else {
+                break
+            }
+        }
+        let t = peek
+        if t?.kind == .Separator(.CloseBracket) {
+            index += 1
+        } else {
+            if let tok = peek {
+                emitError("expected ']' after capture list", at: tok)
+            } else {
+                emitError("expected ']' after capture list", at: endOfFile)
+            }
+        }
+        return items
     }
 
     private func parseClosureType(_ parameterTypes: AST.Expression, _ excepts: [OperatorKind]?)

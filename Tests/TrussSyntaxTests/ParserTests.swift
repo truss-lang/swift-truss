@@ -3441,6 +3441,42 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(mid.isUnterminated)
 }
 
+// MARK: - Closure Signature
+
+@Test func parseClosureWithParameters() {
+    let body = parseBlockStatements("func main() { { (x: Int) in x } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let closure = exprStmt!.expression as? AST.Closure
+    #expect(closure != nil)
+    #expect(closure!.signature != nil)
+    #expect(closure!.signature!.parameters.count == 1)
+    #expect(closure!.signature!.parameters[0].name.value == "x")
+    #expect(closure!.body.count == 1)
+}
+
+@Test func parseClosureWithReturnType() {
+    let body = parseBlockStatements("func main() { { () -> Int in 42 } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let closure = exprStmt!.expression as? AST.Closure
+    #expect(closure != nil)
+    #expect(closure!.signature?.returnType != nil)
+}
+
+@Test func parseClosureWithCaptureList() {
+    let body = parseBlockStatements("func main() { { [weak self] in self.foo() } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let closure = exprStmt!.expression as? AST.Closure
+    #expect(closure != nil)
+    let sig = closure!.signature
+    #expect(sig != nil)
+    #expect(sig!.captureList.count == 1)
+    #expect(sig!.captureList[0].specifier?.value == "weak")
+    #expect(sig!.captureList[0].name.value == "self")
+}
+
 // MARK: - OptionalType
 
 @Test func parseOptionalTypeSimple() {
