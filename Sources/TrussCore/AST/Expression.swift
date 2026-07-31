@@ -200,9 +200,15 @@ extension AST {
     public final class Call: Expression {
         public let callee: Expression
         public let arguments: [LabeledArgument]
-        public init(callee: Expression, arguments: [LabeledArgument], sourceRange: SourceRange) {
+        public let trailingClosures: [(Token?, Closure)]
+        public init(
+            callee: Expression, arguments: [LabeledArgument],
+            trailingClosures: [(Token?, Closure)] = [],
+            sourceRange: SourceRange
+        ) {
             self.callee = callee
             self.arguments = arguments
+            self.trailingClosures = trailingClosures
             super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

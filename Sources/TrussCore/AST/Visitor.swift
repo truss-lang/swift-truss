@@ -486,6 +486,9 @@ extension AST {
             for argument in call.arguments {
                 visit(argument.value, additional: additional)
             }
+            for (_, closure) in call.trailingClosures {
+                visitClosure(closure, additional: additional)
+            }
             return nil
         }
 

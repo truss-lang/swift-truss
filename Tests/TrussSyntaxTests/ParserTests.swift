@@ -3344,6 +3344,55 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(arg!.index == 0)
 }
 
+// MARK: - Trailing Closure
+
+@Test func parseTrailingClosureWithoutParens() {
+    let body = parseBlockStatements("func main() { arr.filter { $0 } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let call = exprStmt!.expression as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.isEmpty)
+    #expect(call!.trailingClosures.count == 1)
+    #expect(call!.trailingClosures[0].0 == nil)
+    let memberAccess = call!.callee as? AST.MemberAccess
+    #expect(memberAccess != nil)
+}
+
+@Test func parseTrailingClosureWithParens() {
+    let body = parseBlockStatements("func main() { foo() { $0 } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let call = exprStmt!.expression as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.isEmpty)
+    #expect(call!.trailingClosures.count == 1)
+    #expect(call!.trailingClosures[0].0 == nil)
+}
+
+@Test func parseMultipleTrailingClosures() {
+    let body = parseBlockStatements("func main() { foo { } bar: { } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let call = exprStmt!.expression as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.isEmpty)
+    #expect(call!.trailingClosures.count == 2)
+    #expect(call!.trailingClosures[0].0 == nil)
+    #expect(call!.trailingClosures[1].0?.value == "bar")
+}
+
+@Test func parseTrailingClosureWithArgs() {
+    let body = parseBlockStatements("func main() { foo(1) { $0 } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let call = exprStmt!.expression as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.count == 1)
+    #expect(call!.trailingClosures.count == 1)
+    #expect(call!.trailingClosures[0].0 == nil)
+}
+
 // MARK: - OptionalType
 
 @Test func parseOptionalTypeSimple() {

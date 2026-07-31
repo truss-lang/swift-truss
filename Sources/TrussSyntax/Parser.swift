@@ -8,6 +8,7 @@ public final class Parser {
     private let source: Source
     private var index: Int = 0
     private var inPatternContext: Bool = false
+    private var suppressTrailingClosures: Bool = false
     private var buffer: SourceBuffer { source.stringSourceBuffer }
     public var last: Token? {
         if index - 1 < lexerResult.tokens.count {
@@ -842,9 +843,11 @@ public final class Parser {
         if let t = peek, case .Separator(.Colon) = t.kind {
             index += 1
             while peek != nil {
+                suppressTrailingClosures = true
                 if let expr = parseExpression() {
                     conformances.append(expr)
                 }
+                suppressTrailingClosures = false
                 if let t3 = peek, case .Separator(.Comma) = t3.kind {
                     index += 1
                 } else {
@@ -917,9 +920,11 @@ public final class Parser {
         if let t = peek, case .Separator(.Colon) = t.kind {
             index += 1
             while peek != nil {
+                suppressTrailingClosures = true
                 if let expr = parseExpression() {
                     conformances.append(expr)
                 }
+                suppressTrailingClosures = false
                 if let t3 = peek, case .Separator(.Comma) = t3.kind {
                     index += 1
                 } else {
@@ -1084,9 +1089,11 @@ public final class Parser {
         if let t = peek, case .Separator(.Colon) = t.kind {
             index += 1
             while peek != nil {
+                suppressTrailingClosures = true
                 if let expr = parseExpression() {
                     inheritanceClauses.append(expr)
                 }
+                suppressTrailingClosures = false
                 if let t3 = peek, case .Separator(.Comma) = t3.kind {
                     index += 1
                 } else {
@@ -1159,9 +1166,11 @@ public final class Parser {
         if let t = peek, case .Separator(.Colon) = t.kind {
             index += 1
             while peek != nil {
+                suppressTrailingClosures = true
                 if let expr = parseExpression() {
                     conformances.append(expr)
                 }
+                suppressTrailingClosures = false
                 if let t3 = peek, case .Separator(.Comma) = t3.kind {
                     index += 1
                 } else {
@@ -1234,9 +1243,11 @@ public final class Parser {
         if let t = peek, case .Separator(.Colon) = t.kind {
             index += 1
             while peek != nil {
+                suppressTrailingClosures = true
                 if let expr = parseExpression() {
                     conformances.append(expr)
                 }
+                suppressTrailingClosures = false
                 if let t3 = peek, case .Separator(.Comma) = t3.kind {
                     index += 1
                 } else {
@@ -1288,9 +1299,11 @@ public final class Parser {
         -> AST.Statement
     {
         let token = next!
+        suppressTrailingClosures = true
         let base =
             parseExpression(excepts: [.Less])
             ?? errorExpression(from: token, to: token)
+        suppressTrailingClosures = false
         if let t = peek, case .Operator(.Less) = t.kind {
             let genericDecl = parseGenericDecl()
             emitError(
@@ -1302,9 +1315,11 @@ public final class Parser {
         if let t = peek, case .Separator(.Colon) = t.kind {
             index += 1
             while peek != nil {
+                suppressTrailingClosures = true
                 if let expr = parseExpression() {
                     conformances.append(expr)
                 }
+                suppressTrailingClosures = false
                 if let t3 = peek, case .Separator(.Comma) = t3.kind {
                     index += 1
                 } else {
@@ -1706,7 +1721,9 @@ public final class Parser {
         let returnTypeExpression: AST.Expression?
         if let t = peek, case .Separator(.Arrow) = t.kind {
             index += 1
+            suppressTrailingClosures = true
             returnTypeExpression = parseExpression(excepts: [.Assign])
+            suppressTrailingClosures = false
         } else {
             returnTypeExpression = nil
         }
@@ -1818,14 +1835,18 @@ public final class Parser {
         let typeExpression: AST.Expression?
         if let t = peek, case .Separator(.Colon) = t.kind {
             index += 1
+            suppressTrailingClosures = true
             typeExpression = parseExpression(excepts: [.Assign])
+            suppressTrailingClosures = false
         } else {
             typeExpression = nil
         }
         let initializer: AST.Expression?
         if let t = peek, case .Operator(.Assign) = t.kind {
             index += 1
+            suppressTrailingClosures = true
             initializer = parseExpression()
+            suppressTrailingClosures = false
         } else {
             initializer = nil
         }
@@ -2595,6 +2616,44 @@ public final class Parser {
                 } else {
                     break _loop
                 }
+            case .Separator(.OpenBrace) where lastIsExpression && !isCondition && !suppressTrailingClosures:
+                angleDepth = 0
+                justClosedAngle = false
+                let expr = operands.removeLast()
+                let callee: AST.Expression
+                let args: [AST.LabeledArgument]
+                if let existingCall = expr as? AST.Call {
+                    callee = existingCall.callee
+                    args = existingCall.arguments
+                } else {
+                    callee = expr
+                    args = []
+                }
+                var trailing: [(Token?, AST.Closure)] = []
+                while true {
+                    var label: Token? = nil
+                    if let t = peek, case .Identifier = t.kind,
+                        let c = peek2, case .Separator(.Colon) = c.kind,
+                        let b = peek3, case .Separator(.OpenBrace) = b.kind
+                    {
+                        label = t
+                        index += 2
+                    }
+                    guard peek?.kind == .Separator(.OpenBrace) else { break }
+                    let closure = parseClosure()
+                    trailing.append((label, closure))
+                }
+                let endToken = trailing.last?.1.sourceRange.end ?? expr.sourceRange.end
+                let range = SourceRange(
+                    start: expr.sourceRange.start, end: endToken
+                )
+                let call = AST.Call(
+                    callee: callee, arguments: args, trailingClosures: trailing,
+                    sourceRange: range
+                )
+                let postfixed = parsePostfix(call, excepts: excepts)
+                operands.append(postfixed)
+                lastIsExpression = true
             case .Operator(let kind) where kind != .Dot:
                 if let excepts = excepts, let kind = kind, excepts.contains(kind) {
                     break _loop
@@ -3097,7 +3156,9 @@ public final class Parser {
         var typeExpression: AST.Expression? = nil
         if let t = peek, case .Separator(.Colon) = t.kind {
             index += 1
+            suppressTrailingClosures = true
             typeExpression = parseExpression(excepts: [.Assign])
+            suppressTrailingClosures = false
         }
         guard let eq = peek, case .Operator(.Assign) = eq.kind else {
             emitError(
@@ -3106,7 +3167,9 @@ public final class Parser {
             return errorExpression(from: token, to: name)
         }
         index += 1
+        suppressTrailingClosures = true
         let value = parseExpression() ?? errorExpression(from: eq, to: eq)
+        suppressTrailingClosures = false
         return AST.OptionalBinding(
             token, name, typeExpression, value,
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
@@ -3129,7 +3192,9 @@ public final class Parser {
             return errorExpression(from: token, to: last ?? token)
         }
         index += 1
+        suppressTrailingClosures = true
         let subject = parseExpression() ?? errorExpression(from: eq, to: eq)
+        suppressTrailingClosures = false
         return AST.CaseMatch(
             token, parsedPattern, subject,
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
@@ -3228,7 +3293,9 @@ public final class Parser {
     }
     private func parseMatch() -> AST.Expression {
         let token = next!
+        suppressTrailingClosures = true
         let subject = parseExpression() ?? errorExpression(from: token, to: token)
+        suppressTrailingClosures = false
         var cases: [AST.Match.Case] = []
         guard let openToken = next else {
             emitError("expected '{' after match subject", at: endOfFile)
@@ -3434,7 +3501,8 @@ public final class Parser {
         } else {
             range = callee.sourceRange
         }
-        return AST.Call(callee: callee, arguments: arguments, sourceRange: range)
+        return AST.Call(
+            callee: callee, arguments: arguments, trailingClosures: [], sourceRange: range)
     }
 
     private func parseSubscript(_ base: AST.Expression) -> AST.Subscript {
