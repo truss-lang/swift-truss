@@ -1393,6 +1393,60 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(gotoStmt!.label.value == "label")
 }
 
+// MARK: - For-In Statements
+
+@Test func parseForPlainIdentifier() {
+    let body = parseBlockStatements("func main() { for i in items {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    #expect(forStmt!.token.kind == .Keyword(.For))
+    #expect(forStmt!.inToken.kind == .Identifier)
+    #expect(forStmt!.inToken.value == "in")
+    let pattern = forStmt!.pattern as? AST.Variable
+    #expect(pattern != nil)
+    #expect(pattern!.name.value == "i")
+    let seq = forStmt!.sequence as? AST.Variable
+    #expect(seq != nil)
+    #expect(seq!.name.value == "items")
+    #expect(forStmt!.body.isEmpty)
+    #expect(forStmt!.beginToken.kind == .Separator(.OpenBrace))
+    #expect(forStmt!.endToken.kind == .Separator(.CloseBrace))
+}
+
+@Test func parseForLetBinding() {
+    let body = parseBlockStatements("func main() { for let x in arr {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    let pattern = forStmt!.pattern as? AST.BindingPattern
+    #expect(pattern != nil)
+    #expect(pattern!.token.kind == .Keyword(.Let))
+    #expect(pattern!.name.value == "x")
+}
+
+@Test func parseForVarBinding() {
+    let body = parseBlockStatements("func main() { for var x in arr {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    let pattern = forStmt!.pattern as? AST.BindingPattern
+    #expect(pattern != nil)
+    #expect(pattern!.token.kind == .Keyword(.Var))
+    #expect(pattern!.name.value == "x")
+}
+
+@Test func parseForWithBody() {
+    let body = parseBlockStatements("func main() { for i in items { let y } }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    #expect(forStmt!.body.count == 1)
+    let vd = forStmt!.body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    #expect(vd!.name.value == "y")
+}
+
 // MARK: - Accessor Success Paths
 
 @Test func parseGetterWithBlockBody() {

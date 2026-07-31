@@ -538,6 +538,32 @@ extension AST {
             visitor.visitGuard(self, additional: additional)
         }
     }
+    public final class For: Statement {
+        public let token: Token
+        public let pattern: Expression
+        public let inToken: Token
+        public let sequence: Expression
+        public let beginToken: Token
+        public let body: [Statement]
+        public let endToken: Token
+        public init(
+            _ token: Token, _ pattern: Expression, _ inToken: Token,
+            _ sequence: Expression, _ beginToken: Token, _ body: [Statement],
+            _ endToken: Token, sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.pattern = pattern
+            self.inToken = inToken
+            self.sequence = sequence
+            self.beginToken = beginToken
+            self.body = body
+            self.endToken = endToken
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitFor(self, additional: additional)
+        }
+    }
     public final class Defer: Statement {
         public let token: Token
         public let beginToken: Token

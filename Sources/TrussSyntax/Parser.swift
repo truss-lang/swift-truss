@@ -1772,6 +1772,7 @@ public final class Parser {
             case .While: return parseWhile()
             case .Repeat: return parseRepeatWhile()
             case .Guard: return parseGuard()
+            case .For: return parseFor()
             case .Defer: return parseDefer()
             case .Break: return parseBreak()
             case .Continue: return parseContinue()
@@ -2429,6 +2430,74 @@ public final class Parser {
                 token, expr, sourceRange: SourceRange(from: token, to: last!, in: buffer)
             )
         }
+    }
+
+    private func parseFor() -> AST.Statement {
+        let token = next!
+        let pattern: AST.Expression
+        if peek?.kind == .Keyword(.Case) {
+            let caseToken = next!
+            pattern = parseCaseMatch(caseToken)
+        } else {
+            inPatternContext = true
+            pattern =
+                parseExpression()
+                ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
+            inPatternContext = false
+        }
+        guard let inToken = peek,
+            case .Identifier = inToken.kind,
+            inToken.value == "in"
+        else {
+            emitError(
+                "expected 'in' after for pattern",
+                at: SourceRange(from: token, to: last ?? token, in: buffer))
+            return errorStatement(from: token, to: last ?? token)
+        }
+        index += 1
+        suppressTrailingClosures = true
+        let sequence =
+            parseExpression()
+            ?? AST.ErrorExpression(SourceRange(location: locationAfter(inToken)))
+        suppressTrailingClosures = false
+        guard let openToken = next else {
+            emitError("expected '{' after for-in sequence", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        guard case .Separator(.OpenBrace) = openToken.kind else {
+            emitError(
+                "expected '{' after for-in sequence, but got '\(openToken.value)'",
+                at: openToken
+            )
+            return errorStatement(from: token, to: openToken)
+        }
+        var body: [AST.Statement] = []
+        while let closeToken = peek {
+            if case .Separator(.CloseBrace) = closeToken.kind {
+                break
+            }
+            if let stmt = parseStatement() {
+                body.append(stmt)
+            } else {
+                break
+            }
+        }
+        guard let closeToken = peek else {
+            emitError("expected '}' after for body", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        if case .Separator(.CloseBrace) = closeToken.kind {
+            index += 1
+        } else {
+            emitError(
+                "expected '}' after for body, but got \(closeToken.value)",
+                at: closeToken
+            )
+        }
+        return AST.For(
+            token, pattern, inToken, sequence, openToken, body, closeToken,
+            sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
+        )
     }
 
     private func parseWhile() -> AST.Statement {

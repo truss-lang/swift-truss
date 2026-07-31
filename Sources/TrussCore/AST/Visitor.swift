@@ -321,6 +321,16 @@ extension AST {
         }
 
         @discardableResult
+        open func visitFor(_ forStatement: AST.For, additional: Any? = nil) -> Any? {
+            visit(forStatement.pattern, additional: additional)
+            visit(forStatement.sequence, additional: additional)
+            for statement in forStatement.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitDefer(_ deferStatement: AST.Defer, additional: Any? = nil) -> Any? {
             for statement in deferStatement.body {
                 visit(statement, additional: additional)
