@@ -212,38 +212,51 @@ public final class Lexer {
     }
     private func parseStringLiteral() -> Token {
         let begin = self.input.currentPosition
-        var chars: [Character] = []
-        if let c = self.input.next() { chars.append(c) }
+        self.input.incrementPosition()
+        var result = ""
         while let c = self.input.peek, c != "\"" {
             if c == "\\" {
-                chars.append(c)
                 self.input.incrementPosition()
                 if let escaped = self.input.peek {
-                    chars.append(escaped)
                     self.input.incrementPosition()
-                    if escaped == "u" && self.input.peek == "{" {
-                        while let u = self.input.peek, u != "}" {
-                            chars.append(u)
+                    switch escaped {
+                    case "n": result.append("\n")
+                    case "t": result.append("\t")
+                    case "r": result.append("\r")
+                    case "\\": result.append("\\")
+                    case "\"": result.append("\"")
+                    case "0": result.append("\0")
+                    case "u":
+                        if self.input.peek == "{" {
                             self.input.incrementPosition()
+                            var hex = ""
+                            while let h = self.input.peek, h != "}" {
+                                hex.append(h)
+                                self.input.incrementPosition()
+                            }
+                            if self.input.peek == "}" {
+                                self.input.incrementPosition()
+                            }
+                            if let scalar = UInt32(hex, radix: 16),
+                                let unicode = Unicode.Scalar(scalar)
+                            {
+                                result.append(Character(unicode))
+                            }
                         }
-                        if self.input.peek == "}" {
-                            chars.append("}")
-                            self.input.incrementPosition()
-                        }
+                    default:
+                        result.append(escaped)
                     }
                 }
             } else {
-                chars.append(c)
+                result.append(c)
                 self.input.incrementPosition()
             }
         }
         if self.input.peek == "\"" {
-            chars.append("\"")
             self.input.incrementPosition()
         }
-        let value = String(chars)
         let pos = self.makePosition(begin)
-        return Token(value: value, kind: .StringLiteral, pos: pos, id: self.input.id)
+        return Token(value: result, kind: .StringLiteral, pos: pos, id: self.input.id)
     }
     private func parseCharLiteral() -> Token {
         let begin = self.input.currentPosition

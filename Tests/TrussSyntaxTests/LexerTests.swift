@@ -223,21 +223,21 @@ func lex(_ source: String) -> [Token] {
     let tokens = lex("\"hello\"")
     #expect(tokens.count == 1)
     #expect(tokens[0].kind == .StringLiteral)
-    #expect(tokens[0].value == "\"hello\"")
+    #expect(tokens[0].value == "hello")
 }
 
 @Test func lexStringLiteralWithEscapes() {
     let tokens = lex("\"hello\\nworld\\t\\\\\\\"\"")
     #expect(tokens.count == 1)
     #expect(tokens[0].kind == .StringLiteral)
-    #expect(tokens[0].value == "\"hello\\nworld\\t\\\\\\\"\"")
+    #expect(tokens[0].value == "hello\nworld\t\\\"")
 }
 
 @Test func lexStringLiteralWithUnicode() {
     let tokens = lex("\"\\u{1F600}\"")
     #expect(tokens.count == 1)
     #expect(tokens[0].kind == .StringLiteral)
-    #expect(tokens[0].value == "\"\\u{1F600}\"")
+    #expect(tokens[0].value == "😀")
 }
 
 @Test func lexCharLiteral() {

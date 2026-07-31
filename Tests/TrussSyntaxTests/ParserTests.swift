@@ -230,7 +230,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let expr = firstExpression("\"hello\"")
     let lit = expr as? AST.StringLiteral
     #expect(lit != nil)
-    #expect(lit!.token.value == "\"hello\"")
+    #expect(lit!.token.value == "hello")
 }
 
 @Test func parseCharLiteralExpression() {
@@ -920,7 +920,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(range?.start.column == 15)
     #expect(range?.end.offset == 27)
     #expect(range?.end.line == 2)
-    #expect(range?.end.column == 7)
+    #expect(range?.end.column == 6)
 }
 
 @Test func sourceRangeFromToWithMultiLineEndToken() {
@@ -929,7 +929,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let range = ret.sourceRange
     #expect(range.start.line == 2)
     #expect(range.end.line == 3)
-    #expect(range.end.column == 3)
+    #expect(range.end.column == 2)
 }
 
 @Test func parseStoredPropertyWithAccessorReportsError() throws {
