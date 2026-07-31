@@ -680,5 +680,12 @@ extension AST {
         ) -> Any? {
             return nil
         }
+
+        @discardableResult
+        open func visitShorthandArgument(
+            _ shorthandArgument: AST.ShorthandArgument, additional: Any? = nil
+        ) -> Any? {
+            return nil
+        }
     }
 }

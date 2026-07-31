@@ -3310,6 +3310,40 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(binding!.name.value == "x")
 }
 
+// MARK: - ShorthandArgument
+
+@Test func parseShorthandArgumentDollar0() {
+    let body = parseBlockStatements("func main() { $0 }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let arg = exprStmt!.expression as? AST.ShorthandArgument
+    #expect(arg != nil)
+    #expect(arg!.index == 0)
+}
+
+@Test func parseShorthandArgumentDollar42() {
+    let body = parseBlockStatements("func main() { $42 }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let arg = exprStmt!.expression as? AST.ShorthandArgument
+    #expect(arg != nil)
+    #expect(arg!.index == 42)
+}
+
+@Test func parseShorthandArgumentInClosure() {
+    let body = parseBlockStatements("func main() { { $0 } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let closure = exprStmt!.expression as? AST.Closure
+    #expect(closure != nil)
+    #expect(closure!.body.count == 1)
+    let innerExpr = closure!.body[0] as? AST.ExpressionStatement
+    #expect(innerExpr != nil)
+    let arg = innerExpr!.expression as? AST.ShorthandArgument
+    #expect(arg != nil)
+    #expect(arg!.index == 0)
+}
+
 // MARK: - OptionalType
 
 @Test func parseOptionalTypeSimple() {

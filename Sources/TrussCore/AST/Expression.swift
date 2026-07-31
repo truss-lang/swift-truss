@@ -522,4 +522,16 @@ extension AST {
             visitor.visitWildcardPattern(self, additional: additional)
         }
     }
+    public final class ShorthandArgument: Expression {
+        public let dollarToken: Token
+        public let index: Int
+        public init(_ dollarToken: Token, _ index: Int, sourceRange: SourceRange) {
+            self.dollarToken = dollarToken
+            self.index = index
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitShorthandArgument(self, additional: additional)
+        }
+    }
 }

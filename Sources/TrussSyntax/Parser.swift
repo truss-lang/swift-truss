@@ -2588,6 +2588,13 @@ public final class Parser {
                 operands.append(postfixed)
                 index += 1
                 lastIsExpression = true
+            case .Operator(.Dollar) where !lastIsExpression:
+                if let expr = parsePrimary(excepts, isCondition: isCondition) {
+                    operands.append(expr)
+                    lastIsExpression = true
+                } else {
+                    break _loop
+                }
             case .Operator(let kind) where kind != .Dot:
                 if let excepts = excepts, let kind = kind, excepts.contains(kind) {
                     break _loop
@@ -2924,6 +2931,22 @@ public final class Parser {
                     token,
                     member,
                     sourceRange: token.sourceRange(in: buffer)
+                )
+            case .Dollar:
+                index += 1
+                guard let numToken = next else {
+                    emitError("expected integer after '$'", at: endOfFile)
+                    return errorExpression(from: token, to: endOfFile)
+                }
+                guard case .IntegerLiteral(let value) = numToken.kind else {
+                    emitError(
+                        "expected integer literal after '$', but got '\(numToken.value)'",
+                        at: numToken)
+                    return errorExpression(from: token, to: numToken)
+                }
+                expression = AST.ShorthandArgument(
+                    token, Int(truncatingIfNeeded: value),
+                    sourceRange: SourceRange(from: token, to: numToken, in: buffer)
                 )
             default:
                 return nil
