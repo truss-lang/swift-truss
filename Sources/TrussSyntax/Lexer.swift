@@ -65,6 +65,9 @@ let operatorTable: [String: OperatorKind] = [
 
 public final class Lexer {
     private var input: CharStream
+    private var interpolationDepth: Int = 0
+    private var emitInterpolationOpen: Bool = false
+    private var pendingStringResume: Bool = false
     public init(input: CharStream) {
         self.input = input
     }
@@ -73,11 +76,33 @@ public final class Lexer {
         while !self.input.isEmpty {
             if let token = self.parseAToken() {
                 tokens.append(token)
+                if self.emitInterpolationOpen {
+                    self.emitInterpolationOpen = false
+                    let openPos = self.input.currentPosition
+                    self.input.incrementPosition()
+                    self.input.incrementPosition()
+                    tokens.append(
+                        Token(
+                            value: "(", kind: .Separator(.OpenParen),
+                            pos: self.makePosition(openPos), id: self.input.id
+                        ))
+                }
             }
         }
         return LexerResult(id: input.id, tokens: tokens)
     }
     private func parseAToken() -> Token? {
+        if self.pendingStringResume {
+            self.pendingStringResume = false
+            if self.input.peek == "\"" {
+                self.input.incrementPosition()
+                return Token(
+                    value: "", kind: .StringLiteral,
+                    pos: self.makePosition(self.input.currentPosition), id: self.input.id
+                )
+            }
+            return self.resumeStringLiteral()
+        }
         self.skipWhitechars()
         guard let c = self.input.peek else {
             return nil
@@ -99,6 +124,12 @@ public final class Lexer {
         case "(":
             return self.singleCharToken(.Separator(.OpenParen), "(")
         case ")":
+            if self.interpolationDepth > 0 {
+                self.interpolationDepth -= 1
+                if self.interpolationDepth == 0 {
+                    self.pendingStringResume = true
+                }
+            }
             return self.singleCharToken(.Separator(.CloseParen), ")")
         case "[":
             return self.singleCharToken(.Separator(.OpenBracket), "[")
@@ -218,9 +249,18 @@ public final class Lexer {
         self.input.incrementPosition()
         var raw = ""
         while let c = self.input.peek, c != "\"" {
-            raw.append(c)
-            self.input.incrementPosition()
             if c == "\\" {
+                if self.input.peek2 == "(" {
+                    let pos = self.makePosition(begin)
+                    self.emitInterpolationOpen = true
+                    self.interpolationDepth += 1
+                    return Token(
+                        value: decodeStringEscapes(raw), kind: .StringLiteral, pos: pos,
+                        id: self.input.id, isUnterminated: true
+                    )
+                }
+                raw.append(c)
+                self.input.incrementPosition()
                 if let next = self.input.peek {
                     raw.append(next)
                     self.input.incrementPosition()
@@ -235,6 +275,53 @@ public final class Lexer {
                         }
                     }
                 }
+            } else {
+                raw.append(c)
+                self.input.incrementPosition()
+            }
+        }
+        if self.input.peek == "\"" {
+            self.input.incrementPosition()
+        }
+        let pos = self.makePosition(begin)
+        return Token(
+            value: decodeStringEscapes(raw), kind: .StringLiteral, pos: pos,
+            id: self.input.id
+        )
+    }
+    private func resumeStringLiteral() -> Token {
+        let begin = self.input.currentPosition
+        var raw = ""
+        while let c = self.input.peek, c != "\"" {
+            if c == "\\" {
+                if self.input.peek2 == "(" {
+                    let pos = self.makePosition(begin)
+                    self.emitInterpolationOpen = true
+                    self.interpolationDepth += 1
+                    return Token(
+                        value: decodeStringEscapes(raw), kind: .StringLiteral, pos: pos,
+                        id: self.input.id, isUnterminated: true
+                    )
+                }
+                raw.append(c)
+                self.input.incrementPosition()
+                if let next = self.input.peek {
+                    raw.append(next)
+                    self.input.incrementPosition()
+                    if next == "u" && self.input.peek == "{" {
+                        while let u = self.input.peek, u != "}" {
+                            raw.append(u)
+                            self.input.incrementPosition()
+                        }
+                        if self.input.peek == "}" {
+                            raw.append("}")
+                            self.input.incrementPosition()
+                        }
+                    }
+                }
+            } else {
+                raw.append(c)
+                self.input.incrementPosition()
             }
         }
         if self.input.peek == "\"" {

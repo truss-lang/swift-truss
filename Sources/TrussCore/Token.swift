@@ -246,21 +246,27 @@ public final class Token: Hashable, Equatable {
     public let kind: TokenKind
     public let pos: Position
     public let id: Id.SourceId
-    public init(value: String, kind: TokenKind, pos: Position, id: Id.SourceId) {
+    public let isUnterminated: Bool
+    public init(
+        value: String, kind: TokenKind, pos: Position, id: Id.SourceId,
+        isUnterminated: Bool = false
+    ) {
         self.value = value
         self.kind = kind
         self.pos = pos
         self.id = id
+        self.isUnterminated = isUnterminated
     }
     public static func == (_ lhs: Token, _ rhs: Token) -> Bool {
         return lhs.value == rhs.value && lhs.kind == rhs.kind && lhs.pos == rhs.pos
-            && lhs.id == rhs.id
+            && lhs.id == rhs.id && lhs.isUnterminated == rhs.isUnterminated
     }
     public func hash(into hasher: inout Hasher) {
         hasher.combine(value)
         hasher.combine(kind)
         hasher.combine(pos)
         hasher.combine(id)
+        hasher.combine(isUnterminated)
     }
 }
 

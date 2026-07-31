@@ -2742,7 +2742,12 @@ public final class Parser {
             }
         case .StringLiteral:
             index += 1
-            expression = AST.StringLiteral(token, sourceRange: token.sourceRange(in: buffer))
+            if token.isUnterminated {
+                expression = parseStringInterpolation(token)
+            } else {
+                expression = AST.StringLiteral(
+                    token, sourceRange: token.sourceRange(in: buffer))
+            }
         case .IntegerLiteral(let value):
             index += 1
             expression = AST.IntegerLiteral(
@@ -3397,6 +3402,54 @@ public final class Parser {
             emitError("expected '{' or expression after '=>'", at: endOfFile)
             return nil
         }
+    }
+
+    private func parseStringInterpolation(_ firstToken: Token) -> AST.Expression {
+        var segments: [AST.StringSegment] = [.literal(firstToken)]
+        while true {
+            if let t = peek {
+                guard case .Separator(.OpenParen) = t.kind else {
+                    emitError("expected '(' for string interpolation", at: t)
+                    return errorExpression(from: firstToken, to: t)
+                }
+                index += 1
+                let expr = parseExpression() ?? errorExpression(from: t, to: t)
+                segments.append(.expression(expr))
+            } else {
+                emitError("expected '(' for string interpolation", at: endOfFile)
+                return errorExpression(from: firstToken, to: firstToken)
+            }
+            guard let close = peek else {
+                emitError("expected ')' after interpolation expression", at: endOfFile)
+                return errorExpression(from: firstToken, to: firstToken)
+            }
+            if close.kind != .Separator(.CloseParen) {
+                emitError(
+                    "expected ')' after interpolation expression, but got '\(close.value)'",
+                    at: close)
+                return errorExpression(from: firstToken, to: close)
+            }
+            index += 1
+            guard let nextToken = peek else {
+                emitError("expected string literal after interpolation", at: endOfFile)
+                return errorExpression(from: firstToken, to: firstToken)
+            }
+            guard case .StringLiteral = nextToken.kind else {
+                emitError(
+                    "expected string literal after interpolation, but got '\(nextToken.value)'",
+                    at: nextToken)
+                return errorExpression(from: firstToken, to: nextToken)
+            }
+            index += 1
+            segments.append(.literal(nextToken))
+            if !nextToken.isUnterminated {
+                break
+            }
+        }
+        return AST.StringInterpolation(
+            segments,
+            sourceRange: SourceRange(from: firstToken, to: last!, in: buffer)
+        )
     }
 
     private func parseClosure() -> AST.Closure {

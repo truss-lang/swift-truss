@@ -540,4 +540,18 @@ extension AST {
             visitor.visitShorthandArgument(self, additional: additional)
         }
     }
+    public enum StringSegment {
+        case literal(Token)
+        case expression(Expression)
+    }
+    public final class StringInterpolation: Expression {
+        public let segments: [StringSegment]
+        public init(_ segments: [StringSegment], sourceRange: SourceRange) {
+            self.segments = segments
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitStringInterpolation(self, additional: additional)
+        }
+    }
 }

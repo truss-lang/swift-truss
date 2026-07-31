@@ -3393,6 +3393,54 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(call!.trailingClosures[0].0 == nil)
 }
 
+// MARK: - String Interpolation
+
+@Test func parseStringInterpolationSimple() {
+    let expr = firstExpression("\"hello \\(name)\"")
+    let interp = expr as? AST.StringInterpolation
+    #expect(interp != nil)
+    #expect(interp!.segments.count == 3)
+    guard case .literal(let first) = interp!.segments[0] else {
+        #expect(Bool(false))
+        return
+    }
+    #expect(first.value == "hello ")
+    guard case .expression(let e) = interp!.segments[1] else {
+        #expect(Bool(false))
+        return
+    }
+    #expect(e is AST.Variable)
+    guard case .literal(let last) = interp!.segments[2] else {
+        #expect(Bool(false))
+        return
+    }
+    #expect(last.value == "")
+    #expect(!last.isUnterminated)
+}
+
+@Test func parseStringInterpolationMultiSegment() {
+    let expr = firstExpression("\"\\(v1) \\(v2)\"")
+    let interp = expr as? AST.StringInterpolation
+    #expect(interp != nil)
+    #expect(interp!.segments.count == 5)
+    guard case .literal(let first) = interp!.segments[0] else {
+        #expect(Bool(false))
+        return
+    }
+    #expect(first.value == "")
+    #expect(first.isUnterminated)
+    guard case .expression = interp!.segments[1] else {
+        #expect(Bool(false))
+        return
+    }
+    guard case .literal(let mid) = interp!.segments[2] else {
+        #expect(Bool(false))
+        return
+    }
+    #expect(mid.value == " ")
+    #expect(mid.isUnterminated)
+}
+
 // MARK: - OptionalType
 
 @Test func parseOptionalTypeSimple() {

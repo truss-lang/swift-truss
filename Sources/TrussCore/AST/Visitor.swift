@@ -690,5 +690,19 @@ extension AST {
         ) -> Any? {
             return nil
         }
+
+        @discardableResult
+        open func visitStringInterpolation(
+            _ interpolation: AST.StringInterpolation, additional: Any? = nil
+        ) -> Any? {
+            for segment in interpolation.segments {
+                switch segment {
+                case .literal: break
+                case .expression(let expr):
+                    visit(expr, additional: additional)
+                }
+            }
+            return nil
+        }
     }
 }
