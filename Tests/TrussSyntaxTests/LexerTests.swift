@@ -240,6 +240,30 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[0].value == "😀")
 }
 
+@Test func lexMultilineStringBasic() {
+    let src = "\"\"\"\nhello\nworld\n\"\"\""
+    let tokens = lex(src)
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].value == "hello\nworld\n")
+}
+
+@Test func lexMultilineStringWithIndentation() {
+    let src = "\"\"\"\n    hello\n    world\n    \"\"\""
+    let tokens = lex(src)
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].value == "hello\nworld\n")
+}
+
+@Test func lexMultilineStringWithEscapes() {
+    let src = "\"\"\"\nhello\\nworld\n\"\"\""
+    let tokens = lex(src)
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].value == "hello\nworld\n")
+}
+
 @Test func lexCharLiteral() {
     let tokens = lex("'a'")
     #expect(tokens.count == 1)

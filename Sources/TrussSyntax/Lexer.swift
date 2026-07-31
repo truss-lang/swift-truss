@@ -84,6 +84,9 @@ public final class Lexer {
         }
         switch c {
         case "\"":
+            if self.input.peek2 == "\"" && self.input.peek3 == "\"" {
+                return self.parseMultilineStringLiteral()
+            }
             return self.parseStringLiteral()
         case "'":
             return self.parseCharLiteral()
@@ -213,12 +216,98 @@ public final class Lexer {
     private func parseStringLiteral() -> Token {
         let begin = self.input.currentPosition
         self.input.incrementPosition()
-        var result = ""
+        var raw = ""
         while let c = self.input.peek, c != "\"" {
+            raw.append(c)
+            self.input.incrementPosition()
             if c == "\\" {
-                self.input.incrementPosition()
-                if let escaped = self.input.peek {
+                if let next = self.input.peek {
+                    raw.append(next)
                     self.input.incrementPosition()
+                    if next == "u" && self.input.peek == "{" {
+                        while let u = self.input.peek, u != "}" {
+                            raw.append(u)
+                            self.input.incrementPosition()
+                        }
+                        if self.input.peek == "}" {
+                            raw.append("}")
+                            self.input.incrementPosition()
+                        }
+                    }
+                }
+            }
+        }
+        if self.input.peek == "\"" {
+            self.input.incrementPosition()
+        }
+        let pos = self.makePosition(begin)
+        return Token(
+            value: decodeStringEscapes(raw), kind: .StringLiteral, pos: pos,
+            id: self.input.id
+        )
+    }
+    private func parseMultilineStringLiteral() -> Token {
+        let begin = self.input.currentPosition
+        self.input.incrementPosition()
+        self.input.incrementPosition()
+        self.input.incrementPosition()
+        if self.input.peek == "\n" {
+            self.input.incrementPosition()
+        }
+        var lines: [String] = []
+        var currentLine = ""
+        var indentCol = 0
+        while let c = self.input.peek {
+            if c == "\"" && self.input.peek2 == "\"" && self.input.peek3 == "\"" {
+                indentCol = self.input.currentPosition.col
+                self.input.incrementPosition()
+                self.input.incrementPosition()
+                self.input.incrementPosition()
+                break
+            }
+            if c == "\n" {
+                lines.append(currentLine)
+                currentLine = ""
+                self.input.incrementPosition()
+            } else {
+                currentLine.append(c)
+                self.input.incrementPosition()
+            }
+        }
+        lines.append(currentLine)
+        var result = ""
+        for (i, line) in lines.enumerated() {
+            if i > 0 { result.append("\n") }
+            result.append(stripIndent(line, indentCol))
+        }
+        let pos = self.makePosition(begin)
+        return Token(
+            value: decodeStringEscapes(result), kind: .StringLiteral, pos: pos,
+            id: self.input.id
+        )
+    }
+    private func stripIndent(_ line: String, _ col: Int) -> String {
+        var i = 0
+        var idx = line.startIndex
+        while i < col - 1 && idx < line.endIndex {
+            let ch = line[idx]
+            if ch == " " { i += 1 }
+            else if ch == "\t" { i += 1 }
+            else { break }
+            idx = line.index(after: idx)
+        }
+        return String(line[idx...])
+    }
+    private func decodeStringEscapes(_ raw: String) -> String {
+        var result = ""
+        var i = raw.startIndex
+        while i < raw.endIndex {
+            let ch = raw[i]
+            if ch == "\\" {
+                i = raw.index(after: i)
+                if i < raw.endIndex {
+                    let escaped = raw[i]
+                    i = raw.index(after: i)
                     switch escaped {
                     case "n": result.append("\n")
                     case "t": result.append("\t")
@@ -227,16 +316,14 @@ public final class Lexer {
                     case "\"": result.append("\"")
                     case "0": result.append("\0")
                     case "u":
-                        if self.input.peek == "{" {
-                            self.input.incrementPosition()
+                        if i < raw.endIndex && raw[i] == "{" {
+                            i = raw.index(after: i)
                             var hex = ""
-                            while let h = self.input.peek, h != "}" {
-                                hex.append(h)
-                                self.input.incrementPosition()
+                            while i < raw.endIndex && raw[i] != "}" {
+                                hex.append(raw[i])
+                                i = raw.index(after: i)
                             }
-                            if self.input.peek == "}" {
-                                self.input.incrementPosition()
-                            }
+                            if i < raw.endIndex { i = raw.index(after: i) }
                             if let scalar = UInt32(hex, radix: 16),
                                 let unicode = Unicode.Scalar(scalar)
                             {
@@ -248,15 +335,11 @@ public final class Lexer {
                     }
                 }
             } else {
-                result.append(c)
-                self.input.incrementPosition()
+                result.append(ch)
+                i = raw.index(after: i)
             }
         }
-        if self.input.peek == "\"" {
-            self.input.incrementPosition()
-        }
-        let pos = self.makePosition(begin)
-        return Token(value: result, kind: .StringLiteral, pos: pos, id: self.input.id)
+        return result
     }
     private func parseCharLiteral() -> Token {
         let begin = self.input.currentPosition

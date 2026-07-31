@@ -297,6 +297,13 @@ public class CharStream: IteratorProtocol {
             nil
         }
     }
+    public var peek3: Character? {
+        if pos + 2 < chars.count {
+            chars[pos + 2]
+        } else {
+            nil
+        }
+    }
     public func next() -> Character? {
         if pos < chars.count {
             let c = chars[pos]
