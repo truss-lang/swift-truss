@@ -292,6 +292,38 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let obj = innerMember!.object as? AST.Variable
     #expect(obj != nil)
     #expect(obj!.name.value == "a")
+    #expect(member!.isOptional == false)
+}
+
+@Test func parseOptionalChaining() {
+    let expr = firstExpression("a?.b")
+    let member = expr as? AST.MemberAccess
+    #expect(member != nil)
+    #expect(member!.isOptional == true)
+    #expect(member!.token.kind == .Operator(.QuestionMarkDot))
+    #expect(member!.member.value == "b")
+}
+
+@Test func parseChainedOptionalChaining() {
+    let expr = firstExpression("a?.b?.c")
+    let member = expr as? AST.MemberAccess
+    #expect(member != nil)
+    #expect(member!.isOptional == true)
+    #expect(member!.member.value == "c")
+    let inner = member!.object as? AST.MemberAccess
+    #expect(inner != nil)
+    #expect(inner!.isOptional == true)
+    #expect(inner!.member.value == "b")
+}
+
+@Test func parseMixedOptionalAndRegular() {
+    let expr = firstExpression("a.b?.c")
+    let member = expr as? AST.MemberAccess
+    #expect(member != nil)
+    #expect(member!.isOptional == true)
+    let inner = member!.object as? AST.MemberAccess
+    #expect(inner != nil)
+    #expect(inner!.isOptional == false)
 }
 
 @Test func parseCallOnMemberAccess() {

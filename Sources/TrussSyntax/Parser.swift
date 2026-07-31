@@ -2435,9 +2435,8 @@ public final class Parser {
     private func parseFor() -> AST.Statement {
         let token = next!
         let pattern: AST.Expression
-        if peek?.kind == .Keyword(.Case) {
-            let caseToken = next!
-            pattern = parseCaseMatch(caseToken)
+        if let t = peek, t.kind == .Keyword(.Case) {
+            pattern = parseCaseMatch(t)
         } else {
             inPatternContext = true
             pattern =
@@ -2782,10 +2781,11 @@ public final class Parser {
                 let postfixed = parsePostfix(subscriptResult, excepts: excepts)
                 operands.append(postfixed)
                 lastIsExpression = true
-            case .Operator(.Dot) where lastIsExpression:
+            case .Operator(.Dot) where lastIsExpression,
+                .Operator(.QuestionMarkDot) where lastIsExpression:
                 index += 1
                 guard let member = peek else {
-                    emitError("expected member name after '.'", at: endOfFile)
+                    emitError("expected member name after '\(token.value)'", at: endOfFile)
                     break _loop
                 }
                 switch member.kind {
@@ -2793,13 +2793,14 @@ public final class Parser {
                     index += 1
                 default:
                     emitError(
-                        "expected identifier or integer literal after '.', but got '\(member.value)'",
+                        "expected identifier or integer literal after '\(token.value)', but got '\(member.value)'",
                         at: member
                     )
                 }
                 let base = operands.removeLast()
+                let isOpt = token.kind == .Operator(.QuestionMarkDot)
                 let memberAccess = AST.MemberAccess(
-                    base, token, member,
+                    base, token, member, isOptional: isOpt,
                     sourceRange: SourceRange(
                         start: base.sourceRange.start,
                         end: member.sourceRange(in: buffer).end
@@ -2809,7 +2810,8 @@ public final class Parser {
                 operands.append(postfixed)
                 lastIsExpression = true
                 justClosedAngle = false
-            case .Operator(.Dot) where justClosedAngle:
+            case .Operator(.Dot) where justClosedAngle,
+                .Operator(.QuestionMarkDot) where justClosedAngle:
                 justClosedAngle = false
                 let range: SourceRange
                 if let firstRange = operands.first?.sourceRange,
@@ -2824,7 +2826,7 @@ public final class Parser {
                 operands = []
                 index += 1
                 guard let member = peek else {
-                    emitError("expected member name after '.'", at: endOfFile)
+                    emitError("expected member name after '\(token.value)'", at: endOfFile)
                     break _loop
                 }
                 switch member.kind {
@@ -2832,12 +2834,13 @@ public final class Parser {
                     index += 1
                 default:
                     emitError(
-                        "expected identifier or integer literal after '.', but got '\(member.value)'",
+                        "expected identifier or integer literal after '\(token.value)', but got '\(member.value)'",
                         at: member
                     )
                 }
+                let isOpt = token.kind == .Operator(.QuestionMarkDot)
                 let memberAccess = AST.MemberAccess(
-                    base, token, member,
+                    base, token, member, isOptional: isOpt,
                     sourceRange: SourceRange(
                         start: base.sourceRange.start,
                         end: member.sourceRange(in: buffer).end

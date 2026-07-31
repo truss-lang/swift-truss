@@ -219,12 +219,15 @@ extension AST {
         public let object: Expression
         public let token: Token
         public let member: Token
+        public let isOptional: Bool
         public init(
-            _ object: Expression, _ token: Token, _ member: Token, sourceRange: SourceRange
+            _ object: Expression, _ token: Token, _ member: Token, isOptional: Bool = false,
+            sourceRange: SourceRange
         ) {
             self.object = object
             self.token = token
             self.member = member
+            self.isOptional = isOptional
             super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
