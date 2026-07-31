@@ -709,5 +709,16 @@ extension AST {
             }
             return nil
         }
+
+        @discardableResult
+        open func visitSubscriptDecl(
+            _ subscriptDecl: AST.SubscriptDecl, additional: Any? = nil
+        ) -> Any? {
+            visit(subscriptDecl.returnType, additional: additional)
+            for statement in subscriptDecl.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
     }
 }

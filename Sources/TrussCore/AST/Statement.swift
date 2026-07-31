@@ -634,4 +634,24 @@ extension AST {
             case DidSet
         }
     }
+    public final class SubscriptDecl: Decl {
+        public let token: Token
+        public let parameters: [FunctionDecl.Parameter]
+        public let returnType: Expression
+        public let body: [Statement]
+        public init(
+            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
+            _ parameters: [FunctionDecl.Parameter], _ returnType: Expression,
+            _ body: [Statement], sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.parameters = parameters
+            self.returnType = returnType
+            self.body = body
+            super.init(modifiers, attributes, sourceRange)
+        }
+        public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitSubscriptDecl(self, additional: additional)
+        }
+    }
 }

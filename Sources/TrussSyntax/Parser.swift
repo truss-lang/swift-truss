@@ -1295,6 +1295,68 @@ public final class Parser {
         )
     }
 
+    private func parseSubscriptDecl(_ modifiers: [AST.Modifier], _ attributes: [AST.Attribute])
+        -> AST.Statement
+    {
+        let token = next!
+        var parameters: [AST.FunctionDecl.Parameter] = []
+        if peek?.kind == .Separator(.OpenParen) {
+            index += 1
+            while let t = peek {
+                if t.kind == .Separator(.CloseParen) { break }
+                if t.kind == .Separator(.Comma) {
+                    index += 1
+                    continue
+                }
+                parameters.append(parseFunctionParameter())
+            }
+            if peek?.kind == .Separator(.CloseParen) {
+                index += 1
+            } else {
+                if let tok = peek {
+                    emitError("expected ')' after subscript parameters", at: tok)
+                } else {
+                    emitError("expected ')' after subscript parameters", at: endOfFile)
+                }
+            }
+        }
+        guard peek?.kind == .Separator(.Arrow) else {
+            if let tok = peek {
+                emitError("expected '->' after subscript parameters", at: tok)
+            } else {
+                emitError("expected '->' after subscript parameters", at: endOfFile)
+            }
+            return errorStatement(from: token, to: last!)
+        }
+        index += 1
+        suppressTrailingClosures = true
+        let returnType = parseExpression() ?? errorExpression(from: token, to: last!)
+        suppressTrailingClosures = false
+        var body: [AST.Statement] = []
+        if peek?.kind == .Separator(.OpenBrace) {
+            index += 1
+            while let t = peek {
+                if t.kind == .Separator(.CloseBrace) { break }
+                if let stmt = parseStatement() {
+                    body.append(stmt)
+                }
+            }
+            if peek?.kind == .Separator(.CloseBrace) {
+                index += 1
+            } else {
+                if let tok = peek {
+                    emitError("expected '}' after subscript body", at: tok)
+                } else {
+                    emitError("expected '}' after subscript body", at: endOfFile)
+                }
+            }
+        }
+        return AST.SubscriptDecl(
+            modifiers, attributes, token, parameters, returnType, body,
+            sourceRange: SourceRange(from: token, to: last!, in: buffer)
+        )
+    }
+
     private func parseExtensionDecl(_ modifiers: [AST.Modifier], _ attributes: [AST.Attribute])
         -> AST.Statement
     {
@@ -1464,6 +1526,7 @@ public final class Parser {
             case .Init: return parseInitDecl(modifiers, attributes)
             case .Deinit: return parseDeinitDecl(modifiers, attributes)
             case .Func: return parseFunctionDecl(modifiers, attributes)
+            case .Subscript: return parseSubscriptDecl(modifiers, attributes)
             case .Let: return parseVariableDecl(modifiers, attributes)
             case .Var: return parseVariableDecl(modifiers, attributes)
             default:
