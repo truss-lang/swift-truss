@@ -657,6 +657,15 @@ extension AST {
         }
 
         @discardableResult
+        open func visitCastExpression(
+            _ castExpression: AST.CastExpression, additional: Any? = nil
+        ) -> Any? {
+            visit(castExpression.left, additional: additional)
+            visit(castExpression.right, additional: additional)
+            return nil
+        }
+
+        @discardableResult
         open func visitSubscript(
             _ subscriptExpr: AST.Subscript, additional: Any? = nil
         ) -> Any? {

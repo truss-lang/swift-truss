@@ -2867,6 +2867,37 @@ public final class Parser {
                 operands.append(postfixed)
                 index += 1
                 lastIsExpression = true
+            case .Keyword(.As) where lastIsExpression && !suppressTrailingClosures,
+                .Keyword(.Is) where lastIsExpression && !suppressTrailingClosures:
+                let left = operands.removeLast()
+                index += 1
+                let kind: AST.CastExpression.Kind
+                if token.kind == .Keyword(.Is) {
+                    kind = .Is
+                } else if peek?.kind == .Operator(.QuestionMark) {
+                    kind = .AsQuestion
+                    index += 1
+                } else if peek?.kind == .Operator(.Not) {
+                    kind = .AsExclamation
+                    index += 1
+                } else {
+                    kind = .As
+                }
+                suppressTrailingClosures = true
+                let right =
+                    parseExpression()
+                    ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
+                suppressTrailingClosures = false
+                let cast = AST.CastExpression(
+                    left, token, right, kind,
+                    sourceRange: SourceRange(
+                        start: left.sourceRange.start,
+                        end: right.sourceRange.end
+                    )
+                )
+                let postfixed = parsePostfix(cast, excepts: excepts)
+                operands.append(postfixed)
+                lastIsExpression = true
             case .Operator(.Dollar) where !lastIsExpression:
                 if let expr = parsePrimary(excepts, isCondition: isCondition) {
                     operands.append(expr)

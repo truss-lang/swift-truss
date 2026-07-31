@@ -488,6 +488,31 @@ extension AST {
             }
         }
     }
+    public final class CastExpression: Expression {
+        public let left: Expression
+        public let token: Token
+        public let right: Expression
+        public let kind: Kind
+        public init(
+            _ left: Expression, _ token: Token, _ right: Expression, _ kind: Kind,
+            sourceRange: SourceRange
+        ) {
+            self.left = left
+            self.token = token
+            self.right = right
+            self.kind = kind
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitCastExpression(self, additional: additional)
+        }
+        public enum Kind {
+            case As
+            case AsQuestion
+            case AsExclamation
+            case Is
+        }
+    }
     public final class Subscript: Expression {
         public let base: Expression
         public let arguments: [LabeledArgument]

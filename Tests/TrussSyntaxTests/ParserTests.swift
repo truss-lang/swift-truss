@@ -326,6 +326,51 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(inner!.isOptional == false)
 }
 
+@Test func parseCastAsExpression() {
+    let expr = firstExpression("x as Int32")
+    let cast = expr as? AST.CastExpression
+    #expect(cast != nil)
+    #expect(cast!.kind == .As)
+    #expect(cast!.token.kind == .Keyword(.As))
+    let left = cast!.left as? AST.Variable
+    #expect(left!.name.value == "x")
+    let right = cast!.right as? AST.Variable
+    #expect(right!.name.value == "Int32")
+}
+
+@Test func parseCastAsQuestionExpression() {
+    let expr = firstExpression("x as? Int32")
+    let cast = expr as? AST.CastExpression
+    #expect(cast != nil)
+    #expect(cast!.kind == .AsQuestion)
+}
+
+@Test func parseCastAsExclamationExpression() {
+    let expr = firstExpression("x as! Int32")
+    let cast = expr as? AST.CastExpression
+    #expect(cast != nil)
+    #expect(cast!.kind == .AsExclamation)
+}
+
+@Test func parseIsExpression() {
+    let expr = firstExpression("x is Int32")
+    let cast = expr as? AST.CastExpression
+    #expect(cast != nil)
+    #expect(cast!.kind == .Is)
+    #expect(cast!.token.kind == .Keyword(.Is))
+}
+
+@Test func parseCastChain() {
+    let expr = firstExpression("a as B as? C")
+    let cast = expr as? AST.CastExpression
+    #expect(cast != nil)
+    #expect(cast!.kind == .AsQuestion)
+    let inner = cast!.left as? AST.CastExpression
+    #expect(inner != nil)
+    #expect(inner!.kind == .As)
+    #expect(cast!.right is AST.Variable)
+}
+
 @Test func parseCallOnMemberAccess() {
     let expr = firstExpression("a.b()")
     let call = expr as? AST.Call
