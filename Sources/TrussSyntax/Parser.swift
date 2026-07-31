@@ -1371,48 +1371,56 @@ public final class Parser {
         let begin = next!
         var generics: [AST.GenericParameter] = []
         while let t = peek {
-            if t.kind == .Operator(.Greater) || t.kind == .Keyword(.Each) {
+            if t.kind == .Operator(.Greater) {
                 break
             }
-            index += 1
-            if t.kind == .Separator(.Comma) {
+            let eachToken: Token?
+            var name: Token
+            if t.kind == .Keyword(.Each) {
+                eachToken = t
+                index += 1
+                if let n = next {
+                    name = n
+                    if n.kind != .Identifier {
+                        emitError(
+                            "expected identifier after 'each', but got '\(n.value)'",
+                            at: n
+                        )
+                    }
+                } else {
+                    emitError("expected identifier after 'each'", at: endOfFile)
+                    break
+                }
+            } else if t.kind == .Identifier {
+                eachToken = nil
+                name = t
+                index += 1
+            } else if t.kind == .Separator(.Comma) {
+                index += 1
                 continue
-            }
-            if t.kind != .Identifier {
+            } else {
                 emitError(
-                    "expected identifier after 'each', but got '\(t.value)'",
+                    "expected generic parameter name, but got '\(t.value)'",
                     at: t
                 )
+                index += 1
+                continue
             }
-        }
-        if let t = peek, case .Keyword(.Each) = t.kind {
-            let l = last!
-            if l.kind != .Operator(.Greater), l.kind != .Separator(.Comma) {
-                emitError("expected ',' before 'each'", at: l)
-            }
-            index += 1
-            if let name = next {
-                if name.kind != .Identifier {
-                    emitError(
-                        "expected identifier after 'each', but got '\(name.value)'",
-                        at: name
-                    )
-                }
-                let constraint: AST.Expression?
-                if let t2 = peek, case .Separator(.Colon) = t2.kind {
-                    index += 1
-                    constraint = parseExpression(excepts: [.Greater])
-                } else {
-                    constraint = nil
-                }
-                generics.append(
-                    AST.GenericParameter(
-                        t, name, constraint,
-                        sourceRange: SourceRange(from: t, to: last!, in: buffer)
-                    )
-                )
+            let constraint: AST.Expression?
+            if let t2 = peek, case .Separator(.Colon) = t2.kind {
+                index += 1
+                constraint = parseExpression(excepts: [.Greater])
             } else {
-                emitError("expected identifier after 'each'", at: endOfFile)
+                constraint = nil
+            }
+            generics.append(
+                AST.GenericParameter(
+                    eachToken, name, constraint,
+                    sourceRange: SourceRange(from: t, to: last!, in: buffer)
+                )
+            )
+            if peek?.kind == .Separator(.Comma) {
+                index += 1
             }
         }
         guard let end = peek else {

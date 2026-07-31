@@ -1049,13 +1049,15 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(decl!.body[0] is AST.EmptyStatement)
 }
 
-@Test func parseStructWithGenericPlainParametersDropped() {
+@Test func parseStructWithGenericPlainParameters() {
     let statements = parseStatements("struct Foo<T, U> {}")
     #expect(statements.count == 1)
     let decl = statements[0] as? AST.StructDecl
     #expect(decl != nil)
     #expect(decl!.genericDecl != nil)
-    #expect(decl!.genericDecl!.generics.isEmpty)
+    #expect(decl!.genericDecl!.generics.count == 2)
+    #expect(decl!.genericDecl!.generics[0].name.value == "T")
+    #expect(decl!.genericDecl!.generics[1].name.value == "U")
 }
 
 @Test func parseStructWithGenericEachParameter() {
@@ -1090,8 +1092,9 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(statements.count == 1)
     let decl = statements[0] as? AST.StructDecl
     #expect(decl != nil)
-    #expect(decl!.genericDecl!.generics.count == 1)
-    #expect(decl!.genericDecl!.generics[0].name.value == "U")
+    #expect(decl!.genericDecl!.generics.count == 2)
+    #expect(decl!.genericDecl!.generics[0].name.value == "T")
+    #expect(decl!.genericDecl!.generics[1].name.value == "U")
 }
 
 // MARK: - Class Declarations
