@@ -2607,6 +2607,96 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(member!.member.value == "bar")
 }
 
+@Test func parseGenericWithMemberAccess() {
+    let expr = firstExpression("Array<Int32>.f")
+    let member = expr as? AST.MemberAccess
+    #expect(member != nil)
+    #expect(member!.member.value == "f")
+    let base = member!.object as? AST.SequentialExpression
+    #expect(base != nil)
+    #expect(base!.ops.count == 2)
+    #expect(base!.ops[0].kind == .Operator(.Less))
+    #expect(base!.ops[1].kind == .Operator(.Greater))
+    #expect(base!.operands.count == 2)
+    let array = base!.operands[0] as? AST.Variable
+    #expect(array != nil)
+    #expect(array!.name.value == "Array")
+    let arg = base!.operands[1] as? AST.Variable
+    #expect(arg != nil)
+    #expect(arg!.name.value == "Int32")
+}
+
+@Test func parseGenericWithMemberAccessAndCall() {
+    let expr = firstExpression("Array<Int32>.f()")
+    let call = expr as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.isEmpty)
+    let member = call!.callee as? AST.MemberAccess
+    #expect(member != nil)
+    #expect(member!.member.value == "f")
+    let baseSeq = member!.object as? AST.SequentialExpression
+    #expect(baseSeq != nil)
+    #expect(baseSeq!.ops.count == 2)
+    #expect(baseSeq!.operands[0] is AST.Variable)
+    #expect((baseSeq!.operands[0] as! AST.Variable).name.value == "Array")
+    #expect(baseSeq!.operands[1] is AST.Variable)
+    #expect((baseSeq!.operands[1] as! AST.Variable).name.value == "Int32")
+}
+
+@Test func parseGenericWithMemberAccessAndCallArg() {
+    let expr = firstExpression("Array<Int32>.f(1)")
+    let call = expr as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.count == 1)
+    let argVal = call!.arguments[0].value as? AST.IntegerLiteral
+    #expect(argVal != nil)
+    #expect(argVal!.value == 1)
+    let member = call!.callee as? AST.MemberAccess
+    #expect(member != nil)
+    #expect(member!.member.value == "f")
+}
+
+@Test func parseGenericMultiArgWithMemberAccess() {
+    let expr = firstExpression("Array<Int32, String>.foo")
+    let member = expr as? AST.MemberAccess
+    #expect(member != nil)
+    #expect(member!.member.value == "foo")
+    let baseSeq = member!.object as? AST.SequentialExpression
+    #expect(baseSeq != nil)
+    #expect(baseSeq!.operands.count == 3)
+    #expect((baseSeq!.operands[0] as? AST.Variable)?.name.value == "Array")
+    #expect((baseSeq!.operands[1] as? AST.Variable)?.name.value == "Int32")
+    #expect((baseSeq!.operands[2] as? AST.Variable)?.name.value == "String")
+}
+
+@Test func parseCallOnGenericThenMemberAccess() {
+    let expr = firstExpression("Producer<Item>().result")
+    let member = expr as? AST.MemberAccess
+    #expect(member != nil)
+    #expect(member!.member.value == "result")
+    let call = member!.object as? AST.Call
+    #expect(call != nil)
+    let calleeSeq = call!.callee as? AST.SequentialExpression
+    #expect(calleeSeq != nil)
+    #expect(calleeSeq!.operands.count == 2)
+    #expect((calleeSeq!.operands[0] as? AST.Variable)?.name.value == "Producer")
+    #expect((calleeSeq!.operands[1] as? AST.Variable)?.name.value == "Item")
+    #expect(call!.arguments.isEmpty)
+}
+
+@Test func parseComparisonThenMemberAccess() {
+    let expr = firstExpression("1 < 2 && 3 > x.foo")
+    let seq = expr as? AST.SequentialExpression
+    #expect(seq != nil)
+    let lastOperand = seq!.operands.last
+    let member = lastOperand as? AST.MemberAccess
+    #expect(member != nil)
+    #expect(member!.member.value == "foo")
+    let obj = member!.object as? AST.Variable
+    #expect(obj != nil)
+    #expect(obj!.name.value == "x")
+}
+
 @Test func parseNestedGenericRightShift() {
     let expr = firstExpression("Array<Array<Int32>>")
     let seq = expr as? AST.SequentialExpression

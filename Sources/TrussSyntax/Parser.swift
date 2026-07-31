@@ -2740,6 +2740,43 @@ public final class Parser {
                 operands.append(postfixed)
                 lastIsExpression = true
                 justClosedAngle = false
+            case .Operator(.Dot) where justClosedAngle:
+                justClosedAngle = false
+                let range: SourceRange
+                if let firstRange = operands.first?.sourceRange,
+                    let lastRange = operands.last?.sourceRange
+                {
+                    range = SourceRange(start: firstRange.start, end: lastRange.end)
+                } else {
+                    range = SourceRange(location: endOfFile)
+                }
+                let base = AST.SequentialExpression(ops, operands, sourceRange: range)
+                ops = []
+                operands = []
+                index += 1
+                guard let member = peek else {
+                    emitError("expected member name after '.'", at: endOfFile)
+                    break _loop
+                }
+                switch member.kind {
+                case .Identifier, .IntegerLiteral:
+                    index += 1
+                default:
+                    emitError(
+                        "expected identifier or integer literal after '.', but got '\(member.value)'",
+                        at: member
+                    )
+                }
+                let memberAccess = AST.MemberAccess(
+                    base, token, member,
+                    sourceRange: SourceRange(
+                        start: base.sourceRange.start,
+                        end: member.sourceRange(in: buffer).end
+                    )
+                )
+                let postfixed = parsePostfix(memberAccess, excepts: excepts)
+                operands.append(postfixed)
+                lastIsExpression = true
             case .Separator(.Comma) where angleDepth > 0:
                 ops.append(token)
                 index += 1
