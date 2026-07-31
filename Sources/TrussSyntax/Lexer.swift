@@ -61,6 +61,9 @@ let operatorTable: [String: OperatorKind] = [
     "|": .BitOr,
     "||": .Or,
     "|=": .BitOrAssign,
+    "..": .DotDot,
+    "..<": .DotDotLess,
+    "...": .DotDotDot,
 ]
 
 public final class Lexer {
@@ -592,6 +595,17 @@ public final class Lexer {
                 }
                 chars.append(c)
                 self.input.incrementPosition()
+                if self.input.peek == "." {
+                    chars.append(self.input.peek!)
+                    self.input.incrementPosition()
+                    if self.input.peek == "." {
+                        chars.append(self.input.peek!)
+                        self.input.incrementPosition()
+                    } else if self.input.peek == "<" {
+                        chars.append(self.input.peek!)
+                        self.input.incrementPosition()
+                    }
+                }
                 break
             }
             if c == "/" && !chars.isEmpty {

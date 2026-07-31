@@ -224,6 +224,10 @@ public enum OperatorKind: Sendable {
 
     case QuestionMarkDot  // ?.
     case Elvis  // ?:
+
+    case DotDot  // ..
+    case DotDotLess  // ..<
+    case DotDotDot  // ...
 }
 
 public enum TokenKind: Hashable, Equatable {

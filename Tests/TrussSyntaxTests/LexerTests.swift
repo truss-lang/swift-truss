@@ -212,6 +212,27 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[1].value == "?:")
 }
 
+@Test func lexRangeOperators() {
+    let tokens = lex(".. ..< ...")
+    #expect(tokens.count == 3)
+    #expect(tokens[0].kind == .Operator(.DotDot))
+    #expect(tokens[0].value == "..")
+    #expect(tokens[1].kind == .Operator(.DotDotLess))
+    #expect(tokens[1].value == "..<")
+    #expect(tokens[2].kind == .Operator(.DotDotDot))
+    #expect(tokens[2].value == "...")
+
+}
+
+@Test func lexRangeOperatorsInCode() {
+    let tokens = lex("1..<5")
+    #expect(tokens.count == 3)
+    #expect(tokens[0].kind == .IntegerLiteral(1))
+    #expect(tokens[1].kind == .Operator(.DotDotLess))
+    #expect(tokens[2].kind == .IntegerLiteral(5))
+
+}
+
 @Test func lexXorAssignOperator() {
     let tokens = lex("^=")
     #expect(tokens.count == 1)
