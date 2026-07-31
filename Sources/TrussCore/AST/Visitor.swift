@@ -98,6 +98,13 @@ extension AST {
             return nil
         }
 
+        @discardableResult
+        open func visitOperatorDecl(
+            _ operatorDecl: AST.OperatorDecl, additional: Any? = nil
+        ) -> Any? {
+            return nil
+        }
+
         /* This method does nothing, because we don't want to visit
          * this node most of the time. It will be individually processed
          * by the `TrussOperators` module.

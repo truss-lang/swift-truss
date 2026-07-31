@@ -162,6 +162,7 @@ public final class Parser {
                 case .Extension: statement = parseExtensionDecl(modifiers, attributes)
                 case .Actor: statement = parseActorDecl(modifiers, attributes)
                 case .Func: statement = parseFunctionDecl(modifiers, attributes)
+                case .Operator: statement = parseOperatorDecl(modifiers, attributes)
                 case .Let: statement = parseVariableDecl(modifiers, attributes)
                 case .Var: statement = parseVariableDecl(modifiers, attributes)
                 default: statement = nil
@@ -216,6 +217,7 @@ public final class Parser {
             case .ProtocolKw: return parseProtocolDecl(modifiers, attributes)
             case .Actor: return parseActorDecl(modifiers, attributes)
             case .Func: return parseFunctionDecl(modifiers, attributes)
+            case .Operator: return parseOperatorDecl(modifiers, attributes)
             case .Let: return parseVariableDecl(modifiers, attributes)
             case .Var: return parseVariableDecl(modifiers, attributes)
             default: return nil
@@ -594,6 +596,43 @@ public final class Parser {
         return AST.ModuleDecl(
             modifiers, attributes, token, name, body,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
+        )
+    }
+
+    private func parseOperatorDecl(
+        _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute]
+    ) -> AST.Statement {
+        let token = next!
+        guard let name = next else {
+            emitError("expected operator name after 'operator'", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        guard case .Operator = name.kind else {
+            emitError(
+                "expected operator name after 'operator', but got '\(name.value)'", at: name)
+            return errorStatement(from: token, to: name)
+        }
+        guard let kindToken = next else {
+            emitError("expected 'infix', 'prefix', or 'postfix' after operator name", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        let kind: AST.OperatorDecl.Kind
+        switch kindToken.kind {
+        case .Keyword(.Infix):
+            kind = .Infix(kindToken)
+        case .Keyword(.Prefix):
+            kind = .Prefix(kindToken)
+        case .Keyword(.Postfix):
+            kind = .Postfix(kindToken)
+        default:
+            emitError(
+                "expected 'infix', 'prefix', or 'postfix', but got '\(kindToken.value)'",
+                at: kindToken)
+            return errorStatement(from: token, to: kindToken)
+        }
+        return AST.OperatorDecl(
+            modifiers, attributes, token, name, kind,
+            sourceRange: SourceRange(from: token, to: kindToken, in: buffer)
         )
     }
 
@@ -1765,6 +1804,7 @@ public final class Parser {
         case .Keyword(let kind):
             switch kind {
             case .Func: return parseFunctionDecl(modifiers, attributes)
+            case .Operator: return parseOperatorDecl(modifiers, attributes)
             case .Let: return parseVariableDecl(modifiers, attributes, inFunctionContext: true)
             case .Var: return parseVariableDecl(modifiers, attributes, inFunctionContext: true)
             case .Enum: return parseEnumDecl(modifiers, attributes)

@@ -691,6 +691,48 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(vd!.name.value == "x")
 }
 
+@Test func parseOperatorInfix() {
+    let statements = parseStatements("operator + infix")
+    #expect(statements.count == 1)
+    let op = statements[0] as? AST.OperatorDecl
+    #expect(op != nil)
+    #expect(op!.name.value == "+")
+    if case .Infix(let t) = op!.kind {
+        #expect(t.kind == .Keyword(.Infix))
+    } else {
+        #expect(Bool(false))
+    }
+
+}
+
+@Test func parseOperatorPrefix() {
+    let statements = parseStatements("operator - prefix")
+    #expect(statements.count == 1)
+    let op = statements[0] as? AST.OperatorDecl
+    #expect(op != nil)
+    #expect(op!.name.value == "-")
+    if case .Prefix(let t) = op!.kind {
+        #expect(t.kind == .Keyword(.Prefix))
+    } else {
+        #expect(Bool(false))
+    }
+
+}
+
+@Test func parseOperatorPostfix() {
+    let statements = parseStatements("operator ++ postfix")
+    #expect(statements.count == 1)
+    let op = statements[0] as? AST.OperatorDecl
+    #expect(op != nil)
+    #expect(op!.name.value == "++")
+    if case .Postfix(let t) = op!.kind {
+        #expect(t.kind == .Keyword(.Postfix))
+    } else {
+        #expect(Bool(false))
+    }
+
+}
+
 @Test func parseEmptyPrecedenceGroup() {
     let statements = parseStatements("precedencegroup Foo {}")
     #expect(statements.count == 1)

@@ -150,6 +150,28 @@ extension AST {
             visitor.visitModuleDecl(self, additional: additional)
         }
     }
+    public final class OperatorDecl: Decl {
+        public let token: Token
+        public let name: Token
+        public let kind: Kind
+        public init(
+            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
+            _ name: Token, _ kind: Kind, sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.name = name
+            self.kind = kind
+            super.init(modifiers, attributes, sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitOperatorDecl(self, additional: additional)
+        }
+        public enum Kind {
+            case Infix(Token)
+            case Prefix(Token)
+            case Postfix(Token)
+        }
+    }
     public final class PrecedenceGroupDecl: Decl {
         public let token: Token
         public let name: Token
