@@ -513,6 +513,28 @@ extension AST {
             case Is
         }
     }
+    public final class TryExpression: Expression {
+        public let token: Token
+        public let kind: Kind
+        public let expression: Expression
+        public init(
+            _ token: Token, _ kind: Kind, _ expression: Expression,
+            sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.kind = kind
+            self.expression = expression
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitTryExpression(self, additional: additional)
+        }
+        public enum Kind {
+            case Try
+            case TryQuestion
+            case TryExclamation
+        }
+    }
     public final class Subscript: Expression {
         public let base: Expression
         public let arguments: [LabeledArgument]

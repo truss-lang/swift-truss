@@ -3200,6 +3200,8 @@ public final class Parser {
             case .Case:
                 if !isCondition { return nil }
                 expression = parseCaseMatch(token)
+            case .Try:
+                expression = parseTryExpression(token, excepts, isCondition)
             default:
                 return nil
             }
@@ -3544,6 +3546,33 @@ public final class Parser {
         return AST.CaseMatch(
             token, parsedPattern, subject,
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
+        )
+    }
+
+    private func parseTryExpression(
+        _ token: Token, _ excepts: [OperatorKind]?, _ isCondition: Bool
+    ) -> AST.Expression {
+        index += 1
+        let kind: AST.TryExpression.Kind
+        if let t = peek, case .Operator(.QuestionMark) = t.kind {
+            kind = .TryQuestion
+            index += 1
+        } else if let t = peek, case .Operator(.Not) = t.kind {
+            kind = .TryExclamation
+            index += 1
+        } else {
+            kind = .Try
+        }
+        guard let inner = parseExpression(excepts: excepts, isCondition: isCondition) else {
+            emitError("expected expression after 'try'", at: locationAfter(token))
+            return errorExpression(from: token, to: locationAfter(token))
+        }
+        return AST.TryExpression(
+            token, kind, inner,
+            sourceRange: SourceRange(
+                start: token.sourceRange(in: buffer).start,
+                end: inner.sourceRange.end
+            )
         )
     }
 

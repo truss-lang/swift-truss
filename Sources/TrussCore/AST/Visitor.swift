@@ -680,6 +680,13 @@ extension AST {
         }
 
         @discardableResult
+        open func visitTryExpression(
+            _ tryExpression: AST.TryExpression, additional: Any? = nil
+        ) -> Any? {
+            return visit(tryExpression.expression, additional: additional)
+        }
+
+        @discardableResult
         open func visitSubscript(
             _ subscriptExpr: AST.Subscript, additional: Any? = nil
         ) -> Any? {

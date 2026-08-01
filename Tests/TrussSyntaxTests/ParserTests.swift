@@ -637,6 +637,94 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(errors[0].message.contains("expected expression after 'throw'"))
 }
 
+@Test func parseTryExpression() {
+    let expr = firstExpression("try foo()")
+    let tryExpr = expr as? AST.TryExpression
+    #expect(tryExpr != nil)
+    #expect(tryExpr!.kind == .Try)
+    #expect(tryExpr!.token.kind == .Keyword(.Try))
+    let call = tryExpr!.expression as? AST.Call
+    #expect(call != nil)
+}
+
+@Test func parseTryQuestionExpression() {
+    let expr = firstExpression("try? foo()")
+    let tryExpr = expr as? AST.TryExpression
+    #expect(tryExpr != nil)
+    #expect(tryExpr!.kind == .TryQuestion)
+    let call = tryExpr!.expression as? AST.Call
+    #expect(call != nil)
+}
+
+@Test func parseTryExclamationExpression() {
+    let expr = firstExpression("try! foo()")
+    let tryExpr = expr as? AST.TryExpression
+    #expect(tryExpr != nil)
+    #expect(tryExpr!.kind == .TryExclamation)
+    let call = tryExpr!.expression as? AST.Call
+    #expect(call != nil)
+}
+
+@Test func parseTryWrapsWholeExpression() {
+    let expr = firstExpression("try foo() + bar")
+    let tryExpr = expr as? AST.TryExpression
+    #expect(tryExpr != nil)
+    #expect(tryExpr!.kind == .Try)
+    let sequentialExpression = tryExpr!.expression as? AST.SequentialExpression
+    #expect(sequentialExpression != nil)
+    #expect(sequentialExpression!.ops.count == 1)
+    #expect(sequentialExpression!.ops[0].kind == .Operator(.Plus))
+}
+
+@Test func parseTryInVariableInitializer() {
+    let body = parseBlockStatements("func main() { let x = try? foo() }")
+    #expect(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    let tryExpr = vd!.initializer as? AST.TryExpression
+    #expect(tryExpr != nil)
+    #expect(tryExpr!.kind == .TryQuestion)
+}
+
+@Test func parseTryInExpressionStatementWithOperator() {
+    let expr = firstExpression("a + try b")
+    let sequentialExpression = expr as? AST.SequentialExpression
+    #expect(sequentialExpression != nil)
+    let right = sequentialExpression!.operands[1] as? AST.TryExpression
+    #expect(right != nil)
+    #expect(right!.kind == .Try)
+    let variable = right!.expression as? AST.Variable
+    #expect(variable != nil)
+    #expect(variable!.name.value == "b")
+}
+
+@Test func parseTryGreedyExclamationAfterTry() {
+    let expr = firstExpression("try !flag")
+    let tryExpr = expr as? AST.TryExpression
+    #expect(tryExpr != nil)
+    #expect(tryExpr!.kind == .TryExclamation)
+    let variable = tryExpr!.expression as? AST.Variable
+    #expect(variable != nil)
+    #expect(variable!.name.value == "flag")
+}
+
+@Test func parseTryNested() {
+    let expr = firstExpression("try try foo()")
+    let outer = expr as? AST.TryExpression
+    #expect(outer != nil)
+    #expect(outer!.kind == .Try)
+    let inner = outer!.expression as? AST.TryExpression
+    #expect(inner != nil)
+    let call = inner!.expression as? AST.Call
+    #expect(call != nil)
+}
+
+@Test func parseTryMissingExpressionReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { try }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected expression after 'try'"))
+}
+
 @Test func parseEmptyModule() {
     let statements = parseStatements("module Foo {}")
     #expect(statements.count == 1)
