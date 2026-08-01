@@ -191,13 +191,15 @@ extension AST {
         public let token: Token
         public let body: [Statement]
         public let catches: [CatchClause]
+        public let finallyBody: [Statement]?
         public init(
             _ token: Token, _ body: [Statement], _ catches: [CatchClause],
-            sourceRange: SourceRange
+            _ finallyBody: [Statement]?, sourceRange: SourceRange
         ) {
             self.token = token
             self.body = body
             self.catches = catches
+            self.finallyBody = finallyBody
             super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

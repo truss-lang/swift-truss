@@ -536,6 +536,11 @@ extension AST {
                     visit(statement, additional: additional)
                 }
             }
+            if let finallyBody = doExpression.finallyBody {
+                for statement in finallyBody {
+                    visit(statement, additional: additional)
+                }
+            }
             return nil
         }
 

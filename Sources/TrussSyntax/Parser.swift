@@ -3791,8 +3791,48 @@ public final class Parser {
                 catches.append(catchClause)
             }
         }
+        var finallyBody: [AST.Statement]? = nil
+        if let finallyToken = peek, case .Keyword(.Finally) = finallyToken.kind {
+            index += 1
+            guard let openToken = peek else {
+                emitError("expected '{' after 'finally'", at: endOfFile)
+                return errorExpression(from: token, to: endOfFile)
+            }
+            guard case .Separator(.OpenBrace) = openToken.kind else {
+                emitError(
+                    "expected '{' after 'finally', but got '\(openToken.value)'",
+                    at: openToken
+                )
+                return errorExpression(from: token, to: openToken)
+            }
+            index += 1
+            var statements: [AST.Statement] = []
+            while let closeToken = peek {
+                if case .Separator(.CloseBrace) = closeToken.kind {
+                    break
+                }
+                if let stmt = parseStatement() {
+                    statements.append(stmt)
+                } else {
+                    break
+                }
+            }
+            guard let closeToken = peek else {
+                emitError("expected '}' after finally body", at: endOfFile)
+                return errorExpression(from: token, to: endOfFile)
+            }
+            if case .Separator(.CloseBrace) = closeToken.kind {
+                index += 1
+            } else {
+                emitError(
+                    "expected '}' after finally body, but got \(closeToken.value)",
+                    at: closeToken
+                )
+            }
+            finallyBody = statements
+        }
         return AST.Do(
-            token, body, catches,
+            token, body, catches, finallyBody,
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }

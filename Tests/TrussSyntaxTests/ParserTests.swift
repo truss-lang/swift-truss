@@ -1031,6 +1031,53 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(errors[0].message.contains("expected '{' after 'do'"))
 }
 
+@Test func parseDoFinallyAlone() {
+    let body = parseBlockStatements("func main() { do { } finally { } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let doExpr = exprStmt!.expression as? AST.Do
+    #expect(doExpr != nil)
+    #expect(doExpr!.catches.isEmpty)
+    #expect(doExpr!.finallyBody != nil)
+    #expect(doExpr!.finallyBody!.isEmpty)
+}
+
+@Test func parseDoCatchFinally() {
+    let body = parseBlockStatements("func main() { do { } catch { } finally { cleanup() } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let doExpr = exprStmt!.expression as? AST.Do
+    #expect(doExpr != nil)
+    #expect(doExpr!.catches.count == 1)
+    #expect(doExpr!.finallyBody?.count == 1)
+}
+
+@Test func parseDoCatchLetFinally() {
+    let body = parseBlockStatements("func main() { do { } catch let e { } finally { log(e) } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let doExpr = exprStmt!.expression as? AST.Do
+    #expect(doExpr != nil)
+    #expect(doExpr!.catches.count == 1)
+    let binding = doExpr!.catches[0].pattern as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "e")
+    #expect(doExpr!.finallyBody != nil)
+}
+
+@Test func parseDoWithoutFinally() {
+    let body = parseBlockStatements("func main() { do { } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let doExpr = exprStmt!.expression as? AST.Do
+    #expect(doExpr != nil)
+    #expect(doExpr!.finallyBody == nil)
+}
+
 @Test func parseEmptyModule() {
     let statements = parseStatements("module Foo {}")
     #expect(statements.count == 1)
