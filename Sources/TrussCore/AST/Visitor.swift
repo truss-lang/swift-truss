@@ -676,6 +676,14 @@ extension AST {
         }
 
         @discardableResult
+        open func visitAsPattern(
+            _ asPattern: AST.AsPattern, additional: Any? = nil
+        ) -> Any? {
+            visit(asPattern.pattern, additional: additional)
+            return visit(asPattern.typeExpression, additional: additional)
+        }
+
+        @discardableResult
         open func visitSequentialExpression(
             _ sequentialExpression: AST.SequentialExpression, additional: Any? = nil
         ) -> Any? {

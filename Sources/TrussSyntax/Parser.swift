@@ -3006,17 +3006,28 @@ public final class Parser {
                 }
                 suppressTrailingClosures = true
                 let right =
-                    parseExpression(isTypeContext: true)
+                    parseExpression(excepts: excepts, isTypeContext: true)
                     ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
                 suppressTrailingClosures = false
-                let cast = AST.CastExpression(
-                    left, token, right, kind,
-                    sourceRange: SourceRange(
-                        start: left.sourceRange.start,
-                        end: right.sourceRange.end
+                let result: AST.Expression
+                if inPatternContext && kind == .As {
+                    result = AST.AsPattern(
+                        left, token, right,
+                        sourceRange: SourceRange(
+                            start: left.sourceRange.start,
+                            end: right.sourceRange.end
+                        )
                     )
-                )
-                let postfixed = parsePostfix(cast, excepts: excepts)
+                } else {
+                    result = AST.CastExpression(
+                        left, token, right, kind,
+                        sourceRange: SourceRange(
+                            start: left.sourceRange.start,
+                            end: right.sourceRange.end
+                        )
+                    )
+                }
+                let postfixed = parsePostfix(result, excepts: excepts)
                 operands.append(postfixed)
                 lastIsExpression = true
             case .Operator(.Dollar) where !lastIsExpression:

@@ -454,6 +454,23 @@ extension AST {
             visitor.visitIsPattern(self, additional: additional)
         }
     }
+    public final class AsPattern: Expression {
+        public let pattern: Expression
+        public let token: Token
+        public let typeExpression: Expression
+        public init(
+            _ pattern: Expression, _ token: Token, _ typeExpression: Expression,
+            sourceRange: SourceRange
+        ) {
+            self.pattern = pattern
+            self.token = token
+            self.typeExpression = typeExpression
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitAsPattern(self, additional: additional)
+        }
+    }
     public final class SequentialExpression: Expression {
         public let ops: [Token]
         public let operands: [Expression]

@@ -4255,6 +4255,62 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(binding!.typeExpression == nil)
 }
 
+// MARK: - As Binding in Patterns
+
+@Test func parseMatchAsBindingPattern() {
+    let expr = firstExpression("match a { let x as Int32 -> x }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let asPattern = matchExpr!.cases[0].patterns[0] as? AST.AsPattern
+    #expect(asPattern != nil)
+    let binding = asPattern!.pattern as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "x")
+    let type = asPattern!.typeExpression as? AST.Variable
+    #expect(type != nil)
+    #expect(type!.name.value == "Int32")
+}
+
+@Test func parseIfCaseAsBindingPattern() {
+    let body = parseBlockStatements("func main() { if case let x as String = a {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let caseMatch = ifExpr!.condition as? AST.CaseMatch
+    #expect(caseMatch != nil)
+    let asPattern = caseMatch!.pattern as? AST.AsPattern
+    #expect(asPattern != nil)
+    let type = asPattern!.typeExpression as? AST.Variable
+    #expect(type != nil)
+    #expect(type!.name.value == "String")
+}
+
+@Test func parseWildcardAsBindingPattern() {
+    let expr = firstExpression("match a { _ as Int32 -> 1 }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let asPattern = matchExpr!.cases[0].patterns[0] as? AST.AsPattern
+    #expect(asPattern != nil)
+    #expect(asPattern!.pattern is AST.WildcardPattern)
+}
+
+@Test func parseAsExpressionStillCastExpression() {
+    let expr = firstExpression("x as Int32")
+    let cast = expr as? AST.CastExpression
+    #expect(cast != nil)
+    #expect(cast!.kind == .As)
+    #expect(!(expr is AST.AsPattern))
+}
+
+@Test func parseAsQuestionInPatternStaysCast() {
+    let expr = firstExpression("match a { let x as? Int32 -> x }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let cast = matchExpr!.cases[0].patterns[0] as? AST.CastExpression
+    #expect(cast != nil)
+    #expect(cast!.kind == .AsQuestion)
+}
+
 @Test func parseMatchWithBinding() {
     let expr = firstExpression("match a { .some(let x) -> x, .none -> 0 }")
     let matchExpr = expr as? AST.Match
