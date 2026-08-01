@@ -3688,6 +3688,83 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(decl!.parameters.count == 1)
 }
 
+// MARK: - Variadic Type
+
+@Test func parseFunctionDeclWithVariadicType() {
+    let statements = parseStatements("func foo(_ xs: Int...) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.parameters.count == 1)
+    let variadic = decl!.parameters[0].type as? AST.VariadicType
+    #expect(variadic != nil)
+    let base = variadic!.base as? AST.Variable
+    #expect(base != nil)
+    #expect(base!.name.value == "Int")
+    #expect(variadic!.token.kind == .Operator(.DotDotDot))
+}
+
+@Test func parseFunctionDeclWithLabeledVariadicType() {
+    let statements = parseStatements("func foo(items: Int32...) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    let variadic = decl!.parameters[0].type as? AST.VariadicType
+    #expect(variadic != nil)
+    let base = variadic!.base as? AST.Variable
+    #expect(base!.name.value == "Int32")
+}
+
+@Test func parseFunctionDeclWithTupleVariadicType() {
+    let statements = parseStatements("func foo(_ xs: (Int, String)...) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    let variadic = decl!.parameters[0].type as? AST.VariadicType
+    #expect(variadic != nil)
+    let tuple = variadic!.base as? AST.TupleExpression
+    #expect(tuple != nil)
+    #expect(tuple!.elements.count == 2)
+}
+
+@Test func parseVariableDeclWithVariadicType() {
+    let statements = parseStatements("let x: Int...")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    let variadic = decl!.typeExpression as? AST.VariadicType
+    #expect(variadic != nil)
+    let base = variadic!.base as? AST.Variable
+    #expect(base!.name.value == "Int")
+}
+
+@Test func parseEnumCaseWithVariadicType() {
+    let statements = parseStatements("enum E { case a(Int...) }")
+    let enumDecl = statements[0] as? AST.EnumDecl
+    #expect(enumDecl != nil)
+    let caseDecl = enumDecl!.body[0] as? AST.EnumCaseDecl
+    #expect(caseDecl != nil)
+    let variadic = caseDecl!.elements[0].associatedValues[0].typeExpression as? AST.VariadicType
+    #expect(variadic != nil)
+    let base = variadic!.base as? AST.Variable
+    #expect(base!.name.value == "Int")
+}
+
+@Test func parseRangeExpressionStillSequential() {
+    let statements = parseStatements("let r = 1...5")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    let seq = decl!.initializer as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops[0].kind == .Operator(.DotDotDot))
+    #expect(seq!.operands.count == 2)
+}
+
+@Test func parseFunctionDeclNonVariadicTypeUnaffected() {
+    let statements = parseStatements("func foo(_ xs: Int) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    let type = decl!.parameters[0].type as? AST.Variable
+    #expect(type != nil)
+    #expect(type!.name.value == "Int")
+}
+
 @Test func parseMemberAccessInteger() {
     let expr = firstExpression("tuple.0")
     let member = expr as? AST.MemberAccess

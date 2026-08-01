@@ -386,6 +386,18 @@ extension AST {
             visitor.visitOptionalType(self, additional: additional)
         }
     }
+    public final class VariadicType: Expression {
+        public let base: Expression
+        public let token: Token
+        public init(_ base: Expression, _ token: Token, sourceRange: SourceRange) {
+            self.base = base
+            self.token = token
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitVariadicType(self, additional: additional)
+        }
+    }
     public final class SomeType: Expression {
         public let token: Token
         public let wrappedType: Expression

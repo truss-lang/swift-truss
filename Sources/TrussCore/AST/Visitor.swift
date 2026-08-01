@@ -632,6 +632,13 @@ extension AST {
         }
 
         @discardableResult
+        open func visitVariadicType(
+            _ variadicType: AST.VariadicType, additional: Any? = nil
+        ) -> Any? {
+            return visit(variadicType.base, additional: additional)
+        }
+
+        @discardableResult
         open func visitSomeType(_ someType: AST.SomeType, additional: Any? = nil) -> Any? {
             return visit(someType.wrappedType, additional: additional)
         }
