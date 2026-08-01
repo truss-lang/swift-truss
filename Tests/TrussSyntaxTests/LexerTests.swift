@@ -475,3 +475,54 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[3].kind == .IntegerLiteral(42))
     #expect(tokens[4].kind == .FloatLiteral(3.14))
 }
+
+// MARK: - Edge Cases
+
+@Test func lexUnterminatedStringLiteral() {
+    let tokens = lex("\"abc")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].value == "abc")
+    #expect(!tokens[0].isUnterminated)
+}
+
+@Test func lexUnterminatedMultilineString() {
+    let tokens = lex("\"\"\"\nabc\n")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].value == "abc\n")
+}
+
+@Test func lexEmptyMultilineString() {
+    let tokens = lex("\"\"\"\"\"\"")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .StringLiteral)
+}
+
+@Test func lexSharpAlone() {
+    let tokens = lex("#")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .Separator(.Sharp))
+    #expect(tokens[0].value == "#")
+}
+
+@Test func lexSharpFollowedByBracket() {
+    let tokens = lex("#[")
+    #expect(tokens.count == 2)
+    #expect(tokens[0].kind == .Separator(.Sharp))
+    #expect(tokens[1].kind == .Separator(.OpenBracket))
+}
+
+@Test func lexStringWithInterpolationTokenSplit() {
+    let tokens = lex("\"a\\(b)\"")
+    #expect(tokens.count == 5)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].value == "a")
+    #expect(tokens[0].isUnterminated)
+    #expect(tokens[1].kind == .Separator(.OpenParen))
+    #expect(tokens[2].kind == .Identifier)
+    #expect(tokens[2].value == "b")
+    #expect(tokens[3].kind == .Separator(.CloseParen))
+    #expect(tokens[4].kind == .StringLiteral)
+    #expect(tokens[4].value == "")
+}

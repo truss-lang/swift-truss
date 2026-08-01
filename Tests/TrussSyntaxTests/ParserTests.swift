@@ -4868,3 +4868,981 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(typeExpr != nil)
     #expect(typeExpr!.name.value == "Int")
 }
+
+// MARK: - TypeAlias Declarations
+
+@Test func parseTypeAliasSimple() {
+    let statements = parseStatements("typealias Foo = Int32")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.TypeAliasDecl
+    #expect(decl != nil)
+    #expect(decl!.token.kind == .Keyword(.TypeAlias))
+    #expect(decl!.name.kind == .Identifier)
+    #expect(decl!.name.value == "Foo")
+    let typeVar = decl!.typeExpression as? AST.Variable
+    #expect(typeVar != nil)
+    #expect(typeVar!.name.value == "Int32")
+}
+
+@Test func parseTypeAliasWithGenericType() {
+    let statements = parseStatements("typealias Pair = (Int32, Int32)")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.TypeAliasDecl
+    #expect(decl != nil)
+    let tuple = decl!.typeExpression as? AST.TupleExpression
+    #expect(tuple != nil)
+    #expect(tuple!.elements.count == 2)
+}
+
+@Test func parseTypeAliasInStructBody() {
+    let statements = parseStatements("struct Foo { typealias Inner = Int32 }")
+    #expect(statements.count == 1)
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    #expect(structDecl!.body.count == 1)
+    let alias = structDecl!.body[0] as? AST.TypeAliasDecl
+    #expect(alias != nil)
+    #expect(alias!.name.value == "Inner")
+}
+
+@Test func parseTypeAliasMissingNameReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("typealias")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected type name after 'typealias'"))
+}
+
+@Test func parseTypeAliasNonIdentifierNameReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("typealias 123 = Int32")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected identifier after 'typealias'"))
+}
+
+@Test func parseTypeAliasMissingEqualReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("typealias Foo")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected '=' after type alias name"))
+}
+
+@Test func parseTypeAliasMissingTypeExpressionReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("typealias Foo =")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected type expression after '='"))
+}
+
+// MARK: - Extern Declarations
+
+@Test func parseExternDeclarationForm() {
+    let statements = parseStatements("extern \"C\" func foo() -> Int32")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ExternDecl
+    #expect(decl != nil)
+    #expect(decl!.token.kind == .Keyword(.Extern))
+    #expect(decl!.convention.value == "C")
+    if case .Declaration(let inner) = decl!.body {
+        let fd = inner as? AST.FunctionDecl
+        #expect(fd != nil)
+        #expect(fd!.name.value == "foo")
+    } else {
+        Issue.record("expected .Declaration body")
+    }
+}
+
+@Test func parseExternVariableDeclaration() {
+    let statements = parseStatements("extern \"C\" var errno: Int32")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ExternDecl
+    #expect(decl != nil)
+    if case .Declaration(let inner) = decl!.body {
+        let vd = inner as? AST.VariableDecl
+        #expect(vd != nil)
+        #expect(vd!.name.value == "errno")
+    } else {
+        Issue.record("expected .Declaration body")
+    }
+}
+
+@Test func parseExternBlockForm() {
+    let statements = parseStatements("extern \"C\" { func foo() func bar() }")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ExternDecl
+    #expect(decl != nil)
+    if case .Block(let body) = decl!.body {
+        #expect(body.count == 2)
+        let fd0 = body[0] as? AST.FunctionDecl
+        #expect(fd0 != nil)
+        #expect(fd0!.name.value == "foo")
+        let fd1 = body[1] as? AST.FunctionDecl
+        #expect(fd1 != nil)
+        #expect(fd1!.name.value == "bar")
+    } else {
+        Issue.record("expected .Block body")
+    }
+}
+
+@Test func parseExternBlockWithMixedDeclarations() {
+    let statements = parseStatements("extern \"C\" { let x = 1 var y: Int32 func foo() }")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ExternDecl
+    #expect(decl != nil)
+    if case .Block(let body) = decl!.body {
+        #expect(body.count == 3)
+        #expect(body[0] is AST.VariableDecl)
+        #expect(body[1] is AST.VariableDecl)
+        #expect(body[2] is AST.FunctionDecl)
+    } else {
+        Issue.record("expected .Block body")
+    }
+}
+
+@Test func parseExternMissingConventionReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("extern")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected calling convention after 'extern'"))
+}
+
+@Test func parseExternNonStringConventionReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("extern 123 func foo()")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected calling convention (string literal) after 'extern'"))
+}
+
+@Test func parseExternMissingBodyReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("extern \"C\"")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected '{' or declaration after extern calling convention"))
+}
+
+@Test func parseExternBlockUnterminatedReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("extern \"C\" { func foo()")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected '}' after extern body"))
+}
+
+// MARK: - Deinit Declarations
+
+@Test func parseDeinitEmptyBody() {
+    let statements = parseStatements("class Foo { deinit {} }")
+    #expect(statements.count == 1)
+    let classDecl = statements[0] as? AST.ClassDecl
+    #expect(classDecl != nil)
+    #expect(classDecl!.body.count == 1)
+    let deinitDecl = classDecl!.body[0] as? AST.DeinitDecl
+    #expect(deinitDecl != nil)
+    #expect(deinitDecl!.token.kind == .Keyword(.Deinit))
+    #expect(deinitDecl!.body.isEmpty)
+}
+
+@Test func parseDeinitWithBody() {
+    let statements = parseStatements("class Foo { deinit { cleanup() } }")
+    #expect(statements.count == 1)
+    let classDecl = statements[0] as? AST.ClassDecl
+    #expect(classDecl != nil)
+    let deinitDecl = classDecl!.body[0] as? AST.DeinitDecl
+    #expect(deinitDecl != nil)
+    #expect(deinitDecl!.body.count == 1)
+}
+
+@Test func parseDeinitMissingOpenBraceReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("class Foo { deinit }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected '{' after 'deinit'"))
+}
+
+@Test func parseDeinitNonBraceReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("class Foo { deinit 123 }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected '{' after 'deinit'") })
+}
+
+// MARK: - AssociatedType Declarations
+
+@Test func parseAssociatedTypeBare() {
+    let statements = parseStatements("protocol P { associatedtype T }")
+    #expect(statements.count == 1)
+    let protocolDecl = statements[0] as? AST.ProtocolDecl
+    #expect(protocolDecl != nil)
+    #expect(protocolDecl!.body.count == 1)
+    let assoc = protocolDecl!.body[0] as? AST.AssociatedTypeDecl
+    #expect(assoc != nil)
+    #expect(assoc!.token.kind == .Keyword(.AssociatedType))
+    #expect(assoc!.name.value == "T")
+    #expect(assoc!.constraint == nil)
+    #expect(assoc!.whereClause == nil)
+}
+
+@Test func parseAssociatedTypeWithConstraint() {
+    let statements = parseStatements("protocol P { associatedtype T: Equatable }")
+    #expect(statements.count == 1)
+    let protocolDecl = statements[0] as? AST.ProtocolDecl
+    #expect(protocolDecl != nil)
+    let assoc = protocolDecl!.body[0] as? AST.AssociatedTypeDecl
+    #expect(assoc != nil)
+    let constraint = assoc!.constraint as? AST.Variable
+    #expect(constraint != nil)
+    #expect(constraint!.name.value == "Equatable")
+    #expect(assoc!.whereClause == nil)
+}
+
+@Test func parseAssociatedTypeMissingNameReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("protocol P { associatedtype }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected identifier after 'associatedtype'"))
+}
+
+@Test func parseAssociatedTypeNonIdentifierReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("protocol P { associatedtype 123 }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected identifier after 'associatedtype'") })
+}
+
+// MARK: - Where Clause
+
+@Test func parseWhereClauseConformance() {
+    let statements = parseStatements("protocol P { associatedtype T where T: Equatable }")
+    #expect(statements.count == 1)
+    let protocolDecl = statements[0] as? AST.ProtocolDecl
+    #expect(protocolDecl != nil)
+    let assoc = protocolDecl!.body[0] as? AST.AssociatedTypeDecl
+    #expect(assoc != nil)
+    let whereClause = assoc!.whereClause
+    #expect(whereClause != nil)
+    #expect(whereClause!.count == 1)
+    let left = whereClause![0].left as? AST.Variable
+    #expect(left != nil)
+    #expect(left!.name.value == "T")
+    if case .conformance(let right) = whereClause![0].constraint {
+        let rightVar = right as? AST.Variable
+        #expect(rightVar != nil)
+        #expect(rightVar!.name.value == "Equatable")
+    } else {
+        Issue.record("expected conformance constraint")
+    }
+}
+
+@Test func parseWhereClauseEqualityCurrentlyUnsupported() throws {
+    let (_, errors) = parseWithDiagnostics("protocol P { associatedtype T where T == Int32 }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected ':' or '==' in where clause"))
+}
+
+@Test func parseWhereClauseMultipleRequirements() {
+    let statements = parseStatements(
+        "protocol P { associatedtype T where T: Equatable, T.Element: Hashable }")
+    #expect(statements.count == 1)
+    let protocolDecl = statements[0] as? AST.ProtocolDecl
+    #expect(protocolDecl != nil)
+    let assoc = protocolDecl!.body[0] as? AST.AssociatedTypeDecl
+    #expect(assoc != nil)
+    let whereClause = assoc!.whereClause
+    #expect(whereClause != nil)
+    #expect(whereClause!.count == 2)
+}
+
+@Test func parseWhereClauseMissingOperatorReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("protocol P { associatedtype T where T }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected ':' or '==' in where clause"))
+}
+
+@Test func parseWhereClauseSingleEqualReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("protocol P { associatedtype T where T = Int32 }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected ':' or '==' in where clause"))
+}
+
+// MARK: - Actor Declarations (extended)
+
+@Test func parseActorWithConformances() {
+    let statements = parseStatements("actor Foo: P, Q {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ActorDecl
+    #expect(decl != nil)
+    #expect(decl!.conformances.count == 2)
+    let p = decl!.conformances[0] as? AST.Variable
+    #expect(p != nil)
+    #expect(p!.name.value == "P")
+    let q = decl!.conformances[1] as? AST.Variable
+    #expect(q != nil)
+    #expect(q!.name.value == "Q")
+}
+
+@Test func parseActorWithGenericParameters() {
+    let statements = parseStatements("actor Foo<T> {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ActorDecl
+    #expect(decl != nil)
+    #expect(decl!.genericDecl != nil)
+    #expect(decl!.genericDecl!.generics.count == 1)
+    #expect(decl!.genericDecl!.generics[0].name.value == "T")
+}
+
+@Test func parseActorWithInitAndPropertyMembers() {
+    let statements = parseStatements("actor Foo { var x: Int init() {} func bar() {} }")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ActorDecl
+    #expect(decl != nil)
+    #expect(decl!.body.count == 3)
+    #expect(decl!.body[0] is AST.VariableDecl)
+    #expect(decl!.body[1] is AST.InitDecl)
+    #expect(decl!.body[2] is AST.FunctionDecl)
+}
+
+@Test func parseActorMissingNameReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("actor")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected actor name after 'actor'"))
+}
+
+@Test func parseActorNonIdentifierNameReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("actor 123 {}")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected identifier after 'actor', but got '123'"))
+}
+
+@Test func parseActorMissingOpenBraceReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("actor Foo")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected '{' in actor type"))
+}
+
+@Test func parseActorNonBraceReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("actor Foo 123")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected '{' in actor type, but got '123'"))
+}
+
+// MARK: - Subscript Declarations (extended)
+
+@Test func parseSubscriptDeclBasic() {
+    let statements = parseStatements("struct S { subscript(i: Int) -> Int { i } }")
+    #expect(statements.count == 1)
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let subDecl = structDecl!.body[0] as? AST.SubscriptDecl
+    #expect(subDecl != nil)
+    #expect(subDecl!.token.kind == .Keyword(.Subscript))
+    #expect(subDecl!.parameters.count == 1)
+    #expect(subDecl!.throwsClause == nil)
+    let returnType = subDecl!.returnType as? AST.Variable
+    #expect(returnType != nil)
+    #expect(returnType!.name.value == "Int")
+    #expect(subDecl!.body.count == 1)
+}
+
+@Test func parseSubscriptDeclNoParameters() {
+    let statements = parseStatements("struct S { subscript -> Int { 0 } }")
+    #expect(statements.count == 1)
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let subDecl = structDecl!.body[0] as? AST.SubscriptDecl
+    #expect(subDecl != nil)
+    #expect(subDecl!.parameters.isEmpty)
+}
+
+@Test func parseSubscriptDeclWithGetSetBody() {
+    let statements = parseStatements(
+        "struct S { subscript(i: Int) -> Int { get { i } set { _ = newValue } } }")
+    #expect(statements.count == 1)
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let subDecl = structDecl!.body[0] as? AST.SubscriptDecl
+    #expect(subDecl != nil)
+    #expect(subDecl!.body.count == 2)
+}
+
+@Test func parseSubscriptDeclMultipleParameters() {
+    let statements = parseStatements("struct S { subscript(row: Int, col: Int) -> Int { 0 } }")
+    #expect(statements.count == 1)
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let subDecl = structDecl!.body[0] as? AST.SubscriptDecl
+    #expect(subDecl != nil)
+    #expect(subDecl!.parameters.count == 2)
+    #expect(subDecl!.parameters[0].label?.value == "row")
+    #expect(subDecl!.parameters[1].label?.value == "col")
+}
+
+@Test func parseSubscriptDeclMissingArrowReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("struct S { subscript(i: Int) Int { 0 } }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected '->' after subscript parameters") })
+}
+
+@Test func parseSubscriptDeclMissingCloseParenReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("struct S { subscript(i: Int -> Int { 0 } }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected ')' after subscript parameters") })
+}
+
+// MARK: - Goto (extended)
+
+@Test func parseGotoNonIdentifierReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { goto 123 }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected identifier after 'goto', but got '123'"))
+}
+
+@Test func parseGotoMissingLabelReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { goto }")
+    try #require(errors.count >= 1)
+    #expect(errors[0].message.contains("expected identifier after 'goto'"))
+}
+
+// MARK: - For Case
+
+@Test func parseForCasePatternCurrentlyUnsupported() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { for case .foo(x) in arr {} }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected '=' after case pattern") })
+}
+
+@Test func parseForMissingInReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { for x {} }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected 'in' after for pattern"))
+}
+
+@Test func parseForMissingSequenceReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { for x in }")
+    try #require(errors.count >= 1)
+    #expect(errors[0].message.contains("expected '{' after for-in sequence"))
+}
+
+@Test func parseForMissingOpenBraceReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { for x in arr }")
+    try #require(errors.count >= 1)
+    #expect(errors[0].message.contains("expected '{' after for-in sequence"))
+}
+
+// MARK: - Failable Init
+
+@Test func parseFailableInit() {
+    let statements = parseStatements("struct S { init?() {} }")
+    #expect(statements.count == 1)
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let initDecl = structDecl!.body[0] as? AST.InitDecl
+    #expect(initDecl != nil)
+    #expect(initDecl!.optionalToken != nil)
+    #expect(initDecl!.optionalToken!.kind == .Operator(.QuestionMark))
+}
+
+@Test func parseFailableInitWithParameters() {
+    let statements = parseStatements("struct S { init?(x: Int) {} }")
+    #expect(statements.count == 1)
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let initDecl = structDecl!.body[0] as? AST.InitDecl
+    #expect(initDecl != nil)
+    #expect(initDecl!.optionalToken != nil)
+    #expect(initDecl!.parameters.count == 1)
+}
+
+// MARK: - Operator Function Declarations
+
+@Test func parseOperatorFunctionDeclaration() {
+    let statements = parseStatements("func +(a: Int32, b: Int32) -> Int32 { a }")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    if case .Operator = decl!.name.kind {
+    } else {
+        Issue.record("expected operator name")
+    }
+    #expect(decl!.name.value == "+")
+    #expect(decl!.parameters.count == 2)
+}
+
+@Test func parsePrefixOperatorFunctionDeclaration() {
+    let statements = parseStatements("func -(_ a: Int32) -> Int32 { a }")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    if case .Operator = decl!.name.kind {
+    } else {
+        Issue.record("expected operator name")
+    }
+    #expect(decl!.name.value == "-")
+    #expect(decl!.parameters.count == 1)
+}
+
+// MARK: - Generic Declarations (extended)
+
+@Test func parseClassWithGenericParameters() {
+    let statements = parseStatements("class Foo<T> {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ClassDecl
+    #expect(decl != nil)
+    #expect(decl!.genericDecl != nil)
+    #expect(decl!.genericDecl!.generics.count == 1)
+    #expect(decl!.genericDecl!.generics[0].name.value == "T")
+}
+
+@Test func parseProtocolWithGenericParameters() {
+    let statements = parseStatements("protocol Foo<T> {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ProtocolDecl
+    #expect(decl != nil)
+    #expect(decl!.genericDecl != nil)
+    #expect(decl!.genericDecl!.generics.count == 1)
+}
+
+@Test func parseGenericEachMissingNameReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("struct S<each> {}")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected identifier after 'each'") })
+}
+
+@Test func parseGenericMissingCloseAngleReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("struct S<T")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected '>' after generic parameters") })
+}
+
+@Test func parseGenericInvalidParameterReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("struct S<123> {}")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected generic parameter name"))
+}
+
+// MARK: - Closure Expressions (extended)
+
+@Test func parseEmptyClosure() {
+    let body = parseBlockStatements("func main() { let f = {} }")
+    #expect(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    let closure = vd!.initializer as? AST.Closure
+    #expect(closure != nil)
+    #expect(closure!.signature == nil)
+    #expect(closure!.body.isEmpty)
+}
+
+@Test func parseClosureSingleUnannotatedParameterHasNoSignature() {
+    let body = parseBlockStatements("func main() { { x in x } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let closure = exprStmt!.expression as? AST.Closure
+    #expect(closure != nil)
+    #expect(closure!.signature == nil)
+    #expect(closure!.body.count == 3)
+}
+
+@Test func parseClosureWithCaptureListCombined() {
+    let body = parseBlockStatements("func main() { { [weak a, unowned b] in a } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let closure = exprStmt!.expression as? AST.Closure
+    #expect(closure != nil)
+    let captureList = closure!.signature!.captureList
+    #expect(captureList.count == 2)
+    #expect(captureList[0].specifier?.value == "weak")
+    #expect(captureList[0].name.value == "a")
+    #expect(captureList[1].specifier?.value == "unowned")
+    #expect(captureList[1].name.value == "b")
+}
+
+@Test func parseClosureCaptureUnownedSelf() {
+    let body = parseBlockStatements("func main() { { [unowned self] in self } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let closure = exprStmt!.expression as? AST.Closure
+    #expect(closure != nil)
+    let captureList = closure!.signature!.captureList
+    #expect(captureList.count == 1)
+    #expect(captureList[0].specifier?.value == "unowned")
+    #expect(captureList[0].name.value == "self")
+}
+
+@Test func parseClosureFullSignature() {
+    let body = parseBlockStatements(
+        "func main() { { [weak self] (x: Int32) throws -> Int32 in x } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let closure = exprStmt!.expression as? AST.Closure
+    #expect(closure != nil)
+    let signature = closure!.signature
+    #expect(signature != nil)
+    #expect(signature!.captureList.count == 1)
+    #expect(signature!.parameters.count == 1)
+    #expect(signature!.throwsClause != nil)
+    #expect(signature!.returnType != nil)
+}
+
+@Test func parseClosureAsRegularArgument() {
+    let expr = firstExpression("foo({ 42 })")
+    let call = expr as? AST.Call
+    #expect(call != nil)
+    #expect(call!.arguments.count == 1)
+    let closure = call!.arguments[0].value as? AST.Closure
+    #expect(closure != nil)
+}
+
+@Test func parseNestedClosure() {
+    let body = parseBlockStatements("func main() { { { 1 } } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let outer = exprStmt!.expression as? AST.Closure
+    #expect(outer != nil)
+    #expect(outer!.body.count == 1)
+    let innerStmt = outer!.body[0] as? AST.ExpressionStatement
+    let inner = innerStmt!.expression as? AST.Closure
+    #expect(inner != nil)
+}
+
+@Test func parseClosureMissingInReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { { (x: Int32) 42 } }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected 'in' after closure signature"))
+}
+
+@Test func parseCaptureListMissingIdentifierReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { { [weak] in 1 } }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected identifier in capture list"))
+}
+
+@Test func parseCaptureListMissingCloseBracketReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { { [weak a in 1 } }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected ']' after capture list"))
+}
+
+// MARK: - Closure Types (extended)
+
+@Test func parseClosureTypeInVariableAnnotation() {
+    let body = parseBlockStatements("func main() { let f: (Int32) -> Int32 = g }")
+    #expect(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    let closureType = vd!.typeExpression as? AST.ClosureType
+    #expect(closureType != nil)
+    let returnType = closureType!.returnType as? AST.Variable
+    #expect(returnType != nil)
+    #expect(returnType!.name.value == "Int32")
+}
+
+@Test func parseClosureTypeInFunctionReturnType() {
+    let statements = parseStatements("func make() -> (Int32) -> Int32")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    let closureType = decl!.returnTypeExpression as? AST.ClosureType
+    #expect(closureType != nil)
+}
+
+@Test func parseClosureTypeInParameter() {
+    let statements = parseStatements("func apply(f: (Int32) -> Int32) {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.parameters.count == 1)
+    let closureType = decl!.parameters[0].type as? AST.ClosureType
+    #expect(closureType != nil)
+}
+
+// MARK: - String Interpolation (error paths)
+
+@Test func parseStringInterpolationComplexExpression() {
+    let expr = firstExpression("\"result: \\(1 + 2)\"")
+    let interp = expr as? AST.StringInterpolation
+    #expect(interp != nil)
+    #expect(interp!.segments.count == 3)
+    guard case .expression(let e) = interp!.segments[1] else {
+        Issue.record("expected expression segment")
+        return
+    }
+    let seq = e as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops.count == 1)
+    #expect(seq!.ops[0].kind == .Operator(.Plus))
+}
+
+@Test func parseStringInterpolationNestedCurrentlyUnsupported() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { let s = \"\\(foo(\\(bar)))\" }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected ')' after interpolation expression") })
+}
+
+@Test func parseStringInterpolationMissingCloseParenReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { let s = \"\\(x\" }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected ')' after interpolation expression") })
+}
+
+@Test func parseStringEscapeWithoutInterpolationIsPlainLiteral() {
+    let (_, errors) = parseWithDiagnostics("func main() { let s = \"\\x\" }")
+    #expect(errors.isEmpty)
+    let expr = firstExpression("\"\\x\"")
+    let lit = expr as? AST.StringLiteral
+    #expect(lit != nil)
+}
+
+// MARK: - Modifiers (extended)
+
+@Test func parseNonmutatingModifierOnFunction() {
+    let statements = parseStatements("nonmutating func foo() {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Nonmutating))
+}
+
+@Test func parseConvenienceModifierOnInit() {
+    let statements = parseStatements("struct S { convenience init() {} }")
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let initDecl = structDecl!.body[0] as? AST.InitDecl
+    #expect(initDecl != nil)
+    #expect(modifierKind(initDecl!.modifiers[0].kind, equals: .Convenience))
+}
+
+@Test func parseWeakModifierOnVariable() {
+    let statements = parseStatements("weak var ref: AnyObject")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Weak))
+}
+
+@Test func parseUnownedModifierOnVariable() {
+    let statements = parseStatements("unowned var ref: AnyObject")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Unowned))
+}
+
+@Test func parseAbstractModifierOnClass() {
+    let statements = parseStatements("abstract class Foo {}")
+    let decl = statements[0] as? AST.ClassDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Abstract))
+}
+
+@Test func parseOpenSetModifierOnVariable() {
+    let statements = parseStatements("open(set) var x: Int")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Open(setter: true)))
+}
+
+@Test func parseInternalSetModifierOnVariable() {
+    let statements = parseStatements("internal(set) var x: Int")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Internal(setter: true)))
+}
+
+@Test func parseFilePrivateSetModifierOnVariable() {
+    let statements = parseStatements("fileprivate(set) var x: Int")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .FilePrivate(setter: true)))
+}
+
+@Test func parsePackagePrivateSetModifierOnVariable() {
+    let statements = parseStatements("packageprivate(set) var x: Int")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .PackagePrivate(setter: true)))
+}
+
+@Test func parseProtectedModifierOnClass() {
+    let statements = parseStatements("protected class Foo {}")
+    let decl = statements[0] as? AST.ClassDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Protected(setter: false)))
+}
+
+// MARK: - Attributes (error paths)
+
+@Test func parseAttributeMissingCloseBracketReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("#[foo struct Foo {}")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected '(' or ']' after attribute name"))
+}
+
+// MARK: - Function Parameter (error paths)
+
+@Test func parseParameterMissingColonReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func foo(a Int) {}")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected ':' after parameter name"))
+}
+
+@Test func parseParameterNonIdentifierReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func foo(123: Int) {}")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected identifier in parameter") })
+}
+
+// MARK: - Repeat-While (error paths)
+
+@Test func parseRepeatWhileMissingWhileReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { repeat {} 123 }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected 'while' after '}'"))
+}
+
+@Test func parseRepeatWhileMissingOpenBraceReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { repeat 123 }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected '{' after 'repeat'"))
+}
+
+@Test func parseRepeatWhileMissingCloseBraceReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { repeat { while true }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected '}' after repeat body") })
+}
+
+// MARK: - Optional Binding (error paths)
+
+@Test func parseOptionalBindingMissingEqualReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { if let x {} }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected '=' in optional binding"))
+}
+
+@Test func parseOptionalBindingMissingNameReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { if let {} }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected identifier after 'let'") })
+}
+
+// MARK: - Case Match (error paths)
+
+@Test func parseCaseMatchMissingEqualReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { if case .foo {} }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected '=' after case pattern") })
+}
+
+// MARK: - Match Case (error paths)
+
+@Test func parseMatchMissingOpenBraceReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { match x }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected '{' after match subject") })
+}
+
+@Test func parseMatchCaseMissingArrowReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { match x { 1 } }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected '=>' after match case pattern") })
+}
+
+// MARK: - Call / Subscript (error paths)
+
+@Test func parseCallMissingCloseParenReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { foo(1 }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected ')' after call arguments") })
+}
+
+@Test func parseSubscriptMissingCloseBracketReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { arr[1 }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected ']' after subscript arguments") })
+}
+
+// MARK: - Collection Literal (error paths)
+
+@Test func parseArrayLiteralMissingCloseBracketReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { [1, 2 }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected ']' after array literal") })
+}
+
+@Test func parseDictionaryLiteralMissingColonReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { [1: 2, 3 4] }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected ':' in dictionary entry") })
+}
+
+// MARK: - SourceRange (extended)
+
+@Test func sourceRangeIfExpression() {
+    let expr = firstExpression("if x { y }")
+    let range = expr.sourceRange
+    #expect(range.start.offset == 14)
+    #expect(range.end.offset == 24)
+}
+
+@Test func sourceRangeDoCatchExpression() {
+    let expr = firstExpression("do { x } catch { y }")
+    let range = expr.sourceRange
+    #expect(range.start.offset == 14)
+    #expect(range.end.offset == 34)
+}
+
+@Test func sourceRangeMatchExpression() {
+    let expr = firstExpression("match x { 1 -> 2 }")
+    let range = expr.sourceRange
+    #expect(range.start.offset == 14)
+    #expect(range.end.offset == 32)
+}
+
+@Test func sourceRangeClosure() {
+    let body = parseBlockStatements("func main() { let f = { 42 } }")
+    let vd = body[0] as! AST.VariableDecl
+    let range = vd.initializer!.sourceRange
+    #expect(range.start.offset == 22)
+    #expect(range.end.offset == 28)
+}
+
+@Test func sourceRangeStringInterpolation() {
+    let body = parseBlockStatements("func main() { let s = \"hi \\(x)\" }")
+    let vd = body[0] as! AST.VariableDecl
+    let range = vd.initializer!.sourceRange
+    #expect(range.start.offset == 22)
+    #expect(range.end.offset == 31)
+}
+
+@Test func sourceRangeSubscriptExpression() {
+    let expr = firstExpression("arr[0]")
+    let range = expr.sourceRange
+    #expect(range.start.offset == 14)
+    #expect(range.end.offset == 20)
+}
+
+@Test func sourceRangeGenericDecl() {
+    let statements = parseStatements("struct S<T> {}")
+    let structDecl = statements[0] as! AST.StructDecl
+    let range = structDecl.genericDecl!.sourceRange
+    #expect(range.start.offset == 8)
+    #expect(range.end.offset == 11)
+}
+
+@Test func sourceRangeThrowsClause() {
+    let statements = parseStatements("func f() throws -> Int32")
+    let decl = statements[0] as! AST.FunctionDecl
+    let range = decl.throwsClause!.sourceRange
+    #expect(range.start.offset == 9)
+    #expect(range.end.offset == 15)
+}
+
+@Test func sourceRangeEnumCaseDecl() {
+    let statements = parseStatements("enum E { case a, b(Int32) }")
+    let enumDecl = statements[0] as! AST.EnumDecl
+    let caseDecl = enumDecl.body[0] as! AST.EnumCaseDecl
+    let range = caseDecl.sourceRange
+    #expect(range.start.offset == 9)
+    #expect(range.end.offset == 25)
+}
+
+@Test func sourceRangeAccessor() {
+    let statements = parseStatements("struct S { var x: Int { get { x } set { _ = newValue } } }")
+    let structDecl = statements[0] as! AST.StructDecl
+    let vd = structDecl.body[0] as! AST.VariableDecl
+    let range = vd.accessors[0].sourceRange
+    #expect(range.start.offset == 24)
+    #expect(range.end.offset == 33)
+}
+
+@Test func sourceRangeSubscriptDecl() {
+    let statements = parseStatements("struct S { subscript(i: Int) -> Int { 0 } }")
+    let structDecl = statements[0] as! AST.StructDecl
+    let subDecl = structDecl.body[0] as! AST.SubscriptDecl
+    let range = subDecl.sourceRange
+    #expect(range.start.offset == 11)
+    #expect(range.end.offset == 41)
+}
