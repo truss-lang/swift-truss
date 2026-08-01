@@ -3765,6 +3765,50 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(type!.name.value == "Int")
 }
 
+// MARK: - C-Style Vararg
+
+@Test func parseFunctionDeclWithCStyleVararg() {
+    let statements = parseStatements("func f(i: Int32, ...) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.parameters.count == 1)
+    #expect(decl!.parameters[0].name.value == "i")
+    #expect(decl!.varargToken != nil)
+    #expect(decl!.varargToken!.kind == .Operator(.DotDotDot))
+}
+
+@Test func parseFunctionDeclBareVararg() {
+    let statements = parseStatements("func f(...) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.parameters.count == 0)
+    #expect(decl!.varargToken != nil)
+}
+
+@Test func parseFunctionDeclWithoutVararg() {
+    let statements = parseStatements("func f(i: Int32) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.varargToken == nil)
+}
+
+@Test func parseFunctionDeclCStyleVarargAfterSwiftVariadic() {
+    let statements = parseStatements("func f(_ xs: Int..., ...) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.parameters.count == 1)
+    let variadic = decl!.parameters[0].type as? AST.VariadicType
+    #expect(variadic != nil)
+    #expect(decl!.varargToken != nil)
+}
+
+@Test func parseSwiftVariadicDoesNotSetVarargToken() {
+    let statements = parseStatements("func f(_ xs: Int...) {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.varargToken == nil)
+}
+
 @Test func parseMemberAccessInteger() {
     let expr = firstExpression("tuple.0")
     let member = expr as? AST.MemberAccess

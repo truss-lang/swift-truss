@@ -1904,10 +1904,16 @@ public final class Parser {
         }
         index += 1
         var parameters: [AST.FunctionDecl.Parameter] = []
+        var varargToken: Token? = nil
         if let t2 = peek, case .Separator(.CloseParen) = t2.kind {
             index += 1
         } else {
             _paramLoop: while true {
+                if let t = peek, case .Operator(.DotDotDot) = t.kind {
+                    index += 1
+                    varargToken = t
+                    break _paramLoop
+                }
                 let param = parseFunctionParameter()
                 parameters.append(param)
                 if let comma = peek, case .Separator(.Comma) = comma.kind {
@@ -1978,8 +1984,8 @@ public final class Parser {
             body = nil
         }
         return AST.FunctionDecl(
-            modifiers, attributes, token, name, parameters, throwsClause, returnTypeExpression,
-            body, sourceRange: SourceRange(from: token, to: last!, in: buffer)
+            modifiers, attributes, token, name, parameters, varargToken, throwsClause,
+            returnTypeExpression, body, sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
 

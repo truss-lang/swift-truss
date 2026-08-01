@@ -433,18 +433,21 @@ extension AST {
         public let token: Token
         public let name: Token
         public let parameters: [Parameter]
+        public let varargToken: Token?
         public let throwsClause: ThrowsClause?
         public let returnTypeExpression: Expression?
         public let body: Body?
         public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ parameters: [Parameter], _ throwsClause: ThrowsClause?,
-            _ returnTypeExpression: Expression?, _ body: Body?, sourceRange: SourceRange
+            _ name: Token, _ parameters: [Parameter], _ varargToken: Token?,
+            _ throwsClause: ThrowsClause?, _ returnTypeExpression: Expression?, _ body: Body?,
+            sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
             self.parameters = parameters
+            self.varargToken = varargToken
             self.throwsClause = throwsClause
             self.returnTypeExpression = returnTypeExpression
             self.body = body
