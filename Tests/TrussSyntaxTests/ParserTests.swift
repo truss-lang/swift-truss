@@ -893,6 +893,144 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(closure!.signature?.throwsClause?.types?.count == 1)
 }
 
+@Test func parseDoAlone() {
+    let body = parseBlockStatements("func main() { do { } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let doExpr = exprStmt!.expression as? AST.Do
+    #expect(doExpr != nil)
+    #expect(doExpr!.token.kind == .Keyword(.Do))
+    #expect(doExpr!.body.isEmpty)
+    #expect(doExpr!.catches.isEmpty)
+}
+
+@Test func parseDoWithBody() {
+    let body = parseBlockStatements("func main() { do { foo() } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let doExpr = exprStmt!.expression as? AST.Do
+    #expect(doExpr != nil)
+    #expect(doExpr!.body.count == 1)
+    #expect(doExpr!.catches.isEmpty)
+}
+
+@Test func parseDoCatchBare() {
+    let body = parseBlockStatements("func main() { do { } catch { } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let doExpr = exprStmt!.expression as? AST.Do
+    #expect(doExpr != nil)
+    #expect(doExpr!.catches.count == 1)
+    #expect(doExpr!.catches[0].pattern == nil)
+    #expect(doExpr!.catches[0].whereCondition == nil)
+}
+
+@Test func parseDoCatchLetBinding() {
+    let body = parseBlockStatements("func main() { do { } catch let e { } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let doExpr = exprStmt!.expression as? AST.Do
+    #expect(doExpr != nil)
+    let catchClause = doExpr!.catches[0]
+    let binding = catchClause.pattern as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "e")
+}
+
+@Test func parseDoCatchQualifiedPattern() {
+    let body = parseBlockStatements("func main() { do { } catch E.bad { } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let doExpr = exprStmt!.expression as? AST.Do
+    #expect(doExpr != nil)
+    let catchClause = doExpr!.catches[0]
+    let memberAccess = catchClause.pattern as? AST.MemberAccess
+    #expect(memberAccess != nil)
+    #expect(memberAccess!.member.value == "bad")
+}
+
+@Test func parseDoCatchImplicitPattern() {
+    let body = parseBlockStatements("func main() { do { } catch .bad { } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let doExpr = exprStmt!.expression as? AST.Do
+    #expect(doExpr != nil)
+    let catchClause = doExpr!.catches[0]
+    let implicit = catchClause.pattern as? AST.ImplicitMemberAccess
+    #expect(implicit != nil)
+    #expect(implicit!.name.value == "bad")
+}
+
+@Test func parseDoCatchWildcard() {
+    let body = parseBlockStatements("func main() { do { } catch _ { } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let doExpr = exprStmt!.expression as? AST.Do
+    #expect(doExpr != nil)
+    let catchClause = doExpr!.catches[0]
+    #expect(catchClause.pattern is AST.WildcardPattern)
+}
+
+@Test func parseDoCatchWhereOnly() {
+    let body = parseBlockStatements("func main() { do { } catch where cond { } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let doExpr = exprStmt!.expression as? AST.Do
+    #expect(doExpr != nil)
+    let catchClause = doExpr!.catches[0]
+    #expect(catchClause.pattern == nil)
+    #expect(catchClause.whereToken != nil)
+    #expect(catchClause.whereCondition != nil)
+}
+
+@Test func parseDoCatchPatternWithWhere() {
+    let body = parseBlockStatements("func main() { do { } catch let e where cond { } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let doExpr = exprStmt!.expression as? AST.Do
+    #expect(doExpr != nil)
+    let catchClause = doExpr!.catches[0]
+    let binding = catchClause.pattern as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "e")
+    #expect(catchClause.whereCondition != nil)
+}
+
+@Test func parseDoMultipleCatches() {
+    let body = parseBlockStatements("func main() { do { } catch A { } catch B { } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let doExpr = exprStmt!.expression as? AST.Do
+    #expect(doExpr != nil)
+    #expect(doExpr!.catches.count == 2)
+}
+
+@Test func parseDoAsExpressionValue() {
+    let body = parseBlockStatements("func main() { let x = do { 1 } }")
+    #expect(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    let doExpr = vd!.initializer as? AST.Do
+    #expect(doExpr != nil)
+    #expect(doExpr!.body.count == 1)
+}
+
+@Test func parseDoMissingOpenBraceReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { do }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected '{' after 'do'"))
+}
+
 @Test func parseEmptyModule() {
     let statements = parseStatements("module Foo {}")
     #expect(statements.count == 1)

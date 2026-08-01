@@ -3186,6 +3186,8 @@ public final class Parser {
                 expression = AST.SuperExpression(token, sourceRange: token.sourceRange(in: buffer))
             case .If:
                 expression = parseIf()
+            case .Do:
+                expression = parseDo()
             case .Match:
                 expression = parseMatch()
             case .Let, .Var:
@@ -3745,6 +3747,122 @@ public final class Parser {
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
     }
+
+    private func parseDo() -> AST.Expression {
+        let token = next!
+        guard let openToken = peek else {
+            emitError("expected '{' after 'do'", at: endOfFile)
+            return errorExpression(from: token, to: endOfFile)
+        }
+        guard case .Separator(.OpenBrace) = openToken.kind else {
+            emitError(
+                "expected '{' after 'do', but got '\(openToken.value)'",
+                at: openToken
+            )
+            return errorExpression(from: token, to: openToken)
+        }
+        index += 1
+        var body: [AST.Statement] = []
+        while let closeToken = peek {
+            if case .Separator(.CloseBrace) = closeToken.kind {
+                break
+            }
+            if let stmt = parseStatement() {
+                body.append(stmt)
+            } else {
+                break
+            }
+        }
+        guard let closeToken = peek else {
+            emitError("expected '}' after do body", at: endOfFile)
+            return errorExpression(from: token, to: endOfFile)
+        }
+        if case .Separator(.CloseBrace) = closeToken.kind {
+            index += 1
+        } else {
+            emitError(
+                "expected '}' after do body, but got \(closeToken.value)",
+                at: closeToken
+            )
+        }
+        var catches: [AST.Do.CatchClause] = []
+        while let t = peek, case .Keyword(.Catch) = t.kind {
+            if let catchClause = parseCatchClause() {
+                catches.append(catchClause)
+            }
+        }
+        return AST.Do(
+            token, body, catches,
+            sourceRange: SourceRange(from: token, to: last!, in: buffer)
+        )
+    }
+
+    private func parseCatchClause() -> AST.Do.CatchClause? {
+        let beginToken = next!
+        var pattern: AST.Expression? = nil
+        var whereToken: Token? = nil
+        var whereCondition: AST.Expression? = nil
+        if let t = peek, case .Separator(.OpenBrace) = t.kind {
+        } else if let t = peek, case .Keyword(.Where) = t.kind {
+            whereToken = t
+            index += 1
+            suppressTrailingClosures = true
+            whereCondition = parseExpression() ?? errorExpression(from: t, to: t)
+            suppressTrailingClosures = false
+        } else {
+            inPatternContext = true
+            suppressTrailingClosures = true
+            pattern = parseExpression() ?? errorExpression(from: beginToken, to: beginToken)
+            inPatternContext = false
+            suppressTrailingClosures = false
+            if let t = peek, case .Keyword(.Where) = t.kind {
+                whereToken = t
+                index += 1
+                suppressTrailingClosures = true
+                whereCondition = parseExpression() ?? errorExpression(from: t, to: t)
+                suppressTrailingClosures = false
+            }
+        }
+        guard let openToken = next else {
+            emitError("expected '{' after catch clause", at: endOfFile)
+            return nil
+        }
+        guard case .Separator(.OpenBrace) = openToken.kind else {
+            emitError(
+                "expected '{' after catch clause, but got '\(openToken.value)'",
+                at: openToken
+            )
+            return nil
+        }
+        var catchBody: [AST.Statement] = []
+        while let closeToken = peek {
+            if case .Separator(.CloseBrace) = closeToken.kind {
+                break
+            }
+            if let stmt = parseStatement() {
+                catchBody.append(stmt)
+            } else {
+                break
+            }
+        }
+        guard let closeToken = peek else {
+            emitError("expected '}' after catch body", at: endOfFile)
+            return nil
+        }
+        if case .Separator(.CloseBrace) = closeToken.kind {
+            index += 1
+        } else {
+            emitError(
+                "expected '}' after catch body, but got \(closeToken.value)",
+                at: closeToken
+            )
+        }
+        return AST.Do.CatchClause(
+            pattern, whereToken, whereCondition, catchBody,
+            sourceRange: SourceRange(from: beginToken, to: closeToken, in: buffer)
+        )
+    }
+
     private func parseMatch() -> AST.Expression {
         let token = next!
         suppressTrailingClosures = true

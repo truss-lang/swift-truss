@@ -521,6 +521,25 @@ extension AST {
         }
 
         @discardableResult
+        open func visitDo(_ doExpression: AST.Do, additional: Any? = nil) -> Any? {
+            for statement in doExpression.body {
+                visit(statement, additional: additional)
+            }
+            for catchClause in doExpression.catches {
+                if let pattern = catchClause.pattern {
+                    visit(pattern, additional: additional)
+                }
+                if let whereCondition = catchClause.whereCondition {
+                    visit(whereCondition, additional: additional)
+                }
+                for statement in catchClause.body {
+                    visit(statement, additional: additional)
+                }
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitCall(
             _ call: AST.Call, additional: Any? = nil
         ) -> Any? {

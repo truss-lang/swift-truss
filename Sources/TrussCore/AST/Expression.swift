@@ -187,6 +187,40 @@ extension AST {
             }
         }
     }
+    public final class Do: Expression {
+        public let token: Token
+        public let body: [Statement]
+        public let catches: [CatchClause]
+        public init(
+            _ token: Token, _ body: [Statement], _ catches: [CatchClause],
+            sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.body = body
+            self.catches = catches
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitDo(self, additional: additional)
+        }
+        public struct CatchClause {
+            public let pattern: Expression?
+            public let whereToken: Token?
+            public let whereCondition: Expression?
+            public let body: [Statement]
+            public let sourceRange: SourceRange
+            public init(
+                _ pattern: Expression?, _ whereToken: Token?, _ whereCondition: Expression?,
+                _ body: [Statement], sourceRange: SourceRange
+            ) {
+                self.pattern = pattern
+                self.whereToken = whereToken
+                self.whereCondition = whereCondition
+                self.body = body
+                self.sourceRange = sourceRange
+            }
+        }
+    }
     public struct LabeledArgument {
         public let label: Token?
         public let value: Expression
