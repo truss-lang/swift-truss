@@ -395,15 +395,17 @@ extension AST {
     public final class InitDecl: Decl {
         public let token: Token
         public let optionalToken: Token?
+        public let parameters: [FunctionDecl.Parameter]
         public let throwsClause: ThrowsClause?
         public let body: [Statement]
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ optionalToken: Token?, _ throwsClause: ThrowsClause?, _ body: [Statement],
-            sourceRange: SourceRange
+            _ optionalToken: Token?, _ parameters: [FunctionDecl.Parameter],
+            _ throwsClause: ThrowsClause?, _ body: [Statement], sourceRange: SourceRange
         ) {
             self.token = token
             self.optionalToken = optionalToken
+            self.parameters = parameters
             self.throwsClause = throwsClause
             self.body = body
             super.init(modifiers, attributes, sourceRange)

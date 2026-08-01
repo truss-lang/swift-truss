@@ -796,6 +796,51 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(initDecl!.throwsClause?.types?.count == 1)
 }
 
+@Test func parseInitWithParameters() {
+    let statements = parseStatements("struct S { init(x: Int) {} }")
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let initDecl = structDecl!.body[0] as? AST.InitDecl
+    #expect(initDecl != nil)
+    #expect(initDecl!.parameters.count == 1)
+    #expect(initDecl!.parameters[0].name.value == "x")
+    #expect(initDecl!.parameters[0].type != nil)
+}
+
+@Test func parseInitWithLabelAndDefaultValue() {
+    let statements = parseStatements("struct S { init(_ a: Int, b: Int = 42) {} }")
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let initDecl = structDecl!.body[0] as? AST.InitDecl
+    #expect(initDecl != nil)
+    #expect(initDecl!.parameters.count == 2)
+    #expect(initDecl!.parameters[0].label == nil)
+    #expect(initDecl!.parameters[0].name.value == "a")
+    #expect(initDecl!.parameters[1].label?.value == "b")
+    #expect(initDecl!.parameters[1].name.value == "b")
+    #expect(initDecl!.parameters[1].defaultValue != nil)
+}
+
+@Test func parseInitWithParametersAndThrows() {
+    let statements = parseStatements("struct S { init(x: Int) throws(E) {} }")
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let initDecl = structDecl!.body[0] as? AST.InitDecl
+    #expect(initDecl != nil)
+    #expect(initDecl!.parameters.count == 1)
+    #expect(initDecl!.parameters[0].name.value == "x")
+    #expect(initDecl!.throwsClause?.types?.count == 1)
+}
+
+@Test func parseInitWithTrailingComma() {
+    let statements = parseStatements("struct S { init(x: Int,) {} }")
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let initDecl = structDecl!.body[0] as? AST.InitDecl
+    #expect(initDecl != nil)
+    #expect(initDecl!.parameters.count == 1)
+}
+
 @Test func parseSubscriptThrowsClause() {
     let statements = parseStatements("struct S { subscript(i: Int) throws -> Int { i } }")
     let structDecl = statements[0] as? AST.StructDecl

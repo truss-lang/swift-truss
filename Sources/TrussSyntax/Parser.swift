@@ -1689,14 +1689,30 @@ public final class Parser {
             return errorStatement(from: token, to: t1)
         }
         index += 1
-        guard let t2 = peek else {
-            emitError("expected ')' after initializer parameters", at: endOfFile)
-            return errorStatement(from: token, to: endOfFile)
-        }
-        if case .Separator(.CloseParen) = t2.kind {
+        var parameters: [AST.FunctionDecl.Parameter] = []
+        if let t2 = peek, case .Separator(.CloseParen) = t2.kind {
             index += 1
         } else {
-            emitError("expected ')' after initializer parameters, but got '\(t2.value)'", at: t2)
+            _paramLoop: while true {
+                let param = parseFunctionParameter()
+                parameters.append(param)
+                if let comma = peek, case .Separator(.Comma) = comma.kind {
+                    index += 1
+                    if let cp = peek, case .Separator(.CloseParen) = cp.kind {
+                        break _paramLoop
+                    }
+                } else {
+                    break _paramLoop
+                }
+            }
+            if let t = peek, case .Separator(.CloseParen) = t.kind {
+                index += 1
+            } else if let t = peek {
+                emitError(
+                    "expected ')' after initializer parameters, but got '\(t.value)'", at: t)
+            } else {
+                emitError("expected ')' after initializer parameters", at: endOfFile)
+            }
         }
         let throwsClause = parseThrowsClause()
         guard let t3 = peek else {
@@ -1732,7 +1748,7 @@ public final class Parser {
             emitError("expected '}' after initializer body", at: endOfFile)
         }
         return AST.InitDecl(
-            modifiers, attributes, token, optionalToken, throwsClause, body,
+            modifiers, attributes, token, optionalToken, parameters, throwsClause, body,
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }

@@ -229,6 +229,14 @@ extension AST {
         open func visitInitDecl(
             _ initDecl: AST.InitDecl, additional: Any? = nil
         ) -> Any? {
+            for parameter in initDecl.parameters {
+                if let type = parameter.type {
+                    visit(type, additional: additional)
+                }
+                if let defaultValue = parameter.defaultValue {
+                    visit(defaultValue, additional: additional)
+                }
+            }
             if let types = initDecl.throwsClause?.types {
                 for type in types {
                     visit(type, additional: additional)
