@@ -639,9 +639,11 @@ extension AST {
     public final class BindingPattern: Expression {
         public let token: Token
         public let name: Token
-        public init(_ token: Token, _ name: Token, sourceRange: SourceRange) {
+        public let subpattern: Expression?
+        public init(_ token: Token, _ name: Token, _ subpattern: Expression?, sourceRange: SourceRange) {
             self.token = token
             self.name = name
+            self.subpattern = subpattern
             super.init(sourceRange)
         }
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

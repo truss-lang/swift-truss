@@ -4092,6 +4092,78 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 // MARK: - Match with Bindings
 
+@Test func parseMatchAtBindingPattern() {
+    let expr = firstExpression("match a { let x @ .some -> x }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let binding = matchExpr!.cases[0].patterns[0] as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "x")
+    let subpattern = binding!.subpattern as? AST.ImplicitMemberAccess
+    #expect(subpattern != nil)
+    #expect(subpattern!.name.value == "some")
+}
+
+@Test func parseMatchAtBindingWithArguments() {
+    let expr = firstExpression("match a { let x @ .some(let y) -> x }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let binding = matchExpr!.cases[0].patterns[0] as? AST.BindingPattern
+    #expect(binding != nil)
+    let call = binding!.subpattern as? AST.Call
+    #expect(call != nil)
+    let inner = call!.arguments[0].value as? AST.BindingPattern
+    #expect(inner != nil)
+    #expect(inner!.name.value == "y")
+}
+
+@Test func parseIfCaseAtBindingPattern() {
+    let body = parseBlockStatements("func main() { if case let x @ .some = a {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let caseMatch = ifExpr!.condition as? AST.CaseMatch
+    #expect(caseMatch != nil)
+    let binding = caseMatch!.pattern as? AST.BindingPattern
+    #expect(binding != nil)
+    let subpattern = binding!.subpattern as? AST.ImplicitMemberAccess
+    #expect(subpattern != nil)
+    #expect(subpattern!.name.value == "some")
+}
+
+@Test func parseNestedAtBindingPattern() {
+    let expr = firstExpression("match a { .foo(let x @ .some) -> x }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let call = matchExpr!.cases[0].patterns[0] as? AST.Call
+    #expect(call != nil)
+    let binding = call!.arguments[0].value as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "x")
+    let subpattern = binding!.subpattern as? AST.ImplicitMemberAccess
+    #expect(subpattern != nil)
+    #expect(subpattern!.name.value == "some")
+}
+
+@Test func parseWildcardAtBindingPattern() {
+    let expr = firstExpression("match a { _ @ .some -> 1 }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let subpattern = matchExpr!.cases[0].patterns[0] as? AST.ImplicitMemberAccess
+    #expect(subpattern != nil)
+    #expect(subpattern!.name.value == "some")
+}
+
+@Test func parseBindingPatternWithoutSubpattern() {
+    let expr = firstExpression("match a { .some(let x) -> x }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let call = matchExpr!.cases[0].patterns[0] as? AST.Call
+    let binding = call!.arguments[0].value as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.subpattern == nil)
+}
+
 @Test func parseMatchWithBinding() {
     let expr = firstExpression("match a { .some(let x) -> x, .none -> 0 }")
     let matchExpr = expr as? AST.Match

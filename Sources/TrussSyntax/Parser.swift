@@ -3163,6 +3163,12 @@ public final class Parser {
                 expression = AST.WildcardPattern(
                     token, sourceRange: token.sourceRange(in: buffer)
                 )
+                if let at = peek, case .Operator(.At) = at.kind {
+                    index += 1
+                    expression =
+                        parseExpression(excepts: excepts)
+                        ?? errorExpression(from: at, to: at)
+                }
             } else {
                 expression = AST.Variable(name: token, sourceRange: token.sourceRange(in: buffer))
             }
@@ -3228,9 +3234,22 @@ public final class Parser {
                             at: name)
                         return errorExpression(from: token, to: name)
                     }
+                    var subpattern: AST.Expression? = nil
+                    if let at = peek, case .Operator(.At) = at.kind {
+                        index += 1
+                        subpattern =
+                            parseExpression(excepts: excepts)
+                            ?? errorExpression(from: at, to: at)
+                    }
+                    let endToken =
+                        subpattern?.sourceRange.end
+                        ?? name.sourceRange(in: buffer).end
                     expression = AST.BindingPattern(
-                        token, name,
-                        sourceRange: SourceRange(from: token, to: name, in: buffer)
+                        token, name, subpattern,
+                        sourceRange: SourceRange(
+                            start: token.sourceRange(in: buffer).start,
+                            end: endToken
+                        )
                     )
                 } else {
                     return nil
