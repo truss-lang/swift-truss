@@ -293,14 +293,16 @@ extension AST {
     public struct ClosureSignature {
         public let captureList: [CaptureItem]
         public let parameters: [FunctionDecl.Parameter]
+        public let throwsClause: ThrowsClause?
         public let returnType: Expression?
         public let inToken: Token
         public init(
             _ captureList: [CaptureItem], _ parameters: [FunctionDecl.Parameter],
-            _ returnType: Expression?, _ inToken: Token
+            _ throwsClause: ThrowsClause?, _ returnType: Expression?, _ inToken: Token
         ) {
             self.captureList = captureList
             self.parameters = parameters
+            self.throwsClause = throwsClause
             self.returnType = returnType
             self.inToken = inToken
         }
@@ -321,11 +323,14 @@ extension AST {
     }
     public final class ClosureType: Expression {
         public let parameterTypes: Expression
+        public let throwsClause: ThrowsClause?
         public let returnType: Expression
         public init(
-            _ parameterTypes: Expression, _ returnType: Expression, sourceRange: SourceRange
+            _ parameterTypes: Expression, _ throwsClause: ThrowsClause?,
+            _ returnType: Expression, sourceRange: SourceRange
         ) {
             self.parameterTypes = parameterTypes
+            self.throwsClause = throwsClause
             self.returnType = returnType
             super.init(sourceRange)
         }

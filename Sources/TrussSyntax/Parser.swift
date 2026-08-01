@@ -1359,6 +1359,7 @@ public final class Parser {
                 }
             }
         }
+        let throwsClause = parseThrowsClause()
         guard peek?.kind == .Separator(.Arrow) else {
             if let tok = peek {
                 emitError("expected '->' after subscript parameters", at: tok)
@@ -1391,7 +1392,7 @@ public final class Parser {
             }
         }
         return AST.SubscriptDecl(
-            modifiers, attributes, token, parameters, returnType, body,
+            modifiers, attributes, token, parameters, throwsClause, returnType, body,
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
@@ -1697,6 +1698,7 @@ public final class Parser {
         } else {
             emitError("expected ')' after initializer parameters, but got '\(t2.value)'", at: t2)
         }
+        let throwsClause = parseThrowsClause()
         guard let t3 = peek else {
             emitError("expected '{' after initializer parameters", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -1730,7 +1732,7 @@ public final class Parser {
             emitError("expected '}' after initializer body", at: endOfFile)
         }
         return AST.InitDecl(
-            modifiers, attributes, token, optionalToken, body,
+            modifiers, attributes, token, optionalToken, throwsClause, body,
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
@@ -1909,6 +1911,7 @@ public final class Parser {
                 emitError("expected ')' after function parameters", at: endOfFile)
             }
         }
+        let throwsClause = parseThrowsClause()
         let returnTypeExpression: AST.Expression?
         if let t = peek, case .Separator(.Arrow) = t.kind {
             index += 1
@@ -1959,8 +1962,51 @@ public final class Parser {
             body = nil
         }
         return AST.FunctionDecl(
-            modifiers, attributes, token, name, parameters, returnTypeExpression, body,
-            sourceRange: SourceRange(from: token, to: last!, in: buffer)
+            modifiers, attributes, token, name, parameters, throwsClause, returnTypeExpression,
+            body, sourceRange: SourceRange(from: token, to: last!, in: buffer)
+        )
+    }
+
+    private func parseThrowsClause() -> AST.ThrowsClause? {
+        guard let token = peek, case .Keyword(.Throws) = token.kind else {
+            return nil
+        }
+        index += 1
+        var types: [AST.Expression]? = nil
+        var endToken = token
+        if let t = peek, case .Separator(.OpenParen) = t.kind {
+            index += 1
+            var collected: [AST.Expression] = []
+            while let t = peek {
+                if case .Separator(.CloseParen) = t.kind {
+                    break
+                }
+                if case .Separator(.Comma) = t.kind {
+                    index += 1
+                    continue
+                }
+                if let typeExpr = parseExpression() {
+                    collected.append(typeExpr)
+                } else {
+                    break
+                }
+            }
+            if let t = peek {
+                if case .Separator(.CloseParen) = t.kind {
+                    index += 1
+                    endToken = t
+                } else {
+                    emitError("expected ')' after thrown types, but got '\(t.value)'", at: t)
+                    endToken = t
+                }
+            } else {
+                emitError("expected ')' after thrown types", at: endOfFile)
+            }
+            types = collected
+        }
+        return AST.ThrowsClause(
+            token, types,
+            sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
     }
 
@@ -3481,7 +3527,24 @@ public final class Parser {
                 switch kind {
                 case .Arrow:
                     if inPatternContext { break _loop }
-                    expression = parseClosureType(expression, excepts)
+                    expression = parseClosureType(expression, nil, excepts)
+                default: break _loop
+                }
+            case .Keyword(.Throws):
+                switch expression {
+                case is AST.ParentheticalExpression, is AST.TupleExpression:
+                    let throwsClause = parseThrowsClause()
+                    guard let t = peek, case .Separator(.Arrow) = t.kind else {
+                        if let tok = peek {
+                            emitError(
+                                "expected '->' after 'throws' in closure type, but got '\(tok.value)'",
+                                at: tok)
+                        } else {
+                            emitError("expected '->' after 'throws' in closure type", at: endOfFile)
+                        }
+                        break _loop
+                    }
+                    expression = parseClosureType(expression, throwsClause, excepts)
                 default: break _loop
                 }
             default: break _loop
@@ -3881,6 +3944,7 @@ public final class Parser {
                 }
             }
         }
+        let throwsClause = parseThrowsClause()
         var returnType: AST.Expression? = nil
         if peek?.kind == .Separator(.Arrow) {
             index += 1
@@ -3903,10 +3967,10 @@ public final class Parser {
                 value: "", kind: .Unknown,
                 pos: Position(pos: 0, line: 0, col: 0, len: 0), id: lexerResult.id
             )
-            return AST.ClosureSignature(captureList, parameters, returnType, fallback)
+            return AST.ClosureSignature(captureList, parameters, throwsClause, returnType, fallback)
         }
         index += 1
-        return AST.ClosureSignature(captureList, parameters, returnType, inToken!)
+        return AST.ClosureSignature(captureList, parameters, throwsClause, returnType, inToken!)
     }
 
     private func parseCaptureList() -> [AST.CaptureItem] {
@@ -3958,8 +4022,10 @@ public final class Parser {
         return items
     }
 
-    private func parseClosureType(_ parameterTypes: AST.Expression, _ excepts: [OperatorKind]?)
-        -> AST.ClosureType
+    private func parseClosureType(
+        _ parameterTypes: AST.Expression, _ throwsClause: AST.ThrowsClause?,
+        _ excepts: [OperatorKind]?
+    ) -> AST.ClosureType
     {
         let token = next!
         if token.kind != .Separator(.Arrow) {
@@ -3972,7 +4038,7 @@ public final class Parser {
             parseExpression(excepts: excepts)
             ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
         return AST.ClosureType(
-            parameterTypes, returnTypeExpression,
+            parameterTypes, throwsClause, returnTypeExpression,
             sourceRange: SourceRange(
                 start: parameterTypes.sourceRange.start, end: returnTypeExpression.sourceRange.end
             )

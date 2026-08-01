@@ -382,16 +382,29 @@ extension AST {
             }
         }
     }
+    public struct ThrowsClause {
+        public let token: Token
+        public let types: [Expression]?
+        public let sourceRange: SourceRange
+        public init(_ token: Token, _ types: [Expression]?, sourceRange: SourceRange) {
+            self.token = token
+            self.types = types
+            self.sourceRange = sourceRange
+        }
+    }
     public final class InitDecl: Decl {
         public let token: Token
         public let optionalToken: Token?
+        public let throwsClause: ThrowsClause?
         public let body: [Statement]
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ optionalToken: Token?, _ body: [Statement], sourceRange: SourceRange
+            _ optionalToken: Token?, _ throwsClause: ThrowsClause?, _ body: [Statement],
+            sourceRange: SourceRange
         ) {
             self.token = token
             self.optionalToken = optionalToken
+            self.throwsClause = throwsClause
             self.body = body
             super.init(modifiers, attributes, sourceRange)
         }
@@ -418,17 +431,19 @@ extension AST {
         public let token: Token
         public let name: Token
         public let parameters: [Parameter]
+        public let throwsClause: ThrowsClause?
         public let returnTypeExpression: Expression?
         public let body: Body?
         public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ parameters: [Parameter], _ returnTypeExpression: Expression?,
-            _ body: Body?, sourceRange: SourceRange
+            _ name: Token, _ parameters: [Parameter], _ throwsClause: ThrowsClause?,
+            _ returnTypeExpression: Expression?, _ body: Body?, sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
             self.parameters = parameters
+            self.throwsClause = throwsClause
             self.returnTypeExpression = returnTypeExpression
             self.body = body
             super.init(modifiers, attributes, sourceRange)
@@ -697,15 +712,17 @@ extension AST {
     public final class SubscriptDecl: Decl {
         public let token: Token
         public let parameters: [FunctionDecl.Parameter]
+        public let throwsClause: ThrowsClause?
         public let returnType: Expression
         public let body: [Statement]
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ parameters: [FunctionDecl.Parameter], _ returnType: Expression,
-            _ body: [Statement], sourceRange: SourceRange
+            _ parameters: [FunctionDecl.Parameter], _ throwsClause: ThrowsClause?,
+            _ returnType: Expression, _ body: [Statement], sourceRange: SourceRange
         ) {
             self.token = token
             self.parameters = parameters
+            self.throwsClause = throwsClause
             self.returnType = returnType
             self.body = body
             super.init(modifiers, attributes, sourceRange)

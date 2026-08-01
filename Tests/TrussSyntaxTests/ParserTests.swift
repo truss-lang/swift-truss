@@ -725,6 +725,129 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(errors[0].message.contains("expected expression after 'try'"))
 }
 
+@Test func parseFunctionWithoutThrows() {
+    let statements = parseStatements("func f() -> Int")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.throwsClause == nil)
+}
+
+@Test func parseFunctionThrowsClause() {
+    let statements = parseStatements("func f() throws {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.throwsClause != nil)
+    #expect(decl!.throwsClause!.token.kind == .Keyword(.Throws))
+    #expect(decl!.throwsClause!.types == nil)
+}
+
+@Test func parseFunctionThrowsWithReturnType() {
+    let statements = parseStatements("func f() throws -> Int")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.throwsClause != nil)
+    #expect(decl!.throwsClause!.types == nil)
+    let returnType = decl!.returnTypeExpression as? AST.Variable
+    #expect(returnType != nil)
+    #expect(returnType!.name.value == "Int")
+}
+
+@Test func parseFunctionTypedThrows() {
+    let statements = parseStatements("func f() throws(E1) -> Int")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    let throwsClause = decl!.throwsClause
+    #expect(throwsClause != nil)
+    #expect(throwsClause!.types?.count == 1)
+    let type0 = throwsClause!.types![0] as? AST.Variable
+    #expect(type0 != nil)
+    #expect(type0!.name.value == "E1")
+}
+
+@Test func parseFunctionMultipleTypedThrows() {
+    let statements = parseStatements("func f() throws(E1, E2) -> Int")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    let throwsClause = decl!.throwsClause
+    #expect(throwsClause != nil)
+    #expect(throwsClause!.types?.count == 2)
+    let type0 = throwsClause!.types![0] as? AST.Variable
+    #expect(type0!.name.value == "E1")
+    let type1 = throwsClause!.types![1] as? AST.Variable
+    #expect(type1!.name.value == "E2")
+}
+
+@Test func parseInitThrowsClause() {
+    let statements = parseStatements("struct S { init() throws {} }")
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let initDecl = structDecl!.body[0] as? AST.InitDecl
+    #expect(initDecl != nil)
+    #expect(initDecl!.throwsClause != nil)
+    #expect(initDecl!.throwsClause!.types == nil)
+}
+
+@Test func parseInitTypedThrows() {
+    let statements = parseStatements("struct S { init() throws(E) {} }")
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let initDecl = structDecl!.body[0] as? AST.InitDecl
+    #expect(initDecl != nil)
+    #expect(initDecl!.throwsClause?.types?.count == 1)
+}
+
+@Test func parseSubscriptThrowsClause() {
+    let statements = parseStatements("struct S { subscript(i: Int) throws -> Int { i } }")
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let subDecl = structDecl!.body[0] as? AST.SubscriptDecl
+    #expect(subDecl != nil)
+    #expect(subDecl!.throwsClause != nil)
+    #expect(subDecl!.throwsClause!.types == nil)
+}
+
+@Test func parseClosureTypeThrows() {
+    let body = parseBlockStatements("func main() { let f: (Int) throws -> Int = g }")
+    #expect(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    let closureType = vd!.typeExpression as? AST.ClosureType
+    #expect(closureType != nil)
+    #expect(closureType!.throwsClause != nil)
+    #expect(closureType!.throwsClause!.types == nil)
+}
+
+@Test func parseClosureTypeTypedThrows() {
+    let body = parseBlockStatements("func main() { let f: (Int, String) throws(E1) -> Bool = g }")
+    #expect(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    let closureType = vd!.typeExpression as? AST.ClosureType
+    #expect(closureType != nil)
+    #expect(closureType!.throwsClause?.types?.count == 1)
+}
+
+@Test func parseClosureSignatureThrows() {
+    let body = parseBlockStatements("func main() { { (x: Int) throws -> Int in x } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let closure = exprStmt!.expression as? AST.Closure
+    #expect(closure != nil)
+    #expect(closure!.signature?.throwsClause != nil)
+    #expect(closure!.signature!.throwsClause!.types == nil)
+}
+
+@Test func parseClosureSignatureTypedThrows() {
+    let body = parseBlockStatements("func main() { { (x: Int) throws(E1) -> Int in x } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    #expect(exprStmt != nil)
+    let closure = exprStmt!.expression as? AST.Closure
+    #expect(closure != nil)
+    #expect(closure!.signature?.throwsClause?.types?.count == 1)
+}
+
 @Test func parseEmptyModule() {
     let statements = parseStatements("module Foo {}")
     #expect(statements.count == 1)

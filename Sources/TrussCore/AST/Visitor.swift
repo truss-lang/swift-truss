@@ -229,6 +229,11 @@ extension AST {
         open func visitInitDecl(
             _ initDecl: AST.InitDecl, additional: Any? = nil
         ) -> Any? {
+            if let types = initDecl.throwsClause?.types {
+                for type in types {
+                    visit(type, additional: additional)
+                }
+            }
             for statement in initDecl.body {
                 visit(statement, additional: additional)
             }
@@ -255,6 +260,11 @@ extension AST {
                 }
                 if let defaultValue = parameter.defaultValue {
                     visit(defaultValue, additional: additional)
+                }
+            }
+            if let types = functionDecl.throwsClause?.types {
+                for type in types {
+                    visit(type, additional: additional)
                 }
             }
             if let returnTypeExpression = functionDecl.returnTypeExpression {
@@ -557,6 +567,11 @@ extension AST {
                 if let returnType = sig.returnType {
                     visit(returnType, additional: additional)
                 }
+                if let types = sig.throwsClause?.types {
+                    for type in types {
+                        visit(type, additional: additional)
+                    }
+                }
             }
             for statement in closure.body {
                 visit(statement, additional: additional)
@@ -569,6 +584,11 @@ extension AST {
             _ closureType: AST.ClosureType, additional: Any? = nil
         ) -> Any? {
             visit(closureType.parameterTypes, additional: additional)
+            if let types = closureType.throwsClause?.types {
+                for type in types {
+                    visit(type, additional: additional)
+                }
+            }
             return visit(closureType.returnType, additional: additional)
         }
 
@@ -754,6 +774,19 @@ extension AST {
         open func visitSubscriptDecl(
             _ subscriptDecl: AST.SubscriptDecl, additional: Any? = nil
         ) -> Any? {
+            for parameter in subscriptDecl.parameters {
+                if let type = parameter.type {
+                    visit(type, additional: additional)
+                }
+                if let defaultValue = parameter.defaultValue {
+                    visit(defaultValue, additional: additional)
+                }
+            }
+            if let types = subscriptDecl.throwsClause?.types {
+                for type in types {
+                    visit(type, additional: additional)
+                }
+            }
             visit(subscriptDecl.returnType, additional: additional)
             for statement in subscriptDecl.body {
                 visit(statement, additional: additional)
