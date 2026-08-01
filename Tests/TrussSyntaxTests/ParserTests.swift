@@ -587,6 +587,56 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(vd!.name.value == "y")
 }
 
+@Test func parseThrowWithMemberAccess() {
+    let body = parseBlockStatements("func main() { throw MyError.bad }")
+    #expect(body.count == 1)
+    let throwStmt = body[0] as? AST.Throw
+    #expect(throwStmt != nil)
+    #expect(throwStmt!.token.kind == .Keyword(.Throw))
+    let memberAccess = throwStmt!.expression as? AST.MemberAccess
+    #expect(memberAccess != nil)
+    #expect(memberAccess!.member.value == "bad")
+}
+
+@Test func parseThrowWithVariable() {
+    let body = parseBlockStatements("func main() { throw err }")
+    #expect(body.count == 1)
+    let throwStmt = body[0] as? AST.Throw
+    #expect(throwStmt != nil)
+    let varExpr = throwStmt!.expression as? AST.Variable
+    #expect(varExpr != nil)
+    #expect(varExpr!.name.value == "err")
+}
+
+@Test func parseThrowWithComplexExpression() {
+    let body = parseBlockStatements("func main() { throw a + b }")
+    #expect(body.count == 1)
+    let throwStmt = body[0] as? AST.Throw
+    #expect(throwStmt != nil)
+    let sequentialExpression = throwStmt!.expression as? AST.SequentialExpression
+    #expect(sequentialExpression != nil)
+    #expect(sequentialExpression!.ops.count == 1)
+    #expect(sequentialExpression!.ops[0].kind == .Operator(.Plus))
+}
+
+@Test func parseThrowInClosureBody() {
+    let body = parseBlockStatements("func main() { let f = { throw E.x } }")
+    #expect(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    let closure = vd!.initializer as? AST.Closure
+    #expect(closure != nil)
+    let throwStmt = closure!.body[0] as? AST.Throw
+    #expect(throwStmt != nil)
+    #expect(throwStmt!.token.kind == .Keyword(.Throw))
+}
+
+@Test func parseThrowMissingExpressionReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { throw }")
+    try #require(errors.count == 1)
+    #expect(errors[0].message.contains("expected expression after 'throw'"))
+}
+
 @Test func parseEmptyModule() {
     let statements = parseStatements("module Foo {}")
     #expect(statements.count == 1)

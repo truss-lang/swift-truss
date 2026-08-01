@@ -1809,6 +1809,7 @@ public final class Parser {
             case .Var: return parseVariableDecl(modifiers, attributes, inFunctionContext: true)
             case .Enum: return parseEnumDecl(modifiers, attributes)
             case .Return: return parseReturn()
+            case .Throw: return parseThrow()
             case .While: return parseWhile()
             case .Repeat: return parseRepeatWhile()
             case .Guard: return parseGuard()
@@ -2470,6 +2471,17 @@ public final class Parser {
                 token, expr, sourceRange: SourceRange(from: token, to: last!, in: buffer)
             )
         }
+    }
+
+    private func parseThrow() -> AST.Statement {
+        let token = next!
+        guard let expr = parseExpression() else {
+            emitError("expected expression after 'throw'", at: locationAfter(token))
+            return errorStatement(from: token, to: locationAfter(token))
+        }
+        return AST.Throw(
+            token, expr, sourceRange: SourceRange(from: token, to: last!, in: buffer)
+        )
     }
 
     private func parseFor() -> AST.Statement {

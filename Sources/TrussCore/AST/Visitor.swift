@@ -302,6 +302,13 @@ extension AST {
         }
 
         @discardableResult
+        open func visitThrow(
+            _ throwStatement: AST.Throw, additional: Any? = nil
+        ) -> Any? {
+            return visit(throwStatement.expression, additional: additional)
+        }
+
+        @discardableResult
         open func visitWhile(_ whileStatement: AST.While, additional: Any? = nil) -> Any? {
             visit(whileStatement.condition, additional: additional)
             for statement in whileStatement.body {

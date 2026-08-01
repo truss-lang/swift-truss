@@ -495,6 +495,18 @@ extension AST {
             visitor.visitReturn(self, additional: additional)
         }
     }
+    public final class Throw: Statement {
+        public let token: Token
+        public let expression: Expression
+        public init(_ token: Token, _ expression: Expression, sourceRange: SourceRange) {
+            self.token = token
+            self.expression = expression
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitThrow(self, additional: additional)
+        }
+    }
     public final class While: Statement {
         public let token: Token
         public let condition: Expression
