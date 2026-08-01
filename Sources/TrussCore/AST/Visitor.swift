@@ -778,6 +778,9 @@ extension AST {
         open func visitBindingPattern(
             _ bindingPattern: AST.BindingPattern, additional: Any? = nil
         ) -> Any? {
+            if let typeExpression = bindingPattern.typeExpression {
+                visit(typeExpression, additional: additional)
+            }
             if let subpattern = bindingPattern.subpattern {
                 return visit(subpattern, additional: additional)
             }

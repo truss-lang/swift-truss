@@ -639,10 +639,15 @@ extension AST {
     public final class BindingPattern: Expression {
         public let token: Token
         public let name: Token
+        public let typeExpression: Expression?
         public let subpattern: Expression?
-        public init(_ token: Token, _ name: Token, _ subpattern: Expression?, sourceRange: SourceRange) {
+        public init(
+            _ token: Token, _ name: Token, _ typeExpression: Expression?,
+            _ subpattern: Expression?, sourceRange: SourceRange
+        ) {
             self.token = token
             self.name = name
+            self.typeExpression = typeExpression
             self.subpattern = subpattern
             super.init(sourceRange)
         }

@@ -4164,6 +4164,97 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(binding!.subpattern == nil)
 }
 
+// MARK: - Typed Binding in Patterns
+
+@Test func parseNestedTypedBindingPattern() {
+    let expr = firstExpression("match a { .foo(let x: Int) -> x }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let call = matchExpr!.cases[0].patterns[0] as? AST.Call
+    #expect(call != nil)
+    let binding = call!.arguments[0].value as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "x")
+    let type = binding!.typeExpression as? AST.Variable
+    #expect(type != nil)
+    #expect(type!.name.value == "Int")
+}
+
+@Test func parseMatchTypedBindingPattern() {
+    let expr = firstExpression("match a { let x: Int -> x }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let binding = matchExpr!.cases[0].patterns[0] as? AST.BindingPattern
+    #expect(binding != nil)
+    let type = binding!.typeExpression as? AST.Variable
+    #expect(type != nil)
+    #expect(type!.name.value == "Int")
+    #expect(binding!.subpattern == nil)
+}
+
+@Test func parseIfCaseTypedBindingPattern() {
+    let body = parseBlockStatements("func main() { if case let x: Int = a {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let caseMatch = ifExpr!.condition as? AST.CaseMatch
+    #expect(caseMatch != nil)
+    let binding = caseMatch!.pattern as? AST.BindingPattern
+    #expect(binding != nil)
+    let type = binding!.typeExpression as? AST.Variable
+    #expect(type != nil)
+    #expect(type!.name.value == "Int")
+}
+
+@Test func parseForTypedBindingPattern() {
+    let body = parseBlockStatements("func main() { for let x: Int in arr {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    let binding = forStmt!.pattern as? AST.BindingPattern
+    #expect(binding != nil)
+    let type = binding!.typeExpression as? AST.Variable
+    #expect(type != nil)
+    #expect(type!.name.value == "Int")
+}
+
+@Test func parseCatchTypedBindingPattern() {
+    let body = parseBlockStatements("func main() { do { } catch let e: Int32 { } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let doExpr = exprStmt!.expression as? AST.Do
+    #expect(doExpr != nil)
+    let binding = doExpr!.catches[0].pattern as? AST.BindingPattern
+    #expect(binding != nil)
+    let type = binding!.typeExpression as? AST.Variable
+    #expect(type != nil)
+    #expect(type!.name.value == "Int32")
+}
+
+@Test func parseTypedBindingWithAtSubpattern() {
+    let expr = firstExpression("match a { let x: Int @ .some -> x }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let binding = matchExpr!.cases[0].patterns[0] as? AST.BindingPattern
+    #expect(binding != nil)
+    let type = binding!.typeExpression as? AST.Variable
+    #expect(type != nil)
+    #expect(type!.name.value == "Int")
+    let subpattern = binding!.subpattern as? AST.ImplicitMemberAccess
+    #expect(subpattern != nil)
+    #expect(subpattern!.name.value == "some")
+}
+
+@Test func parseBindingPatternWithoutType() {
+    let expr = firstExpression("match a { .some(let x) -> x }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let call = matchExpr!.cases[0].patterns[0] as? AST.Call
+    let binding = call!.arguments[0].value as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.typeExpression == nil)
+}
+
 @Test func parseMatchWithBinding() {
     let expr = firstExpression("match a { .some(let x) -> x, .none -> 0 }")
     let matchExpr = expr as? AST.Match

@@ -3234,6 +3234,13 @@ public final class Parser {
                             at: name)
                         return errorExpression(from: token, to: name)
                     }
+                    var typeExpression: AST.Expression? = nil
+                    if let colon = peek, case .Separator(.Colon) = colon.kind {
+                        index += 1
+                        typeExpression =
+                            parseExpression(excepts: [.Assign, .At])
+                            ?? errorExpression(from: colon, to: colon)
+                    }
                     var subpattern: AST.Expression? = nil
                     if let at = peek, case .Operator(.At) = at.kind {
                         index += 1
@@ -3243,9 +3250,10 @@ public final class Parser {
                     }
                     let endToken =
                         subpattern?.sourceRange.end
+                        ?? typeExpression?.sourceRange.end
                         ?? name.sourceRange(in: buffer).end
                     expression = AST.BindingPattern(
-                        token, name, subpattern,
+                        token, name, typeExpression, subpattern,
                         sourceRange: SourceRange(
                             start: token.sourceRange(in: buffer).start,
                             end: endToken
