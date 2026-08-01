@@ -4067,6 +4067,71 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(binding!.name.value == "x")
 }
 
+// MARK: - Range Operators in Patterns
+
+@Test func parseMatchRangePatternClosed() {
+    let expr = firstExpression("match x { 1...5 -> 1 }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    #expect(matchExpr!.cases.count == 1)
+    let seq = matchExpr!.cases[0].patterns[0] as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops.count == 1)
+    #expect(seq!.ops[0].kind == .Operator(.DotDotDot))
+    #expect(seq!.operands.count == 2)
+    let lower = seq!.operands[0] as? AST.IntegerLiteral
+    #expect(lower != nil)
+    #expect(lower!.value == 1)
+    let upper = seq!.operands[1] as? AST.IntegerLiteral
+    #expect(upper != nil)
+    #expect(upper!.value == 5)
+}
+
+@Test func parseMatchRangePatternHalfOpen() {
+    let expr = firstExpression("match x { 1..<5 -> 1 }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let seq = matchExpr!.cases[0].patterns[0] as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops[0].kind == .Operator(.DotDotLess))
+}
+
+@Test func parseMatchRangePatternDotDot() {
+    let expr = firstExpression("match x { 1..5 -> 1 }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    let seq = matchExpr!.cases[0].patterns[0] as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops[0].kind == .Operator(.DotDot))
+}
+
+@Test func parseMatchMultipleRangePatterns() {
+    let expr = firstExpression("match x { 1...5, 10...20 -> 1, 30...40 -> 2 }")
+    let matchExpr = expr as? AST.Match
+    #expect(matchExpr != nil)
+    #expect(matchExpr!.cases.count == 2)
+    #expect(matchExpr!.cases[0].patterns.count == 2)
+    #expect(matchExpr!.cases[1].patterns.count == 1)
+    for pattern in matchExpr!.cases[0].patterns {
+        let seq = pattern as? AST.SequentialExpression
+        #expect(seq != nil)
+        #expect(seq!.ops[0].kind == .Operator(.DotDotDot))
+    }
+}
+
+@Test func parseIfCaseRangePattern() {
+    let body = parseBlockStatements("func main() { if case 1...5 = x {} }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let caseMatch = ifExpr!.condition as? AST.CaseMatch
+    #expect(caseMatch != nil)
+    let seq = caseMatch!.pattern as? AST.SequentialExpression
+    #expect(seq != nil)
+    #expect(seq!.ops[0].kind == .Operator(.DotDotDot))
+    #expect(seq!.operands.count == 2)
+}
+
 // MARK: - ShorthandArgument
 
 @Test func parseShorthandArgumentDollar0() {
