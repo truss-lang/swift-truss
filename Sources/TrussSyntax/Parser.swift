@@ -894,6 +894,12 @@ public final class Parser {
                 }
             }
         }
+        let whereClause: [AST.WhereRequirement]?
+        if peek?.kind == .Keyword(.Where) {
+            whereClause = parseWhereClause()
+        } else {
+            whereClause = nil
+        }
         guard let openToken = next else {
             emitError("expected '{' in struct type", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -932,7 +938,7 @@ public final class Parser {
             endToken = openToken
         }
         return AST.StructDecl(
-            modifiers, attributes, token, name, genericDecl, conformances, body,
+            modifiers, attributes, token, name, genericDecl, conformances, whereClause, body,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
     }
@@ -970,6 +976,12 @@ public final class Parser {
                     break
                 }
             }
+        }
+        let whereClause: [AST.WhereRequirement]?
+        if peek?.kind == .Keyword(.Where) {
+            whereClause = parseWhereClause()
+        } else {
+            whereClause = nil
         }
         guard let openToken = next else {
             emitError("expected '{' in enum type", at: endOfFile)
@@ -1009,7 +1021,7 @@ public final class Parser {
             endToken = openToken
         }
         return AST.EnumDecl(
-            modifiers, attributes, token, name, genericDecl, conformances, body,
+            modifiers, attributes, token, name, genericDecl, conformances, whereClause, body,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
     }
@@ -1140,6 +1152,12 @@ public final class Parser {
                 }
             }
         }
+        let whereClause: [AST.WhereRequirement]?
+        if peek?.kind == .Keyword(.Where) {
+            whereClause = parseWhereClause()
+        } else {
+            whereClause = nil
+        }
         guard let openToken = next else {
             emitError("expected '{' in class type", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -1178,7 +1196,8 @@ public final class Parser {
             endToken = openToken
         }
         return AST.ClassDecl(
-            modifiers, attributes, token, name, genericDecl, inheritanceClauses, body,
+            modifiers, attributes, token, name, genericDecl, inheritanceClauses, whereClause,
+            body,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
     }
@@ -1216,6 +1235,12 @@ public final class Parser {
                     break
                 }
             }
+        }
+        let whereClause: [AST.WhereRequirement]?
+        if peek?.kind == .Keyword(.Where) {
+            whereClause = parseWhereClause()
+        } else {
+            whereClause = nil
         }
         guard let openToken = next else {
             emitError("expected '{' in actor type", at: endOfFile)
@@ -1255,7 +1280,7 @@ public final class Parser {
             endToken = openToken
         }
         return AST.ActorDecl(
-            modifiers, attributes, token, name, genericDecl, conformances, body,
+            modifiers, attributes, token, name, genericDecl, conformances, whereClause, body,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
     }
@@ -1294,6 +1319,12 @@ public final class Parser {
                 }
             }
         }
+        let whereClause: [AST.WhereRequirement]?
+        if peek?.kind == .Keyword(.Where) {
+            whereClause = parseWhereClause()
+        } else {
+            whereClause = nil
+        }
         guard let openToken = next else {
             emitError("expected '{' in protocol type", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -1329,7 +1360,7 @@ public final class Parser {
             endToken = openToken
         }
         return AST.ProtocolDecl(
-            modifiers, attributes, token, name, genericDecl, conformances, body,
+            modifiers, attributes, token, name, genericDecl, conformances, whereClause, body,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
     }

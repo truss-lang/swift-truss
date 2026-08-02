@@ -38,6 +38,18 @@ extension AST {
             return nil
         }
 
+        private func visitWhereClauseRequirements(
+            _ requirements: [AST.WhereRequirement], additional: Any?
+        ) {
+            for requirement in requirements {
+                visit(requirement.left, additional: additional)
+                switch requirement.constraint {
+                case .conformance(let e), .equality(let e):
+                    visit(e, additional: additional)
+                }
+            }
+        }
+
         @discardableResult
         open func visitEmptyStatement(
             _ emptyStatement: AST.EmptyStatement, additional: Any? = nil
@@ -126,6 +138,9 @@ extension AST {
             for conformance in structDecl.conformances {
                 visit(conformance, additional: additional)
             }
+            if let whereClause = structDecl.whereClause {
+                visitWhereClauseRequirements(whereClause, additional: additional)
+            }
             for statement in structDecl.body {
                 visit(statement, additional: additional)
             }
@@ -141,6 +156,9 @@ extension AST {
             }
             for inheritanceClause in classDecl.inheritanceClauses {
                 visit(inheritanceClause, additional: additional)
+            }
+            if let whereClause = classDecl.whereClause {
+                visitWhereClauseRequirements(whereClause, additional: additional)
             }
             for statement in classDecl.body {
                 visit(statement, additional: additional)
@@ -158,6 +176,9 @@ extension AST {
             for conformance in actorDecl.conformances {
                 visit(conformance, additional: additional)
             }
+            if let whereClause = actorDecl.whereClause {
+                visitWhereClauseRequirements(whereClause, additional: additional)
+            }
             for statement in actorDecl.body {
                 visit(statement, additional: additional)
             }
@@ -173,6 +194,9 @@ extension AST {
             }
             for conformance in protocolDecl.conformances {
                 visit(conformance, additional: additional)
+            }
+            if let whereClause = protocolDecl.whereClause {
+                visitWhereClauseRequirements(whereClause, additional: additional)
             }
             for statement in protocolDecl.body {
                 visit(statement, additional: additional)
@@ -203,6 +227,9 @@ extension AST {
             }
             for conformance in enumDecl.conformances {
                 visit(conformance, additional: additional)
+            }
+            if let whereClause = enumDecl.whereClause {
+                visitWhereClauseRequirements(whereClause, additional: additional)
             }
             for statement in enumDecl.body {
                 visit(statement, additional: additional)

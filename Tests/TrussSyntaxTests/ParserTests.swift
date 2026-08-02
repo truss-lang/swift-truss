@@ -5150,6 +5150,78 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(errors[0].message.contains("expected ':' or '==' in where clause"))
 }
 
+// MARK: - Where Clause on Type Declarations
+
+@Test func parseStructWhereClauseConformance() {
+    let statements = parseStatements("struct S<T> where T: Equatable {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.genericDecl != nil)
+    let whereClause = decl!.whereClause
+    #expect(whereClause != nil)
+    #expect(whereClause!.count == 1)
+    let left = whereClause![0].left as? AST.Variable
+    #expect(left != nil)
+    #expect(left!.name.value == "T")
+    if case .conformance(let right) = whereClause![0].constraint {
+        let rightVar = right as? AST.Variable
+        #expect(rightVar != nil)
+        #expect(rightVar!.name.value == "Equatable")
+    } else {
+        Issue.record("expected conformance constraint")
+    }
+    #expect(decl!.body.isEmpty)
+}
+
+@Test func parseClassWhereClauseConformance() {
+    let statements = parseStatements("class C<T> where T: Equatable {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ClassDecl
+    #expect(decl != nil)
+    #expect(decl!.whereClause?.count == 1)
+}
+
+@Test func parseEnumWhereClauseConformance() {
+    let statements = parseStatements("enum E<T> where T: Equatable {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.EnumDecl
+    #expect(decl != nil)
+    #expect(decl!.whereClause?.count == 1)
+}
+
+@Test func parseActorWhereClauseConformance() {
+    let statements = parseStatements("actor A<T> where T: Equatable {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ActorDecl
+    #expect(decl != nil)
+    #expect(decl!.whereClause?.count == 1)
+}
+
+@Test func parseProtocolWhereClauseConformance() {
+    let statements = parseStatements("protocol P where T: Equatable {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.ProtocolDecl
+    #expect(decl != nil)
+    #expect(decl!.whereClause?.count == 1)
+}
+
+@Test func parseStructWhereClauseMultipleRequirements() {
+    let statements = parseStatements("struct S<T, U> where T: Equatable, U: Hashable {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.whereClause?.count == 2)
+}
+
+@Test func parseStructWithoutWhereClause() {
+    let statements = parseStatements("struct S<T> {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    #expect(decl!.whereClause == nil)
+}
+
 // MARK: - Actor Declarations (extended)
 
 @Test func parseActorWithConformances() {

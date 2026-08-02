@@ -217,16 +217,19 @@ extension AST {
         public let name: Token
         public let genericDecl: GenericDecl?
         public let conformances: [Expression]
+        public let whereClause: [AST.WhereRequirement]?
         public let body: [AST.Statement]
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
-            _ body: [AST.Statement], sourceRange: SourceRange
+            _ whereClause: [AST.WhereRequirement]?, _ body: [AST.Statement],
+            sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
             self.genericDecl = genericDecl
             self.conformances = conformances
+            self.whereClause = whereClause
             self.body = body
             super.init(modifiers, attributes, sourceRange)
         }
@@ -239,16 +242,19 @@ extension AST {
         public let name: Token
         public let genericDecl: GenericDecl?
         public let inheritanceClauses: [Expression]
+        public let whereClause: [AST.WhereRequirement]?
         public let body: [AST.Statement]
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
-            _ body: [AST.Statement], sourceRange: SourceRange
+            _ whereClause: [AST.WhereRequirement]?, _ body: [AST.Statement],
+            sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
             self.genericDecl = genericDecl
             self.inheritanceClauses = conformances
+            self.whereClause = whereClause
             self.body = body
             super.init(modifiers, attributes, sourceRange)
         }
@@ -261,16 +267,19 @@ extension AST {
         public let name: Token
         public let genericDecl: GenericDecl?
         public let conformances: [Expression]
+        public let whereClause: [AST.WhereRequirement]?
         public let body: [AST.Statement]
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
-            _ body: [AST.Statement], sourceRange: SourceRange
+            _ whereClause: [AST.WhereRequirement]?, _ body: [AST.Statement],
+            sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
             self.genericDecl = genericDecl
             self.conformances = conformances
+            self.whereClause = whereClause
             self.body = body
             super.init(modifiers, attributes, sourceRange)
         }
@@ -283,16 +292,19 @@ extension AST {
         public let name: Token
         public let genericDecl: GenericDecl?
         public let conformances: [Expression]
+        public let whereClause: [AST.WhereRequirement]?
         public let body: [AST.Statement]
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
-            _ body: [AST.Statement], sourceRange: SourceRange
+            _ whereClause: [AST.WhereRequirement]?, _ body: [AST.Statement],
+            sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
             self.genericDecl = genericDecl
             self.conformances = conformances
+            self.whereClause = whereClause
             self.body = body
             super.init(modifiers, attributes, sourceRange)
         }
@@ -325,16 +337,19 @@ extension AST {
         public let name: Token
         public let genericDecl: GenericDecl?
         public let conformances: [Expression]
+        public let whereClause: [AST.WhereRequirement]?
         public let body: [AST.Statement]
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
-            _ body: [AST.Statement], sourceRange: SourceRange
+            _ whereClause: [AST.WhereRequirement]?, _ body: [AST.Statement],
+            sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
             self.genericDecl = genericDecl
             self.conformances = conformances
+            self.whereClause = whereClause
             self.body = body
             super.init(modifiers, attributes, sourceRange)
         }
