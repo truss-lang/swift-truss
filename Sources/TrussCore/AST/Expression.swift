@@ -331,15 +331,18 @@ extension AST {
         public let parameters: [FunctionDecl.Parameter]
         public let throwsClause: ThrowsClause?
         public let returnType: Expression?
+        public let asyncToken: Token?
         public let inToken: Token
         public init(
             _ captureList: [CaptureItem], _ parameters: [FunctionDecl.Parameter],
-            _ throwsClause: ThrowsClause?, _ returnType: Expression?, _ inToken: Token
+            _ throwsClause: ThrowsClause?, _ returnType: Expression?,
+            _ asyncToken: Token?, _ inToken: Token
         ) {
             self.captureList = captureList
             self.parameters = parameters
             self.throwsClause = throwsClause
             self.returnType = returnType
+            self.asyncToken = asyncToken
             self.inToken = inToken
         }
     }
@@ -603,6 +606,20 @@ extension AST {
             case Try
             case TryQuestion
             case TryExclamation
+        }
+    }
+    public final class AwaitExpression: Expression {
+        public let token: Token
+        public let expression: Expression
+        public init(
+            _ token: Token, _ expression: Expression, sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.expression = expression
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitAwaitExpression(self, additional: additional)
         }
     }
     public final class Subscript: Expression {

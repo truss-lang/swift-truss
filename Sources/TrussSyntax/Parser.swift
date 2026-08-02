@@ -2620,6 +2620,11 @@ public final class Parser {
 
     private func parseFor() -> AST.Statement {
         let token = next!
+        var asyncToken: Token? = nil
+        if let t = peek, t.kind == .Keyword(.Await) {
+            index += 1
+            asyncToken = t
+        }
         var caseToken: Token? = nil
         if let t = peek, t.kind == .Keyword(.Case) {
             index += 1
@@ -2694,7 +2699,7 @@ public final class Parser {
             )
         }
         return AST.For(
-            token, pattern, inToken, sequence, openToken, body, closeToken,
+            token, asyncToken, pattern, inToken, sequence, openToken, body, closeToken,
             sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
         )
     }
@@ -3532,6 +3537,8 @@ public final class Parser {
                 expression = parseCaseMatch(token)
             case .Try:
                 expression = parseTryExpression(token, excepts, isCondition)
+            case .Await:
+                expression = parseAwaitExpression(token, excepts, isCondition)
             default:
                 return nil
             }
@@ -3919,6 +3926,23 @@ public final class Parser {
         }
         return AST.TryExpression(
             token, kind, inner,
+            sourceRange: SourceRange(
+                start: token.sourceRange(in: buffer).start,
+                end: inner.sourceRange.end
+            )
+        )
+    }
+
+    private func parseAwaitExpression(
+        _ token: Token, _ excepts: [OperatorKind]?, _ isCondition: Bool
+    ) -> AST.Expression {
+        index += 1
+        guard let inner = parseExpression(excepts: excepts, isCondition: isCondition) else {
+            emitError("expected expression after 'await'", at: locationAfter(token))
+            return errorExpression(from: token, to: locationAfter(token))
+        }
+        return AST.AwaitExpression(
+            token, inner,
             sourceRange: SourceRange(
                 start: token.sourceRange(in: buffer).start,
                 end: inner.sourceRange.end
@@ -4330,6 +4354,8 @@ public final class Parser {
         let signature: AST.ClosureSignature?
         if peek?.kind == .Separator(.OpenParen) || peek?.kind == .Separator(.OpenBracket) {
             signature = parseClosureSignature()
+        } else if let t = peek, t.kind == .Keyword(.Async) {
+            signature = parseClosureSignature()
         } else if let t = peek, case .Identifier = t.kind,
             let t2 = peek2, case .Identifier = t2.kind, t2.value == "in"
         {
@@ -4339,7 +4365,7 @@ public final class Parser {
                 sourceRange: t.sourceRange(in: buffer)
             )
             index += 1
-            signature = AST.ClosureSignature([], [parameter], nil, nil, t2)
+            signature = AST.ClosureSignature([], [parameter], nil, nil, nil, t2)
         } else {
             signature = nil
         }
@@ -4371,6 +4397,11 @@ public final class Parser {
         var captureList: [AST.CaptureItem] = []
         if peek?.kind == .Separator(.OpenBracket) {
             captureList = parseCaptureList()
+        }
+        var asyncToken: Token? = nil
+        if let t = peek, t.kind == .Keyword(.Async) {
+            index += 1
+            asyncToken = t
         }
         var parameters: [AST.FunctionDecl.Parameter] = []
         if peek?.kind == .Separator(.OpenParen) {
@@ -4420,10 +4451,12 @@ public final class Parser {
                     value: "", kind: .Unknown,
                     pos: Position(pos: 0, line: 0, col: 0, len: 0), id: lexerResult.id
                 )
-            return AST.ClosureSignature(captureList, parameters, throwsClause, returnType, fallback)
+            return AST.ClosureSignature(
+                captureList, parameters, throwsClause, returnType, asyncToken, fallback)
         }
         index += 1
-        return AST.ClosureSignature(captureList, parameters, throwsClause, returnType, inToken!)
+        return AST.ClosureSignature(
+            captureList, parameters, throwsClause, returnType, asyncToken, inToken!)
     }
 
     private func parseCaptureList() -> [AST.CaptureItem] {
@@ -4956,6 +4989,15 @@ public final class Parser {
                         AST.Modifier(
                             token: token,
                             kind: .Isolated,
+                            sourceRange: token.sourceRange(in: buffer)
+                        )
+                    )
+                case .Async:
+                    index += 1
+                    modifiers.append(
+                        AST.Modifier(
+                            token: token,
+                            kind: .Async,
                             sourceRange: token.sourceRange(in: buffer)
                         )
                     )

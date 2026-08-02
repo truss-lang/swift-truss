@@ -792,6 +792,13 @@ extension AST {
         }
 
         @discardableResult
+        open func visitAwaitExpression(
+            _ awaitExpression: AST.AwaitExpression, additional: Any? = nil
+        ) -> Any? {
+            return visit(awaitExpression.expression, additional: additional)
+        }
+
+        @discardableResult
         open func visitSubscript(
             _ subscriptExpr: AST.Subscript, additional: Any? = nil
         ) -> Any? {

@@ -50,7 +50,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     case (.Abstract, .Abstract), (.Final, .Final), (.Mutating, .Mutating),
         (.Nonmutating, .Nonmutating), (.Convenience, .Convenience),
         (.Override, .Override), (.Lazy, .Lazy), (.Weak, .Weak),
-        (.Unowned, .Unowned), (.Indirect, .Indirect), (.Isolated, .Isolated):
+        (.Unowned, .Unowned), (.Indirect, .Indirect), (.Isolated, .Isolated),
+        (.Async, .Async):
         return true
     default: return false
     }
@@ -6398,4 +6399,159 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let range = subDecl.sourceRange
     #expect(range.start.offset == 11)
     #expect(range.end.offset == 41)
+}
+
+// MARK: - Async / Await
+
+@Test func parseAwaitExpression() {
+    let expr = firstExpression("await foo()")
+    let awaitExpr = expr as? AST.AwaitExpression
+    #expect(awaitExpr != nil)
+    #expect(awaitExpr!.token.kind == .Keyword(.Await))
+    let call = awaitExpr!.expression as? AST.Call
+    #expect(call != nil)
+}
+
+@Test func parseAwaitVariable() {
+    let expr = firstExpression("await x")
+    let awaitExpr = expr as? AST.AwaitExpression
+    #expect(awaitExpr != nil)
+    let variable = awaitExpr!.expression as? AST.Variable
+    #expect(variable != nil)
+    #expect(variable!.name.value == "x")
+}
+
+@Test func parseTryAwait() {
+    let expr = firstExpression("try await foo()")
+    let tryExpr = expr as? AST.TryExpression
+    #expect(tryExpr != nil)
+    #expect(tryExpr!.kind == .Try)
+    let awaitExpr = tryExpr!.expression as? AST.AwaitExpression
+    #expect(awaitExpr != nil)
+}
+
+@Test func parseAwaitTry() {
+    let expr = firstExpression("await try foo()")
+    let awaitExpr = expr as? AST.AwaitExpression
+    #expect(awaitExpr != nil)
+    let tryExpr = awaitExpr!.expression as? AST.TryExpression
+    #expect(tryExpr != nil)
+    #expect(tryExpr!.kind == .Try)
+}
+
+@Test func parseAwaitInStatementPosition() {
+    let body = parseBlockStatements("func main() { await foo() }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let awaitExpr = exprStmt!.expression as? AST.AwaitExpression
+    #expect(awaitExpr != nil)
+}
+
+@Test func parseAwaitMissingExpressionReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { await }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected expression after 'await'")
+}
+
+@Test func parseAsyncModifierOnFunction() {
+    let statements = parseStatements("async func foo() {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.modifiers.count == 1)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Async))
+}
+
+@Test func parseAsyncModifierCombined() {
+    let statements = parseStatements("public async func foo() {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.modifiers.count == 2)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Public(setter: false)))
+    #expect(modifierKind(decl!.modifiers[1].kind, equals: .Async))
+}
+
+@Test func parseAsyncModifierOnInit() {
+    let statements = parseStatements("struct S { async init() {} }")
+    let structDecl = statements[0] as? AST.StructDecl
+    let initDecl = structDecl!.body[0] as? AST.InitDecl
+    #expect(initDecl != nil)
+    #expect(initDecl!.modifiers.count == 1)
+    #expect(modifierKind(initDecl!.modifiers[0].kind, equals: .Async))
+}
+
+@Test func parseAsyncLetBinding() {
+    let body = parseBlockStatements("func main() { async let x = foo() }")
+    #expect(body.count == 1)
+    let decl = body[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(decl!.name.value == "x")
+    #expect(decl!.modifiers.count == 1)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Async))
+}
+
+@Test func parseAsyncClosure() {
+    let expr = firstExpression("{ async () in 1 }")
+    let closure = expr as? AST.Closure
+    #expect(closure != nil)
+    #expect(closure!.signature != nil)
+    #expect(closure!.signature!.asyncToken != nil)
+    #expect(closure!.signature!.asyncToken!.kind == .Keyword(.Async))
+    #expect(closure!.signature!.parameters.isEmpty)
+}
+
+@Test func parseAsyncClosureWithParams() {
+    let expr = firstExpression("{ async (x: Int) in x }")
+    let closure = expr as? AST.Closure
+    #expect(closure != nil)
+    let signature = closure!.signature
+    #expect(signature != nil)
+    #expect(signature!.asyncToken != nil)
+    #expect(signature!.parameters.count == 1)
+    #expect(signature!.parameters[0].name.value == "x")
+}
+
+@Test func parseAsyncClosureThrowsReturnType() {
+    let expr = firstExpression("{ async () throws -> Int in 1 }")
+    let closure = expr as? AST.Closure
+    #expect(closure != nil)
+    let signature = closure!.signature
+    #expect(signature != nil)
+    #expect(signature!.asyncToken != nil)
+    #expect(signature!.throwsClause != nil)
+    #expect(signature!.returnType != nil)
+}
+
+@Test func parseAsyncClosureCaptureList() {
+    let expr = firstExpression("{ [weak self] async () in 1 }")
+    let closure = expr as? AST.Closure
+    #expect(closure != nil)
+    let signature = closure!.signature
+    #expect(signature != nil)
+    #expect(signature!.captureList.count == 1)
+    #expect(signature!.asyncToken != nil)
+}
+
+@Test func parseForAwait() {
+    let body = parseBlockStatements("func main() { for await x in arr {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    #expect(forStmt!.asyncToken != nil)
+    #expect(forStmt!.asyncToken!.kind == .Keyword(.Await))
+}
+
+@Test func parseForAwaitCase() {
+    let body = parseBlockStatements("func main() { for await case .foo(x) in arr {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    #expect(forStmt!.asyncToken != nil)
+}
+
+@Test func parseForWithoutAwaitHasNilAsyncToken() {
+    let body = parseBlockStatements("func main() { for x in arr {} }")
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    #expect(forStmt!.asyncToken == nil)
 }

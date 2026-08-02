@@ -616,6 +616,7 @@ extension AST {
     }
     public final class For: Statement {
         public let token: Token
+        public let asyncToken: Token?
         public let pattern: Expression
         public let inToken: Token
         public let sequence: Expression
@@ -623,11 +624,12 @@ extension AST {
         public let body: [Statement]
         public let endToken: Token
         public init(
-            _ token: Token, _ pattern: Expression, _ inToken: Token,
+            _ token: Token, _ asyncToken: Token?, _ pattern: Expression, _ inToken: Token,
             _ sequence: Expression, _ beginToken: Token, _ body: [Statement],
             _ endToken: Token, sourceRange: SourceRange
         ) {
             self.token = token
+            self.asyncToken = asyncToken
             self.pattern = pattern
             self.inToken = inToken
             self.sequence = sequence
