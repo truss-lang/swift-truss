@@ -1369,6 +1369,12 @@ public final class Parser {
         -> AST.Statement
     {
         let token = next!
+        let genericDecl: AST.GenericDecl? =
+            if let t = peek, case .Operator(.Less) = t.kind {
+                parseGenericDecl()
+            } else {
+                nil
+            }
         var parameters: [AST.FunctionDecl.Parameter] = []
         if peek?.kind == .Separator(.OpenParen) {
             index += 1
@@ -1423,7 +1429,8 @@ public final class Parser {
             }
         }
         return AST.SubscriptDecl(
-            modifiers, attributes, token, parameters, throwsClause, returnType, body,
+            modifiers, attributes, token, genericDecl, parameters, throwsClause, returnType,
+            body,
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
@@ -1708,6 +1715,12 @@ public final class Parser {
         } else {
             optionalToken = nil
         }
+        let genericDecl: AST.GenericDecl? =
+            if let t = peek, case .Operator(.Less) = t.kind {
+                parseGenericDecl()
+            } else {
+                nil
+            }
         guard let t1 = peek else {
             emitError("expected '(' after 'init'", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -1776,7 +1789,8 @@ public final class Parser {
             emitError("expected '}' after initializer body", at: endOfFile)
         }
         return AST.InitDecl(
-            modifiers, attributes, token, optionalToken, parameters, throwsClause, body,
+            modifiers, attributes, token, optionalToken, genericDecl, parameters,
+            throwsClause, body,
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
@@ -1922,6 +1936,12 @@ public final class Parser {
                 )
             }
         }
+        let genericDecl: AST.GenericDecl? =
+            if let t = peek, case .Operator(.Less) = t.kind {
+                parseGenericDecl()
+            } else {
+                nil
+            }
         guard let t1 = peek else {
             emitError("expected '(' after function name", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -2012,8 +2032,9 @@ public final class Parser {
             body = nil
         }
         return AST.FunctionDecl(
-            modifiers, attributes, token, name, parameters, varargToken, throwsClause,
-            returnTypeExpression, body, sourceRange: SourceRange(from: token, to: last!, in: buffer)
+            modifiers, attributes, token, name, genericDecl, parameters, varargToken,
+            throwsClause, returnTypeExpression, body,
+            sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
 

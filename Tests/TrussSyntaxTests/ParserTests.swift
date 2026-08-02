@@ -5335,6 +5335,76 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(errors[0].message.contains("expected '{' in actor type, but got '123'"))
 }
 
+// MARK: - Generic Function / Init / Subscript Declarations
+
+@Test func parseGenericFunctionDecl() {
+    let statements = parseStatements("func foo<T>(x: T) -> T { x }")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    let genericDecl = decl!.genericDecl
+    #expect(genericDecl != nil)
+    #expect(genericDecl!.generics.count == 1)
+    #expect(genericDecl!.generics[0].name.value == "T")
+    #expect(genericDecl!.generics[0].eachToken == nil)
+    #expect(decl!.parameters.count == 1)
+    #expect(decl!.returnTypeExpression != nil)
+}
+
+@Test func parseGenericFunctionDeclWithConstraint() {
+    let statements = parseStatements("func foo<T: Equatable>(x: T) -> T { x }")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    let genericDecl = decl!.genericDecl
+    #expect(genericDecl != nil)
+    #expect(genericDecl!.generics.count == 1)
+    let constraint = genericDecl!.generics[0].constraint
+    #expect(constraint != nil)
+}
+
+@Test func parseGenericFunctionDeclMultipleParams() {
+    let statements = parseStatements("func swap<T, U>(_ a: T, _ b: U) {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.genericDecl?.generics.count == 2)
+    #expect(decl!.genericDecl!.generics[1].name.value == "U")
+}
+
+@Test func parseNonGenericFunctionHasNoGenericDecl() {
+    let statements = parseStatements("func foo() {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.genericDecl == nil)
+}
+
+@Test func parseGenericInitDecl() {
+    let statements = parseStatements("struct S { init<T>(x: T) {} }")
+    #expect(statements.count == 1)
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let initDecl = structDecl!.body[0] as? AST.InitDecl
+    #expect(initDecl != nil)
+    #expect(initDecl!.genericDecl != nil)
+    #expect(initDecl!.genericDecl!.generics.count == 1)
+    #expect(initDecl!.genericDecl!.generics[0].name.value == "T")
+}
+
+@Test func parseGenericSubscriptDecl() {
+    let statements = parseStatements("struct S { subscript<T>(i: T) -> T { i } }")
+    #expect(statements.count == 1)
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let subDecl = structDecl!.body[0] as? AST.SubscriptDecl
+    #expect(subDecl != nil)
+    #expect(subDecl!.genericDecl != nil)
+    #expect(subDecl!.genericDecl!.generics.count == 1)
+    #expect(subDecl!.genericDecl!.generics[0].name.value == "T")
+    #expect(subDecl!.parameters.count == 1)
+}
+
 // MARK: - Subscript Declarations (extended)
 
 @Test func parseSubscriptDeclBasic() {

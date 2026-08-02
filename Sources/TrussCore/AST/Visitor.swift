@@ -256,6 +256,9 @@ extension AST {
         open func visitInitDecl(
             _ initDecl: AST.InitDecl, additional: Any? = nil
         ) -> Any? {
+            if let genericDecl = initDecl.genericDecl {
+                visitGenericDecl(genericDecl, additional: additional)
+            }
             for parameter in initDecl.parameters {
                 if let type = parameter.type {
                     visit(type, additional: additional)
@@ -289,6 +292,9 @@ extension AST {
         open func visitFunctionDecl(
             _ functionDecl: AST.FunctionDecl, additional: Any? = nil
         ) -> Any? {
+            if let genericDecl = functionDecl.genericDecl {
+                visitGenericDecl(genericDecl, additional: additional)
+            }
             for parameter in functionDecl.parameters {
                 if let type = parameter.type {
                     visit(type, additional: additional)
@@ -854,6 +860,9 @@ extension AST {
         open func visitSubscriptDecl(
             _ subscriptDecl: AST.SubscriptDecl, additional: Any? = nil
         ) -> Any? {
+            if let genericDecl = subscriptDecl.genericDecl {
+                visitGenericDecl(genericDecl, additional: additional)
+            }
             for parameter in subscriptDecl.parameters {
                 if let type = parameter.type {
                     visit(type, additional: additional)

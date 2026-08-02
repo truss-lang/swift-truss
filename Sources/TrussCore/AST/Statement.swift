@@ -410,16 +410,19 @@ extension AST {
     public final class InitDecl: Decl {
         public let token: Token
         public let optionalToken: Token?
+        public let genericDecl: GenericDecl?
         public let parameters: [FunctionDecl.Parameter]
         public let throwsClause: ThrowsClause?
         public let body: [Statement]
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ optionalToken: Token?, _ parameters: [FunctionDecl.Parameter],
-            _ throwsClause: ThrowsClause?, _ body: [Statement], sourceRange: SourceRange
+            _ optionalToken: Token?, _ genericDecl: GenericDecl?,
+            _ parameters: [FunctionDecl.Parameter], _ throwsClause: ThrowsClause?,
+            _ body: [Statement], sourceRange: SourceRange
         ) {
             self.token = token
             self.optionalToken = optionalToken
+            self.genericDecl = genericDecl
             self.parameters = parameters
             self.throwsClause = throwsClause
             self.body = body
@@ -447,6 +450,7 @@ extension AST {
     public final class FunctionDecl: Decl {
         public let token: Token
         public let name: Token
+        public let genericDecl: GenericDecl?
         public let parameters: [Parameter]
         public let varargToken: Token?
         public let throwsClause: ThrowsClause?
@@ -455,12 +459,13 @@ extension AST {
         public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ parameters: [Parameter], _ varargToken: Token?,
-            _ throwsClause: ThrowsClause?, _ returnTypeExpression: Expression?, _ body: Body?,
-            sourceRange: SourceRange
+            _ name: Token, _ genericDecl: GenericDecl?, _ parameters: [Parameter],
+            _ varargToken: Token?, _ throwsClause: ThrowsClause?,
+            _ returnTypeExpression: Expression?, _ body: Body?, sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
+            self.genericDecl = genericDecl
             self.parameters = parameters
             self.varargToken = varargToken
             self.throwsClause = throwsClause
@@ -731,16 +736,19 @@ extension AST {
     }
     public final class SubscriptDecl: Decl {
         public let token: Token
+        public let genericDecl: GenericDecl?
         public let parameters: [FunctionDecl.Parameter]
         public let throwsClause: ThrowsClause?
         public let returnType: Expression
         public let body: [Statement]
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ parameters: [FunctionDecl.Parameter], _ throwsClause: ThrowsClause?,
-            _ returnType: Expression, _ body: [Statement], sourceRange: SourceRange
+            _ genericDecl: GenericDecl?, _ parameters: [FunctionDecl.Parameter],
+            _ throwsClause: ThrowsClause?, _ returnType: Expression, _ body: [Statement],
+            sourceRange: SourceRange
         ) {
             self.token = token
+            self.genericDecl = genericDecl
             self.parameters = parameters
             self.throwsClause = throwsClause
             self.returnType = returnType
