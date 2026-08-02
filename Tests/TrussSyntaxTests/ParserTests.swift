@@ -5535,6 +5535,44 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(wildcard != nil)
 }
 
+@Test func parseForCaseWithInitializer() {
+    let body = parseBlockStatements("func main() { for case let y = a in arr {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    let caseMatch = forStmt!.pattern as? AST.CaseMatch
+    #expect(caseMatch != nil)
+    let binding = caseMatch!.pattern as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "y")
+    let subject = caseMatch!.subject as? AST.Variable
+    #expect(subject != nil)
+    #expect(subject!.name.value == "a")
+    let sequence = forStmt!.sequence as? AST.Variable
+    #expect(sequence != nil)
+    #expect(sequence!.name.value == "arr")
+}
+
+@Test func parseForCaseWithInitializerExpression() {
+    let body = parseBlockStatements("func main() { for case let y = a + 1 in arr {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    let caseMatch = forStmt!.pattern as? AST.CaseMatch
+    #expect(caseMatch != nil)
+    let subject = caseMatch!.subject as? AST.SequentialExpression
+    #expect(subject != nil)
+    #expect(subject!.ops.count == 1)
+}
+
+@Test func parseForPatternWithoutInitializer() {
+    let body = parseBlockStatements("func main() { for x in arr {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    #expect(forStmt!.pattern as? AST.Variable != nil)
+}
+
 @Test func parseForMissingInReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { for x {} }")
     try #require(errors.count == 1)
