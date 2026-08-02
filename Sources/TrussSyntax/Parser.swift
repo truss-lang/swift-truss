@@ -1712,6 +1712,9 @@ public final class Parser {
         if let t = peek, t.kind == .Operator(.QuestionMark) {
             index += 1
             optionalToken = t
+        } else if let t = peek, t.kind == .Operator(.Not) {
+            index += 1
+            optionalToken = t
         } else {
             optionalToken = nil
         }

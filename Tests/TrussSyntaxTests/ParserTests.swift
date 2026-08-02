@@ -5577,6 +5577,30 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(initDecl!.parameters.count == 1)
 }
 
+@Test func parseIUOInit() {
+    let statements = parseStatements("struct S { init!() {} }")
+    #expect(statements.count == 1)
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let initDecl = structDecl!.body[0] as? AST.InitDecl
+    #expect(initDecl != nil)
+    #expect(initDecl!.optionalToken != nil)
+    #expect(initDecl!.optionalToken!.kind == .Operator(.Not))
+    #expect(initDecl!.parameters.isEmpty)
+}
+
+@Test func parseIUOInitWithParameters() {
+    let statements = parseStatements("struct S { init!(x: Int) {} }")
+    #expect(statements.count == 1)
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    let initDecl = structDecl!.body[0] as? AST.InitDecl
+    #expect(initDecl != nil)
+    #expect(initDecl!.optionalToken != nil)
+    #expect(initDecl!.optionalToken!.kind == .Operator(.Not))
+    #expect(initDecl!.parameters.count == 1)
+}
+
 // MARK: - Operator Function Declarations
 
 @Test func parseOperatorFunctionDeclaration() {
