@@ -526,3 +526,42 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[4].kind == .StringLiteral)
     #expect(tokens[4].value == "")
 }
+
+@Test func lexStringWithNestedInterpolationTokenSplit() {
+    let tokens = lex("\"\\(foo(\\(bar)))\"")
+    #expect(tokens.count == 11)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].value == "")
+    #expect(tokens[0].isUnterminated)
+    #expect(tokens[1].kind == .Separator(.OpenParen))
+    #expect(tokens[2].kind == .Identifier)
+    #expect(tokens[2].value == "foo")
+    #expect(tokens[3].kind == .Separator(.OpenParen))
+    #expect(tokens[4].kind == .StringLiteral)
+    #expect(tokens[4].value == "")
+    #expect(tokens[4].isUnterminated)
+    #expect(tokens[5].kind == .Separator(.OpenParen))
+    #expect(tokens[6].kind == .Identifier)
+    #expect(tokens[6].value == "bar")
+    #expect(tokens[7].kind == .Separator(.CloseParen))
+    #expect(tokens[8].kind == .Separator(.CloseParen))
+    #expect(tokens[9].kind == .Separator(.CloseParen))
+    #expect(tokens[10].kind == .StringLiteral)
+    #expect(tokens[10].value == "")
+    #expect(!tokens[10].isUnterminated)
+}
+
+@Test func lexStringWithCallInsideInterpolation() {
+    let tokens = lex("\"a\\(f(x))b\"")
+    #expect(tokens.count == 8)
+    #expect(tokens[0].value == "a")
+    #expect(tokens[0].isUnterminated)
+    #expect(tokens[1].kind == .Separator(.OpenParen))
+    #expect(tokens[2].value == "f")
+    #expect(tokens[3].kind == .Separator(.OpenParen))
+    #expect(tokens[4].value == "x")
+    #expect(tokens[5].kind == .Separator(.CloseParen))
+    #expect(tokens[6].kind == .Separator(.CloseParen))
+    #expect(tokens[7].kind == .StringLiteral)
+    #expect(tokens[7].value == "b")
+}

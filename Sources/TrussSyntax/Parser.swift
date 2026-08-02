@@ -4150,10 +4150,7 @@ public final class Parser {
                 return errorExpression(from: firstToken, to: firstToken)
             }
             guard case .StringLiteral = nextToken.kind else {
-                emitError(
-                    "expected string literal after interpolation, but got '\(nextToken.value)'",
-                    at: nextToken)
-                return errorExpression(from: firstToken, to: nextToken)
+                break
             }
             index += 1
             segments.append(.literal(nextToken))

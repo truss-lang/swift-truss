@@ -5824,10 +5824,54 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(seq!.ops[0].kind == .Operator(.Plus))
 }
 
-@Test func parseStringInterpolationNestedCurrentlyUnsupported() throws {
-    let (_, errors) = parseWithDiagnostics("func main() { let s = \"\\(foo(\\(bar)))\" }")
-    try #require(errors.count >= 1)
-    #expect(errors.contains { $0.message.contains("expected ')' after interpolation expression") })
+@Test func parseStringInterpolationNested() {
+    let expr = firstExpression("\"\\(foo(\\(bar)))\"")
+    let interp = expr as? AST.StringInterpolation
+    #expect(interp != nil)
+    #expect(interp!.segments.count == 3)
+    guard case .expression(let e) = interp!.segments[1] else {
+        Issue.record("expected expression segment")
+        return
+    }
+    let call = e as? AST.Call
+    #expect(call != nil)
+    let callee = call!.callee as? AST.Variable
+    #expect(callee != nil)
+    #expect(callee!.name.value == "foo")
+    #expect(call!.arguments.count == 1)
+    let inner = call!.arguments[0].value as? AST.StringInterpolation
+    #expect(inner != nil)
+    guard case .expression(let innerExpr) = inner!.segments[1] else {
+        Issue.record("expected inner expression segment")
+        return
+    }
+    let innerVar = innerExpr as? AST.Variable
+    #expect(innerVar != nil)
+    #expect(innerVar!.name.value == "bar")
+}
+
+@Test func parseStringInterpolationNestedAsCallArgument() {
+    let expr = firstExpression("\"\\(f(g(\\(x))))\"")
+    let interp = expr as? AST.StringInterpolation
+    #expect(interp != nil)
+    #expect(interp!.segments.count == 3)
+    guard case .expression(let e) = interp!.segments[1] else {
+        Issue.record("expected expression segment")
+        return
+    }
+    let outerCall = e as? AST.Call
+    #expect(outerCall != nil)
+    let innerCall = outerCall!.arguments[0].value as? AST.Call
+    #expect(innerCall != nil)
+    let nested = innerCall!.arguments[0].value as? AST.StringInterpolation
+    #expect(nested != nil)
+    guard case .expression(let nestedExpr) = nested!.segments[1] else {
+        Issue.record("expected nested expression segment")
+        return
+    }
+    let varExpr = nestedExpr as? AST.Variable
+    #expect(varExpr != nil)
+    #expect(varExpr!.name.value == "x")
 }
 
 @Test func parseStringInterpolationMissingCloseParenReportsError() throws {

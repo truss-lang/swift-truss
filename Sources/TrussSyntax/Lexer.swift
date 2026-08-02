@@ -125,6 +125,9 @@ public final class Lexer {
         case _ where c.isLetter || c == "_":
             return self.parseIdentifier()
         case "(":
+            if self.interpolationDepth > 0 {
+                self.interpolationDepth += 1
+            }
             return self.singleCharToken(.Separator(.OpenParen), "(")
         case ")":
             if self.interpolationDepth > 0 {
@@ -181,6 +184,21 @@ public final class Lexer {
             } else {
                 return self.parseOperator()
             }
+        case "\\":
+            if self.interpolationDepth > 0, self.input.peek2 == "(" {
+                self.emitInterpolationOpen = true
+                self.interpolationDepth += 1
+                let pos = self.makePosition(self.input.currentPosition)
+                return Token(
+                    value: "", kind: .StringLiteral, pos: pos, id: self.input.id,
+                    isUnterminated: true
+                )
+            }
+            let begin = self.input.currentPosition
+            self.input.incrementPosition()
+            return Token(
+                value: "\\", kind: .Unknown,
+                pos: self.makePosition(begin), id: self.input.id)
         default:
             let begin = self.input.currentPosition
             self.input.incrementPosition()
