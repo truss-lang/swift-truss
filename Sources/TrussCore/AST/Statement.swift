@@ -502,6 +502,7 @@ extension AST {
     }
     public final class VariableDecl: Decl {
         public let token: Token
+        public let internalToken: Token?
         public let name: Token
         public let typeExpression: Expression?
         public let initializer: Expression?
@@ -509,10 +510,11 @@ extension AST {
         public var symbol: Symbol.VariableSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ typeExpression: Expression?, _ initializer: Expression?,
-            _ accessors: [Accessor], sourceRange: SourceRange
+            _ internalToken: Token?, _ name: Token, _ typeExpression: Expression?,
+            _ initializer: Expression?, _ accessors: [Accessor], sourceRange: SourceRange
         ) {
             self.token = token
+            self.internalToken = internalToken
             self.name = name
             self.typeExpression = typeExpression
             self.initializer = initializer
