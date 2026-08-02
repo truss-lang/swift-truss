@@ -5657,14 +5657,41 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(closure!.body.isEmpty)
 }
 
-@Test func parseClosureSingleUnannotatedParameterHasNoSignature() {
+@Test func parseClosureSingleUnannotatedParameter() {
     let body = parseBlockStatements("func main() { { x in x } }")
     #expect(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
     let closure = exprStmt!.expression as? AST.Closure
     #expect(closure != nil)
-    #expect(closure!.signature == nil)
-    #expect(closure!.body.count == 3)
+    let signature = closure!.signature
+    #expect(signature != nil)
+    #expect(signature!.parameters.count == 1)
+    #expect(signature!.parameters[0].name.value == "x")
+    #expect(signature!.parameters[0].label == nil)
+    #expect(signature!.parameters[0].type == nil)
+    #expect(signature!.inToken.value == "in")
+    #expect(closure!.body.count == 1)
+}
+
+@Test func parseClosureSingleUnannotatedParameterWildcard() {
+    let body = parseBlockStatements("func main() { { _ in 42 } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let closure = exprStmt!.expression as? AST.Closure
+    #expect(closure != nil)
+    #expect(closure!.signature?.parameters.count == 1)
+    #expect(closure!.signature!.parameters[0].name.value == "_")
+    #expect(closure!.body.count == 1)
+}
+
+@Test func parseClosureSingleUnannotatedParameterEmptyBody() {
+    let body = parseBlockStatements("func main() { { x in } }")
+    #expect(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let closure = exprStmt!.expression as? AST.Closure
+    #expect(closure != nil)
+    #expect(closure!.signature?.parameters.count == 1)
+    #expect(closure!.body.isEmpty)
 }
 
 @Test func parseClosureWithCaptureListCombined() {

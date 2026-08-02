@@ -4172,6 +4172,16 @@ public final class Parser {
         let signature: AST.ClosureSignature?
         if peek?.kind == .Separator(.OpenParen) || peek?.kind == .Separator(.OpenBracket) {
             signature = parseClosureSignature()
+        } else if let t = peek, case .Identifier = t.kind,
+            let t2 = peek2, case .Identifier = t2.kind, t2.value == "in"
+        {
+            index += 1
+            let parameter = AST.FunctionDecl.Parameter(
+                label: nil, name: t, type: nil, defaultValue: nil,
+                sourceRange: t.sourceRange(in: buffer)
+            )
+            index += 1
+            signature = AST.ClosureSignature([], [parameter], nil, nil, t2)
         } else {
             signature = nil
         }
