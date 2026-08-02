@@ -73,6 +73,7 @@ public enum AST {
         case Weak
         case Unowned
         case Indirect
+        case Isolated
     }
     public final class GenericDecl: AstNode {
         public let begin: Token

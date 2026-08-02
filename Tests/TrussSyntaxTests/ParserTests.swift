@@ -50,7 +50,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     case (.Abstract, .Abstract), (.Final, .Final), (.Mutating, .Mutating),
         (.Nonmutating, .Nonmutating), (.Convenience, .Convenience),
         (.Override, .Override), (.Lazy, .Lazy), (.Weak, .Weak),
-        (.Unowned, .Unowned), (.Indirect, .Indirect):
+        (.Unowned, .Unowned), (.Indirect, .Indirect), (.Isolated, .Isolated):
         return true
     default: return false
     }
@@ -5773,6 +5773,30 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 // MARK: - Modifiers (extended)
+
+@Test func parseIsolatedModifierOnFunction() {
+    let statements = parseStatements("isolated func foo() {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.modifiers.count == 1)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Isolated))
+}
+
+@Test func parseIsolatedModifierCombined() {
+    let statements = parseStatements("isolated public func foo() {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    #expect(decl != nil)
+    #expect(decl!.modifiers.count == 2)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Isolated))
+    #expect(modifierKind(decl!.modifiers[1].kind, equals: .Public(setter: false)))
+}
+
+@Test func parseIsolatedModifierOnVar() {
+    let statements = parseStatements("isolated var x: Int32")
+    let decl = statements[0] as? AST.VariableDecl
+    #expect(decl != nil)
+    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Isolated))
+}
 
 @Test func parseNonmutatingModifierOnFunction() {
     let statements = parseStatements("nonmutating func foo() {}")

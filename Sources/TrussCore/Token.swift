@@ -31,6 +31,7 @@ public enum KeywordKind: CaseIterable, Sendable {
     case Weak
     case Unowned
     case Indirect
+    case Isolated
     case Import
     case TypeAlias
     case Module
@@ -103,6 +104,7 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .Weak: "weak"
         case .Unowned: "unowned"
         case .Indirect: "indirect"
+        case .Isolated: "isolated"
         case .Import: "import"
         case .TypeAlias: "typealias"
         case .Module: "module"

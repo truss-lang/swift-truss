@@ -4782,6 +4782,15 @@ public final class Parser {
                             sourceRange: token.sourceRange(in: buffer)
                         )
                     )
+                case .Isolated:
+                    index += 1
+                    modifiers.append(
+                        AST.Modifier(
+                            token: token,
+                            kind: .Isolated,
+                            sourceRange: token.sourceRange(in: buffer)
+                        )
+                    )
                 default:
                     break _loop
                 }
