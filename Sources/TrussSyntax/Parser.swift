@@ -1461,7 +1461,9 @@ public final class Parser {
         var requirements: [AST.WhereRequirement] = []
         while let t = peek {
             suppressTrailingClosures = true
-            let left = parseExpression(isTypeContext: true) ?? errorExpression(from: t, to: t)
+            let left =
+                parseExpression(excepts: [.Equal], isTypeContext: true)
+                ?? errorExpression(from: t, to: t)
             suppressTrailingClosures = false
             let op = peek
             if op == nil {
@@ -1477,19 +1479,14 @@ public final class Parser {
                 requirements.append(
                     AST.WhereRequirement(left, .conformance(right))
                 )
-            case .Operator(.Assign):
-                if peek2?.kind == .Operator(.Assign) {
-                    index += 2
-                    suppressTrailingClosures = true
-                    let right = parseExpression(isTypeContext: true) ?? errorExpression(from: op!, to: op!)
-                    suppressTrailingClosures = false
-                    requirements.append(
-                        AST.WhereRequirement(left, .equality(right))
-                    )
-                } else {
-                    emitError("expected '==' in where clause, but got '='", at: op!)
-                    break
-                }
+            case .Operator(.Equal):
+                index += 1
+                suppressTrailingClosures = true
+                let right = parseExpression(isTypeContext: true) ?? errorExpression(from: op!, to: op!)
+                suppressTrailingClosures = false
+                requirements.append(
+                    AST.WhereRequirement(left, .equality(right))
+                )
             default:
                 emitError(
                     "expected ':' or '==' in where clause, but got '\(op!.value)'",

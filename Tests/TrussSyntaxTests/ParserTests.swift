@@ -5119,10 +5119,62 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     }
 }
 
-@Test func parseWhereClauseEqualityCurrentlyUnsupported() throws {
-    let (_, errors) = parseWithDiagnostics("protocol P { associatedtype T where T == Int32 }")
-    try #require(errors.count == 1)
-    #expect(errors[0].message.contains("expected ':' or '==' in where clause"))
+@Test func parseWhereClauseEquality() {
+    let statements = parseStatements("protocol P { associatedtype T where T == Int32 }")
+    #expect(statements.count == 1)
+    let protocolDecl = statements[0] as? AST.ProtocolDecl
+    #expect(protocolDecl != nil)
+    let assoc = protocolDecl!.body[0] as? AST.AssociatedTypeDecl
+    #expect(assoc != nil)
+    let whereClause = assoc!.whereClause
+    #expect(whereClause != nil)
+    #expect(whereClause!.count == 1)
+    let left = whereClause![0].left as? AST.Variable
+    #expect(left != nil)
+    #expect(left!.name.value == "T")
+    if case .equality(let right) = whereClause![0].constraint {
+        let rightVar = right as? AST.Variable
+        #expect(rightVar != nil)
+        #expect(rightVar!.name.value == "Int32")
+    } else {
+        Issue.record("expected equality constraint")
+    }
+}
+
+@Test func parseWhereClauseEqualityWithGenericType() {
+    let statements = parseStatements("protocol P { associatedtype T where T == Array<U> }")
+    #expect(statements.count == 1)
+    let protocolDecl = statements[0] as? AST.ProtocolDecl
+    #expect(protocolDecl != nil)
+    let assoc = protocolDecl!.body[0] as? AST.AssociatedTypeDecl
+    #expect(assoc != nil)
+    if case .equality(let right) = assoc!.whereClause![0].constraint {
+        let seq = right as? AST.SequentialExpression
+        #expect(seq != nil)
+        #expect(seq!.ops.count == 2)
+        let base = seq!.operands[0] as? AST.Variable
+        #expect(base != nil)
+        #expect(base!.name.value == "Array")
+        let arg = seq!.operands[1] as? AST.Variable
+        #expect(arg != nil)
+        #expect(arg!.name.value == "U")
+    } else {
+        Issue.record("expected equality constraint")
+    }
+}
+
+@Test func parseStructWhereClauseEquality() {
+    let statements = parseStatements("struct S<T> where T == Int32 {}")
+    #expect(statements.count == 1)
+    let decl = statements[0] as? AST.StructDecl
+    #expect(decl != nil)
+    let whereClause = decl!.whereClause
+    #expect(whereClause != nil)
+    #expect(whereClause!.count == 1)
+    if case .equality = whereClause![0].constraint {
+    } else {
+        Issue.record("expected equality constraint")
+    }
 }
 
 @Test func parseWhereClauseMultipleRequirements() {
