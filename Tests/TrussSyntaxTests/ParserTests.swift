@@ -5484,10 +5484,55 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 // MARK: - For Case
 
-@Test func parseForCasePatternCurrentlyUnsupported() throws {
-    let (_, errors) = parseWithDiagnostics("func main() { for case .foo(x) in arr {} }")
-    try #require(errors.count >= 1)
-    #expect(errors.contains { $0.message.contains("expected '=' after case pattern") })
+@Test func parseForCasePattern() {
+    let body = parseBlockStatements("func main() { for case .foo(x) in arr {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    let call = forStmt!.pattern as? AST.Call
+    #expect(call != nil)
+    let callee = call!.callee as? AST.ImplicitMemberAccess
+    #expect(callee != nil)
+    #expect(callee!.name.value == "foo")
+    #expect(call!.arguments.count == 1)
+    let arg = call!.arguments[0].value as? AST.Variable
+    #expect(arg != nil)
+    #expect(arg!.name.value == "x")
+    let sequence = forStmt!.sequence as? AST.Variable
+    #expect(sequence != nil)
+    #expect(sequence!.name.value == "arr")
+}
+
+@Test func parseForCasePatternWithLetBinding() {
+    let body = parseBlockStatements("func main() { for case .foo(let x) in arr {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    let call = forStmt!.pattern as? AST.Call
+    #expect(call != nil)
+    let binding = call!.arguments[0].value as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.token.kind == .Keyword(.Let))
+    #expect(binding!.name.value == "x")
+}
+
+@Test func parseForCaseWithLetBinding() {
+    let body = parseBlockStatements("func main() { for case let y in arr {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    let binding = forStmt!.pattern as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "y")
+}
+
+@Test func parseForCaseWildcard() {
+    let body = parseBlockStatements("func main() { for case _ in arr {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    let wildcard = forStmt!.pattern as? AST.WildcardPattern
+    #expect(wildcard != nil)
 }
 
 @Test func parseForMissingInReportsError() throws {

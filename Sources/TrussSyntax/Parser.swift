@@ -2603,16 +2603,14 @@ public final class Parser {
 
     private func parseFor() -> AST.Statement {
         let token = next!
-        let pattern: AST.Expression
         if let t = peek, t.kind == .Keyword(.Case) {
-            pattern = parseCaseMatch(t)
-        } else {
-            inPatternContext = true
-            pattern =
-                parseExpression()
-                ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
-            inPatternContext = false
+            index += 1
         }
+        inPatternContext = true
+        let pattern =
+            parseExpression()
+            ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
+        inPatternContext = false
         guard let inToken = peek,
             case .Identifier = inToken.kind,
             inToken.value == "in"
