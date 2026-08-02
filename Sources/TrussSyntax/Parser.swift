@@ -1881,6 +1881,7 @@ public final class Parser {
             case .Guard: return parseGuard()
             case .For: return parseFor()
             case .Defer: return parseDefer()
+            case .Asm: return parseAsm()
             case .Break: return parseBreak()
             case .Continue: return parseContinue()
             case .Goto: return parseGoto()
@@ -2895,6 +2896,125 @@ public final class Parser {
             token, openToken, body, closeToken,
             sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
         )
+    }
+
+    private func parseAsm() -> AST.Statement {
+        let token = next!
+        guard let openToken = next else {
+            emitError("expected '{' after 'asm'", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        guard case .Separator(.OpenBrace) = openToken.kind else {
+            emitError(
+                "expected '{' after 'asm', but got '\(openToken.value)'",
+                at: openToken
+            )
+            return errorStatement(from: token, to: openToken)
+        }
+        var templates: [AST.StringLiteral] = []
+        while let t = peek {
+            guard case .StringLiteral = t.kind else { break }
+            if t.isUnterminated {
+                emitError("asm template must not contain string interpolation", at: t)
+                index += 1
+                break
+            }
+            index += 1
+            templates.append(AST.StringLiteral(t, sourceRange: t.sourceRange(in: buffer)))
+        }
+        var bindings: [AST.Asm.Binding] = []
+        if case .Separator(.Colon)? = peek?.kind {
+            index += 1
+            while let name = peek, case .Identifier = name.kind {
+                index += 1
+                guard let eq = peek, case .Operator(.Assign) = eq.kind else {
+                    emitError("expected '=' after asm operand name, but got '\(peek?.value ?? "")'", at: peek ?? token)
+                    skipAsmUntilSyncPoint()
+                    break
+                }
+                index += 1
+                guard let kind = peek, case .Identifier = kind.kind else {
+                    emitError("expected operand kind after '=', but got '\(peek?.value ?? "")'", at: peek ?? token)
+                    skipAsmUntilSyncPoint()
+                    break
+                }
+                index += 1
+                guard let openParen = peek, case .Separator(.OpenParen) = openParen.kind else {
+                    emitError("expected '(' after asm operand kind, but got '\(peek?.value ?? "")'", at: peek ?? token)
+                    skipAsmUntilSyncPoint()
+                    break
+                }
+                index += 1
+                guard let constraint = peek, case .Identifier = constraint.kind else {
+                    emitError("expected constraint after '(', but got '\(peek?.value ?? "")'", at: peek ?? token)
+                    skipAsmUntilSyncPoint()
+                    break
+                }
+                index += 1
+                guard let closeParen = peek, case .Separator(.CloseParen) = closeParen.kind else {
+                    emitError("expected ')' after asm constraint, but got '\(peek?.value ?? "")'", at: peek ?? token)
+                    skipAsmUntilSyncPoint()
+                    break
+                }
+                index += 1
+                var local: Token? = nil
+                if let t = peek, case .Identifier = t.kind {
+                    index += 1
+                    local = t
+                }
+                bindings.append(
+                    AST.Asm.Binding(
+                        name, kind, constraint, local,
+                        sourceRange: SourceRange(from: name, to: local ?? closeParen, in: buffer)
+                    )
+                )
+                if let t = peek, case .Separator(.Comma) = t.kind {
+                    index += 1
+                } else {
+                    break
+                }
+            }
+        }
+        var options: [Token] = []
+        if let t = peek, case .Separator(.Colon) = t.kind {
+            index += 1
+            while let option = peek {
+                if case .Separator(.CloseBrace) = option.kind { break }
+                guard case .Identifier = option.kind else {
+                    emitError("expected asm option, but got '\(option.value)'", at: option)
+                    skipAsmUntilSyncPoint()
+                    break
+                }
+                index += 1
+                options.append(option)
+            }
+        }
+        guard let closeToken = peek else {
+            emitError("expected '}' after asm body", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        if case .Separator(.CloseBrace) = closeToken.kind {
+            index += 1
+        } else {
+            emitError(
+                "expected '}' after asm body, but got \(closeToken.value)",
+                at: closeToken
+            )
+        }
+        return AST.Asm(
+            token, openToken, templates, bindings, options, closeToken,
+            sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
+        )
+    }
+
+    private func skipAsmUntilSyncPoint() {
+        while let t = peek,
+            t.kind != .Separator(.CloseBrace),
+            t.kind != .Separator(.Comma),
+            t.kind != .Separator(.Colon)
+        {
+            index += 1
+        }
     }
 
     private func parseBreak() -> AST.Statement {

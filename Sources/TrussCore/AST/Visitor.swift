@@ -404,6 +404,11 @@ extension AST {
         }
 
         @discardableResult
+        open func visitAsm(_ asmStatement: AST.Asm, additional: Any? = nil) -> Any? {
+            return nil
+        }
+
+        @discardableResult
         open func visitBreak(_ breakStatement: AST.Break, additional: Any? = nil) -> Any? {
             return nil
         }

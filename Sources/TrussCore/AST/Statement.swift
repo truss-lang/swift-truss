@@ -659,6 +659,47 @@ extension AST {
             visitor.visitDefer(self, additional: additional)
         }
     }
+    public final class Asm: Statement {
+        public struct Binding {
+            public let name: Token
+            public let kind: Token
+            public let constraint: Token
+            public let local: Token?
+            public let sourceRange: SourceRange
+            public init(
+                _ name: Token, _ kind: Token, _ constraint: Token, _ local: Token?,
+                sourceRange: SourceRange
+            ) {
+                self.name = name
+                self.kind = kind
+                self.constraint = constraint
+                self.local = local
+                self.sourceRange = sourceRange
+            }
+        }
+        public let token: Token
+        public let beginToken: Token
+        public let templates: [StringLiteral]
+        public let bindings: [Binding]
+        public let options: [Token]
+        public let endToken: Token
+        public init(
+            _ token: Token, _ beginToken: Token, _ templates: [StringLiteral],
+            _ bindings: [Binding], _ options: [Token], _ endToken: Token,
+            sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.beginToken = beginToken
+            self.templates = templates
+            self.bindings = bindings
+            self.options = options
+            self.endToken = endToken
+            super.init(sourceRange)
+        }
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitAsm(self, additional: additional)
+        }
+    }
     public final class Break: Statement {
         public let token: Token
         public let label: Token?

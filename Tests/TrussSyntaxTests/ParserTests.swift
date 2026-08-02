@@ -1942,6 +1942,163 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(vd!.name.value == "x")
 }
 
+// MARK: - Asm Statements
+
+@Test func parseAsmBasic() {
+    let body = parseBlockStatements("func main() { asm { \"mov {dst}, 42\" : dst = out(reg) result } }")
+    #expect(body.count == 1)
+    let asm = body[0] as? AST.Asm
+    #expect(asm != nil)
+    #expect(asm!.token.kind == .Keyword(.Asm))
+    #expect(asm!.beginToken.kind == .Separator(.OpenBrace))
+    #expect(asm!.endToken.kind == .Separator(.CloseBrace))
+    #expect(asm!.templates.count == 1)
+    #expect(asm!.templates[0].token.value == "mov {dst}, 42")
+    #expect(asm!.bindings.count == 1)
+    let binding = asm!.bindings[0]
+    #expect(binding.name.value == "dst")
+    #expect(binding.kind.value == "out")
+    #expect(binding.constraint.value == "reg")
+    #expect(binding.local?.value == "result")
+    #expect(asm!.options.isEmpty)
+}
+
+@Test func parseAsmInKindWithoutLocal() {
+    let body = parseBlockStatements("func main() { asm { \"mov {dst}, 42\" : dst = in(reg) } }")
+    #expect(body.count == 1)
+    let asm = body[0] as? AST.Asm
+    #expect(asm != nil)
+    #expect(asm!.bindings.count == 1)
+    #expect(asm!.bindings[0].kind.value == "in")
+    #expect(asm!.bindings[0].local == nil)
+}
+
+@Test func parseAsmMultipleTemplates() {
+    let body = parseBlockStatements(
+        "func main() { asm { \"mov {dst}, 42\" \"add {dst}, 1\" : dst = out(reg) result } }"
+    )
+    let asm = body[0] as? AST.Asm
+    #expect(asm != nil)
+    #expect(asm!.templates.count == 2)
+    #expect(asm!.templates[0].token.value == "mov {dst}, 42")
+    #expect(asm!.templates[1].token.value == "add {dst}, 1")
+}
+
+@Test func parseAsmMultipleBindings() {
+    let body = parseBlockStatements(
+        "func main() { asm { \"mov {dst}, {src}\" : dst = out(reg) result, src = in(reg) value } }"
+    )
+    let asm = body[0] as? AST.Asm
+    #expect(asm != nil)
+    #expect(asm!.bindings.count == 2)
+    #expect(asm!.bindings[0].name.value == "dst")
+    #expect(asm!.bindings[0].local?.value == "result")
+    #expect(asm!.bindings[1].name.value == "src")
+    #expect(asm!.bindings[1].kind.value == "in")
+    #expect(asm!.bindings[1].local?.value == "value")
+}
+
+@Test func parseAsmInoutKindWithLocal() {
+    let body = parseBlockStatements(
+        "func main() { asm { \"inc {x}\" : x = inout(reg) counter } }"
+    )
+    let asm = body[0] as? AST.Asm
+    #expect(asm != nil)
+    #expect(asm!.bindings.count == 1)
+    #expect(asm!.bindings[0].kind.value == "inout")
+    #expect(asm!.bindings[0].local?.value == "counter")
+}
+
+@Test func parseAsmEmptyBindings() {
+    let body = parseBlockStatements("func main() { asm { \"nop\" : } }")
+    let asm = body[0] as? AST.Asm
+    #expect(asm != nil)
+    #expect(asm!.templates.count == 1)
+    #expect(asm!.bindings.isEmpty)
+    #expect(asm!.options.isEmpty)
+}
+
+@Test func parseAsmOptions() {
+    let body = parseBlockStatements(
+        "func main() { asm { \"mov {dst}, 42\" : dst = out(reg) result : result preserves_flags } }"
+    )
+    let asm = body[0] as? AST.Asm
+    #expect(asm != nil)
+    #expect(asm!.bindings.count == 1)
+    #expect(asm!.options.count == 2)
+    #expect(asm!.options[0].value == "result")
+    #expect(asm!.options[1].value == "preserves_flags")
+}
+
+@Test func parseAsmMissingOpenBraceReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { asm x }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected '{' after 'asm', but got 'x'")
+}
+
+@Test func parseAsmWithoutColon() {
+    let body = parseBlockStatements("func main() { asm { \"mov {dst}, 42\" } }")
+    #expect(body.count == 1)
+    let asm = body[0] as? AST.Asm
+    #expect(asm != nil)
+    #expect(asm!.templates.count == 1)
+    #expect(asm!.templates[0].token.value == "mov {dst}, 42")
+    #expect(asm!.bindings.isEmpty)
+    #expect(asm!.options.isEmpty)
+}
+
+@Test func parseAsmEmptyBlock() {
+    let body = parseBlockStatements("func main() { asm { } }")
+    #expect(body.count == 1)
+    let asm = body[0] as? AST.Asm
+    #expect(asm != nil)
+    #expect(asm!.templates.isEmpty)
+    #expect(asm!.bindings.isEmpty)
+    #expect(asm!.options.isEmpty)
+}
+
+@Test func parseAsmMissingEqualsReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { asm { \"mov\" : dst out(reg) result } }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected '=' after asm operand name, but got 'out'")
+}
+
+@Test func parseAsmMissingKindReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { asm { \"mov\" : dst = (reg) result } }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected operand kind after '=', but got '('")
+}
+
+@Test func parseAsmMissingConstraintReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { asm { \"mov\" : dst = out() result } }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected constraint after '(', but got ')'")
+}
+
+@Test func parseAsmMissingCloseParenReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { asm { \"mov\" : dst = out(reg result } }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected ')' after asm constraint, but got 'result'")
+}
+
+@Test func parseAsmMissingCloseBraceReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { asm { \"mov\" : dst = out(reg) result")
+    let errors = diagnostics.filter { $0.severity == .error }
+    #expect(errors.contains { $0.message.contains("expected '}' after asm body") })
+}
+
+@Test func parseAsmInvalidOptionReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func main() { asm { \"nop\" : : 42 } }")
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count == 1)
+    #expect(errors[0].message == "expected asm option, but got '42'")
+}
+
 // MARK: - Break / Continue / Goto
 
 @Test func parseBreakWithoutLabel() {
