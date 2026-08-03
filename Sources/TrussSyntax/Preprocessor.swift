@@ -392,18 +392,58 @@ public final class Preprocessor {
             else {
                 return ([token], index + 1)
             }
-            guard let (args, closeIndex) = self.collectArguments(tokens, from: index + 1) else {
+            guard let (rawArgs, closeIndex) = self.collectArguments(tokens, from: index + 1) else {
                 self.emitError("unterminated argument list for macro '\(token.value)'", at: token)
                 return ([token], index + 1)
             }
+            let args = params.isEmpty ? self.emptyCallArgs(rawArgs) : rawArgs
             guard let expanded = self.expandFunctionMacro(
                 name: token.value, params: params, variadic: variadic, body: body, args: args,
                 at: token)
             else {
                 return ([token], index + 1)
             }
-            return (self.relocate(expanded, to: token, site: self.site(of: nameToken)), closeIndex + 1)
+            let tail = self.expandTail(expanded, tokens: tokens, at: closeIndex + 1)
+            return (self.relocate(tail.tokens, to: token, site: self.site(of: nameToken)), tail.nextIndex)
         }
+    }
+
+    private func expandTail(
+        _ expanded: [Token], tokens: [Token], at index: Int
+    ) -> (tokens: [Token], nextIndex: Int) {
+        guard let last = expanded.last, last.kind == .Identifier,
+            let macro = self.macros[last.value], !self.expanding.contains(last.value)
+        else {
+            return (expanded, index)
+        }
+        switch macro {
+        case .Function(let nameToken, let params, let variadic, let body):
+            guard index < tokens.count, tokens[index].kind == .Separator(.OpenParen) else {
+                return (expanded, index)
+            }
+            guard let (rawArgs, closeIndex) = self.collectArguments(tokens, from: index) else {
+                self.emitError("unterminated argument list for macro '\(last.value)'", at: last)
+                return (expanded, index)
+            }
+            let args = params.isEmpty ? self.emptyCallArgs(rawArgs) : rawArgs
+            guard let result = self.expandFunctionMacro(
+                name: last.value, params: params, variadic: variadic, body: body, args: args,
+                at: last)
+            else {
+                return (expanded, index)
+            }
+            return self.expandTail(
+                Array(expanded.dropLast()) + result, tokens: tokens, at: closeIndex + 1)
+        case .Object:
+            return (expanded, index)
+        }
+    }
+
+    private func emptyCallArgs(_ args: [[Token]]) -> [[Token]] {
+        if args.count == 1, args[0].isEmpty {
+            return []
+        }
+        return args
     }
 
     private func site(of nameToken: Token) -> MacroExpansionSite {

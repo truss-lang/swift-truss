@@ -276,6 +276,27 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     #expect(tokenValues(tokens) == ["(", ")"])
 }
 
+@Test func ppZeroParameterMacro() {
+    let tokens = preprocess("#define funclike() add\n#define add(x, y) x + y\nfunclike()(1, 2)")
+    #expect(tokenValues(tokens) == ["1", "+", "2"])
+}
+
+@Test func ppZeroParameterMacroSimpleCall() {
+    let tokens = preprocess("#define VERSION() 42\nVERSION()")
+    #expect(tokenValues(tokens) == ["42"])
+}
+
+@Test func ppZeroParameterMacroExtraArg() {
+    let (tokens, diagnostics) = preprocessWithDiagnostics("#define F() 1\nF(2)")
+    #expect(diagnostics.contains { $0.message.contains("expects 0 arguments, but got 1") })
+    #expect(tokenValues(tokens) == ["F", "(", "2", ")"])
+}
+
+@Test func ppVariadicMacroEmptyCall() {
+    let tokens = preprocess("#define LOG(...) print(__VA_ARGS__)\nLOG()")
+    #expect(tokenValues(tokens) == ["print", "(", ")"])
+}
+
 @Test func ppStringify() {
     let tokens = preprocess("#define STR(x) #x\nSTR(hello)")
     #expect(tokenValues(tokens) == ["hello"])
