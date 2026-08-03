@@ -1,14 +1,7 @@
-import CustomDump
 import SwiftBetterDiagnostic
 import TrussCore
 import TrussSemantics
 import TrussSyntax
-
-extension SourceLocation: @retroactive CustomDumpStringConvertible {
-    public var customDumpDescription: String {
-        return "SourceLocation(\n  offset: \(offset),\n  line: \(line),\n  column: \(column)\n)"
-    }
-}
 
 @main
 struct truss {
@@ -49,26 +42,25 @@ struct truss {
                 }
             }
             typealias SS = (S) -> S
-            #define A B + 2
-            #define B C * 3
-            #define C D - 4
-            #define D E / 5
-            #define E A | 1
+            #define EMPTY()
+            #define DEFER1(A) A
+            #define DEFER2(A) A EMPTY()
+            #define A() 123
             func tf() {
-                A
+                DEFER1(A)()
+                DEFER2(A)()
             }
             """
         let context = Context()
         let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
         context.register(source: src)
-        let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))
-            .parse()
-        let tokens = Preprocessor(context: context).process(
-            lexerResult.tokens, config: PreprocessorConfig())
-        let program = Parser(
-            context: context, packageName: "main",
-            LexerResult(id: lexerResult.id, tokens: tokens)
-        ).parse()
+        let lexerResult = [
+            Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))
+                .parse()
+        ].map {
+            Preprocessor(context: context).process($0, config: PreprocessorConfig())
+        }[0]
+        let program = Parser(context: context, packageName: "main", lexerResult).parse()
         Enter(context: context).visitProgram(program)
         NameResolver(context: context).visitProgram(program)
         print("=== AST Dump ===")

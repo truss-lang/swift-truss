@@ -8,7 +8,6 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/xiaoli-white/swift-abstract.git", from: "1.0.0"),
         .package(url: "https://github.com/xiaoli-white/swift-better-diagnostic.git", from: "1.1.2"),
-        .package(url: "https://github.com/pointfreeco/swift-custom-dump.git", from: "1.6.1"),
         .package(url: "https://github.com/davecom/SwiftGraph.git", from: "4.0.0"),
     ],
     targets: [
@@ -38,7 +37,6 @@ let package = Package(
             name: "truss",
             dependencies: [
                 "TrussSyntax", "TrussSemantics",
-                .product(name: "CustomDump", package: "swift-custom-dump"),
             ]
         ),
         .testTarget(
