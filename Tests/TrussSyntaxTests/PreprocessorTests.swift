@@ -668,3 +668,61 @@ func parseWithPreprocessor(_ source: String) -> [Diagnostic] {
         "in expansion of macro 'B'", "in expansion of macro 'A'"
     ])
 }
+
+@Test func ppMacroChainExpansionInFunction() {
+    let source = """
+        #define A B + 2
+        #define B C * 3
+        #define C D - 4
+        #define D E / 5
+        #define E A | 1
+        func f() {
+            A
+        }
+        """
+    let tokens = preprocess(source)
+    #expect(tokenValues(tokens) == [
+        "func", "f", "(", ")", "{",
+        "A", "|", "1", "/", "5", "-", "4", "*", "3", "+", "2",
+        "}",
+    ])
+}
+
+@Test func ppFunclikeChainInFunction() {
+    let source = """
+        #define funclike() add
+        #define add(x, y) x + y
+        func f() {
+            funclike()(1, 2)
+        }
+        """
+    let tokens = preprocess(source)
+    #expect(tokenValues(tokens) == [
+        "func", "f", "(", ")", "{",
+        "1", "+", "2",
+        "}",
+    ])
+}
+
+@Test func ppDeferFamilyInFunction() {
+    let source = """
+        #define EMPTY()
+        #define DEFER1(A) A
+        #define DEFER2(A) AA EMPTY()
+        #define AA() 123
+        #define EXPAND(x) x
+        func f() {
+            DEFER1(AA)()
+            DEFER2(AA)()
+            EXPAND(DEFER2(AA)())
+        }
+        """
+    let tokens = preprocess(source)
+    #expect(tokenValues(tokens) == [
+        "func", "f", "(", ")", "{",
+        "123",
+        "AA", "(", ")",
+        "123",
+        "}",
+    ])
+}

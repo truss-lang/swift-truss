@@ -419,7 +419,7 @@ public final class Preprocessor {
             return (expanded, index)
         }
         switch macro {
-        case .Function(let nameToken, let params, let variadic, let body):
+        case .Function(_, let params, let variadic, let body):
             guard index < tokens.count, tokens[index].kind == .Separator(.OpenParen) else {
                 return (expanded, index)
             }
