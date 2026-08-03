@@ -9,12 +9,9 @@ func parseProgram(_ source: String, semantic: Bool = false) -> AST.Program {
     let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
     context.register(source: src)
     let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0))).parse()
-    let tokens = Preprocessor(context: context).process(
-        lexerResult.tokens, config: PreprocessorConfig())
-    let program = Parser(
-        context: context, packageName: "main",
-        LexerResult(id: lexerResult.id, tokens: tokens)
-    ).parse()
+    let preprocessed = Preprocessor(context: context).process(
+        lexerResult, config: PreprocessorConfig())
+    let program = Parser(context: context, packageName: "main", preprocessed).parse()
     if semantic {
         Enter(context: context).visitProgram(program)
         NameResolver(context: context).visitProgram(program)

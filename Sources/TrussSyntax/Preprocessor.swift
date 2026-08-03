@@ -27,147 +27,148 @@ private struct ConditionFrame {
 }
 
 private enum Macro {
-    case object(name: Token, tokens: [Token])
-    case function(name: Token, params: [String], variadic: Bool, tokens: [Token])
+    case Object(name: Token, tokens: [Token])
+    case Function(name: Token, params: [String], variadic: Bool, tokens: [Token])
 }
 
 public final class Preprocessor {
     private let context: Context
-
-    private final class State {
-        let config: PreprocessorConfig
-        var output: [Token] = []
-        var index = 0
-        var active = true
-        var frames: [ConditionFrame] = []
-        var outerIfToken: Token? = nil
-        var macros: [String: Macro] = [:]
-        var expanding: [String] = []
-        var includeStack: [String] = []
-        var nextSourceId = 1
-        init(config: PreprocessorConfig) {
-            self.config = config
-        }
-    }
+    private var config = PreprocessorConfig()
+    private var index = 0
+    private var active = true
+    private var frames: [ConditionFrame] = []
+    private var outerIfToken: Token? = nil
+    private var macros: [String: Macro] = [:]
+    private var expanding: [String] = []
+    private var includeStack: [String] = []
+    private var nextSourceId = 1
 
     public init(context: Context) {
         self.context = context
     }
 
-    public func process(_ tokens: [Token], config: PreprocessorConfig) -> [Token] {
-        let state = State(config: config)
-        return self.process(tokens, state: state, currentDir: config.workingDirectory)
+    public func process(_ lexerResult: LexerResult, config: PreprocessorConfig) -> LexerResult {
+        self.config = config
+        self.index = 0
+        self.active = true
+        self.frames = []
+        self.outerIfToken = nil
+        self.macros = [:]
+        self.expanding = []
+        self.includeStack = []
+        self.nextSourceId = 1
+        let tokens = self.scan(lexerResult, currentDir: config.workingDirectory)
+        return LexerResult(id: lexerResult.id, tokens: tokens)
     }
 
-    private func process(_ tokens: [Token], state: State, currentDir: String) -> [Token] {
+    private func scan(_ lexerResult: LexerResult, currentDir: String) -> [Token] {
+        let tokens = lexerResult.tokens
         var output: [Token] = []
-        while state.index < tokens.count {
-            let token = tokens[state.index]
+        while self.index < tokens.count {
+            let token = tokens[self.index]
             if token.kind == .Separator(.Sharp) {
                 if let directiveOutput = self.handleDirective(
-                    state, tokens: tokens, currentDir: currentDir)
+                    tokens: tokens, currentDir: currentDir)
                 {
                     output.append(contentsOf: directiveOutput)
                     continue
                 }
                 self.emitError("unknown preprocessing directive", at: token)
-                state.index += 1
+                self.index += 1
                 continue
             }
-            if state.active {
-                let result = self.expandToken(token, tokens: tokens, at: state.index, state: state)
+            if self.active {
+                let result = self.expandToken(token, tokens: tokens, at: self.index)
                 output.append(contentsOf: result.tokens)
-                state.index = result.nextIndex
+                self.index = result.nextIndex
             } else {
-                state.index += 1
+                self.index += 1
             }
         }
-        if let token = state.outerIfToken {
+        if let token = self.outerIfToken {
             self.emitError("unterminated #if directive", at: token)
         }
         return output
     }
 
-    private func handleDirective(_ state: State, tokens: [Token], currentDir: String)
-        -> [Token]?
-    {
-        guard state.index + 1 < tokens.count else { return nil }
-        let sharp = tokens[state.index]
-        let name = tokens[state.index + 1]
+    private func handleDirective(tokens: [Token], currentDir: String) -> [Token]? {
+        guard self.index + 1 < tokens.count else { return nil }
+        let sharp = tokens[self.index]
+        let name = tokens[self.index + 1]
         switch name.kind {
         case .Keyword(.If):
             let args = self.directiveArgs(
-                tokens, from: state.index + 2, directiveLine: name.pos.line)
-            state.index = state.index + 2 + args.count
-            let value = self.evaluateCondition(args, state: state, at: name)
+                tokens, from: self.index + 2, directiveLine: name.pos.line)
+            self.index = self.index + 2 + args.count
+            let value = self.evaluateCondition(args, at: name)
             let errored = value == nil
             let taken = errored || (value ?? false)
-            if state.outerIfToken == nil { state.outerIfToken = sharp }
-            state.frames.append(ConditionFrame(parentActive: state.active, branchTaken: taken))
-            state.active = state.active && !errored && (value ?? false)
+            if self.outerIfToken == nil { self.outerIfToken = sharp }
+            self.frames.append(ConditionFrame(parentActive: self.active, branchTaken: taken))
+            self.active = self.active && !errored && (value ?? false)
             return []
         case .Keyword(.Else):
-            state.index += 2
-            self.handleElse(state, sharp: sharp)
+            self.index += 2
+            self.handleElse(sharp: sharp)
             return []
         case .Identifier:
             switch name.value {
             case "elseif":
                 let args = self.directiveArgs(
-                    tokens, from: state.index + 2, directiveLine: name.pos.line)
-                state.index = state.index + 2 + args.count
-                self.handleElseIf(state, args: args, name: name, sharp: sharp)
+                    tokens, from: self.index + 2, directiveLine: name.pos.line)
+                self.index = self.index + 2 + args.count
+                self.handleElseIf(args: args, name: name, sharp: sharp)
                 return []
             case "endif":
-                state.index += 2
-                self.handleEndIf(state, sharp: sharp)
+                self.index += 2
+                self.handleEndIf(sharp: sharp)
                 return []
             case "ifdef":
                 let args = self.directiveArgs(
-                    tokens, from: state.index + 2, directiveLine: name.pos.line)
-                state.index = state.index + 2 + args.count
-                self.handleIfDef(state, args: args, name: name, sharp: sharp, negated: false)
+                    tokens, from: self.index + 2, directiveLine: name.pos.line)
+                self.index = self.index + 2 + args.count
+                self.handleIfDef(args: args, name: name, sharp: sharp, negated: false)
                 return []
             case "ifndef":
                 let args = self.directiveArgs(
-                    tokens, from: state.index + 2, directiveLine: name.pos.line)
-                state.index = state.index + 2 + args.count
-                self.handleIfDef(state, args: args, name: name, sharp: sharp, negated: true)
+                    tokens, from: self.index + 2, directiveLine: name.pos.line)
+                self.index = self.index + 2 + args.count
+                self.handleIfDef(args: args, name: name, sharp: sharp, negated: true)
                 return []
             case "error":
                 let args = self.directiveArgs(
-                    tokens, from: state.index + 2, directiveLine: name.pos.line)
-                state.index = state.index + 2 + args.count
-                self.handleErrorDirective(state, args: args, name: name, severity: .error)
+                    tokens, from: self.index + 2, directiveLine: name.pos.line)
+                self.index = self.index + 2 + args.count
+                self.handleErrorDirective(args: args, name: name, severity: .error)
                 return []
             case "warning":
                 let args = self.directiveArgs(
-                    tokens, from: state.index + 2, directiveLine: name.pos.line)
-                state.index = state.index + 2 + args.count
-                self.handleErrorDirective(state, args: args, name: name, severity: .warning)
+                    tokens, from: self.index + 2, directiveLine: name.pos.line)
+                self.index = self.index + 2 + args.count
+                self.handleErrorDirective(args: args, name: name, severity: .warning)
                 return []
             case "define":
                 let args = self.directiveArgs(
-                    tokens, from: state.index + 2, directiveLine: name.pos.line,
+                    tokens, from: self.index + 2, directiveLine: name.pos.line,
                     stopAtSharp: false)
-                state.index = state.index + 2 + args.count
-                self.handleDefine(state, args: args, name: name)
+                self.index = self.index + 2 + args.count
+                self.handleDefine(args: args, name: name)
                 return []
             case "undef":
                 let args = self.directiveArgs(
-                    tokens, from: state.index + 2, directiveLine: name.pos.line)
-                state.index = state.index + 2 + args.count
-                self.handleUndef(state, args: args, name: name)
+                    tokens, from: self.index + 2, directiveLine: name.pos.line)
+                self.index = self.index + 2 + args.count
+                self.handleUndef(args: args, name: name)
                 return []
             case "include":
                 let args = self.directiveArgs(
-                    tokens, from: state.index + 2, directiveLine: name.pos.line)
-                state.index = state.index + 2 + args.count
-                return self.handleInclude(state, args: args, name: name, currentDir: currentDir)
+                    tokens, from: self.index + 2, directiveLine: name.pos.line)
+                self.index = self.index + 2 + args.count
+                return self.handleInclude(args: args, name: name, currentDir: currentDir)
             case "pragma":
                 let args = self.directiveArgs(
-                    tokens, from: state.index + 2, directiveLine: name.pos.line)
-                state.index = state.index + 2 + args.count
+                    tokens, from: self.index + 2, directiveLine: name.pos.line)
+                self.index = self.index + 2 + args.count
                 return []
             default:
                 return nil
@@ -177,16 +178,14 @@ public final class Preprocessor {
         }
     }
 
-    private func handleInclude(
-        _ state: State, args: [Token], name: Token, currentDir: String
-    ) -> [Token] {
-        guard state.active else { return [] }
+    private func handleInclude(args: [Token], name: Token, currentDir: String) -> [Token] {
+        guard self.active else { return [] }
         guard let path = self.includePath(args) else {
             self.emitError("expected file path in #include", at: name)
             return []
         }
         let fullPath = currentDir.isEmpty ? path : "\(currentDir)/\(path)"
-        guard !state.includeStack.contains(fullPath) else {
+        guard !self.includeStack.contains(fullPath) else {
             self.emitError("circular #include of '\(path)'", at: name)
             return []
         }
@@ -194,26 +193,26 @@ public final class Preprocessor {
             self.emitError("file not found: '\(path)'", at: name)
             return []
         }
-        let newId = Id.SourceId(id: UInt64(state.nextSourceId))
-        state.nextSourceId += 1
+        let newId = Id.SourceId(id: UInt64(self.nextSourceId))
+        self.nextSourceId += 1
         let source = Source(id: newId, filepath: fullPath, content: content)
         context.register(source: source)
         let lexerResult = Lexer(input: CharStream(content: content, id: newId)).parse()
-        let savedActive = state.active
-        let savedFrames = state.frames
-        let savedOuterIf = state.outerIfToken
-        let savedIndex = state.index
-        state.frames = []
-        state.outerIfToken = nil
-        state.index = 0
-        state.includeStack.append(fullPath)
+        let savedActive = self.active
+        let savedFrames = self.frames
+        let savedOuterIf = self.outerIfToken
+        let savedIndex = self.index
+        self.frames = []
+        self.outerIfToken = nil
+        self.index = 0
+        self.includeStack.append(fullPath)
         let dir = (fullPath as NSString).deletingLastPathComponent
-        let result = self.process(lexerResult.tokens, state: state, currentDir: dir)
-        state.includeStack.removeLast()
-        state.index = savedIndex
-        state.frames = savedFrames
-        state.outerIfToken = savedOuterIf
-        state.active = savedActive
+        let result = self.scan(lexerResult, currentDir: dir)
+        self.includeStack.removeLast()
+        self.index = savedIndex
+        self.frames = savedFrames
+        self.outerIfToken = savedOuterIf
+        self.active = savedActive
         return result
     }
 
@@ -236,79 +235,75 @@ public final class Preprocessor {
         return nil
     }
 
-    private func handleElse(_ state: State, sharp: Token) {
-        guard let frame = state.frames.last else {
+    private func handleElse(sharp: Token) {
+        guard let frame = self.frames.last else {
             self.emitError("unexpected #else directive", at: sharp)
             return
         }
         if frame.branchTaken {
-            state.active = false
+            self.active = false
         } else {
-            state.frames[state.frames.count - 1].branchTaken = true
-            state.active = frame.parentActive
+            self.frames[self.frames.count - 1].branchTaken = true
+            self.active = frame.parentActive
         }
     }
 
-    private func handleElseIf(
-        _ state: State, args: [Token], name: Token, sharp: Token
-    ) {
-        guard let frame = state.frames.last else {
+    private func handleElseIf(args: [Token], name: Token, sharp: Token) {
+        guard let frame = self.frames.last else {
             self.emitError("unexpected #elseif directive", at: sharp)
             return
         }
         if !frame.branchTaken {
-            let value = self.evaluateCondition(args, state: state, at: name)
+            let value = self.evaluateCondition(args, at: name)
             if let v = value {
                 if v {
-                    state.frames[state.frames.count - 1].branchTaken = true
-                    state.active = frame.parentActive
+                    self.frames[self.frames.count - 1].branchTaken = true
+                    self.active = frame.parentActive
                 } else {
-                    state.active = false
+                    self.active = false
                 }
             } else {
-                state.active = false
+                self.active = false
             }
         } else {
-            state.active = false
+            self.active = false
         }
     }
 
-    private func handleIfDef(
-        _ state: State, args: [Token], name: Token, sharp: Token, negated: Bool
-    ) {
-        if state.outerIfToken == nil { state.outerIfToken = sharp }
+    private func handleIfDef(args: [Token], name: Token, sharp: Token, negated: Bool) {
+        if self.outerIfToken == nil { self.outerIfToken = sharp }
         guard let first = args.first, first.kind == .Identifier else {
             self.emitError(
                 "expected macro name after #\(negated ? "ifndef" : "ifdef")", at: name)
-            state.frames.append(ConditionFrame(parentActive: state.active, branchTaken: true))
-            state.active = false
+            self.frames.append(ConditionFrame(parentActive: self.active, branchTaken: true))
+            self.active = false
             return
         }
-        let taken = self.isDefined(first.value, state: state) != negated
-        state.frames.append(ConditionFrame(parentActive: state.active, branchTaken: taken))
-        state.active = state.active && taken
+        let taken = self.isDefined(first.value) != negated
+        self.frames.append(ConditionFrame(parentActive: self.active, branchTaken: taken))
+        self.active = self.active && taken
     }
 
-    private func isDefined(_ name: String, state: State) -> Bool {
-        state.macros[name] != nil || state.config.flags.contains(name)
+    private func isDefined(_ name: String) -> Bool {
+        self.macros[name] != nil || self.config.flags.contains(name)
     }
 
-    private func handleEndIf(_ state: State, sharp: Token) {
-        guard !state.frames.isEmpty else {
+    private func handleEndIf(sharp: Token) {
+        guard !self.frames.isEmpty else {
             self.emitError("unexpected #endif directive", at: sharp)
             return
         }
-        let frame = state.frames.removeLast()
-        if state.frames.isEmpty {
-            state.outerIfToken = nil
+        let frame = self.frames.removeLast()
+        if self.frames.isEmpty {
+            self.outerIfToken = nil
         }
-        state.active = frame.parentActive
+        self.active = frame.parentActive
     }
 
     private func handleErrorDirective(
-        _ state: State, args: [Token], name: Token, severity: DiagnosticSeverity
+        args: [Token], name: Token, severity: DiagnosticSeverity
     ) {
-        guard state.active else { return }
+        guard self.active else { return }
         guard let message = args.first(where: { $0.kind == .StringLiteral }) else {
             self.emitError(
                 "expected string literal in \(severity == .error ? "#error" : "#warning") directive",
@@ -318,8 +313,8 @@ public final class Preprocessor {
         self.emitDiagnostic(severity, message: message.value, at: name)
     }
 
-    private func handleDefine(_ state: State, args: [Token], name: Token) {
-        guard state.active else { return }
+    private func handleDefine(args: [Token], name: Token) {
+        guard self.active else { return }
         guard let first = args.first, first.kind == .Identifier else {
             self.emitError("expected macro name after #define", at: name)
             return
@@ -328,20 +323,20 @@ public final class Preprocessor {
         let isFunctionLike = rest.first?.kind == .Separator(.OpenParen)
             && first.pos.pos + first.pos.len == rest[0].pos.pos
         if isFunctionLike {
-            guard let (params, variadic, closeIndex) = self.parseMacroParams(rest, state: state, name: name)
+            guard let (params, variadic, closeIndex) = self.parseMacroParams(rest, name: name)
             else {
                 return
             }
-            state.macros[first.value] = .function(
+            self.macros[first.value] = .Function(
                 name: first, params: params, variadic: variadic,
                 tokens: Array(rest.dropFirst(closeIndex + 1)))
         } else {
-            state.macros[first.value] = .object(name: first, tokens: rest)
+            self.macros[first.value] = .Object(name: first, tokens: rest)
         }
     }
 
     private func parseMacroParams(
-        _ tokens: [Token], state: State, name: Token
+        _ tokens: [Token], name: Token
     ) -> (params: [String], variadic: Bool, closeIndex: Int)? {
         var params: [String] = []
         var variadic = false
@@ -368,31 +363,31 @@ public final class Preprocessor {
         return nil
     }
 
-    private func handleUndef(_ state: State, args: [Token], name: Token) {
-        guard state.active else { return }
+    private func handleUndef(args: [Token], name: Token) {
+        guard self.active else { return }
         guard let first = args.first, first.kind == .Identifier else {
             self.emitError("expected macro name after #undef", at: name)
             return
         }
-        state.macros.removeValue(forKey: first.value)
+        self.macros.removeValue(forKey: first.value)
     }
 
     private func expandToken(
-        _ token: Token, tokens: [Token], at index: Int, state: State
+        _ token: Token, tokens: [Token], at index: Int
     ) -> (tokens: [Token], nextIndex: Int) {
-        if let builtin = self.builtinExpansion(token, state: state) {
+        if let builtin = self.builtinExpansion(token) {
             return (builtin, index + 1)
         }
-        guard token.kind == .Identifier, let macro = state.macros[token.value],
-            !state.expanding.contains(token.value)
+        guard token.kind == .Identifier, let macro = self.macros[token.value],
+            !self.expanding.contains(token.value)
         else {
             return ([token], index + 1)
         }
         switch macro {
-        case .object(let nameToken, let body):
-            let expanded = self.expandMacro(token.value, body: body, state: state)
+        case .Object(let nameToken, let body):
+            let expanded = self.expandMacro(token.value, body: body)
             return (self.relocate(expanded, to: token, site: self.site(of: nameToken)), index + 1)
-        case .function(let nameToken, let params, let variadic, let body):
+        case .Function(let nameToken, let params, let variadic, let body):
             guard index + 1 < tokens.count, tokens[index + 1].kind == .Separator(.OpenParen)
             else {
                 return ([token], index + 1)
@@ -403,7 +398,7 @@ public final class Preprocessor {
             }
             guard let expanded = self.expandFunctionMacro(
                 name: token.value, params: params, variadic: variadic, body: body, args: args,
-                at: token, state: state)
+                at: token)
             else {
                 return ([token], index + 1)
             }
@@ -459,7 +454,7 @@ public final class Preprocessor {
 
     private func expandFunctionMacro(
         name: String, params: [String], variadic: Bool, body: [Token], args: [[Token]],
-        at token: Token, state: State
+        at token: Token
     ) -> [Token]? {
         if variadic {
             guard args.count >= params.count else {
@@ -476,8 +471,8 @@ public final class Preprocessor {
                 return nil
             }
         }
-        let expandedArgs = args.map { self.rescan($0, state: state) }
-        let pastedBody = self.pasteTokensInBody(body, params: params, args: args, state: state)
+        let expandedArgs = args.map { self.rescan($0) }
+        let pastedBody = self.pasteTokensInBody(body, params: params, args: args)
         var replaced: [Token] = []
         var k = 0
         while k < pastedBody.count {
@@ -523,11 +518,11 @@ public final class Preprocessor {
             replaced.append(bt)
             k += 1
         }
-        return self.rescan(replaced, state: state)
+        return self.rescan(replaced)
     }
 
     private func pasteTokensInBody(
-        _ body: [Token], params: [String], args: [[Token]], state: State
+        _ body: [Token], params: [String], args: [[Token]]
     ) -> [Token] {
         var result: [Token] = []
         var k = 0
@@ -588,7 +583,7 @@ public final class Preprocessor {
         return tokens[0].kind
     }
 
-    private func builtinExpansion(_ token: Token, state: State) -> [Token]? {
+    private func builtinExpansion(_ token: Token) -> [Token]? {
         guard token.kind == .Identifier else { return nil }
         switch token.value {
         case "__FILE__":
@@ -613,22 +608,24 @@ public final class Preprocessor {
         var buf = [CChar](repeating: 0, count: 64)
         let format = date ? "%b %e %Y" : "%H:%M:%S"
         strftime(&buf, buf.count, format, &tm)
-        let text = String(cString: buf)
+        let text = String(
+            decoding: buf.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) },
+            as: UTF8.self)
         return Token(value: text, kind: .StringLiteral, pos: token.pos, id: token.id)
     }
 
-    private func expandMacro(_ name: String, body: [Token], state: State) -> [Token] {
-        state.expanding.append(name)
-        let result = self.rescan(body, state: state)
-        state.expanding.removeLast()
+    private func expandMacro(_ name: String, body: [Token]) -> [Token] {
+        self.expanding.append(name)
+        let result = self.rescan(body)
+        self.expanding.removeLast()
         return result
     }
 
-    private func rescan(_ tokens: [Token], state: State) -> [Token] {
+    private func rescan(_ tokens: [Token]) -> [Token] {
         var result: [Token] = []
         var k = 0
         while k < tokens.count {
-            let expanded = self.expandToken(tokens[k], tokens: tokens, at: k, state: state)
+            let expanded = self.expandToken(tokens[k], tokens: tokens, at: k)
             result.append(contentsOf: expanded.tokens)
             k = expanded.nextIndex
         }
@@ -651,19 +648,19 @@ public final class Preprocessor {
     }
 
     private func evaluateCondition(
-        _ tokens: [Token], state: State, at directiveToken: Token
+        _ tokens: [Token], at directiveToken: Token
     ) -> Bool? {
-        let replaced = self.replaceDefined(tokens, state: state)
-        let expanded = self.rescan(replaced, state: state)
+        let replaced = self.replaceDefined(tokens)
+        let expanded = self.rescan(replaced)
         var evaluator = ConditionEvaluator(
-            tokens: expanded, flags: state.config.flags,
-            target: TargetInfo(target: state.config.target),
+            tokens: expanded, flags: self.config.flags,
+            target: TargetInfo(target: self.config.target),
             directiveToken: directiveToken,
             onError: { message, token in self.emitError(message, at: token) })
         return evaluator.evaluate()
     }
 
-    private func replaceDefined(_ tokens: [Token], state: State) -> [Token] {
+    private func replaceDefined(_ tokens: [Token]) -> [Token] {
         var result: [Token] = []
         var k = 0
         while k < tokens.count {
@@ -684,7 +681,7 @@ public final class Preprocessor {
                     k += 1
                 }
                 if let name {
-                    if self.isDefined(name, state: state) {
+                    if self.isDefined(name) {
                         result.append(
                             Token(value: "1", kind: .IntegerLiteral(1), pos: token.pos, id: token.id))
                     } else {

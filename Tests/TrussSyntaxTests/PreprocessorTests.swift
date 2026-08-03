@@ -12,12 +12,11 @@ func preprocessWithDiagnostics(
     let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
     context.register(source: src)
     let stream = CharStream(content: source, id: Id.SourceId(id: 0))
-    let lexer = Lexer(input: stream)
-    let tokens = lexer.parse().tokens
+    let lexerResult = Lexer(input: stream).parse()
     let result = Preprocessor(context: context).process(
-        tokens,
+        lexerResult,
         config: PreprocessorConfig(flags: flags, target: target, workingDirectory: workingDirectory))
-    return (result, context.diagnositicEngine.diagnostics)
+    return (result.tokens, context.diagnositicEngine.diagnostics)
 }
 
 func preprocess(
@@ -578,12 +577,10 @@ func parseWithPreprocessor(_ source: String) -> [Diagnostic] {
     let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
     context.register(source: src)
     let stream = CharStream(content: source, id: Id.SourceId(id: 0))
-    let tokens = Lexer(input: stream).parse().tokens
+    let lexerResult = Lexer(input: stream).parse()
     let processed = Preprocessor(context: context).process(
-        tokens, config: PreprocessorConfig())
-    let parser = Parser(
-        context: context, packageName: "main",
-        LexerResult(id: Id.SourceId(id: 0), tokens: processed))
+        lexerResult, config: PreprocessorConfig())
+    let parser = Parser(context: context, packageName: "main", processed)
     _ = parser.parse()
     return context.diagnositicEngine.diagnostics
 }
