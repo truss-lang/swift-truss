@@ -482,3 +482,40 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     let tokens = preprocess("#pragma once\n1")
     #expect(tokenValues(tokens) == ["1"])
 }
+
+@Test func ppExpandedTokenUsesUseSitePosition() {
+    let (tokens, _) = preprocessWithDiagnostics("#define MAX 100\nMAX")
+    #expect(tokens[0].kind == .IntegerLiteral(100))
+    #expect(tokens[0].pos.line == 2)
+    #expect(tokens[0].pos.pos == 16)
+}
+
+@Test func ppExpandedFunctionTokenUsesUseSitePosition() {
+    let (tokens, _) = preprocessWithDiagnostics("#define F(x) x + 1\nF(2)")
+    #expect(tokens[0].pos.line == 2)
+    #expect(tokens[1].pos.line == 2)
+    #expect(tokens[2].pos.line == 2)
+}
+
+@Test func ppExpandedNestedTokenUsesUseSitePosition() {
+    let (tokens, _) = preprocessWithDiagnostics("#define A B\n#define B 1\nA")
+    #expect(tokens[0].pos.line == 3)
+}
+
+@Test func ppTokenPasteOperator() {
+    let tokens = preprocess("#define ARROW(a, b) a ## b\nARROW(-, >)")
+    #expect(tokenValues(tokens) == ["->"])
+    #expect(tokens[0].kind == .Separator(.Arrow))
+}
+
+@Test func ppTokenPasteKeyword() {
+    let tokens = preprocess("#define KW(a, b) a ## b\nKW(i, f)")
+    #expect(tokenValues(tokens) == ["if"])
+    #expect(tokens[0].kind == .Keyword(.If))
+}
+
+@Test func ppTokenPasteInvalid() {
+    let (tokens, diagnostics) = preprocessWithDiagnostics("#define CAT(a, b) a ## b\nCAT(1, x)")
+    #expect(diagnostics.contains { $0.message.contains("invalid token formed") })
+    #expect(tokenValues(tokens) == ["1", "x"])
+}

@@ -389,7 +389,8 @@ public final class Preprocessor {
         }
         switch macro {
         case .object(let body):
-            return (self.expandMacro(token.value, body: body, state: state), index + 1)
+            let expanded = self.expandMacro(token.value, body: body, state: state)
+            return (self.relocate(expanded, to: token), index + 1)
         case .function(let params, let variadic, let body):
             guard index + 1 < tokens.count, tokens[index + 1].kind == .Separator(.OpenParen)
             else {
@@ -405,7 +406,16 @@ public final class Preprocessor {
             else {
                 return ([token], index + 1)
             }
-            return (expanded, closeIndex + 1)
+            return (self.relocate(expanded, to: token), closeIndex + 1)
+        }
+    }
+
+    private func relocate(_ tokens: [Token], to token: Token) -> [Token] {
+        tokens.map { t in
+            guard t.pos != token.pos || t.id != token.id else { return t }
+            return Token(
+                value: t.value, kind: t.kind, pos: token.pos, id: token.id,
+                isUnterminated: t.isUnterminated)
         }
     }
 
@@ -556,23 +566,18 @@ public final class Preprocessor {
 
     private func pasteTokens(_ left: Token, _ right: Token, at token: Token) -> Token? {
         let text = left.value + right.value
-        guard let kind = self.pastedKind(text) else {
+        guard let kind = self.pastedKind(text, id: token.id) else {
             self.emitError("invalid token formed by '##' paste", at: token)
             return nil
         }
         return Token(value: text, kind: kind, pos: token.pos, id: token.id)
     }
 
-    private func pastedKind(_ text: String) -> TokenKind? {
-        if let value = Int128(text) {
-            return .IntegerLiteral(value)
-        }
-        if let first = text.first, first.isLetter || first == "_",
-            text.dropFirst().allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" })
-        {
-            return .Identifier
-        }
-        return nil
+    private func pastedKind(_ text: String, id: Id.SourceId) -> TokenKind? {
+        let stream = CharStream(content: text, id: id)
+        let tokens = Lexer(input: stream).parse().tokens
+        guard tokens.count == 1 else { return nil }
+        return tokens[0].kind
     }
 
     private func builtinExpansion(_ token: Token, state: State) -> [Token]? {
