@@ -49,6 +49,14 @@ struct truss {
                 }
             }
             typealias SS = (S) -> S
+            #define A B + 2
+            #define B C * 3
+            #define C D - 4
+            #define D E / 5
+            #define E A | 1
+            func tf() {
+                A
+            }
             """
         let context = Context()
         let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
@@ -59,10 +67,14 @@ struct truss {
             lexerResult.tokens, config: PreprocessorConfig())
         let program = Parser(
             context: context, packageName: "main",
-            LexerResult(id: lexerResult.id, tokens: tokens)).parse()
+            LexerResult(id: lexerResult.id, tokens: tokens)
+        ).parse()
         Enter(context: context).visitProgram(program)
         NameResolver(context: context).visitProgram(program)
-        customDump(program)
+        print("=== AST Dump ===")
+        print(ASTDumper().dump(program))
+        print("=== Source Print ===")
+        print(SourcePrinter().print(program))
         if context.diagnositicEngine.hasErrors {
             print(
                 TerminalRenderer(beforeLines: 1, afterLines: 1)
