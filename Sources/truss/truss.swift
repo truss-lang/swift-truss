@@ -50,12 +50,16 @@ struct truss {
             }
             typealias SS = (S) -> S
             """
-        let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))
-            .parse()
         let context = Context()
         let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
         context.register(source: src)
-        let program = Parser(context: context, packageName: "main", lexerResult).parse()
+        let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))
+            .parse()
+        let tokens = Preprocessor(context: context).process(
+            lexerResult.tokens, config: PreprocessorConfig())
+        let program = Parser(
+            context: context, packageName: "main",
+            LexerResult(id: lexerResult.id, tokens: tokens)).parse()
         Enter(context: context).visitProgram(program)
         NameResolver(context: context).visitProgram(program)
         customDump(program)
