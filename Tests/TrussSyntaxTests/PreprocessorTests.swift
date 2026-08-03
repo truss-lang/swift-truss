@@ -297,6 +297,32 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     #expect(tokenValues(tokens) == ["print", "(", ")"])
 }
 
+@Test func ppEmptyMacroExpansion() {
+    let tokens = preprocess("#define EMPTY\nEMPTY")
+    #expect(tokens.isEmpty)
+}
+
+@Test func ppEmptyMacroWithCode() {
+    let tokens = preprocess("#define EMPTY\n1 EMPTY 2")
+    #expect(tokenValues(tokens) == ["1", "2"])
+}
+
+@Test func ppFunctionMacroEmptyExpansion() {
+    let tokens = preprocess("#define F(x)\nF(1)")
+    #expect(tokens.isEmpty)
+}
+
+@Test func ppEmptyMacroExpansionChain() {
+    let tokens = preprocess("#define A EMPTY\n#define EMPTY\nA")
+    #expect(tokens.isEmpty)
+}
+
+@Test func ppEmptyMacroInCondition() {
+    let (tokens, diagnostics) = preprocessWithDiagnostics("#define EMPTY\n#if EMPTY\n1\n#endif")
+    #expect(diagnostics.contains { $0.message.contains("expected expression") })
+    #expect(tokens.isEmpty)
+}
+
 @Test func ppStringify() {
     let tokens = preprocess("#define STR(x) #x\nSTR(hello)")
     #expect(tokenValues(tokens) == ["hello"])

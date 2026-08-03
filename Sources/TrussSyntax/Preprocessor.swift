@@ -88,7 +88,7 @@ public final class Preprocessor {
         if let token = self.outerIfToken {
             self.emitError("unterminated #if directive", at: token)
         }
-        return output
+        return output.filter { !self.isPlaceholder($0) }
     }
 
     private func handleDirective(tokens: [Token], currentDir: String) -> [Token]? {
@@ -385,7 +385,7 @@ public final class Preprocessor {
         }
         switch macro {
         case .Object(let nameToken, let body):
-            let expanded = self.expandMacro(token.value, body: body)
+            let expanded = self.expandMacro(token.value, body: body, at: token)
             return (self.relocate(expanded, to: token, site: self.site(of: nameToken)), index + 1)
         case .Function(let nameToken, let params, let variadic, let body):
             guard index + 1 < tokens.count, tokens[index + 1].kind == .Separator(.OpenParen)
@@ -558,7 +558,8 @@ public final class Preprocessor {
             replaced.append(bt)
             k += 1
         }
-        return self.rescan(replaced)
+        let result = self.rescan(replaced)
+        return result.isEmpty ? [self.placeholder(at: token)] : result
     }
 
     private func pasteTokensInBody(
@@ -654,11 +655,19 @@ public final class Preprocessor {
         return Token(value: text, kind: .StringLiteral, pos: token.pos, id: token.id)
     }
 
-    private func expandMacro(_ name: String, body: [Token]) -> [Token] {
+    private func expandMacro(_ name: String, body: [Token], at token: Token) -> [Token] {
         self.expanding.append(name)
         let result = self.rescan(body)
         self.expanding.removeLast()
-        return result
+        return result.isEmpty ? [self.placeholder(at: token)] : result
+    }
+
+    private func placeholder(at token: Token) -> Token {
+        Token(value: "", kind: .Unknown, pos: token.pos, id: token.id)
+    }
+
+    private func isPlaceholder(_ token: Token) -> Bool {
+        token.kind == .Unknown && token.value.isEmpty
     }
 
     private func rescan(_ tokens: [Token]) -> [Token] {
@@ -691,7 +700,7 @@ public final class Preprocessor {
         _ tokens: [Token], at directiveToken: Token
     ) -> Bool? {
         let replaced = self.replaceDefined(tokens)
-        let expanded = self.rescan(replaced)
+        let expanded = self.rescan(replaced).filter { !self.isPlaceholder($0) }
         var evaluator = ConditionEvaluator(
             tokens: expanded, flags: self.config.flags,
             target: TargetInfo(target: self.config.target),
