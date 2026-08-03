@@ -327,3 +327,72 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     #expect(diagnostics.contains { $0.message.contains("unknown function") })
     #expect(tokens.isEmpty)
 }
+
+@Test func ppConstExprArithmetic() {
+    let tokens = preprocess("#if 2 + 3 * 4 == 14\n1\n#endif")
+    #expect(tokenValues(tokens) == ["1"])
+    #expect(tokenValues(preprocess("#if 2 + 3 * 4 == 15\n1\n#endif")) == [])
+}
+
+@Test func ppConstExprMacroExpansion() {
+    let tokens = preprocess("#define MAX 10\n#if MAX > 3\n1\n#endif")
+    #expect(tokenValues(tokens) == ["1"])
+    #expect(tokenValues(preprocess("#define MAX 2\n#if MAX > 3\n1\n#endif")) == [])
+}
+
+@Test func ppConstExprComparison() {
+    let tokens = preprocess("#if 1 < 2 && 3 >= 3 && 4 != 5\n1\n#endif")
+    #expect(tokenValues(tokens) == ["1"])
+}
+
+@Test func ppConstExprBitwise() {
+    let tokens = preprocess("#if (1 << 4) == 16 && (7 & 3) == 3 && (5 | 2) == 7 && (5 ^ 1) == 4\n1\n#endif")
+    #expect(tokenValues(tokens) == ["1"])
+}
+
+@Test func ppConstExprCharLiteral() {
+    let tokens = preprocess("#if 'a' == 97\n1\n#endif")
+    #expect(tokenValues(tokens) == ["1"])
+}
+
+@Test func ppConstExprBooleanLiteral() {
+    let tokens = preprocess("#if true == 1 && false == 0\n1\n#endif")
+    #expect(tokenValues(tokens) == ["1"])
+}
+
+@Test func ppConstExprUndefinedIdentifierIsZero() {
+    let tokens = preprocess("#if UNDEFINED\n1\n#else\n2\n#endif")
+    #expect(tokenValues(tokens) == ["2"])
+}
+
+@Test func ppConstExprDivisionByZero() {
+    let (tokens, diagnostics) = preprocessWithDiagnostics("#if 1 / 0\n1\n#else\n2\n#endif")
+    #expect(diagnostics.contains { $0.message.contains("division by zero") })
+    #expect(tokens.isEmpty)
+}
+
+@Test func ppConstExprShortCircuit() {
+    let tokens = preprocess("#if 0 && (1 / 0)\n1\n#else\n2\n#endif")
+    #expect(tokenValues(tokens) == ["2"])
+    #expect(tokenValues(preprocess("#if 1 || (1 / 0)\n1\n#endif")) == ["1"])
+}
+
+@Test func ppBuiltinFileAndLine() {
+    let (tokens, _) = preprocessWithDiagnostics("__FILE__\n__LINE__")
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].value == "<test>")
+    #expect(tokens[1].kind == .IntegerLiteral(2))
+}
+
+@Test func ppBuiltinDateAndTime() {
+    let (tokens, _) = preprocessWithDiagnostics("__DATE__\n__TIME__")
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].value.count == 11)
+    #expect(tokens[1].kind == .StringLiteral)
+    #expect(tokens[1].value.count == 8)
+}
+
+@Test func ppBuiltinInCondition() {
+    let tokens = preprocess("#if __LINE__ == 1\n1\n#endif")
+    #expect(tokenValues(tokens) == ["1"])
+}

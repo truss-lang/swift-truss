@@ -1,5 +1,10 @@
 import SwiftBetterDiagnostic
 import TrussCore
+#if os(Linux)
+import Glibc
+#else
+import Darwin
+#endif
 
 public struct PreprocessorConfig {
     public let flags: Set<String>
@@ -286,6 +291,9 @@ public final class Preprocessor {
     private func expandToken(
         _ token: Token, tokens: [Token], at index: Int, state: State
     ) -> (tokens: [Token], nextIndex: Int) {
+        if let builtin = self.builtinExpansion(token, state: state) {
+            return (builtin, index + 1)
+        }
         guard token.kind == .Identifier, let macro = state.macros[token.value],
             !state.expanding.contains(token.value)
         else {
@@ -479,6 +487,35 @@ public final class Preprocessor {
         return nil
     }
 
+    private func builtinExpansion(_ token: Token, state: State) -> [Token]? {
+        guard token.kind == .Identifier else { return nil }
+        switch token.value {
+        case "__FILE__":
+            let filepath = context.sourceTable[token.id]?.filepath ?? ""
+            return [Token(value: filepath, kind: .StringLiteral, pos: token.pos, id: token.id)]
+        case "__LINE__":
+            return [
+                Token(
+                    value: String(token.pos.line),
+                    kind: .IntegerLiteral(Int128(token.pos.line)), pos: token.pos, id: token.id)
+            ]
+        case "__DATE__", "__TIME__":
+            return [Self.compilationTimeToken(date: token.value == "__DATE__", at: token)]
+        default:
+            return nil
+        }
+    }
+
+    private static func compilationTimeToken(date: Bool, at token: Token) -> Token {
+        var t = time(nil)
+        var tm = localtime(&t)!.pointee
+        var buf = [CChar](repeating: 0, count: 64)
+        let format = date ? "%b %e %Y" : "%H:%M:%S"
+        strftime(&buf, buf.count, format, &tm)
+        let text = String(cString: buf)
+        return Token(value: text, kind: .StringLiteral, pos: token.pos, id: token.id)
+    }
+
     private func expandMacro(_ name: String, body: [Token], state: State) -> [Token] {
         state.expanding.append(name)
         let result = self.rescan(body, state: state)
@@ -516,8 +553,9 @@ public final class Preprocessor {
         _ tokens: [Token], state: State, at directiveToken: Token
     ) -> Bool? {
         let replaced = self.replaceDefined(tokens, state: state)
+        let expanded = self.rescan(replaced, state: state)
         var evaluator = ConditionEvaluator(
-            tokens: replaced, flags: state.config.flags,
+            tokens: expanded, flags: state.config.flags,
             target: TargetInfo(target: state.config.target),
             directiveToken: directiveToken,
             onError: { message, token in self.emitError(message, at: token) })
@@ -622,39 +660,241 @@ private struct ConditionEvaluator {
             self.onError("unexpected token '\(token.value)' in #if condition", token)
             return nil
         }
-        return value
+        return value != 0
     }
 
-    private mutating func parseOrExpr() -> Bool? {
+    private mutating func parseOrExpr() -> Int128? {
         guard var value = self.parseAndExpr() else { return nil }
         while self.index < self.tokens.count, self.tokens[self.index].kind == .Operator(.Or) {
             self.index += 1
-            guard let rhs = self.parseAndExpr() else { return nil }
-            value = value || rhs
+            if value != 0 {
+                guard self.skipUntil(.Or) else { return nil }
+            } else {
+                guard let rhs = self.parseAndExpr() else { return nil }
+                value = rhs != 0 ? 1 : 0
+            }
         }
         return value
     }
 
-    private mutating func parseAndExpr() -> Bool? {
-        guard var value = self.parseUnary() else { return nil }
+    private mutating func parseAndExpr() -> Int128? {
+        guard var value = self.parseBitOr() else { return nil }
         while self.index < self.tokens.count, self.tokens[self.index].kind == .Operator(.And) {
             self.index += 1
-            guard let rhs = self.parseUnary() else { return nil }
-            value = value && rhs
+            if value == 0 {
+                guard self.skipUntil(.And, .Or) else { return nil }
+            } else {
+                guard let rhs = self.parseBitOr() else { return nil }
+                value = rhs != 0 ? 1 : 0
+            }
         }
         return value
     }
 
-    private mutating func parseUnary() -> Bool? {
-        if self.index < self.tokens.count, self.tokens[self.index].kind == .Operator(.Not) {
+    private mutating func skipUntil(_ operators: OperatorKind...) -> Bool {
+        var depth = 0
+        while self.index < self.tokens.count {
+            let token = self.tokens[self.index]
+            if depth == 0 {
+                if case .Operator(let op) = token.kind,
+                    operators.contains(where: { $0 == op })
+                {
+                    return true
+                }
+                if token.kind == .Separator(.CloseParen) {
+                    return true
+                }
+                if token.kind == .Separator(.OpenParen) {
+                    depth += 1
+                }
+            } else {
+                if token.kind == .Separator(.OpenParen) {
+                    depth += 1
+                } else if token.kind == .Separator(.CloseParen) {
+                    depth -= 1
+                }
+            }
             self.index += 1
-            guard let value = self.parseUnary() else { return nil }
-            return !value
         }
-        return self.parsePrimary()
+        return true
     }
 
-    private mutating func parseConditionFunction() -> Bool? {
+    private mutating func parseBitOr() -> Int128? {
+        guard var value = self.parseBitXor() else { return nil }
+        while self.index < self.tokens.count, self.tokens[self.index].kind == .Operator(.BitOr) {
+            self.index += 1
+            guard let rhs = self.parseBitXor() else { return nil }
+            value = value | rhs
+        }
+        return value
+    }
+
+    private mutating func parseBitXor() -> Int128? {
+        guard var value = self.parseBitAnd() else { return nil }
+        while self.index < self.tokens.count, self.tokens[self.index].kind == .Operator(.BitXor) {
+            self.index += 1
+            guard let rhs = self.parseBitAnd() else { return nil }
+            value = value ^ rhs
+        }
+        return value
+    }
+
+    private mutating func parseBitAnd() -> Int128? {
+        guard var value = self.parseEquality() else { return nil }
+        while self.index < self.tokens.count, self.tokens[self.index].kind == .Operator(.BitAnd) {
+            self.index += 1
+            guard let rhs = self.parseEquality() else { return nil }
+            value = value & rhs
+        }
+        return value
+    }
+
+    private mutating func parseEquality() -> Int128? {
+        guard var value = self.parseRelational() else { return nil }
+        while self.index < self.tokens.count {
+            let op = self.tokens[self.index].kind
+            if op == .Operator(.Equal) {
+                self.index += 1
+                guard let rhs = self.parseRelational() else { return nil }
+                value = value == rhs ? 1 : 0
+            } else if op == .Operator(.NotEqual) {
+                self.index += 1
+                guard let rhs = self.parseRelational() else { return nil }
+                value = value != rhs ? 1 : 0
+            } else {
+                break
+            }
+        }
+        return value
+    }
+
+    private mutating func parseRelational() -> Int128? {
+        guard var value = self.parseShift() else { return nil }
+        while self.index < self.tokens.count {
+            let op = self.tokens[self.index].kind
+            switch op {
+            case .Operator(.Less):
+                self.index += 1
+                guard let rhs = self.parseShift() else { return nil }
+                value = value < rhs ? 1 : 0
+            case .Operator(.Greater):
+                self.index += 1
+                guard let rhs = self.parseShift() else { return nil }
+                value = value > rhs ? 1 : 0
+            case .Operator(.LessEqual):
+                self.index += 1
+                guard let rhs = self.parseShift() else { return nil }
+                value = value <= rhs ? 1 : 0
+            case .Operator(.GreaterEqual):
+                self.index += 1
+                guard let rhs = self.parseShift() else { return nil }
+                value = value >= rhs ? 1 : 0
+            default:
+                return value
+            }
+        }
+        return value
+    }
+
+    private mutating func parseShift() -> Int128? {
+        guard var value = self.parseAdditive() else { return nil }
+        while self.index < self.tokens.count {
+            let op = self.tokens[self.index].kind
+            if op == .Operator(.LeftShift) || op == .Operator(.RightShift) {
+                let isLeft = op == .Operator(.LeftShift)
+                self.index += 1
+                guard let rhs = self.parseAdditive() else { return nil }
+                guard rhs >= 0, rhs < 128 else {
+                    self.onError("shift count out of range in #if condition", self.tokens[self.index - 1])
+                    return nil
+                }
+                value = isLeft ? value << rhs : value >> rhs
+            } else {
+                break
+            }
+        }
+        return value
+    }
+
+    private mutating func parseAdditive() -> Int128? {
+        guard var value = self.parseMultiplicative() else { return nil }
+        while self.index < self.tokens.count {
+            let op = self.tokens[self.index].kind
+            if op == .Operator(.Plus) {
+                self.index += 1
+                guard let rhs = self.parseMultiplicative() else { return nil }
+                value = value &+ rhs
+            } else if op == .Operator(.Minus) {
+                self.index += 1
+                guard let rhs = self.parseMultiplicative() else { return nil }
+                value = value &- rhs
+            } else {
+                break
+            }
+        }
+        return value
+    }
+
+    private mutating func parseMultiplicative() -> Int128? {
+        guard var value = self.parseUnary() else { return nil }
+        while self.index < self.tokens.count {
+            let op = self.tokens[self.index].kind
+            switch op {
+            case .Operator(.Multiply):
+                self.index += 1
+                guard let rhs = self.parseUnary() else { return nil }
+                value = value &* rhs
+            case .Operator(.Divide):
+                self.index += 1
+                guard let rhs = self.parseUnary() else { return nil }
+                guard rhs != 0 else {
+                    self.onError("division by zero in #if condition", self.tokens[self.index - 1])
+                    return nil
+                }
+                value = value / rhs
+            case .Operator(.Modulus):
+                self.index += 1
+                guard let rhs = self.parseUnary() else { return nil }
+                guard rhs != 0 else {
+                    self.onError("division by zero in #if condition", self.tokens[self.index - 1])
+                    return nil
+                }
+                value = value % rhs
+            default:
+                return value
+            }
+        }
+        return value
+    }
+
+    private mutating func parseUnary() -> Int128? {
+        guard self.index < self.tokens.count else {
+            self.onError("expected expression in #if condition", self.tokens.last!)
+            return nil
+        }
+        let op = self.tokens[self.index].kind
+        switch op {
+        case .Operator(.Not):
+            self.index += 1
+            guard let value = self.parseUnary() else { return nil }
+            return value == 0 ? 1 : 0
+        case .Operator(.BitNot):
+            self.index += 1
+            guard let value = self.parseUnary() else { return nil }
+            return ~value
+        case .Operator(.Minus):
+            self.index += 1
+            guard let value = self.parseUnary() else { return nil }
+            return 0 &- value
+        case .Operator(.Plus):
+            self.index += 1
+            return self.parseUnary()
+        default:
+            return self.parsePrimary()
+        }
+    }
+
+    private mutating func parseConditionFunction() -> Int128? {
         let fn = self.tokens[self.index]
         let name = fn.value
         guard name == "os" || name == "arch" || name == "targetEnvironment" else {
@@ -679,15 +919,15 @@ private struct ConditionEvaluator {
         self.index += 1
         switch name {
         case "os":
-            return arg.lowercased() == self.target.os.lowercased()
+            return arg.lowercased() == self.target.os.lowercased() ? 1 : 0
         case "arch":
-            return arg.lowercased() == self.target.arch.lowercased()
+            return arg.lowercased() == self.target.arch.lowercased() ? 1 : 0
         default:
-            return arg == "simulator" && self.target.simulator
+            return arg == "simulator" && self.target.simulator ? 1 : 0
         }
     }
 
-    private mutating func parsePrimary() -> Bool? {
+    private mutating func parsePrimary() -> Int128? {
         guard self.index < self.tokens.count else {
             self.onError("expected expression in #if condition", self.tokens.last!)
             return nil
@@ -696,10 +936,13 @@ private struct ConditionEvaluator {
         switch token.kind {
         case .IntegerLiteral(let value):
             self.index += 1
-            return value != 0
+            return value
+        case .CharLiteral(let ch):
+            self.index += 1
+            return Int128(ch.unicodeScalars.first?.value ?? 0)
         case .BooleanLiteral(let value):
             self.index += 1
-            return value
+            return value ? 1 : 0
         case .Identifier:
             if self.index + 1 < self.tokens.count,
                 self.tokens[self.index + 1].kind == .Separator(.OpenParen)
@@ -707,7 +950,7 @@ private struct ConditionEvaluator {
                 return self.parseConditionFunction()
             }
             self.index += 1
-            return self.flags.contains(token.value)
+            return self.flags.contains(token.value) ? 1 : 0
         case .Separator(.OpenParen):
             self.index += 1
             guard let value = self.parseOrExpr() else { return nil }
