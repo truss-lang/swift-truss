@@ -323,6 +323,18 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     #expect(tokens.isEmpty)
 }
 
+@Test func ppDeferExpansion() {
+    let source = "#define EMPTY()\n#define DEFER2(A) A EMPTY()\n#define A() 123\n#define EXPAND(...) __VA_ARGS__\nEXPAND(DEFER2(A)())"
+    let tokens = preprocess(source)
+    #expect(tokenValues(tokens) == ["123"])
+}
+
+@Test func ppDeferDirectStillDefers() {
+    let source = "#define EMPTY()\n#define DEFER2(A) A EMPTY()\n#define A() 123\nDEFER2(A)()"
+    let tokens = preprocess(source)
+    #expect(tokenValues(tokens) == ["A", "(", ")"])
+}
+
 @Test func ppStringify() {
     let tokens = preprocess("#define STR(x) #x\nSTR(hello)")
     #expect(tokenValues(tokens) == ["hello"])

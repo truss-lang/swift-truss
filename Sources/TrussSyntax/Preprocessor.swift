@@ -397,13 +397,15 @@ public final class Preprocessor {
                 return ([token], index + 1)
             }
             let args = params.isEmpty ? self.emptyCallArgs(rawArgs) : rawArgs
-            guard let expanded = self.expandFunctionMacro(
+            let (expanded, tailIsMacro) = self.expandFunctionMacro(
                 name: token.value, params: params, variadic: variadic, body: body, args: args,
                 at: token)
-            else {
+            guard let expanded else {
                 return ([token], index + 1)
             }
-            let tail = self.expandTail(expanded, tokens: tokens, at: closeIndex + 1)
+            let tail = tailIsMacro
+                ? self.expandTail(expanded, tokens: tokens, at: closeIndex + 1)
+                : (tokens: expanded, nextIndex: closeIndex + 1)
             return (self.relocate(tail.tokens, to: token, site: self.site(of: nameToken)), tail.nextIndex)
         }
     }
@@ -426,10 +428,10 @@ public final class Preprocessor {
                 return (expanded, index)
             }
             let args = params.isEmpty ? self.emptyCallArgs(rawArgs) : rawArgs
-            guard let result = self.expandFunctionMacro(
+            let (result, _) = self.expandFunctionMacro(
                 name: last.value, params: params, variadic: variadic, body: body, args: args,
                 at: last)
-            else {
+            guard let result else {
                 return (expanded, index)
             }
             return self.expandTail(
@@ -495,12 +497,12 @@ public final class Preprocessor {
     private func expandFunctionMacro(
         name: String, params: [String], variadic: Bool, body: [Token], args: [[Token]],
         at token: Token
-    ) -> [Token]? {
+    ) -> (tokens: [Token]?, tailIsMacro: Bool) {
         if variadic {
             guard args.count >= params.count else {
                 self.emitError("too few arguments for macro '\(name)'", at: token)
                 self.emitNote("macro '\(name)' defined here", at: body.first ?? token)
-                return nil
+                return (nil, false)
             }
         } else {
             guard args.count == params.count else {
@@ -508,7 +510,7 @@ public final class Preprocessor {
                     "macro '\(name)' expects \(params.count) arguments, but got \(args.count)",
                     at: token)
                 self.emitNote("macro '\(name)' defined here", at: body.first ?? token)
-                return nil
+                return (nil, false)
             }
         }
         let expandedArgs = args.map { self.rescan($0) }
@@ -559,7 +561,12 @@ public final class Preprocessor {
             k += 1
         }
         let result = self.rescan(replaced)
-        return result.isEmpty ? [self.placeholder(at: token)] : result
+        if result.isEmpty {
+            return ([self.placeholder(at: token)], false)
+        }
+        let tailIsMacro = replaced.last?.kind == .Identifier
+            && self.macros[replaced.last!.value] != nil
+        return (result, tailIsMacro)
     }
 
     private func pasteTokensInBody(
@@ -678,7 +685,7 @@ public final class Preprocessor {
             result.append(contentsOf: expanded.tokens)
             k = expanded.nextIndex
         }
-        return result
+        return result.filter { !self.isPlaceholder($0) }
     }
 
     private func directiveArgs(
