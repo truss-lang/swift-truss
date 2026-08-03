@@ -193,3 +193,33 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     let tokens = preprocess("#if 0\n#define X 1\n#endif\nX")
     #expect(tokenValues(tokens) == ["X"])
 }
+
+@Test func ppIfDef() {
+    let source = "#ifdef X\n1\n#else\n2\n#endif"
+    #expect(tokenValues(preprocess(source, flags: ["X"])) == ["1"])
+    #expect(tokenValues(preprocess("#define X 1\n#ifdef X\n1\n#else\n2\n#endif")) == ["1"])
+    #expect(tokenValues(preprocess(source)) == ["2"])
+}
+
+@Test func ppIfNDef() {
+    let source = "#ifndef X\n1\n#else\n2\n#endif"
+    #expect(tokenValues(preprocess(source)) == ["1"])
+    #expect(tokenValues(preprocess(source, flags: ["X"])) == ["2"])
+}
+
+@Test func ppDefinedInCondition() {
+    let source = "#if defined(X) && A\n1\n#endif"
+    #expect(tokenValues(preprocess(source, flags: ["X", "A"])) == ["1"])
+    #expect(tokenValues(preprocess(source, flags: ["A"])) == [])
+    #expect(tokenValues(preprocess("#define X 1\n#if defined(X)\n1\n#endif")) == ["1"])
+}
+
+@Test func ppDefinedBareForm() {
+    let tokens = preprocess("#if defined X\n1\n#endif", flags: ["X"])
+    #expect(tokenValues(tokens) == ["1"])
+}
+
+@Test func ppDefinedNegated() {
+    let tokens = preprocess("#if !defined(X)\n1\n#endif")
+    #expect(tokenValues(tokens) == ["1"])
+}

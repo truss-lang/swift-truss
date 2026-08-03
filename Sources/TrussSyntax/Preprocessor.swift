@@ -23,6 +23,7 @@ public final class Preprocessor {
     private let context: Context
 
     private final class State {
+        let config: PreprocessorConfig
         var output: [Token] = []
         var index = 0
         var active = true
@@ -30,6 +31,9 @@ public final class Preprocessor {
         var outerIfToken: Token? = nil
         var macros: [String: Macro] = [:]
         var expanding: [String] = []
+        init(config: PreprocessorConfig) {
+            self.config = config
+        }
     }
 
     public init(context: Context) {
@@ -37,11 +41,11 @@ public final class Preprocessor {
     }
 
     public func process(_ tokens: [Token], config: PreprocessorConfig) -> [Token] {
-        let state = State()
+        let state = State(config: config)
         while state.index < tokens.count {
             let token = tokens[state.index]
             if token.kind == .Separator(.Sharp) {
-                if !self.handleDirective(state, tokens: tokens, config: config) {
+                if !self.handleDirective(state, tokens: tokens) {
                     self.emitError("unknown preprocessing directive", at: token)
                     state.index += 1
                 }
@@ -58,9 +62,7 @@ public final class Preprocessor {
         return state.output
     }
 
-    private func handleDirective(
-        _ state: State, tokens: [Token], config: PreprocessorConfig
-    ) -> Bool {
+    private func handleDirective(_ state: State, tokens: [Token]) -> Bool {
         guard state.index + 1 < tokens.count else { return false }
         let sharp = tokens[state.index]
         let name = tokens[state.index + 1]
@@ -69,7 +71,7 @@ public final class Preprocessor {
             let args = self.directiveArgs(
                 tokens, from: state.index + 2, directiveLine: name.pos.line)
             state.index = state.index + 2 + args.count
-            let value = self.evaluateCondition(args, flags: config.flags, at: name)
+            let value = self.evaluateCondition(args, state: state, at: name)
             let errored = value == nil
             let taken = errored || (value ?? false)
             if state.outerIfToken == nil { state.outerIfToken = sharp }
@@ -86,11 +88,23 @@ public final class Preprocessor {
                 let args = self.directiveArgs(
                     tokens, from: state.index + 2, directiveLine: name.pos.line)
                 state.index = state.index + 2 + args.count
-                self.handleElseIf(state, args: args, config: config, name: name, sharp: sharp)
+                self.handleElseIf(state, args: args, name: name, sharp: sharp)
                 return true
             case "endif":
                 state.index += 2
                 self.handleEndIf(state, sharp: sharp)
+                return true
+            case "ifdef":
+                let args = self.directiveArgs(
+                    tokens, from: state.index + 2, directiveLine: name.pos.line)
+                state.index = state.index + 2 + args.count
+                self.handleIfDef(state, args: args, name: name, sharp: sharp, negated: false)
+                return true
+            case "ifndef":
+                let args = self.directiveArgs(
+                    tokens, from: state.index + 2, directiveLine: name.pos.line)
+                state.index = state.index + 2 + args.count
+                self.handleIfDef(state, args: args, name: name, sharp: sharp, negated: true)
                 return true
             case "error":
                 let args = self.directiveArgs(
@@ -138,14 +152,14 @@ public final class Preprocessor {
     }
 
     private func handleElseIf(
-        _ state: State, args: [Token], config: PreprocessorConfig, name: Token, sharp: Token
+        _ state: State, args: [Token], name: Token, sharp: Token
     ) {
         guard let frame = state.frames.last else {
             self.emitError("unexpected #elseif directive", at: sharp)
             return
         }
         if !frame.branchTaken {
-            let value = self.evaluateCondition(args, flags: config.flags, at: name)
+            let value = self.evaluateCondition(args, state: state, at: name)
             if let v = value {
                 if v {
                     state.frames[state.frames.count - 1].branchTaken = true
@@ -159,6 +173,26 @@ public final class Preprocessor {
         } else {
             state.active = false
         }
+    }
+
+    private func handleIfDef(
+        _ state: State, args: [Token], name: Token, sharp: Token, negated: Bool
+    ) {
+        if state.outerIfToken == nil { state.outerIfToken = sharp }
+        guard let first = args.first, first.kind == .Identifier else {
+            self.emitError(
+                "expected macro name after #\(negated ? "ifndef" : "ifdef")", at: name)
+            state.frames.append(ConditionFrame(parentActive: state.active, branchTaken: true))
+            state.active = false
+            return
+        }
+        let taken = self.isDefined(first.value, state: state) != negated
+        state.frames.append(ConditionFrame(parentActive: state.active, branchTaken: taken))
+        state.active = state.active && taken
+    }
+
+    private func isDefined(_ name: String, state: State) -> Bool {
+        state.macros[name] != nil || state.config.flags.contains(name)
     }
 
     private func handleEndIf(_ state: State, sharp: Token) {
@@ -247,12 +281,52 @@ public final class Preprocessor {
     }
 
     private func evaluateCondition(
-        _ tokens: [Token], flags: Set<String>, at directiveToken: Token
+        _ tokens: [Token], state: State, at directiveToken: Token
     ) -> Bool? {
+        let replaced = self.replaceDefined(tokens, state: state)
         var evaluator = ConditionEvaluator(
-            tokens: tokens, flags: flags, directiveToken: directiveToken,
+            tokens: replaced, flags: state.config.flags, directiveToken: directiveToken,
             onError: { message, token in self.emitError(message, at: token) })
         return evaluator.evaluate()
+    }
+
+    private func replaceDefined(_ tokens: [Token], state: State) -> [Token] {
+        var result: [Token] = []
+        var k = 0
+        while k < tokens.count {
+            let token = tokens[k]
+            if token.kind == .Identifier, token.value == "defined" {
+                let name: String?
+                if k + 1 < tokens.count, tokens[k + 1].kind == .Separator(.OpenParen),
+                    k + 2 < tokens.count, tokens[k + 2].kind == .Identifier,
+                    k + 3 < tokens.count, tokens[k + 3].kind == .Separator(.CloseParen)
+                {
+                    name = tokens[k + 2].value
+                    k += 4
+                } else if k + 1 < tokens.count, tokens[k + 1].kind == .Identifier {
+                    name = tokens[k + 1].value
+                    k += 2
+                } else {
+                    name = nil
+                    k += 1
+                }
+                if let name {
+                    if self.isDefined(name, state: state) {
+                        result.append(
+                            Token(value: "1", kind: .IntegerLiteral(1), pos: token.pos, id: token.id))
+                    } else {
+                        result.append(
+                            Token(value: "0", kind: .IntegerLiteral(0), pos: token.pos, id: token.id))
+                    }
+                } else {
+                    result.append(token)
+                }
+            } else {
+                result.append(token)
+                k += 1
+            }
+        }
+        return result
     }
 
     private func emitError(_ message: String, at token: Token) {
