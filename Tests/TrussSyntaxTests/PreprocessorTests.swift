@@ -223,3 +223,50 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     let tokens = preprocess("#if !defined(X)\n1\n#endif")
     #expect(tokenValues(tokens) == ["1"])
 }
+
+@Test func ppFunctionMacro() {
+    let tokens = preprocess("#define F(x) x + 1\nF(2)")
+    #expect(tokenValues(tokens) == ["2", "+", "1"])
+}
+
+@Test func ppFunctionMacroMultiParam() {
+    let tokens = preprocess("#define ADD(a, b) a + b\nADD(1, 2)")
+    #expect(tokenValues(tokens) == ["1", "+", "2"])
+}
+
+@Test func ppFunctionMacroArgPreExpansion() {
+    let tokens = preprocess("#define DOUBLE(x) x + x\n#define N 5\nDOUBLE(N)")
+    #expect(tokenValues(tokens) == ["5", "+", "5"])
+}
+
+@Test func ppFunctionMacroNestedCall() {
+    let tokens = preprocess("#define DOUBLE(x) x + x\nDOUBLE(DOUBLE(2))")
+    #expect(tokenValues(tokens) == ["2", "+", "2", "+", "2", "+", "2"])
+}
+
+@Test func ppVariadicMacro() {
+    let tokens = preprocess("#define LOG(...) print(__VA_ARGS__)\nLOG(1, 2, 3)")
+    #expect(tokenValues(tokens) == ["print", "(", "1", ",", "2", ",", "3", ")"])
+}
+
+@Test func ppVariadicMacroNamedParams() {
+    let tokens = preprocess("#define LOG(fmt, ...) log(fmt, __VA_ARGS__)\nLOG(\"x\", 1, 2)")
+    #expect(tokenValues(tokens) == ["log", "(", "x", ",", "1", ",", "2", ")"])
+}
+
+@Test func ppFunctionMacroArgCountMismatch() {
+    let (tokens, diagnostics) = preprocessWithDiagnostics("#define F(x) x\nF(1, 2)")
+    #expect(diagnostics.contains { $0.message.contains("expects 1 arguments, but got 2") })
+    #expect(diagnostics.contains { $0.severity == .note })
+    #expect(tokenValues(tokens) == ["F", "(", "1", ",", "2", ")"])
+}
+
+@Test func ppFunctionMacroWithoutCall() {
+    let tokens = preprocess("#define F(x) x\nF")
+    #expect(tokenValues(tokens) == ["F"])
+}
+
+@Test func ppFunctionMacroEmptyArgument() {
+    let tokens = preprocess("#define F(x) (x)\nF()")
+    #expect(tokenValues(tokens) == ["(", ")"])
+}

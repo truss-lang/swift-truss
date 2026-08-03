@@ -17,6 +17,7 @@ private struct ConditionFrame {
 
 private enum Macro {
     case object(tokens: [Token])
+    case function(params: [String], variadic: Bool, tokens: [Token])
 }
 
 public final class Preprocessor {
@@ -52,9 +53,12 @@ public final class Preprocessor {
                 continue
             }
             if state.active {
-                state.output.append(contentsOf: self.expandToken(token, state: state))
+                let result = self.expandToken(token, tokens: tokens, at: state.index, state: state)
+                state.output.append(contentsOf: result.tokens)
+                state.index = result.nextIndex
+            } else {
+                state.index += 1
             }
-            state.index += 1
         }
         if let token = state.outerIfToken {
             self.emitError("unterminated #if directive", at: token)
@@ -226,7 +230,47 @@ public final class Preprocessor {
             self.emitError("expected macro name after #define", at: name)
             return
         }
-        state.macros[first.value] = .object(tokens: Array(args.dropFirst()))
+        let rest = Array(args.dropFirst())
+        let isFunctionLike = rest.first?.kind == .Separator(.OpenParen)
+            && first.pos.pos + first.pos.len == rest[0].pos.pos
+        if isFunctionLike {
+            guard let (params, variadic, closeIndex) = self.parseMacroParams(rest, state: state, name: name)
+            else {
+                return
+            }
+            state.macros[first.value] = .function(
+                params: params, variadic: variadic, tokens: Array(rest.dropFirst(closeIndex + 1)))
+        } else {
+            state.macros[first.value] = .object(tokens: rest)
+        }
+    }
+
+    private func parseMacroParams(
+        _ tokens: [Token], state: State, name: Token
+    ) -> (params: [String], variadic: Bool, closeIndex: Int)? {
+        var params: [String] = []
+        var variadic = false
+        var k = 1
+        while k < tokens.count {
+            let t = tokens[k]
+            switch t.kind {
+            case .Separator(.CloseParen):
+                return (params, variadic, k)
+            case .Separator(.Comma):
+                k += 1
+            case .Operator(.DotDotDot):
+                variadic = true
+                k += 1
+            case .Identifier:
+                params.append(t.value)
+                k += 1
+            default:
+                self.emitError("expected parameter name in #define", at: t)
+                return nil
+            }
+        }
+        self.emitError("expected ')' in #define", at: name)
+        return nil
     }
 
     private func handleUndef(_ state: State, args: [Token], name: Token) {
@@ -238,16 +282,113 @@ public final class Preprocessor {
         state.macros.removeValue(forKey: first.value)
     }
 
-    private func expandToken(_ token: Token, state: State) -> [Token] {
+    private func expandToken(
+        _ token: Token, tokens: [Token], at index: Int, state: State
+    ) -> (tokens: [Token], nextIndex: Int) {
         guard token.kind == .Identifier, let macro = state.macros[token.value],
             !state.expanding.contains(token.value)
         else {
-            return [token]
+            return ([token], index + 1)
         }
         switch macro {
         case .object(let body):
-            return self.expandMacro(token.value, body: body, state: state)
+            return (self.expandMacro(token.value, body: body, state: state), index + 1)
+        case .function(let params, let variadic, let body):
+            guard index + 1 < tokens.count, tokens[index + 1].kind == .Separator(.OpenParen)
+            else {
+                return ([token], index + 1)
+            }
+            guard let (args, closeIndex) = self.collectArguments(tokens, from: index + 1) else {
+                self.emitError("unterminated argument list for macro '\(token.value)'", at: token)
+                return ([token], index + 1)
+            }
+            guard let expanded = self.expandFunctionMacro(
+                name: token.value, params: params, variadic: variadic, body: body, args: args,
+                at: token, state: state)
+            else {
+                return ([token], index + 1)
+            }
+            return (expanded, closeIndex + 1)
         }
+    }
+
+    private func collectArguments(
+        _ tokens: [Token], from openParenIndex: Int
+    ) -> (args: [[Token]], closeIndex: Int)? {
+        var args: [[Token]] = []
+        var current: [Token] = []
+        var depth = 0
+        var k = openParenIndex + 1
+        while k < tokens.count {
+            let t = tokens[k]
+            if t.kind == .Separator(.OpenParen) {
+                depth += 1
+                current.append(t)
+            } else if t.kind == .Separator(.CloseParen) {
+                if depth == 0 {
+                    args.append(current)
+                    return (args, k)
+                }
+                depth -= 1
+                current.append(t)
+            } else if t.kind == .Separator(.Comma), depth == 0 {
+                args.append(current)
+                current = []
+            } else {
+                current.append(t)
+            }
+            k += 1
+        }
+        return nil
+    }
+
+    private func expandFunctionMacro(
+        name: String, params: [String], variadic: Bool, body: [Token], args: [[Token]],
+        at token: Token, state: State
+    ) -> [Token]? {
+        if variadic {
+            guard args.count >= params.count else {
+                self.emitError("too few arguments for macro '\(name)'", at: token)
+                self.emitNote("macro '\(name)' defined here", at: body.first ?? token)
+                return nil
+            }
+        } else {
+            guard args.count == params.count else {
+                self.emitError(
+                    "macro '\(name)' expects \(params.count) arguments, but got \(args.count)",
+                    at: token)
+                self.emitNote("macro '\(name)' defined here", at: body.first ?? token)
+                return nil
+            }
+        }
+        let expandedArgs = args.map { self.rescan($0, state: state) }
+        var replaced: [Token] = []
+        var k = 0
+        while k < body.count {
+            let bt = body[k]
+            if bt.kind == .Identifier, let paramIndex = params.firstIndex(of: bt.value) {
+                replaced.append(contentsOf: expandedArgs[paramIndex])
+                k += 1
+                continue
+            }
+            if variadic, bt.kind == .Identifier, bt.value == "__VA_ARGS__" {
+                let variadicArgs = expandedArgs.dropFirst(params.count)
+                var first = true
+                for va in variadicArgs {
+                    if !first {
+                        replaced.append(
+                            Token(value: ",", kind: .Separator(.Comma), pos: bt.pos, id: bt.id))
+                    }
+                    replaced.append(contentsOf: va)
+                    first = false
+                }
+                k += 1
+                continue
+            }
+            replaced.append(bt)
+            k += 1
+        }
+        return self.rescan(replaced, state: state)
     }
 
     private func expandMacro(_ name: String, body: [Token], state: State) -> [Token] {
@@ -259,8 +400,11 @@ public final class Preprocessor {
 
     private func rescan(_ tokens: [Token], state: State) -> [Token] {
         var result: [Token] = []
-        for token in tokens {
-            result.append(contentsOf: self.expandToken(token, state: state))
+        var k = 0
+        while k < tokens.count {
+            let expanded = self.expandToken(tokens[k], tokens: tokens, at: k, state: state)
+            result.append(contentsOf: expanded.tokens)
+            k = expanded.nextIndex
         }
         return result
     }
@@ -331,6 +475,10 @@ public final class Preprocessor {
 
     private func emitError(_ message: String, at token: Token) {
         self.emitDiagnostic(.error, message: message, at: token)
+    }
+
+    private func emitNote(_ message: String, at token: Token) {
+        self.emitDiagnostic(.note, message: message, at: token)
     }
 
     private func emitDiagnostic(
