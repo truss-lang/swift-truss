@@ -86,6 +86,18 @@ public final class Preprocessor {
                 state.index += 2
                 self.handleEndIf(state, sharp: sharp)
                 return true
+            case "error":
+                let args = self.directiveArgs(
+                    tokens, from: state.index + 2, directiveLine: name.pos.line)
+                state.index = state.index + 2 + args.count
+                self.handleErrorDirective(state, args: args, name: name, severity: .error)
+                return true
+            case "warning":
+                let args = self.directiveArgs(
+                    tokens, from: state.index + 2, directiveLine: name.pos.line)
+                state.index = state.index + 2 + args.count
+                self.handleErrorDirective(state, args: args, name: name, severity: .warning)
+                return true
             default:
                 return false
             }
@@ -143,6 +155,19 @@ public final class Preprocessor {
         state.active = frame.parentActive
     }
 
+    private func handleErrorDirective(
+        _ state: State, args: [Token], name: Token, severity: DiagnosticSeverity
+    ) {
+        guard state.active else { return }
+        guard let message = args.first(where: { $0.kind == .StringLiteral }) else {
+            self.emitError(
+                "expected string literal in \(severity == .error ? "#error" : "#warning") directive",
+                at: name)
+            return
+        }
+        self.emitDiagnostic(severity, message: message.value, at: name)
+    }
+
     private func directiveArgs(_ tokens: [Token], from start: Int, directiveLine: Int)
         -> [Token]
     {
@@ -168,10 +193,16 @@ public final class Preprocessor {
     }
 
     private func emitError(_ message: String, at token: Token) {
+        self.emitDiagnostic(.error, message: message, at: token)
+    }
+
+    private func emitDiagnostic(
+        _ severity: DiagnosticSeverity, message: String, at token: Token
+    ) {
         guard let source = context.sourceTable[token.id] else { return }
         context.diagnositicEngine.emit(
             Diagnostic(
-                severity: .error, message: message,
+                severity: severity, message: message,
                 range: token.sourceRange(in: source.stringSourceBuffer)))
     }
 }

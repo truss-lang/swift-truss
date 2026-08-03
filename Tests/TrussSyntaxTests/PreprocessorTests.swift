@@ -129,3 +129,27 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     #expect(diagnostics.contains { $0.message.contains("expected expression") })
     #expect(tokens.isEmpty)
 }
+
+@Test func ppErrorDirective() {
+    let (tokens, diagnostics) = preprocessWithDiagnostics("#error(\"boom\")\n1")
+    #expect(diagnostics.contains { $0.severity == .error && $0.message == "boom" })
+    #expect(tokenValues(tokens) == ["1"])
+}
+
+@Test func ppWarningDirective() {
+    let (tokens, diagnostics) = preprocessWithDiagnostics("#warning(\"careful\")\n1")
+    #expect(diagnostics.contains { $0.severity == .warning && $0.message == "careful" })
+    #expect(tokenValues(tokens) == ["1"])
+}
+
+@Test func ppErrorSkippedWhenInactive() {
+    let (tokens, diagnostics) = preprocessWithDiagnostics("#if 0\n#error(\"boom\")\n#endif\n1")
+    #expect(diagnostics.isEmpty)
+    #expect(tokenValues(tokens) == ["1"])
+}
+
+@Test func ppErrorMissingMessage() {
+    let (tokens, diagnostics) = preprocessWithDiagnostics("#error\n1")
+    #expect(diagnostics.contains { $0.message.contains("expected string literal") })
+    #expect(tokenValues(tokens) == ["1"])
+}
