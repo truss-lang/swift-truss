@@ -185,6 +185,11 @@ public final class Lexer {
                 return self.parseOperator()
             }
         case "\\":
+            if self.input.peek2 == "\n" || self.input.peek2 == "\r\n" {
+                self.input.incrementPosition()
+                self.input.incrementPosition()
+                return nil
+            }
             if self.interpolationDepth > 0, self.input.peek2 == "(" {
                 self.emitInterpolationOpen = true
                 self.interpolationDepth += 1
@@ -417,6 +422,10 @@ public final class Lexer {
                     let escaped = raw[i]
                     i = raw.index(after: i)
                     switch escaped {
+                    case "\n":
+                        break
+                    case "\r\n":
+                        break
                     case "n": result.append("\n")
                     case "t": result.append("\t")
                     case "r": result.append("\r")

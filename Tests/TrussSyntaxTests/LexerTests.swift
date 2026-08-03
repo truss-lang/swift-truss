@@ -285,6 +285,50 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[0].value == "hello\nworld\n")
 }
 
+@Test func lexStringLineContinuation() {
+    let tokens = lex("\"foo\\\nbar\"")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].value == "foobar")
+}
+
+@Test func lexStringLineContinuationCRLF() {
+    let tokens = lex("\"foo\\\u{0D}\u{0A}bar\"")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].value == "foobar")
+}
+
+@Test func lexMultilineStringLineContinuation() {
+    let src = "\"\"\"\nfoo\\\nbar\n\"\"\""
+    let tokens = lex(src)
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].value == "foobar\n")
+}
+
+@Test func lexCodeLineContinuation() {
+    let tokens = lex("let x = 1 + \\\n2")
+    #expect(tokens.count == 6)
+    #expect(tokens[0].kind == .Keyword(.Let))
+    #expect(tokens[1].kind == .Identifier)
+    #expect(tokens[2].kind == .Operator(.Assign))
+    #expect(tokens[3].kind == .IntegerLiteral(1))
+    #expect(tokens[4].kind == .Operator(.Plus))
+    #expect(tokens[5].kind == .IntegerLiteral(2))
+}
+
+@Test func lexCodeLineContinuationCRLF() {
+    let tokens = lex("let x = 1 + \\\u{0D}\u{0A}2")
+    #expect(tokens.count == 6)
+    #expect(tokens[0].kind == .Keyword(.Let))
+    #expect(tokens[1].kind == .Identifier)
+    #expect(tokens[2].kind == .Operator(.Assign))
+    #expect(tokens[3].kind == .IntegerLiteral(1))
+    #expect(tokens[4].kind == .Operator(.Plus))
+    #expect(tokens[5].kind == .IntegerLiteral(2))
+}
+
 @Test func lexCharLiteral() {
     let tokens = lex("'a'")
     #expect(tokens.count == 1)
