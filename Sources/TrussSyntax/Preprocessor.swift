@@ -1,11 +1,6 @@
+import Foundation
 import SwiftBetterDiagnostic
 import TrussCore
-import Foundation
-#if os(Linux)
-import Glibc
-#else
-import Darwin
-#endif
 
 public struct PreprocessorConfig {
     public let flags: Set<String>
@@ -71,10 +66,10 @@ public final class Preprocessor {
                     tokens: tokens, currentDir: currentDir)
                 {
                     output.append(contentsOf: directiveOutput)
-                    continue
+                } else {
+                    self.emitError("unknown preprocessing directive", at: token)
+                    self.index += 1
                 }
-                self.emitError("unknown preprocessing directive", at: token)
-                self.index += 1
                 continue
             }
             if self.active {
@@ -320,7 +315,8 @@ public final class Preprocessor {
             return
         }
         let rest = Array(args.dropFirst())
-        let isFunctionLike = rest.first?.kind == .Separator(.OpenParen)
+        let isFunctionLike =
+            rest.first?.kind == .Separator(.OpenParen)
             && first.pos.pos + first.pos.len == rest[0].pos.pos
         if isFunctionLike {
             guard let (params, variadic, closeIndex) = self.parseMacroParams(rest, name: name)
@@ -403,10 +399,14 @@ public final class Preprocessor {
             guard let expanded else {
                 return ([token], index + 1)
             }
-            let tail = tailIsMacro
+            let tail =
+                tailIsMacro
                 ? self.expandTail(expanded, tokens: tokens, at: closeIndex + 1)
                 : (tokens: expanded, nextIndex: closeIndex + 1)
-            return (self.relocate(tail.tokens, to: token, site: self.site(of: nameToken)), tail.nextIndex)
+            return (
+                self.relocate(tail.tokens, to: token, site: self.site(of: nameToken)),
+                tail.nextIndex
+            )
         }
     }
 
@@ -564,7 +564,8 @@ public final class Preprocessor {
         if result.isEmpty {
             return ([self.placeholder(at: token)], false)
         }
-        let tailIsMacro = replaced.last?.kind == .Identifier
+        let tailIsMacro =
+            replaced.last?.kind == .Identifier
             && self.macros[replaced.last!.value] != nil
         return (result, tailIsMacro)
     }
@@ -650,15 +651,23 @@ public final class Preprocessor {
         }
     }
 
+    private static let monthNames = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ]
+
     private static func compilationTimeToken(date: Bool, at token: Token) -> Token {
-        var t = time(nil)
-        var tm = localtime(&t)!.pointee
-        var buf = [CChar](repeating: 0, count: 64)
-        let format = date ? "%b %e %Y" : "%H:%M:%S"
-        strftime(&buf, buf.count, format, &tm)
-        let text = String(
-            decoding: buf.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) },
-            as: UTF8.self)
+        let components = Calendar.current.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second], from: Date())
+        let text: String
+        if date {
+            let day = String(format: "%2d", components.day!)
+            text = "\(monthNames[components.month! - 1]) \(day) \(components.year!)"
+        } else {
+            text = String(
+                format: "%02d:%02d:%02d",
+                components.hour!, components.minute!, components.second!)
+        }
         return Token(value: text, kind: .StringLiteral, pos: token.pos, id: token.id)
     }
 
@@ -739,10 +748,12 @@ public final class Preprocessor {
                 if let name {
                     if self.isDefined(name) {
                         result.append(
-                            Token(value: "1", kind: .IntegerLiteral(1), pos: token.pos, id: token.id))
+                            Token(
+                                value: "1", kind: .IntegerLiteral(1), pos: token.pos, id: token.id))
                     } else {
                         result.append(
-                            Token(value: "0", kind: .IntegerLiteral(0), pos: token.pos, id: token.id))
+                            Token(
+                                value: "0", kind: .IntegerLiteral(0), pos: token.pos, id: token.id))
                     }
                 } else {
                     result.append(token)
@@ -960,7 +971,8 @@ private struct ConditionEvaluator {
                 self.index += 1
                 guard let rhs = self.parseAdditive() else { return nil }
                 guard rhs >= 0, rhs < 128 else {
-                    self.onError("shift count out of range in #if condition", self.tokens[self.index - 1])
+                    self.onError(
+                        "shift count out of range in #if condition", self.tokens[self.index - 1])
                     return nil
                 }
                 value = isLeft ? value << rhs : value >> rhs
