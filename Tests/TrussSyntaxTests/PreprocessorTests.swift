@@ -153,3 +153,43 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     #expect(diagnostics.contains { $0.message.contains("expected string literal") })
     #expect(tokenValues(tokens) == ["1"])
 }
+
+@Test func ppObjectMacro() {
+    let tokens = preprocess("#define MAX 100\nMAX")
+    #expect(tokenValues(tokens) == ["100"])
+}
+
+@Test func ppObjectMacroMultiToken() {
+    let tokens = preprocess("#define PAIR (1, 2)\nPAIR")
+    #expect(tokenValues(tokens) == ["(", "1", ",", "2", ")"])
+}
+
+@Test func ppObjectMacroWithString() {
+    let tokens = preprocess("#define GREETING \"hi\"\nGREETING")
+    #expect(tokenValues(tokens) == ["hi"])
+}
+
+@Test func ppObjectMacroEmptyBody() {
+    let tokens = preprocess("#define X\nX\n1")
+    #expect(tokenValues(tokens) == ["1"])
+}
+
+@Test func ppMacroCascade() {
+    let tokens = preprocess("#define A B\n#define B 42\nA")
+    #expect(tokenValues(tokens) == ["42"])
+}
+
+@Test func ppMacroSelfReference() {
+    let tokens = preprocess("#define A B\n#define B A\nA")
+    #expect(tokenValues(tokens) == ["A"])
+}
+
+@Test func ppMacroUndef() {
+    let tokens = preprocess("#define X 1\nX\n#undef X\nX")
+    #expect(tokenValues(tokens) == ["1", "X"])
+}
+
+@Test func ppMacroInactiveDefine() {
+    let tokens = preprocess("#if 0\n#define X 1\n#endif\nX")
+    #expect(tokenValues(tokens) == ["X"])
+}

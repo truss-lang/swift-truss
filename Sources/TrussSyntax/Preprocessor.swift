@@ -15,6 +15,10 @@ private struct ConditionFrame {
     var branchTaken: Bool
 }
 
+private enum Macro {
+    case object(tokens: [Token])
+}
+
 public final class Preprocessor {
     private let context: Context
 
@@ -24,6 +28,8 @@ public final class Preprocessor {
         var active = true
         var frames: [ConditionFrame] = []
         var outerIfToken: Token? = nil
+        var macros: [String: Macro] = [:]
+        var expanding: [String] = []
     }
 
     public init(context: Context) {
@@ -42,7 +48,7 @@ public final class Preprocessor {
                 continue
             }
             if state.active {
-                state.output.append(token)
+                state.output.append(contentsOf: self.expandToken(token, state: state))
             }
             state.index += 1
         }
@@ -97,6 +103,18 @@ public final class Preprocessor {
                     tokens, from: state.index + 2, directiveLine: name.pos.line)
                 state.index = state.index + 2 + args.count
                 self.handleErrorDirective(state, args: args, name: name, severity: .warning)
+                return true
+            case "define":
+                let args = self.directiveArgs(
+                    tokens, from: state.index + 2, directiveLine: name.pos.line)
+                state.index = state.index + 2 + args.count
+                self.handleDefine(state, args: args, name: name)
+                return true
+            case "undef":
+                let args = self.directiveArgs(
+                    tokens, from: state.index + 2, directiveLine: name.pos.line)
+                state.index = state.index + 2 + args.count
+                self.handleUndef(state, args: args, name: name)
                 return true
             default:
                 return false
@@ -166,6 +184,51 @@ public final class Preprocessor {
             return
         }
         self.emitDiagnostic(severity, message: message.value, at: name)
+    }
+
+    private func handleDefine(_ state: State, args: [Token], name: Token) {
+        guard state.active else { return }
+        guard let first = args.first, first.kind == .Identifier else {
+            self.emitError("expected macro name after #define", at: name)
+            return
+        }
+        state.macros[first.value] = .object(tokens: Array(args.dropFirst()))
+    }
+
+    private func handleUndef(_ state: State, args: [Token], name: Token) {
+        guard state.active else { return }
+        guard let first = args.first, first.kind == .Identifier else {
+            self.emitError("expected macro name after #undef", at: name)
+            return
+        }
+        state.macros.removeValue(forKey: first.value)
+    }
+
+    private func expandToken(_ token: Token, state: State) -> [Token] {
+        guard token.kind == .Identifier, let macro = state.macros[token.value],
+            !state.expanding.contains(token.value)
+        else {
+            return [token]
+        }
+        switch macro {
+        case .object(let body):
+            return self.expandMacro(token.value, body: body, state: state)
+        }
+    }
+
+    private func expandMacro(_ name: String, body: [Token], state: State) -> [Token] {
+        state.expanding.append(name)
+        let result = self.rescan(body, state: state)
+        state.expanding.removeLast()
+        return result
+    }
+
+    private func rescan(_ tokens: [Token], state: State) -> [Token] {
+        var result: [Token] = []
+        for token in tokens {
+            result.append(contentsOf: self.expandToken(token, state: state))
+        }
+        return result
     }
 
     private func directiveArgs(_ tokens: [Token], from start: Int, directiveLine: Int)
