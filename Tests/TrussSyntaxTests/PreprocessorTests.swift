@@ -2,9 +2,11 @@ import SwiftBetterDiagnostic
 import Testing
 import TrussCore
 import TrussSyntax
+import Foundation
 
 func preprocessWithDiagnostics(
-    _ source: String, flags: Set<String> = [], target: String = "x86_64-unknown-linux-gnu"
+    _ source: String, flags: Set<String> = [], target: String = "x86_64-unknown-linux-gnu",
+    workingDirectory: String = ""
 ) -> ([Token], [Diagnostic]) {
     let context = Context()
     let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
@@ -13,14 +15,16 @@ func preprocessWithDiagnostics(
     let lexer = Lexer(input: stream)
     let tokens = lexer.parse().tokens
     let result = Preprocessor(context: context).process(
-        tokens, config: PreprocessorConfig(flags: flags, target: target))
+        tokens,
+        config: PreprocessorConfig(flags: flags, target: target, workingDirectory: workingDirectory))
     return (result, context.diagnositicEngine.diagnostics)
 }
 
 func preprocess(
-    _ source: String, flags: Set<String> = [], target: String = "x86_64-unknown-linux-gnu"
+    _ source: String, flags: Set<String> = [], target: String = "x86_64-unknown-linux-gnu",
+    workingDirectory: String = ""
 ) -> [Token] {
-    preprocessWithDiagnostics(source, flags: flags, target: target).0
+    preprocessWithDiagnostics(source, flags: flags, target: target, workingDirectory: workingDirectory).0
 }
 
 func tokenValues(_ tokens: [Token]) -> [String] {
@@ -394,5 +398,87 @@ func tokenValues(_ tokens: [Token]) -> [String] {
 
 @Test func ppBuiltinInCondition() {
     let tokens = preprocess("#if __LINE__ == 1\n1\n#endif")
+    #expect(tokenValues(tokens) == ["1"])
+}
+
+@Test func ppInclude() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("truss-pp-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let header = dir.appendingPathComponent("defs.truss")
+    try "#define MAX 42".write(to: header, atomically: true, encoding: .utf8)
+    let tokens = preprocess("#include \"defs.truss\"\nMAX", workingDirectory: dir.path)
+    #expect(tokenValues(tokens) == ["42"])
+}
+
+@Test func ppIncludeAngleBrackets() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("truss-pp-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let header = dir.appendingPathComponent("defs.truss")
+    try "#define MAX 7".write(to: header, atomically: true, encoding: .utf8)
+    let tokens = preprocess("#include <defs.truss>\nMAX", workingDirectory: dir.path)
+    #expect(tokenValues(tokens) == ["7"])
+}
+
+@Test func ppIncludeGuardMacro() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("truss-pp-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let header = dir.appendingPathComponent("defs.truss")
+    try "#ifndef DEFS\n#define DEFS\n#define MAX 42\n#endif".write(
+        to: header, atomically: true, encoding: .utf8)
+    let source = "#include \"defs.truss\"\n#include \"defs.truss\"\nMAX"
+    let tokens = preprocess(source, workingDirectory: dir.path)
+    #expect(tokenValues(tokens) == ["42"])
+}
+
+@Test func ppIncludeNested() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("truss-pp-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let inner = dir.appendingPathComponent("inner.truss")
+    try "#define X 9".write(to: inner, atomically: true, encoding: .utf8)
+    let outer = dir.appendingPathComponent("outer.truss")
+    try "#include \"inner.truss\"".write(to: outer, atomically: true, encoding: .utf8)
+    let tokens = preprocess("#include \"outer.truss\"\nX", workingDirectory: dir.path)
+    #expect(tokenValues(tokens) == ["9"])
+}
+
+@Test func ppIncludeCircular() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("truss-pp-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let a = dir.appendingPathComponent("a.truss")
+    let b = dir.appendingPathComponent("b.truss")
+    try "#include \"b.truss\"".write(to: a, atomically: true, encoding: .utf8)
+    try "#include \"a.truss\"".write(to: b, atomically: true, encoding: .utf8)
+    let (tokens, diagnostics) = preprocessWithDiagnostics(
+        "#include \"a.truss\"", workingDirectory: dir.path)
+    #expect(diagnostics.contains { $0.message.contains("circular #include") })
+    #expect(tokens.isEmpty)
+}
+
+@Test func ppIncludeMissingFile() {
+    let (_, diagnostics) = preprocessWithDiagnostics("#include \"nope.truss\"")
+    #expect(diagnostics.contains { $0.message.contains("file not found") })
+}
+
+@Test func ppIncludeSkippedWhenInactive() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("truss-pp-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let tokens = preprocess("#if 0\n#include \"nope.truss\"\n#endif\n1", workingDirectory: dir.path)
+    #expect(tokenValues(tokens) == ["1"])
+}
+
+@Test func ppPragmaIgnored() {
+    let tokens = preprocess("#pragma once\n1")
     #expect(tokenValues(tokens) == ["1"])
 }
