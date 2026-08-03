@@ -27,8 +27,8 @@ private struct ConditionFrame {
 }
 
 private enum Macro {
-    case object(tokens: [Token])
-    case function(params: [String], variadic: Bool, tokens: [Token])
+    case object(name: Token, tokens: [Token])
+    case function(name: Token, params: [String], variadic: Bool, tokens: [Token])
 }
 
 public final class Preprocessor {
@@ -333,9 +333,10 @@ public final class Preprocessor {
                 return
             }
             state.macros[first.value] = .function(
-                params: params, variadic: variadic, tokens: Array(rest.dropFirst(closeIndex + 1)))
+                name: first, params: params, variadic: variadic,
+                tokens: Array(rest.dropFirst(closeIndex + 1)))
         } else {
-            state.macros[first.value] = .object(tokens: rest)
+            state.macros[first.value] = .object(name: first, tokens: rest)
         }
     }
 
@@ -388,10 +389,10 @@ public final class Preprocessor {
             return ([token], index + 1)
         }
         switch macro {
-        case .object(let body):
+        case .object(let nameToken, let body):
             let expanded = self.expandMacro(token.value, body: body, state: state)
-            return (self.relocate(expanded, to: token), index + 1)
-        case .function(let params, let variadic, let body):
+            return (self.relocate(expanded, to: token, site: self.site(of: nameToken)), index + 1)
+        case .function(let nameToken, let params, let variadic, let body):
             guard index + 1 < tokens.count, tokens[index + 1].kind == .Separator(.OpenParen)
             else {
                 return ([token], index + 1)
@@ -406,16 +407,23 @@ public final class Preprocessor {
             else {
                 return ([token], index + 1)
             }
-            return (self.relocate(expanded, to: token), closeIndex + 1)
+            return (self.relocate(expanded, to: token, site: self.site(of: nameToken)), closeIndex + 1)
         }
     }
 
-    private func relocate(_ tokens: [Token], to token: Token) -> [Token] {
+    private func site(of nameToken: Token) -> MacroExpansionSite {
+        MacroExpansionSite(
+            name: nameToken.value, definitionPosition: nameToken.pos,
+            definitionSourceId: nameToken.id)
+    }
+
+    private func relocate(_ tokens: [Token], to token: Token, site: MacroExpansionSite)
+        -> [Token]
+    {
         tokens.map { t in
-            guard t.pos != token.pos || t.id != token.id else { return t }
-            return Token(
+            Token(
                 value: t.value, kind: t.kind, pos: token.pos, id: token.id,
-                isUnterminated: t.isUnterminated)
+                isUnterminated: t.isUnterminated, expansion: (t.expansion ?? []) + [site])
         }
     }
 
@@ -709,7 +717,8 @@ public final class Preprocessor {
         context.diagnositicEngine.emit(
             Diagnostic(
                 severity: severity, message: message,
-                range: token.sourceRange(in: source.stringSourceBuffer)))
+                range: token.sourceRange(in: source.stringSourceBuffer),
+                notes: token.expansionNotes(in: context)))
     }
 }
 

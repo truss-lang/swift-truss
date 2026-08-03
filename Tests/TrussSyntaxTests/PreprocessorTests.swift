@@ -519,3 +519,96 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     #expect(diagnostics.contains { $0.message.contains("invalid token formed") })
     #expect(tokenValues(tokens) == ["1", "x"])
 }
+
+@Test func ppExpansionChainSingle() {
+    let (tokens, _) = preprocessWithDiagnostics("#define MAX 100\nMAX")
+    let chain = tokens[0].expansion
+    #expect(chain?.count == 1)
+    #expect(chain?[0].name == "MAX")
+    #expect(chain?[0].definitionPosition.line == 1)
+    #expect(chain?[0].definitionPosition.pos == 8)
+}
+
+@Test func ppExpansionChainNested() {
+    let (tokens, _) = preprocessWithDiagnostics("#define A B\n#define B 1\nA")
+    let chain = tokens[0].expansion
+    #expect(chain?.count == 2)
+    #expect(chain?[0].name == "B")
+    #expect(chain?[0].definitionPosition.line == 2)
+    #expect(chain?[1].name == "A")
+    #expect(chain?[1].definitionPosition.line == 1)
+}
+
+@Test func ppExpansionChainFunctionMacro() {
+    let (tokens, _) = preprocessWithDiagnostics("#define F(x) x + 1\nF(2)")
+    let chain = tokens[0].expansion
+    #expect(chain?.count == 1)
+    #expect(chain?[0].name == "F")
+    #expect(tokens[0].pos.line == 2)
+}
+
+@Test func ppUnexpandedTokenHasNoChain() {
+    let (tokens, _) = preprocessWithDiagnostics("let x = 1")
+    #expect(tokens[0].expansion == nil)
+}
+
+@Test func ppExpansionNotesHelper() {
+    let context = Context()
+    let src = Source(
+        id: Id.SourceId(id: 0), filepath: "<test>",
+        content: "#define MAX 100\nMAX")
+    context.register(source: src)
+    let site = MacroExpansionSite(
+        name: "MAX",
+        definitionPosition: Position(pos: 8, line: 1, col: 9, len: 3),
+        definitionSourceId: Id.SourceId(id: 0))
+    let token = Token(
+        value: "100", kind: .IntegerLiteral(100),
+        pos: Position(pos: 16, line: 2, col: 1, len: 3),
+        id: Id.SourceId(id: 0), expansion: [site])
+    let notes = token.expansionNotes(in: context)
+    #expect(notes.count == 1)
+    #expect(notes[0].message == "in expansion of macro 'MAX'")
+    #expect(notes[0].range.start.offset == 8)
+    #expect(notes[0].range.start.line == 1)
+}
+
+func parseWithPreprocessor(_ source: String) -> [Diagnostic] {
+    let context = Context()
+    let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
+    context.register(source: src)
+    let stream = CharStream(content: source, id: Id.SourceId(id: 0))
+    let tokens = Lexer(input: stream).parse().tokens
+    let processed = Preprocessor(context: context).process(
+        tokens, config: PreprocessorConfig())
+    let parser = Parser(
+        context: context, packageName: "main",
+        LexerResult(id: Id.SourceId(id: 0), tokens: processed))
+    _ = parser.parse()
+    return context.diagnositicEngine.diagnostics
+}
+
+@Test func ppParserErrorShowsExpansionNote() {
+    let diagnostics = parseWithPreprocessor("#define BAD :\nlet x = [BAD 1]")
+    #expect(
+        diagnostics.contains {
+            $0.notes.contains { $0.message == "in expansion of macro 'BAD'" }
+        })
+}
+
+@Test func ppPreprocessorErrorShowsExpansionNote() {
+    let (_, diagnostics) = preprocessWithDiagnostics("#define DIV / 0\n#if 1 DIV")
+    #expect(
+        diagnostics.contains {
+            $0.message.contains("division by zero")
+                && $0.notes.contains { $0.message == "in expansion of macro 'DIV'" }
+        })
+}
+
+@Test func ppNestedExpansionNotes() {
+    let (_, diagnostics) = preprocessWithDiagnostics("#define A B\n#define B / 0\n#if 1 A")
+    let divError = diagnostics.first { $0.message.contains("division by zero") }
+    #expect(divError?.notes.map { $0.message } == [
+        "in expansion of macro 'B'", "in expansion of macro 'A'"
+    ])
+}

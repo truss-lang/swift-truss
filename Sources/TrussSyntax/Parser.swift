@@ -89,7 +89,7 @@ public final class Parser {
     }
 
     private func emitError(_ message: String, at token: Token) {
-        emitError(message, at: token.sourceRange(in: buffer))
+        emitError(message, at: token, notes: [])
     }
 
     private func note(_ message: String, at token: Token) -> Diagnostic {
@@ -100,7 +100,8 @@ public final class Parser {
         context.diagnositicEngine.emit(
             Diagnostic(
                 severity: .error, message: message,
-                range: token.sourceRange(in: buffer), notes: notes
+                range: token.sourceRange(in: buffer),
+                notes: notes + token.expansionNotes(in: context)
             ))
     }
 

@@ -247,21 +247,36 @@ public enum TokenKind: Hashable, Equatable {
     case Unknown
 }
 
+public struct MacroExpansionSite: Hashable, Equatable {
+    public let name: String
+    public let definitionPosition: Position
+    public let definitionSourceId: Id.SourceId
+    public init(
+        name: String, definitionPosition: Position, definitionSourceId: Id.SourceId
+    ) {
+        self.name = name
+        self.definitionPosition = definitionPosition
+        self.definitionSourceId = definitionSourceId
+    }
+}
+
 public final class Token: Hashable, Equatable {
     public let value: String
     public let kind: TokenKind
     public let pos: Position
     public let id: Id.SourceId
     public let isUnterminated: Bool
+    public let expansion: [MacroExpansionSite]?
     public init(
         value: String, kind: TokenKind, pos: Position, id: Id.SourceId,
-        isUnterminated: Bool = false
+        isUnterminated: Bool = false, expansion: [MacroExpansionSite]? = nil
     ) {
         self.value = value
         self.kind = kind
         self.pos = pos
         self.id = id
         self.isUnterminated = isUnterminated
+        self.expansion = expansion
     }
     public static func == (_ lhs: Token, _ rhs: Token) -> Bool {
         return lhs.value == rhs.value && lhs.kind == rhs.kind && lhs.pos == rhs.pos
@@ -273,6 +288,25 @@ public final class Token: Hashable, Equatable {
         hasher.combine(pos)
         hasher.combine(id)
         hasher.combine(isUnterminated)
+    }
+}
+
+extension Token {
+    public func expansionNotes(in context: Context) -> [Diagnostic] {
+        guard let chain = self.expansion, !chain.isEmpty else { return [] }
+        return chain.compactMap { site in
+            guard let source = context.sourceTable[site.definitionSourceId] else { return nil }
+            let buffer = source.stringSourceBuffer
+            let position = site.definitionPosition
+            let start = SourceLocation(
+                buffer: buffer, offset: position.pos, line: position.line, column: position.col)
+            let end = SourceLocation(
+                buffer: buffer, offset: position.pos + position.len, line: position.line,
+                column: position.col + position.len)
+            return Diagnostic(
+                severity: .note, message: "in expansion of macro '\(site.name)'",
+                range: SourceRange(start: start, end: end))
+        }
     }
 }
 
