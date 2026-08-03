@@ -4,7 +4,7 @@ import TrussCore
 import TrussSyntax
 
 func preprocessWithDiagnostics(
-    _ source: String, flags: Set<String> = []
+    _ source: String, flags: Set<String> = [], target: String = "x86_64-unknown-linux-gnu"
 ) -> ([Token], [Diagnostic]) {
     let context = Context()
     let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
@@ -13,12 +13,14 @@ func preprocessWithDiagnostics(
     let lexer = Lexer(input: stream)
     let tokens = lexer.parse().tokens
     let result = Preprocessor(context: context).process(
-        tokens, config: PreprocessorConfig(flags: flags))
+        tokens, config: PreprocessorConfig(flags: flags, target: target))
     return (result, context.diagnositicEngine.diagnostics)
 }
 
-func preprocess(_ source: String, flags: Set<String> = []) -> [Token] {
-    preprocessWithDiagnostics(source, flags: flags).0
+func preprocess(
+    _ source: String, flags: Set<String> = [], target: String = "x86_64-unknown-linux-gnu"
+) -> [Token] {
+    preprocessWithDiagnostics(source, flags: flags, target: target).0
 }
 
 func tokenValues(_ tokens: [Token]) -> [String] {
@@ -300,4 +302,28 @@ func tokenValues(_ tokens: [Token]) -> [String] {
 @Test func ppTokenPasteUnexpandedOperand() {
     let tokens = preprocess("#define CAT(a, b) a ## b\n#define FOO bar\nCAT(FOO, 1)")
     #expect(tokenValues(tokens) == ["FOO1"])
+}
+
+@Test func ppOSCondition() {
+    let source = "#if os(Linux)\n1\n#else\n2\n#endif"
+    #expect(tokenValues(preprocess(source)) == ["1"])
+    #expect(tokenValues(preprocess(source, target: "x86_64-apple-macosx")) == ["2"])
+}
+
+@Test func ppArchCondition() {
+    let source = "#if arch(x86_64)\n1\n#endif"
+    #expect(tokenValues(preprocess(source)) == ["1"])
+    #expect(tokenValues(preprocess(source, target: "arm64-unknown-linux-gnu")) == [])
+}
+
+@Test func ppTargetEnvironmentCondition() {
+    let source = "#if targetEnvironment(simulator)\n1\n#endif"
+    #expect(tokenValues(preprocess(source, target: "x86_64-apple-ios-simulator")) == ["1"])
+    #expect(tokenValues(preprocess(source)) == [])
+}
+
+@Test func ppUnknownConditionFunction() {
+    let (tokens, diagnostics) = preprocessWithDiagnostics("#if canImport(X)\n1\n#endif")
+    #expect(diagnostics.contains { $0.message.contains("unknown function") })
+    #expect(tokens.isEmpty)
 }

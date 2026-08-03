@@ -517,7 +517,9 @@ public final class Preprocessor {
     ) -> Bool? {
         let replaced = self.replaceDefined(tokens, state: state)
         var evaluator = ConditionEvaluator(
-            tokens: replaced, flags: state.config.flags, directiveToken: directiveToken,
+            tokens: replaced, flags: state.config.flags,
+            target: TargetInfo(target: state.config.target),
+            directiveToken: directiveToken,
             onError: { message, token in self.emitError(message, at: token) })
         return evaluator.evaluate()
     }
@@ -580,9 +582,31 @@ public final class Preprocessor {
     }
 }
 
+private struct TargetInfo {
+    let arch: String
+    let os: String
+    let simulator: Bool
+    init(target: String) {
+        let parts = target.split(separator: "-").map(String.init)
+        self.arch = parts.first ?? ""
+        self.simulator = parts.contains("simulator")
+        self.os = TargetInfo.osName(parts.count > 2 ? parts[2] : "")
+    }
+    private static func osName(_ raw: String) -> String {
+        if raw.hasPrefix("linux") { return "Linux" }
+        if raw.hasPrefix("darwin") || raw.hasPrefix("macos") { return "macOS" }
+        if raw.hasPrefix("windows") { return "Windows" }
+        if raw.hasPrefix("freebsd") { return "FreeBSD" }
+        if raw.hasPrefix("ios") { return "iOS" }
+        if raw.hasPrefix("android") { return "Android" }
+        return raw
+    }
+}
+
 private struct ConditionEvaluator {
     let tokens: [Token]
     let flags: Set<String>
+    let target: TargetInfo
     let directiveToken: Token
     let onError: (String, Token) -> Void
     var index = 0
@@ -630,6 +654,39 @@ private struct ConditionEvaluator {
         return self.parsePrimary()
     }
 
+    private mutating func parseConditionFunction() -> Bool? {
+        let fn = self.tokens[self.index]
+        let name = fn.value
+        guard name == "os" || name == "arch" || name == "targetEnvironment" else {
+            self.onError("unknown function '\(name)' in #if condition", fn)
+            return nil
+        }
+        self.index += 2
+        guard self.index < self.tokens.count,
+            self.tokens[self.index].kind == .Identifier
+        else {
+            self.onError("expected argument in '\(name)' condition", fn)
+            return nil
+        }
+        let arg = self.tokens[self.index].value
+        self.index += 1
+        guard self.index < self.tokens.count,
+            self.tokens[self.index].kind == .Separator(.CloseParen)
+        else {
+            self.onError("expected ')' after '\(name)' argument", fn)
+            return nil
+        }
+        self.index += 1
+        switch name {
+        case "os":
+            return arg.lowercased() == self.target.os.lowercased()
+        case "arch":
+            return arg.lowercased() == self.target.arch.lowercased()
+        default:
+            return arg == "simulator" && self.target.simulator
+        }
+    }
+
     private mutating func parsePrimary() -> Bool? {
         guard self.index < self.tokens.count else {
             self.onError("expected expression in #if condition", self.tokens.last!)
@@ -644,6 +701,11 @@ private struct ConditionEvaluator {
             self.index += 1
             return value
         case .Identifier:
+            if self.index + 1 < self.tokens.count,
+                self.tokens[self.index + 1].kind == .Separator(.OpenParen)
+            {
+                return self.parseConditionFunction()
+            }
             self.index += 1
             return self.flags.contains(token.value)
         case .Separator(.OpenParen):
