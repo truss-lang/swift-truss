@@ -124,7 +124,8 @@ public final class Preprocessor {
                 return true
             case "define":
                 let args = self.directiveArgs(
-                    tokens, from: state.index + 2, directiveLine: name.pos.line)
+                    tokens, from: state.index + 2, directiveLine: name.pos.line,
+                    stopAtSharp: false)
                 state.index = state.index + 2 + args.count
                 self.handleDefine(state, args: args, name: name)
                 return true
@@ -362,10 +363,30 @@ public final class Preprocessor {
             }
         }
         let expandedArgs = args.map { self.rescan($0, state: state) }
+        let pastedBody = self.pasteTokensInBody(body, params: params, args: args, state: state)
         var replaced: [Token] = []
         var k = 0
-        while k < body.count {
-            let bt = body[k]
+        while k < pastedBody.count {
+            let bt = pastedBody[k]
+            if bt.kind == .Separator(.Sharp), k + 1 < pastedBody.count {
+                if let paramIndex = params.firstIndex(of: pastedBody[k + 1].value) {
+                    let text = args[paramIndex].map { $0.value }.joined(separator: " ")
+                    replaced.append(
+                        Token(value: text, kind: .StringLiteral, pos: bt.pos, id: bt.id))
+                    k += 2
+                    continue
+                }
+                if variadic, pastedBody[k + 1].kind == .Identifier,
+                    pastedBody[k + 1].value == "__VA_ARGS__"
+                {
+                    let text = args.dropFirst(params.count).flatMap { $0 }.map { $0.value }
+                        .joined(separator: ", ")
+                    replaced.append(
+                        Token(value: text, kind: .StringLiteral, pos: bt.pos, id: bt.id))
+                    k += 2
+                    continue
+                }
+            }
             if bt.kind == .Identifier, let paramIndex = params.firstIndex(of: bt.value) {
                 replaced.append(contentsOf: expandedArgs[paramIndex])
                 k += 1
@@ -391,6 +412,73 @@ public final class Preprocessor {
         return self.rescan(replaced, state: state)
     }
 
+    private func pasteTokensInBody(
+        _ body: [Token], params: [String], args: [[Token]], state: State
+    ) -> [Token] {
+        var result: [Token] = []
+        var k = 0
+        while k < body.count {
+            if k + 1 < body.count, body[k].kind == .Separator(.Sharp),
+                body[k + 1].kind == .Separator(.Sharp)
+            {
+                guard k + 2 < body.count else {
+                    self.emitError("expected token after '##' in macro body", at: body[k])
+                    k += 2
+                    continue
+                }
+                let leftBodyToken = result.removeLast()
+                let leftTokens = self.pasteOperand(leftBodyToken, params: params, args: args)
+                let rightTokens = self.pasteOperand(body[k + 2], params: params, args: args)
+                if let left = leftTokens.last, let right = rightTokens.first {
+                    if let pasted = self.pasteTokens(left, right, at: body[k]) {
+                        result.append(pasted)
+                    } else {
+                        result.append(contentsOf: leftTokens)
+                        result.append(contentsOf: rightTokens)
+                    }
+                } else {
+                    result.append(contentsOf: leftTokens)
+                    result.append(contentsOf: rightTokens)
+                }
+                k += 3
+                continue
+            }
+            result.append(body[k])
+            k += 1
+        }
+        return result
+    }
+
+    private func pasteOperand(
+        _ token: Token, params: [String], args: [[Token]]
+    ) -> [Token] {
+        if token.kind == .Identifier, let paramIndex = params.firstIndex(of: token.value) {
+            return args[paramIndex]
+        }
+        return [token]
+    }
+
+    private func pasteTokens(_ left: Token, _ right: Token, at token: Token) -> Token? {
+        let text = left.value + right.value
+        guard let kind = self.pastedKind(text) else {
+            self.emitError("invalid token formed by '##' paste", at: token)
+            return nil
+        }
+        return Token(value: text, kind: kind, pos: token.pos, id: token.id)
+    }
+
+    private func pastedKind(_ text: String) -> TokenKind? {
+        if let value = Int128(text) {
+            return .IntegerLiteral(value)
+        }
+        if let first = text.first, first.isLetter || first == "_",
+            text.dropFirst().allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" })
+        {
+            return .Identifier
+        }
+        return nil
+    }
+
     private func expandMacro(_ name: String, body: [Token], state: State) -> [Token] {
         state.expanding.append(name)
         let result = self.rescan(body, state: state)
@@ -409,14 +497,14 @@ public final class Preprocessor {
         return result
     }
 
-    private func directiveArgs(_ tokens: [Token], from start: Int, directiveLine: Int)
-        -> [Token]
-    {
+    private func directiveArgs(
+        _ tokens: [Token], from start: Int, directiveLine: Int, stopAtSharp: Bool = true
+    ) -> [Token] {
         var args: [Token] = []
         var k = start
         while k < tokens.count {
             let t = tokens[k]
-            if t.kind == .Separator(.Sharp) { break }
+            if stopAtSharp, t.kind == .Separator(.Sharp) { break }
             if t.pos.line > directiveLine { break }
             args.append(t)
             k += 1

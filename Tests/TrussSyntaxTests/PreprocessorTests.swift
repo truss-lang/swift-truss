@@ -270,3 +270,34 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     let tokens = preprocess("#define F(x) (x)\nF()")
     #expect(tokenValues(tokens) == ["(", ")"])
 }
+
+@Test func ppStringify() {
+    let tokens = preprocess("#define STR(x) #x\nSTR(hello)")
+    #expect(tokenValues(tokens) == ["hello"])
+    #expect(tokens[0].kind == .StringLiteral)
+}
+
+@Test func ppStringifyNoArgExpansion() {
+    let tokens = preprocess("#define N 5\n#define STR(x) #x\nSTR(N)")
+    #expect(tokenValues(tokens) == ["N"])
+}
+
+@Test func ppStringifyMultiToken() {
+    let tokens = preprocess("#define STR(x) #x\nSTR(a b)")
+    #expect(tokenValues(tokens) == ["a b"])
+}
+
+@Test func ppTokenPaste() {
+    let tokens = preprocess("#define CAT(a, b) a ## b\nCAT(foo, bar)")
+    #expect(tokenValues(tokens) == ["foobar"])
+}
+
+@Test func ppTokenPasteNumber() {
+    let tokens = preprocess("#define CAT(a, b) a ## b\nCAT(1, 2)")
+    #expect(tokenValues(tokens) == ["12"])
+}
+
+@Test func ppTokenPasteUnexpandedOperand() {
+    let tokens = preprocess("#define CAT(a, b) a ## b\n#define FOO bar\nCAT(FOO, 1)")
+    #expect(tokenValues(tokens) == ["FOO1"])
+}
