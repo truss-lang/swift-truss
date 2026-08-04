@@ -89,7 +89,7 @@ public final class Preprocessor {
         self.macros = [:]
         self.expanding = []
         self.includeStack = []
-        for (name, value) in config.defines {
+        config.defines.forEach { name, value in
             let nameToken = Token(
                 value: name, kind: .Identifier,
                 pos: Position(pos: 0, line: 1, col: 1, len: name.count), id: lexerResult.id)

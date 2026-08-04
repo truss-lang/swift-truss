@@ -43,11 +43,10 @@ public final class Driver {
 
     public func run(files: [String]) -> DriverResult {
         let context = Context()
-        var programs: [AST.Program] = []
-        for file in files {
+        let programs = files.compactMap { file -> AST.Program? in
             guard let content = try? String(contentsOfFile: file, encoding: .utf8) else {
                 Self.emitReadError(file, context: context)
-                continue
+                return nil
             }
             let src = Source(id: context.nextSourceId, filepath: file, content: content)
             context.register(source: src)
@@ -58,36 +57,23 @@ public final class Driver {
                     defines: self.config.defines,
                     target: self.config.target,
                     workingDirectory: (file as NSString).deletingLastPathComponent))
-            let program = Parser(context: context, packageName: "main", preprocessed).parse()
-            programs.append(program)
+            return Parser(context: context, packageName: "main", preprocessed).parse()
         }
-        for program in programs {
-            DeclCollector(context: context).visitProgram(program)
-        }
-        for program in programs {
-            Enter(context: context).visitProgram(program)
-        }
+        programs.forEach { DeclCollector(context: context).visitProgram($0) }
+        programs.forEach { Enter(context: context).visitProgram($0) }
         let merger = MergePass(context: context)
-        for program in programs {
-            merger.visitProgram(program)
-        }
+        programs.forEach { merger.visitProgram($0) }
         merger.resolvePending()
-        for program in programs {
-            NameResolver(context: context).visitProgram(program)
-        }
+        programs.forEach { NameResolver(context: context).visitProgram($0) }
         var stdout = ""
-        if self.config.dumpAST {
-            for program in programs {
-                stdout += ASTDumper().dump(program) + "\n"
-            }
+        if self.config.dumpAST, !programs.isEmpty {
+            stdout += programs.map { ASTDumper().dump($0) }.joined(separator: "\n") + "\n"
         }
         if self.config.dumpSymbols, let first = programs.first {
             stdout += SymbolDumper().dump(first) + "\n"
         }
-        if self.config.dumpSource {
-            for program in programs {
-                stdout += SourcePrinter().print(program) + "\n"
-            }
+        if self.config.dumpSource, !programs.isEmpty {
+            stdout += programs.map { SourcePrinter().print($0) }.joined(separator: "\n") + "\n"
         }
         let hasErrors = context.diagnositicEngine.hasErrors
         var stderr = ""

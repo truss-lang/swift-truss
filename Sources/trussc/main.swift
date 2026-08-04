@@ -32,20 +32,21 @@ struct Trussc: ParsableCommand {
     var dumpSource = false
 
     func run() throws {
-        var defineMap: [String: String] = [:]
-        for raw in self.defines {
-            if let eq = raw.firstIndex(of: "=") {
-                defineMap[String(raw[..<eq])] = String(raw[raw.index(after: eq)...])
-            } else {
-                defineMap[raw] = "1"
-            }
-        }
+        let defineMap = Dictionary(
+            self.defines.map { raw -> (String, String) in
+                if let eq = raw.firstIndex(of: "=") {
+                    return (String(raw[..<eq]), String(raw[raw.index(after: eq)...]))
+                }
+                return (raw, "1")
+            },
+            uniquingKeysWith: { _, new in new })
         let config = DriverConfig(
             target: self.target,
             defines: defineMap,
             dumpAST: self.dumpAST,
             dumpSymbols: self.dumpSymbols,
-            dumpSource: self.dumpSource)
+            dumpSource: self.dumpSource
+        )
         let result = Driver(config: config).run(files: self.files)
         if !result.stdout.isEmpty {
             print(result.stdout, terminator: "")
