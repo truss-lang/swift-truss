@@ -16,7 +16,8 @@ public final class Enter: AST.Visitor {
         guard let genericDecl = genericDecl else { return }
         for param in genericDecl.generics {
             let symbol = Symbol.GenericParamSymbol(
-                id: context.nextSymbolId, name: param.name.value)
+                id: context.nextSymbolId, name: param.name.value
+            )
             context.register(symbol: symbol)
             scope.registerType(symbol, at: param.name, context: context)
         }
@@ -45,11 +46,12 @@ public final class Enter: AST.Visitor {
             isVararg.append(true)
         }
         return Symbol.FunctionSignature(
-            labels: labels, hasDefaults: hasDefaults, isVararg: isVararg)
+            labels: labels, hasDefaults: hasDefaults, isVararg: isVararg
+        )
     }
 
     @discardableResult
-    public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
+    override public func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         guard let packageSymbol = program.packageSymbol else { return nil }
         let lastScope = currentScope
         currentScope = packageSymbol.scope
@@ -59,7 +61,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
+    override public func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
         -> Any?
     {
         guard let moduleSymbol = moduleDecl.symbol else { return nil }
@@ -71,7 +73,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitExtensionDecl(_ extensionDecl: AST.ExtensionDecl, additional: Any? = nil)
+    override public func visitExtensionDecl(_ extensionDecl: AST.ExtensionDecl, additional: Any? = nil)
         -> Any?
     {
         guard let virtualScope = extensionDecl.virtualScope else { return nil }
@@ -91,7 +93,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil)
+    override public func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil)
         -> Any?
     {
         guard let symbol = structDecl.symbol else { return nil }
@@ -103,7 +105,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil)
+    override public func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil)
         -> Any?
     {
         guard let symbol = classDecl.symbol else { return nil }
@@ -115,7 +117,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil)
+    override public func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil)
         -> Any?
     {
         guard let symbol = enumDecl.symbol else { return nil }
@@ -127,7 +129,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitProtocolDecl(_ protocolDecl: AST.ProtocolDecl, additional: Any? = nil)
+    override public func visitProtocolDecl(_ protocolDecl: AST.ProtocolDecl, additional: Any? = nil)
         -> Any?
     {
         guard let symbol = protocolDecl.symbol else { return nil }
@@ -139,7 +141,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil)
+    override public func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil)
         -> Any?
     {
         guard let symbol = actorDecl.symbol else { return nil }
@@ -151,23 +153,25 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil)
+    override public func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil)
         -> Any?
     {
-        let lastScope = self.currentScope
+        let lastScope = currentScope
         let scope = Scope()
-        self.currentScope = scope
+        currentScope = scope
 
         registerGenericParams(functionDecl.genericDecl, into: scope)
         super.visitFunctionDecl(functionDecl, additional: additional)
 
-        self.currentScope = lastScope
+        currentScope = lastScope
 
         let symbol = Symbol.FunctionSymbol(
             id: context.nextSymbolId, name: functionDecl.name.value, locals: locals(of: scope),
             scope: scope,
             signature: signature(
-                of: functionDecl.parameters, varargToken: functionDecl.varargToken))
+                of: functionDecl.parameters, varargToken: functionDecl.varargToken
+            )
+        )
         context.register(symbol: symbol)
         functionDecl.symbol = symbol
         currentScope!.registerValue(symbol, at: functionDecl.name, context: context)
@@ -176,19 +180,20 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil) -> Any? {
-        let lastScope = self.currentScope
+    override public func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil) -> Any? {
+        let lastScope = currentScope
         let scope = Scope()
-        self.currentScope = scope
+        currentScope = scope
 
         registerGenericParams(initDecl.genericDecl, into: scope)
         super.visitInitDecl(initDecl, additional: additional)
 
-        self.currentScope = lastScope
+        currentScope = lastScope
 
         let symbol = Symbol.FunctionSymbol(
             id: context.nextSymbolId, name: "init", locals: locals(of: scope), scope: scope,
-            signature: signature(of: initDecl.parameters, varargToken: nil))
+            signature: signature(of: initDecl.parameters, varargToken: nil)
+        )
         context.register(symbol: symbol)
         initDecl.symbol = symbol
         currentScope!.registerValue(symbol, at: initDecl.token, context: context)
@@ -197,21 +202,22 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitSubscriptDecl(
+    override public func visitSubscriptDecl(
         _ subscriptDecl: AST.SubscriptDecl, additional: Any? = nil
     ) -> Any? {
-        let lastScope = self.currentScope
+        let lastScope = currentScope
         let scope = Scope()
-        self.currentScope = scope
+        currentScope = scope
 
         registerGenericParams(subscriptDecl.genericDecl, into: scope)
         super.visitSubscriptDecl(subscriptDecl, additional: additional)
 
-        self.currentScope = lastScope
+        currentScope = lastScope
 
         let symbol = Symbol.FunctionSymbol(
             id: context.nextSymbolId, name: "subscript", locals: locals(of: scope), scope: scope,
-            signature: signature(of: subscriptDecl.parameters, varargToken: nil))
+            signature: signature(of: subscriptDecl.parameters, varargToken: nil)
+        )
         context.register(symbol: symbol)
         subscriptDecl.symbol = symbol
         currentScope!.registerValue(symbol, at: subscriptDecl.token, context: context)
@@ -220,12 +226,13 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitVariableDecl(_ variableDecl: AST.VariableDecl, additional: Any? = nil)
+    override public func visitVariableDecl(_ variableDecl: AST.VariableDecl, additional: Any? = nil)
         -> Any?
     {
         super.visitVariableDecl(variableDecl, additional: additional)
         let symbol = Symbol.VariableSymbol(
-            id: context.nextSymbolId, name: variableDecl.name.value)
+            id: context.nextSymbolId, name: variableDecl.name.value
+        )
         context.register(symbol: symbol)
         variableDecl.symbol = symbol
         currentScope!.registerValue(symbol, at: variableDecl.name, context: context)
@@ -233,12 +240,13 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitEnumCaseDecl(_ enumCaseDecl: AST.EnumCaseDecl, additional: Any? = nil)
+    override public func visitEnumCaseDecl(_ enumCaseDecl: AST.EnumCaseDecl, additional _: Any? = nil)
         -> Any?
     {
         for element in enumCaseDecl.elements {
             let symbol = Symbol.CaseSymbol(
-                id: context.nextSymbolId, name: element.name.value)
+                id: context.nextSymbolId, name: element.name.value
+            )
             context.register(symbol: symbol)
             currentScope!.registerValue(symbol, at: element.name, context: context)
             enumCaseDecl.symbols.append(symbol)
@@ -247,15 +255,15 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitTypeAliasDecl(_ typeAliasDecl: AST.TypeAliasDecl, additional: Any? = nil)
+    override public func visitTypeAliasDecl(_: AST.TypeAliasDecl, additional _: Any? = nil)
         -> Any?
     {
         return nil
     }
 
     @discardableResult
-    public override func visitAssociatedTypeDecl(
-        _ associatedTypeDecl: AST.AssociatedTypeDecl, additional: Any? = nil
+    override public func visitAssociatedTypeDecl(
+        _: AST.AssociatedTypeDecl, additional _: Any? = nil
     ) -> Any? {
         return nil
     }

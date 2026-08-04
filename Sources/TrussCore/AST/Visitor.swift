@@ -13,7 +13,7 @@ extension AST {
 
         @discardableResult
         open func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
-            var last: Any? = nil
+            var last: Any?
             for statement in program.statements {
                 last = visit(statement, additional: additional)
             }
@@ -44,7 +44,7 @@ extension AST {
             for requirement in requirements {
                 visit(requirement.left, additional: additional)
                 switch requirement.constraint {
-                case .conformance(let e), .equality(let e):
+                case let .conformance(e), let .equality(e):
                     visit(e, additional: additional)
                 }
             }
@@ -52,21 +52,21 @@ extension AST {
 
         @discardableResult
         open func visitEmptyStatement(
-            _ emptyStatement: AST.EmptyStatement, additional: Any? = nil
+            _: AST.EmptyStatement, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
 
         @discardableResult
         open func visitErrorStatement(
-            _ errorStatement: AST.ErrorStatement, additional: Any? = nil
+            _: AST.ErrorStatement, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
 
         @discardableResult
         open func visitImport(
-            _ importStatement: AST.Import, additional: Any? = nil
+            _: AST.Import, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
@@ -76,12 +76,12 @@ extension AST {
             _ externDecl: AST.ExternDecl, additional: Any? = nil
         ) -> Any? {
             switch externDecl.body {
-            case .Block(let statements):
+            case let .Block(statements):
                 for statement in statements {
                     visit(statement, additional: additional)
                 }
                 return nil
-            case .Declaration(let decl):
+            case let .Declaration(decl):
                 return visit(decl, additional: additional)
             }
         }
@@ -112,7 +112,7 @@ extension AST {
 
         @discardableResult
         open func visitOperatorDecl(
-            _ operatorDecl: AST.OperatorDecl, additional: Any? = nil
+            _: AST.OperatorDecl, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
@@ -123,7 +123,7 @@ extension AST {
          */
         @discardableResult
         open func visitPrecedenceGroupDecl(
-            _ precedenceGroupDecl: AST.PrecedenceGroupDecl, additional: Any? = nil
+            _: AST.PrecedenceGroupDecl, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
@@ -312,13 +312,13 @@ extension AST {
                 visit(returnTypeExpression, additional: additional)
             }
             switch functionDecl.body {
-            case .Block(let statements):
+            case let .Block(statements):
                 var last: Any? = nil
                 for statement in statements {
                     last = visit(statement, additional: additional)
                 }
                 return last
-            case .Expression(let expression):
+            case let .Expression(expression):
                 return visit(expression, additional: additional)
             default:
                 return nil
@@ -404,22 +404,22 @@ extension AST {
         }
 
         @discardableResult
-        open func visitAsm(_ asmStatement: AST.Asm, additional: Any? = nil) -> Any? {
+        open func visitAsm(_: AST.Asm, additional _: Any? = nil) -> Any? {
             return nil
         }
 
         @discardableResult
-        open func visitBreak(_ breakStatement: AST.Break, additional: Any? = nil) -> Any? {
+        open func visitBreak(_: AST.Break, additional _: Any? = nil) -> Any? {
             return nil
         }
 
         @discardableResult
-        open func visitContinue(_ continueStatement: AST.Continue, additional: Any? = nil) -> Any? {
+        open func visitContinue(_: AST.Continue, additional _: Any? = nil) -> Any? {
             return nil
         }
 
         @discardableResult
-        open func visitGoto(_ gotoStatement: AST.Goto, additional: Any? = nil) -> Any? {
+        open func visitGoto(_: AST.Goto, additional _: Any? = nil) -> Any? {
             return nil
         }
 
@@ -433,20 +433,20 @@ extension AST {
         @discardableResult
         open func visitAccessor(_ accessor: AST.Accessor, additional: Any? = nil) -> Any? {
             switch accessor.body {
-            case .Block(let statements):
+            case let .Block(statements):
                 var last: Any? = nil
                 for statement in statements {
                     last = visit(statement, additional: additional)
                 }
                 return last
-            case .Expression(let expression):
+            case let .Expression(expression):
                 return visit(expression, additional: additional)
             }
         }
 
         @discardableResult
         open func visitErrorExpression(
-            _ errorExpression: AST.ErrorExpression, additional: Any? = nil
+            _: AST.ErrorExpression, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
@@ -459,7 +459,7 @@ extension AST {
         }
 
         @discardableResult
-        open func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
+        open func visitVariable(_: AST.Variable, additional _: Any? = nil) -> Any? {
             return nil
         }
 
@@ -476,49 +476,49 @@ extension AST {
 
         @discardableResult
         open func visitIntegerLiteral(
-            _ integerLiteral: AST.IntegerLiteral, additional: Any? = nil
+            _: AST.IntegerLiteral, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
 
         @discardableResult
         open func visitFloatLiteral(
-            _ floatLiteral: AST.FloatLiteral, additional: Any? = nil
+            _: AST.FloatLiteral, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
 
         @discardableResult
         open func visitStringLiteral(
-            _ stringLiteral: AST.StringLiteral, additional: Any? = nil
+            _: AST.StringLiteral, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
 
         @discardableResult
         open func visitCharLiteral(
-            _ charLiteral: AST.CharLiteral, additional: Any? = nil
+            _: AST.CharLiteral, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
 
         @discardableResult
         open func visitBoolLiteral(
-            _ boolLiteral: AST.BoolLiteral, additional: Any? = nil
+            _: AST.BoolLiteral, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
 
         @discardableResult
         open func visitNullLiteral(
-            _ nullLiteral: AST.NullLiteral, additional: Any? = nil
+            _: AST.NullLiteral, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
 
         @discardableResult
         open func visitVoidLiteral(
-            _ voidLiteral: AST.VoidLiteral, additional: Any? = nil
+            _: AST.VoidLiteral, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
@@ -533,11 +533,11 @@ extension AST {
             }
             if let elseKind = ifExpression.elseKind {
                 switch elseKind {
-                case .Block(let statements):
+                case let .Block(statements):
                     for statement in statements {
                         visit(statement, additional: additional)
                     }
-                case .If(let elseIfExpression):
+                case let .If(elseIfExpression):
                     visitIf(elseIfExpression, additional: additional)
                 }
             }
@@ -605,28 +605,28 @@ extension AST {
 
         @discardableResult
         open func visitSelfTypeExpression(
-            _ selfTypeExpression: AST.SelfTypeExpression, additional: Any? = nil
+            _: AST.SelfTypeExpression, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
 
         @discardableResult
         open func visitSelfExpression(
-            _ selfExpression: AST.SelfExpression, additional: Any? = nil
+            _: AST.SelfExpression, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
 
         @discardableResult
         open func visitSuperExpression(
-            _ superExpression: AST.SuperExpression, additional: Any? = nil
+            _: AST.SuperExpression, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
 
         @discardableResult
         open func visitImplicitMemberAccess(
-            _ implicitMemberAccess: AST.ImplicitMemberAccess, additional: Any? = nil
+            _: AST.ImplicitMemberAccess, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
@@ -725,7 +725,7 @@ extension AST {
         open func visitSequentialExpression(
             _ sequentialExpression: AST.SequentialExpression, additional: Any? = nil
         ) -> Any? {
-            var last: Any? = nil
+            var last: Any?
             for operand in sequentialExpression.operands {
                 last = visit(operand, additional: additional)
             }
@@ -842,14 +842,14 @@ extension AST {
 
         @discardableResult
         open func visitWildcardPattern(
-            _ wildcardPattern: AST.WildcardPattern, additional: Any? = nil
+            _: AST.WildcardPattern, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
 
         @discardableResult
         open func visitShorthandArgument(
-            _ shorthandArgument: AST.ShorthandArgument, additional: Any? = nil
+            _: AST.ShorthandArgument, additional _: Any? = nil
         ) -> Any? {
             return nil
         }
@@ -861,7 +861,7 @@ extension AST {
             for segment in interpolation.segments {
                 switch segment {
                 case .literal: break
-                case .expression(let expr):
+                case let .expression(expr):
                     visit(expr, additional: additional)
                 }
             }
@@ -906,7 +906,7 @@ extension AST {
                 for requirement in whereClause {
                     visit(requirement.left, additional: additional)
                     switch requirement.constraint {
-                    case .conformance(let e), .equality(let e):
+                    case let .conformance(e), let .equality(e):
                         visit(e, additional: additional)
                     }
                 }

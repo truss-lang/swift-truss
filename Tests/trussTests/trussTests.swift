@@ -20,7 +20,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
 
 @Test func driverMultiFileMergesCrossFileExtension() throws {
     let a = try writeTemp(
-        "a.truss", "struct Point {\n    var x: Int32\n    var y: Int32\n}\n")
+        "a.truss", "struct Point {\n    var x: Int32\n    var y: Int32\n}\n"
+    )
     let b = try writeTemp("b.truss", "extension Point {\n    func sum() -> Int32 {\n        self.x + self.y\n    }\n}\n")
     let config = DriverConfig(dumpSymbols: true)
     let result = Driver(config: config).run(files: [a, b])

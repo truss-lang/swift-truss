@@ -10,11 +10,11 @@ import TrussCore
             }
             """
         )
-        == """
-        func f(x: Int) -> Int {
-            return x + 1
-        }
-        """
+            == """
+            func f(x: Int) -> Int {
+                return x + 1
+            }
+            """
     )
 }
 
@@ -31,15 +31,15 @@ import TrussCore
             }
             """
         )
-        == """
-        func f(c: Bool) {
-            if c {
-                g()
-            } else {
-                h()
+            == """
+            func f(c: Bool) {
+                if c {
+                    g()
+                } else {
+                    h()
+                }
             }
-        }
-        """
+            """
     )
 }
 
@@ -56,15 +56,15 @@ import TrussCore
             }
             """
         )
-        == """
-        struct S: P2 {
-            public func m() {
-                if x {
-                    g()
+            == """
+            struct S: P2 {
+                public func m() {
+                    if x {
+                        g()
+                    }
                 }
             }
-        }
-        """
+            """
     )
 }
 
@@ -81,14 +81,14 @@ import TrussCore
             }
             """
         )
-        == """
-        var a = 1 {
-            get {
-                1
+            == """
+            var a = 1 {
+                get {
+                    1
+                }
+                set(v) {}
             }
-            set(v) {}
-        }
-        """
+            """
     )
 }
 
@@ -124,11 +124,11 @@ import TrussCore
             }
             """
         )
-        == """
-        func f() {
-            let fn = { [weak self] (x: Int) -> Int in x }
-        }
-        """
+            == """
+            func f() {
+                let fn = { [weak self] (x: Int) -> Int in x }
+            }
+            """
     )
 }
 

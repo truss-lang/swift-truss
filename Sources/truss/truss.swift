@@ -7,57 +7,57 @@ import TrussSyntax
 struct truss {
     static func main() {
         let source = """
-            func f() {
-                var a = 1 {
-                    get {
-                        1
-                    }
-                    set(v) {
-                    }
+        func f() {
+            var a = 1 {
+                get {
+                    1
                 }
-                a
-                f2()
-                M.f3()
-            }
-            module M {
-                func f3() {
+                set(v) {
                 }
             }
-            protocol P {}
-            protocol P2: P {}
-            struct S: P2 {
-                public func m() {
-                    let t: Result = .None
-                }
+            a
+            f2()
+            M.f3()
+        }
+        module M {
+            func f3() {
             }
-            precedencegroup Precedence {
-                associativity: left
-                associativity: right
-                higherThan: PD1
-                higherThan: PD2
-                lowerThan: PD2
-                assignment: true
+        }
+        protocol P {}
+        protocol P2: P {}
+        struct S: P2 {
+            public func m() {
+                let t: Result = .None
             }
-            struct S3<E, each T> {
-            }
-            typealias SS = (S) -> S
-            #define EMPTY()
-            #define DEFER1(A) A
-            #define DEFER2(A) A EMPTY()
-            #define A() 123
-            #define EXPAND(x) x
-            func tf() {
-                DEFER1(A)()
-                DEFER2(A)()
-                EXPAND(DEFER2(A)())
-            }
-            """
+        }
+        precedencegroup Precedence {
+            associativity: left
+            associativity: right
+            higherThan: PD1
+            higherThan: PD2
+            lowerThan: PD2
+            assignment: true
+        }
+        struct S3<E, each T> {
+        }
+        typealias SS = (S) -> S
+        #define EMPTY()
+        #define DEFER1(A) A
+        #define DEFER2(A) A EMPTY()
+        #define A() 123
+        #define EXPAND(x) x
+        func tf() {
+            DEFER1(A)()
+            DEFER2(A)()
+            EXPAND(DEFER2(A)())
+        }
+        """
         let context = Context()
         let src = Source(id: context.nextSourceId, filepath: "<test>", content: source)
         context.register(source: src)
         let lexerResult = [
             Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0)))
-                .parse()
+                .parse(),
         ].map {
             Preprocessor(context: context).process($0, config: PreprocessorConfig())
         }[0]

@@ -10,42 +10,42 @@ import TrussCore
             }
             """
         )
-        == """
-        Program "main"
-        `-FunctionDecl f
-          |-Parameter x label:x
-          | `-Variable Int
-          |-Variable Int
-          `-Return
-            `-SequentialExpression +
-              |-Variable x
-              `-IntegerLiteral 1
-        """
+            == """
+            Program "main"
+            `-FunctionDecl f
+              |-Parameter x label:x
+              | `-Variable Int
+              |-Variable Int
+              `-Return
+                `-SequentialExpression +
+                  |-Variable x
+                  `-IntegerLiteral 1
+            """
     )
 }
 
 @Test func dumpFunctionDeclSemantics() {
     #expect(
         dumpProgram("func f() {}", semantic: true)
-        == """
-        Program "main"
-        `-FunctionDecl f sym:f
-        """
+            == """
+            Program "main"
+            `-FunctionDecl f sym:f
+            """
     )
 }
 
 @Test func dumpVariableReferenceSemantics() {
     #expect(
         dumpProgram("func f() {\n    let a = 1\n    a\n}", semantic: true)
-        == """
-        Program "main"
-        `-FunctionDecl f sym:f
-          |-VariableDecl a sym:a
-          | `-Initializer
-          |   `-IntegerLiteral 1
-          `-ExpressionStatement
-            `-Variable a sym:a
-        """
+            == """
+            Program "main"
+            `-FunctionDecl f sym:f
+              |-VariableDecl a sym:a
+              | `-Initializer
+              |   `-IntegerLiteral 1
+              `-ExpressionStatement
+                `-Variable a sym:a
+            """
     )
 }
 
@@ -63,43 +63,43 @@ import TrussCore
             }
             """
         )
-        == """
-        Program "main"
-        `-FunctionDecl f
-          |-VariableDecl a
-          | `-Initializer
-          |   `-IntegerLiteral 42
-          |-VariableDecl b
-          | `-Initializer
-          |   `-FloatLiteral 3.14
-          |-VariableDecl c
-          | `-Initializer
-          |   `-StringLiteral "hi"
-          |-VariableDecl d
-          | `-Initializer
-          |   `-CharLiteral 'x'
-          |-VariableDecl e
-          | `-Initializer
-          |   `-BoolLiteral true
-          `-VariableDecl g
-            `-Initializer
-              `-NullLiteral
-        """
+            == """
+            Program "main"
+            `-FunctionDecl f
+              |-VariableDecl a
+              | `-Initializer
+              |   `-IntegerLiteral 42
+              |-VariableDecl b
+              | `-Initializer
+              |   `-FloatLiteral 3.14
+              |-VariableDecl c
+              | `-Initializer
+              |   `-StringLiteral "hi"
+              |-VariableDecl d
+              | `-Initializer
+              |   `-CharLiteral 'x'
+              |-VariableDecl e
+              | `-Initializer
+              |   `-BoolLiteral true
+              `-VariableDecl g
+                `-Initializer
+                  `-NullLiteral
+            """
     )
 }
 
 @Test func dumpPrefixOperators() {
     #expect(
         dumpProgram("func f() {\n    let x = -a + -b\n}")
-        == """
-        Program "main"
-        `-FunctionDecl f
-          `-VariableDecl x
-            `-Initializer
-              `-SequentialExpression - + -
-                |-Variable a
-                `-Variable b
-        """
+            == """
+            Program "main"
+            `-FunctionDecl f
+              `-VariableDecl x
+                `-Initializer
+                  `-SequentialExpression - + -
+                    |-Variable a
+                    `-Variable b
+            """
     )
 }
 
@@ -116,23 +116,23 @@ import TrussCore
             }
             """
         )
-        == """
-        Program "main"
-        `-FunctionDecl f
-          |-Parameter c label:c
-          | `-Variable Bool
-          `-ExpressionStatement
-            `-If
-              |-Condition
-              | `-Variable c
-              |-ExpressionStatement
-              | `-Call
-              |   `-Variable g
-              `-Else
-                `-ExpressionStatement
-                  `-Call
-                    `-Variable h
-        """
+            == """
+            Program "main"
+            `-FunctionDecl f
+              |-Parameter c label:c
+              | `-Variable Bool
+              `-ExpressionStatement
+                `-If
+                  |-Condition
+                  | `-Variable c
+                  |-ExpressionStatement
+                  | `-Call
+                  |   `-Variable g
+                  `-Else
+                    `-ExpressionStatement
+                      `-Call
+                        `-Variable h
+            """
     )
 }
 
@@ -150,15 +150,15 @@ import TrussCore
             }
             """
         )
-        == """
-        Program "main"
-        |-ModuleDecl M
-        | `-FunctionDecl f
-        `-StructDecl S
-          |-Conformance
-          | `-Variable P2
-          `-FunctionDecl m [public]
-        """
+            == """
+            Program "main"
+            |-ModuleDecl M
+            | `-FunctionDecl f
+            `-StructDecl S
+              |-Conformance
+              | `-Variable P2
+              `-FunctionDecl m [public]
+            """
     )
 }
 
@@ -171,19 +171,19 @@ import TrussCore
             }
             """
         )
-        == """
-        Program "main"
-        `-FunctionDecl f
-          `-VariableDecl fn
-            `-Initializer
-              `-Closure
-                |-Signature [weak self]
-                | |-Parameter x label:x
-                | | `-Variable Int
-                | `-Variable Int
-                `-ExpressionStatement
-                  `-Variable x
-        """
+            == """
+            Program "main"
+            `-FunctionDecl f
+              `-VariableDecl fn
+                `-Initializer
+                  `-Closure
+                    |-Signature [weak self]
+                    | |-Parameter x label:x
+                    | | `-Variable Int
+                    | `-Variable Int
+                    `-ExpressionStatement
+                      `-Variable x
+            """
     )
 }
 
@@ -196,19 +196,19 @@ import TrussCore
             }
             """
         )
-        == """
-        Program "main"
-        `-FunctionDecl f
-          `-VariableDecl s
-            `-Initializer
-              `-StringInterpolation
-                |-Literal "a"
-                |-Interpolation
-                | `-SequentialExpression +
-                |   |-Variable x
-                |   `-IntegerLiteral 1
-                `-Literal "b"
-        """
+            == """
+            Program "main"
+            `-FunctionDecl f
+              `-VariableDecl s
+                `-Initializer
+                  `-StringInterpolation
+                    |-Literal "a"
+                    |-Interpolation
+                    | `-SequentialExpression +
+                    |   |-Variable x
+                    |   `-IntegerLiteral 1
+                    `-Literal "b"
+            """
     )
 }
 
@@ -222,12 +222,12 @@ import TrussCore
             }
             """
         )
-        == """
-        Program "main"
-        `-PrecedenceGroupDecl P [left]
-          `-HigherThan
-            `-Variable A
-        """
+            == """
+            Program "main"
+            `-PrecedenceGroupDecl P [left]
+              `-HigherThan
+                `-Variable A
+            """
     )
 }
 
@@ -240,27 +240,27 @@ import TrussCore
             }
             """
         )
-        == """
-        Program "main"
-        `-FunctionDecl f
-          `-Asm
-            |-StringLiteral "nop"
-            |-Binding dst = out(reg) result
-            `-Options result, preserves_flags
-        """
+            == """
+            Program "main"
+            `-FunctionDecl f
+              `-Asm
+                |-StringLiteral "nop"
+                |-Binding dst = out(reg) result
+                `-Options result, preserves_flags
+            """
     )
 }
 
 @Test func dumpPostfixOperator() {
     #expect(
         dumpProgram("func f() {\n    let x = a!\n}")
-        == """
-        Program "main"
-        `-FunctionDecl f
-          `-VariableDecl x
-            `-Initializer
-              `-SequentialExpression !
-                `-Variable a
-        """
+            == """
+            Program "main"
+            `-FunctionDecl f
+              `-VariableDecl x
+                `-Initializer
+                  `-SequentialExpression !
+                    `-Variable a
+            """
     )
 }

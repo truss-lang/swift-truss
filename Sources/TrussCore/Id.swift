@@ -5,6 +5,7 @@ public enum Id {
             self.id = id
         }
     }
+
     public struct SymbolId: Hashable, Sendable, Equatable {
         public let id: UInt64
         public init(id: UInt64) {

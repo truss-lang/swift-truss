@@ -5,34 +5,34 @@ import TrussCore
 public enum TargetTriple {
     public static let host: String = {
         #if os(Linux)
-        let os = "linux"
+            let os = "linux"
         #elseif os(macOS)
-        let os = "macos"
+            let os = "macos"
         #elseif os(Windows)
-        let os = "windows"
+            let os = "windows"
         #elseif os(iOS)
-        let os = "ios"
+            let os = "ios"
         #elseif os(Android)
-        let os = "android"
+            let os = "android"
         #elseif os(FreeBSD)
-        let os = "freebsd"
+            let os = "freebsd"
         #else
-        let os = "unknown"
+            let os = "unknown"
         #endif
         #if arch(x86_64)
-        let arch = "x86_64"
+            let arch = "x86_64"
         #elseif arch(arm64)
-        #if os(macOS) || os(iOS)
-        let arch = "arm64"
-        #else
-        let arch = "aarch64"
-        #endif
+            #if os(macOS) || os(iOS)
+                let arch = "arm64"
+            #else
+                let arch = "aarch64"
+            #endif
         #elseif arch(i386)
-        let arch = "i386"
+            let arch = "i386"
         #elseif arch(arm)
-        let arch = "arm"
+            let arch = "arm"
         #else
-        let arch = "unknown"
+            let arch = "unknown"
         #endif
         return "\(arch)-unknown-\(os)"
     }()
@@ -71,7 +71,7 @@ public final class Preprocessor {
     private var index = 0
     private var active = true
     private var frames: [ConditionFrame] = []
-    private var outerIfToken: Token? = nil
+    private var outerIfToken: Token?
     private var macros: [String: Macro] = [:]
     private var expanding: [String] = []
     private var includeStack: [String] = []
@@ -82,133 +82,144 @@ public final class Preprocessor {
 
     public func process(_ lexerResult: LexerResult, config: PreprocessorConfig) -> LexerResult {
         self.config = config
-        self.index = 0
-        self.active = true
-        self.frames = []
-        self.outerIfToken = nil
-        self.macros = [:]
-        self.expanding = []
-        self.includeStack = []
-        config.defines.forEach { name, value in
+        index = 0
+        active = true
+        frames = []
+        outerIfToken = nil
+        macros = [:]
+        expanding = []
+        includeStack = []
+        for (name, value) in config.defines {
             let nameToken = Token(
                 value: name, kind: .Identifier,
-                pos: Position(pos: 0, line: 1, col: 1, len: name.count), id: lexerResult.id)
+                pos: Position(pos: 0, line: 1, col: 1, len: name.count), id: lexerResult.id
+            )
             let valueTokens = Lexer(input: CharStream(content: value, id: lexerResult.id))
                 .parse().tokens
-            self.macros[name] = .Object(name: nameToken, tokens: valueTokens)
+            macros[name] = .Object(name: nameToken, tokens: valueTokens)
         }
-        let tokens = self.scan(lexerResult, currentDir: config.workingDirectory)
+        let tokens = scan(lexerResult, currentDir: config.workingDirectory)
         return LexerResult(id: lexerResult.id, tokens: tokens)
     }
 
     private func scan(_ lexerResult: LexerResult, currentDir: String) -> [Token] {
         let tokens = lexerResult.tokens
         var output: [Token] = []
-        while self.index < tokens.count {
-            let token = tokens[self.index]
+        while index < tokens.count {
+            let token = tokens[index]
             if token.kind == .Separator(.Sharp) {
-                if let directiveOutput = self.handleDirective(
-                    tokens: tokens, currentDir: currentDir)
-                {
+                if let directiveOutput = handleDirective(
+                    tokens: tokens, currentDir: currentDir
+                ) {
                     output.append(contentsOf: directiveOutput)
                 } else {
-                    self.emitError("unknown preprocessing directive", at: token)
-                    self.index += 1
+                    emitError("unknown preprocessing directive", at: token)
+                    index += 1
                 }
                 continue
             }
-            if self.active {
-                let result = self.expandToken(token, tokens: tokens, at: self.index)
+            if active {
+                let result = expandToken(token, tokens: tokens, at: index)
                 output.append(contentsOf: result.tokens)
-                self.index = result.nextIndex
+                index = result.nextIndex
             } else {
-                self.index += 1
+                index += 1
             }
         }
-        if let token = self.outerIfToken {
-            self.emitError("unterminated #if directive", at: token)
+        if let token = outerIfToken {
+            emitError("unterminated #if directive", at: token)
         }
         return output.filter { !self.isPlaceholder($0) }
     }
 
     private func handleDirective(tokens: [Token], currentDir: String) -> [Token]? {
-        guard self.index + 1 < tokens.count else { return nil }
-        let sharp = tokens[self.index]
-        let name = tokens[self.index + 1]
+        guard index + 1 < tokens.count else { return nil }
+        let sharp = tokens[index]
+        let name = tokens[index + 1]
         switch name.kind {
         case .Keyword(.If):
-            let args = self.directiveArgs(
-                tokens, from: self.index + 2, directiveLine: name.pos.line)
-            self.index = self.index + 2 + args.count
-            let value = self.evaluateCondition(args, at: name)
+            let args = directiveArgs(
+                tokens, from: index + 2, directiveLine: name.pos.line
+            )
+            index = index + 2 + args.count
+            let value = evaluateCondition(args, at: name)
             let errored = value == nil
             let taken = errored || (value ?? false)
-            if self.outerIfToken == nil { self.outerIfToken = sharp }
-            self.frames.append(ConditionFrame(parentActive: self.active, branchTaken: taken))
-            self.active = self.active && !errored && (value ?? false)
+            if outerIfToken == nil { outerIfToken = sharp }
+            frames.append(ConditionFrame(parentActive: active, branchTaken: taken))
+            active = active && !errored && (value ?? false)
             return []
         case .Keyword(.Else):
-            self.index += 2
-            self.handleElse(sharp: sharp)
+            index += 2
+            handleElse(sharp: sharp)
             return []
         case .Identifier:
             switch name.value {
             case "elseif":
-                let args = self.directiveArgs(
-                    tokens, from: self.index + 2, directiveLine: name.pos.line)
-                self.index = self.index + 2 + args.count
-                self.handleElseIf(args: args, name: name, sharp: sharp)
+                let args = directiveArgs(
+                    tokens, from: index + 2, directiveLine: name.pos.line
+                )
+                index = index + 2 + args.count
+                handleElseIf(args: args, name: name, sharp: sharp)
                 return []
             case "endif":
-                self.index += 2
-                self.handleEndIf(sharp: sharp)
+                index += 2
+                handleEndIf(sharp: sharp)
                 return []
             case "ifdef":
-                let args = self.directiveArgs(
-                    tokens, from: self.index + 2, directiveLine: name.pos.line)
-                self.index = self.index + 2 + args.count
-                self.handleIfDef(args: args, name: name, sharp: sharp, negated: false)
+                let args = directiveArgs(
+                    tokens, from: index + 2, directiveLine: name.pos.line
+                )
+                index = index + 2 + args.count
+                handleIfDef(args: args, name: name, sharp: sharp, negated: false)
                 return []
             case "ifndef":
-                let args = self.directiveArgs(
-                    tokens, from: self.index + 2, directiveLine: name.pos.line)
-                self.index = self.index + 2 + args.count
-                self.handleIfDef(args: args, name: name, sharp: sharp, negated: true)
+                let args = directiveArgs(
+                    tokens, from: index + 2, directiveLine: name.pos.line
+                )
+                index = index + 2 + args.count
+                handleIfDef(args: args, name: name, sharp: sharp, negated: true)
                 return []
             case "error":
-                let args = self.directiveArgs(
-                    tokens, from: self.index + 2, directiveLine: name.pos.line)
-                self.index = self.index + 2 + args.count
-                self.handleErrorDirective(args: args, name: name, severity: .error)
+                let args = directiveArgs(
+                    tokens, from: index + 2, directiveLine: name.pos.line
+                )
+                index = index + 2 + args.count
+                handleErrorDirective(args: args, name: name, severity: .error)
                 return []
             case "warning":
-                let args = self.directiveArgs(
-                    tokens, from: self.index + 2, directiveLine: name.pos.line)
-                self.index = self.index + 2 + args.count
-                self.handleErrorDirective(args: args, name: name, severity: .warning)
+                let args = directiveArgs(
+                    tokens, from: index + 2, directiveLine: name.pos.line
+                )
+                index = index + 2 + args.count
+                handleErrorDirective(args: args, name: name, severity: .warning)
                 return []
             case "define":
-                let args = self.directiveArgs(
-                    tokens, from: self.index + 2, directiveLine: name.pos.line,
-                    stopAtSharp: false)
-                self.index = self.index + 2 + args.count
-                self.handleDefine(args: args, name: name)
+                let args = directiveArgs(
+                    tokens, from: index + 2, directiveLine: name.pos.line,
+                    stopAtSharp: false
+                )
+                index = index + 2 + args.count
+                handleDefine(args: args, name: name)
                 return []
             case "undef":
-                let args = self.directiveArgs(
-                    tokens, from: self.index + 2, directiveLine: name.pos.line)
-                self.index = self.index + 2 + args.count
-                self.handleUndef(args: args, name: name)
+                let args = directiveArgs(
+                    tokens, from: index + 2, directiveLine: name.pos.line
+                )
+                index = index + 2 + args.count
+                handleUndef(args: args, name: name)
                 return []
             case "include":
-                let args = self.directiveArgs(
-                    tokens, from: self.index + 2, directiveLine: name.pos.line)
-                self.index = self.index + 2 + args.count
-                return self.handleInclude(args: args, name: name, currentDir: currentDir)
+                let args = directiveArgs(
+                    tokens, from: index + 2, directiveLine: name.pos.line
+                )
+                index = index + 2 + args.count
+                return handleInclude(args: args, name: name, currentDir: currentDir)
             case "pragma":
-                let args = self.directiveArgs(
-                    tokens, from: self.index + 2, directiveLine: name.pos.line)
-                self.index = self.index + 2 + args.count
+                let args = directiveArgs(
+                    tokens, from: index + 2, directiveLine: name.pos.line
+                )
+                index = index + 2 + args.count
                 return []
             default:
                 return nil
@@ -219,38 +230,38 @@ public final class Preprocessor {
     }
 
     private func handleInclude(args: [Token], name: Token, currentDir: String) -> [Token] {
-        guard self.active else { return [] }
-        guard let path = self.includePath(args) else {
-            self.emitError("expected file path in #include", at: name)
+        guard active else { return [] }
+        guard let path = includePath(args) else {
+            emitError("expected file path in #include", at: name)
             return []
         }
         let fullPath = currentDir.isEmpty ? path : "\(currentDir)/\(path)"
-        guard !self.includeStack.contains(fullPath) else {
-            self.emitError("circular #include of '\(path)'", at: name)
+        guard !includeStack.contains(fullPath) else {
+            emitError("circular #include of '\(path)'", at: name)
             return []
         }
         guard let content = try? String(contentsOfFile: fullPath, encoding: .utf8) else {
-            self.emitError("file not found: '\(path)'", at: name)
+            emitError("file not found: '\(path)'", at: name)
             return []
         }
         let source = Source(id: context.nextSourceId, filepath: fullPath, content: content)
         context.register(source: source)
         let lexerResult = Lexer(input: CharStream(content: content, id: source.id)).parse()
-        let savedActive = self.active
-        let savedFrames = self.frames
-        let savedOuterIf = self.outerIfToken
-        let savedIndex = self.index
-        self.frames = []
-        self.outerIfToken = nil
-        self.index = 0
-        self.includeStack.append(fullPath)
+        let savedActive = active
+        let savedFrames = frames
+        let savedOuterIf = outerIfToken
+        let savedIndex = index
+        frames = []
+        outerIfToken = nil
+        index = 0
+        includeStack.append(fullPath)
         let dir = (fullPath as NSString).deletingLastPathComponent
-        let result = self.scan(lexerResult, currentDir: dir)
-        self.includeStack.removeLast()
-        self.index = savedIndex
-        self.frames = savedFrames
-        self.outerIfToken = savedOuterIf
-        self.active = savedActive
+        let result = scan(lexerResult, currentDir: dir)
+        includeStack.removeLast()
+        index = savedIndex
+        frames = savedFrames
+        outerIfToken = savedOuterIf
+        active = savedActive
         return result
     }
 
@@ -274,103 +285,106 @@ public final class Preprocessor {
     }
 
     private func handleElse(sharp: Token) {
-        guard let frame = self.frames.last else {
-            self.emitError("unexpected #else directive", at: sharp)
+        guard let frame = frames.last else {
+            emitError("unexpected #else directive", at: sharp)
             return
         }
         if frame.branchTaken {
-            self.active = false
+            active = false
         } else {
-            self.frames[self.frames.count - 1].branchTaken = true
-            self.active = frame.parentActive
+            frames[frames.count - 1].branchTaken = true
+            active = frame.parentActive
         }
     }
 
     private func handleElseIf(args: [Token], name: Token, sharp: Token) {
-        guard let frame = self.frames.last else {
-            self.emitError("unexpected #elseif directive", at: sharp)
+        guard let frame = frames.last else {
+            emitError("unexpected #elseif directive", at: sharp)
             return
         }
         if !frame.branchTaken {
-            let value = self.evaluateCondition(args, at: name)
+            let value = evaluateCondition(args, at: name)
             if let v = value {
                 if v {
-                    self.frames[self.frames.count - 1].branchTaken = true
-                    self.active = frame.parentActive
+                    frames[frames.count - 1].branchTaken = true
+                    active = frame.parentActive
                 } else {
-                    self.active = false
+                    active = false
                 }
             } else {
-                self.active = false
+                active = false
             }
         } else {
-            self.active = false
+            active = false
         }
     }
 
     private func handleIfDef(args: [Token], name: Token, sharp: Token, negated: Bool) {
-        if self.outerIfToken == nil { self.outerIfToken = sharp }
+        if outerIfToken == nil { outerIfToken = sharp }
         guard let first = args.first, first.kind == .Identifier else {
-            self.emitError(
-                "expected macro name after #\(negated ? "ifndef" : "ifdef")", at: name)
-            self.frames.append(ConditionFrame(parentActive: self.active, branchTaken: true))
-            self.active = false
+            emitError(
+                "expected macro name after #\(negated ? "ifndef" : "ifdef")", at: name
+            )
+            frames.append(ConditionFrame(parentActive: active, branchTaken: true))
+            active = false
             return
         }
-        let taken = self.isDefined(first.value) != negated
-        self.frames.append(ConditionFrame(parentActive: self.active, branchTaken: taken))
-        self.active = self.active && taken
+        let taken = isDefined(first.value) != negated
+        frames.append(ConditionFrame(parentActive: active, branchTaken: taken))
+        active = active && taken
     }
 
     private func isDefined(_ name: String) -> Bool {
-        self.macros[name] != nil || self.config.flags.contains(name)
+        macros[name] != nil || config.flags.contains(name)
     }
 
     private func handleEndIf(sharp: Token) {
-        guard !self.frames.isEmpty else {
-            self.emitError("unexpected #endif directive", at: sharp)
+        guard !frames.isEmpty else {
+            emitError("unexpected #endif directive", at: sharp)
             return
         }
-        let frame = self.frames.removeLast()
-        if self.frames.isEmpty {
-            self.outerIfToken = nil
+        let frame = frames.removeLast()
+        if frames.isEmpty {
+            outerIfToken = nil
         }
-        self.active = frame.parentActive
+        active = frame.parentActive
     }
 
     private func handleErrorDirective(
         args: [Token], name: Token, severity: DiagnosticSeverity
     ) {
-        guard self.active else { return }
+        guard active else { return }
         guard let message = args.first(where: { $0.kind == .StringLiteral }) else {
-            self.emitError(
+            emitError(
                 "expected string literal in \(severity == .error ? "#error" : "#warning") directive",
-                at: name)
+                at: name
+            )
             return
         }
-        self.emitDiagnostic(severity, message: message.value, at: name)
+        emitDiagnostic(severity, message: message.value, at: name)
     }
 
     private func handleDefine(args: [Token], name: Token) {
-        guard self.active else { return }
+        guard active else { return }
         guard let first = args.first, first.kind == .Identifier else {
-            self.emitError("expected macro name after #define", at: name)
+            emitError("expected macro name after #define", at: name)
             return
         }
         let rest = Array(args.dropFirst())
         let isFunctionLike =
             rest.first?.kind == .Separator(.OpenParen)
-            && first.pos.pos + first.pos.len == rest[0].pos.pos
+                && first.pos.pos + first.pos.len == rest[0].pos.pos
         if isFunctionLike {
-            guard let (params, variadic, closeIndex) = self.parseMacroParams(rest, name: name)
+            guard let (params, variadic, closeIndex) = parseMacroParams(rest, name: name)
             else {
                 return
             }
-            self.macros[first.value] = .Function(
+            macros[first.value] = .Function(
                 name: first, params: params, variadic: variadic,
-                tokens: Array(rest.dropFirst(closeIndex + 1)))
+                tokens: Array(rest.dropFirst(closeIndex + 1))
+            )
         } else {
-            self.macros[first.value] = .Object(name: first, tokens: rest)
+            macros[first.value] = .Object(name: first, tokens: rest)
         }
     }
 
@@ -394,60 +408,61 @@ public final class Preprocessor {
                 params.append(t.value)
                 k += 1
             default:
-                self.emitError("expected parameter name in #define", at: t)
+                emitError("expected parameter name in #define", at: t)
                 return nil
             }
         }
-        self.emitError("expected ')' in #define", at: name)
+        emitError("expected ')' in #define", at: name)
         return nil
     }
 
     private func handleUndef(args: [Token], name: Token) {
-        guard self.active else { return }
+        guard active else { return }
         guard let first = args.first, first.kind == .Identifier else {
-            self.emitError("expected macro name after #undef", at: name)
+            emitError("expected macro name after #undef", at: name)
             return
         }
-        self.macros.removeValue(forKey: first.value)
+        macros.removeValue(forKey: first.value)
     }
 
     private func expandToken(
         _ token: Token, tokens: [Token], at index: Int
     ) -> (tokens: [Token], nextIndex: Int) {
-        if let builtin = self.builtinExpansion(token) {
+        if let builtin = builtinExpansion(token) {
             return (builtin, index + 1)
         }
-        guard token.kind == .Identifier, let macro = self.macros[token.value],
-            !self.expanding.contains(token.value)
+        guard token.kind == .Identifier, let macro = macros[token.value],
+              !self.expanding.contains(token.value)
         else {
             return ([token], index + 1)
         }
         switch macro {
-        case .Object(let nameToken, let body):
-            let expanded = self.expandMacro(token.value, body: body, at: token)
-            return (self.relocate(expanded, to: token, site: self.site(of: nameToken)), index + 1)
-        case .Function(let nameToken, let params, let variadic, let body):
+        case let .Object(nameToken, body):
+            let expanded = expandMacro(token.value, body: body, at: token)
+            return (relocate(expanded, to: token, site: site(of: nameToken)), index + 1)
+        case let .Function(nameToken, params, variadic, body):
             guard index + 1 < tokens.count, tokens[index + 1].kind == .Separator(.OpenParen)
             else {
                 return ([token], index + 1)
             }
-            guard let (rawArgs, closeIndex) = self.collectArguments(tokens, from: index + 1) else {
-                self.emitError("unterminated argument list for macro '\(token.value)'", at: token)
+            guard let (rawArgs, closeIndex) = collectArguments(tokens, from: index + 1) else {
+                emitError("unterminated argument list for macro '\(token.value)'", at: token)
                 return ([token], index + 1)
             }
-            let args = params.isEmpty ? self.emptyCallArgs(rawArgs) : rawArgs
-            let (expanded, tailIsMacro) = self.expandFunctionMacro(
+            let args = params.isEmpty ? emptyCallArgs(rawArgs) : rawArgs
+            let (expanded, tailIsMacro) = expandFunctionMacro(
                 name: token.value, params: params, variadic: variadic, body: body, args: args,
-                at: token)
+                at: token
+            )
             guard let expanded else {
                 return ([token], index + 1)
             }
             let tail =
                 tailIsMacro
-                ? self.expandTail(expanded, tokens: tokens, at: closeIndex + 1)
-                : (tokens: expanded, nextIndex: closeIndex + 1)
+                    ? expandTail(expanded, tokens: tokens, at: closeIndex + 1)
+                    : (tokens: expanded, nextIndex: closeIndex + 1)
             return (
-                self.relocate(tail.tokens, to: token, site: self.site(of: nameToken)),
+                relocate(tail.tokens, to: token, site: site(of: nameToken)),
                 tail.nextIndex
             )
         }
@@ -457,28 +472,30 @@ public final class Preprocessor {
         _ expanded: [Token], tokens: [Token], at index: Int
     ) -> (tokens: [Token], nextIndex: Int) {
         guard let last = expanded.last, last.kind == .Identifier,
-            let macro = self.macros[last.value], !self.expanding.contains(last.value)
+              let macro = macros[last.value], !self.expanding.contains(last.value)
         else {
             return (expanded, index)
         }
         switch macro {
-        case .Function(_, let params, let variadic, let body):
+        case let .Function(_, params, variadic, body):
             guard index < tokens.count, tokens[index].kind == .Separator(.OpenParen) else {
                 return (expanded, index)
             }
-            guard let (rawArgs, closeIndex) = self.collectArguments(tokens, from: index) else {
-                self.emitError("unterminated argument list for macro '\(last.value)'", at: last)
+            guard let (rawArgs, closeIndex) = collectArguments(tokens, from: index) else {
+                emitError("unterminated argument list for macro '\(last.value)'", at: last)
                 return (expanded, index)
             }
-            let args = params.isEmpty ? self.emptyCallArgs(rawArgs) : rawArgs
-            let (result, _) = self.expandFunctionMacro(
+            let args = params.isEmpty ? emptyCallArgs(rawArgs) : rawArgs
+            let (result, _) = expandFunctionMacro(
                 name: last.value, params: params, variadic: variadic, body: body, args: args,
-                at: last)
+                at: last
+            )
             guard let result else {
                 return (expanded, index)
             }
-            return self.expandTail(
-                Array(expanded.dropLast()) + result, tokens: tokens, at: closeIndex + 1)
+            return expandTail(
+                Array(expanded.dropLast()) + result, tokens: tokens, at: closeIndex + 1
+            )
         case .Object:
             return (expanded, index)
         }
@@ -494,7 +511,8 @@ public final class Preprocessor {
     private func site(of nameToken: Token) -> MacroExpansionSite {
         MacroExpansionSite(
             name: nameToken.value, definitionPosition: nameToken.pos,
-            definitionSourceId: nameToken.id)
+            definitionSourceId: nameToken.id
+        )
     }
 
     private func relocate(_ tokens: [Token], to token: Token, site: MacroExpansionSite)
@@ -503,7 +521,8 @@ public final class Preprocessor {
         tokens.map { t in
             Token(
                 value: t.value, kind: t.kind, pos: token.pos, id: token.id,
-                isUnterminated: t.isUnterminated, expansion: (t.expansion ?? []) + [site])
+                isUnterminated: t.isUnterminated, expansion: (t.expansion ?? []) + [site]
+            )
         }
     }
 
@@ -543,21 +562,22 @@ public final class Preprocessor {
     ) -> (tokens: [Token]?, tailIsMacro: Bool) {
         if variadic {
             guard args.count >= params.count else {
-                self.emitError("too few arguments for macro '\(name)'", at: token)
-                self.emitNote("macro '\(name)' defined here", at: body.first ?? token)
+                emitError("too few arguments for macro '\(name)'", at: token)
+                emitNote("macro '\(name)' defined here", at: body.first ?? token)
                 return (nil, false)
             }
         } else {
             guard args.count == params.count else {
-                self.emitError(
+                emitError(
                     "macro '\(name)' expects \(params.count) arguments, but got \(args.count)",
-                    at: token)
-                self.emitNote("macro '\(name)' defined here", at: body.first ?? token)
+                    at: token
+                )
+                emitNote("macro '\(name)' defined here", at: body.first ?? token)
                 return (nil, false)
             }
         }
         let expandedArgs = args.map { self.rescan($0) }
-        let pastedBody = self.pasteTokensInBody(body, params: params, args: args)
+        let pastedBody = pasteTokensInBody(body, params: params, args: args)
         var replaced: [Token] = []
         var k = 0
         while k < pastedBody.count {
@@ -571,7 +591,7 @@ public final class Preprocessor {
                     continue
                 }
                 if variadic, pastedBody[k + 1].kind == .Identifier,
-                    pastedBody[k + 1].value == "__VA_ARGS__"
+                   pastedBody[k + 1].value == "__VA_ARGS__"
                 {
                     let text = args.dropFirst(params.count).flatMap { $0 }.map { $0.value }
                         .joined(separator: ", ")
@@ -603,13 +623,13 @@ public final class Preprocessor {
             replaced.append(bt)
             k += 1
         }
-        let result = self.rescan(replaced)
+        let result = rescan(replaced)
         if result.isEmpty {
-            return ([self.placeholder(at: token)], false)
+            return ([placeholder(at: token)], false)
         }
         let tailIsMacro =
             replaced.last?.kind == .Identifier
-            && self.macros[replaced.last!.value] != nil
+                && macros[replaced.last!.value] != nil
         return (result, tailIsMacro)
     }
 
@@ -620,18 +640,18 @@ public final class Preprocessor {
         var k = 0
         while k < body.count {
             if k + 1 < body.count, body[k].kind == .Separator(.Sharp),
-                body[k + 1].kind == .Separator(.Sharp)
+               body[k + 1].kind == .Separator(.Sharp)
             {
                 guard k + 2 < body.count else {
-                    self.emitError("expected token after '##' in macro body", at: body[k])
+                    emitError("expected token after '##' in macro body", at: body[k])
                     k += 2
                     continue
                 }
                 let leftBodyToken = result.removeLast()
-                let leftTokens = self.pasteOperand(leftBodyToken, params: params, args: args)
-                let rightTokens = self.pasteOperand(body[k + 2], params: params, args: args)
+                let leftTokens = pasteOperand(leftBodyToken, params: params, args: args)
+                let rightTokens = pasteOperand(body[k + 2], params: params, args: args)
                 if let left = leftTokens.last, let right = rightTokens.first {
-                    if let pasted = self.pasteTokens(left, right, at: body[k]) {
+                    if let pasted = pasteTokens(left, right, at: body[k]) {
                         result.append(pasted)
                     } else {
                         result.append(contentsOf: leftTokens)
@@ -661,8 +681,8 @@ public final class Preprocessor {
 
     private func pasteTokens(_ left: Token, _ right: Token, at token: Token) -> Token? {
         let text = left.value + right.value
-        guard let kind = self.pastedKind(text, id: token.id) else {
-            self.emitError("invalid token formed by '##' paste", at: token)
+        guard let kind = pastedKind(text, id: token.id) else {
+            emitError("invalid token formed by '##' paste", at: token)
             return nil
         }
         return Token(value: text, kind: kind, pos: token.pos, id: token.id)
@@ -685,7 +705,8 @@ public final class Preprocessor {
             return [
                 Token(
                     value: String(token.pos.line),
-                    kind: .IntegerLiteral(Int128(token.pos.line)), pos: token.pos, id: token.id)
+                    kind: .IntegerLiteral(Int128(token.pos.line)), pos: token.pos, id: token.id
+                ),
             ]
         case "__DATE__", "__TIME__":
             return [Self.compilationTimeToken(date: token.value == "__DATE__", at: token)]
@@ -701,7 +722,8 @@ public final class Preprocessor {
 
     private static func compilationTimeToken(date: Bool, at token: Token) -> Token {
         let components = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute, .second], from: Date())
+            [.year, .month, .day, .hour, .minute, .second], from: Date()
+        )
         let text: String
         if date {
             let day = String(format: "%2d", components.day!)
@@ -709,16 +731,17 @@ public final class Preprocessor {
         } else {
             text = String(
                 format: "%02d:%02d:%02d",
-                components.hour!, components.minute!, components.second!)
+                components.hour!, components.minute!, components.second!
+            )
         }
         return Token(value: text, kind: .StringLiteral, pos: token.pos, id: token.id)
     }
 
     private func expandMacro(_ name: String, body: [Token], at token: Token) -> [Token] {
-        self.expanding.append(name)
-        let result = self.rescan(body)
-        self.expanding.removeLast()
-        return result.isEmpty ? [self.placeholder(at: token)] : result
+        expanding.append(name)
+        let result = rescan(body)
+        expanding.removeLast()
+        return result.isEmpty ? [placeholder(at: token)] : result
     }
 
     private func placeholder(at token: Token) -> Token {
@@ -733,7 +756,7 @@ public final class Preprocessor {
         var result: [Token] = []
         var k = 0
         while k < tokens.count {
-            let expanded = self.expandToken(tokens[k], tokens: tokens, at: k)
+            let expanded = expandToken(tokens[k], tokens: tokens, at: k)
             result.append(contentsOf: expanded.tokens)
             k = expanded.nextIndex
         }
@@ -758,13 +781,14 @@ public final class Preprocessor {
     private func evaluateCondition(
         _ tokens: [Token], at directiveToken: Token
     ) -> Bool? {
-        let replaced = self.replaceDefined(tokens)
-        let expanded = self.rescan(replaced).filter { !self.isPlaceholder($0) }
+        let replaced = replaceDefined(tokens)
+        let expanded = rescan(replaced).filter { !self.isPlaceholder($0) }
         var evaluator = ConditionEvaluator(
-            tokens: expanded, flags: self.config.flags,
-            target: TargetInfo(target: self.config.target),
+            tokens: expanded, flags: config.flags,
+            target: TargetInfo(target: config.target),
             directiveToken: directiveToken,
-            onError: { message, token in self.emitError(message, at: token) })
+            onError: { message, token in self.emitError(message, at: token) }
+        )
         return evaluator.evaluate()
     }
 
@@ -776,8 +800,8 @@ public final class Preprocessor {
             if token.kind == .Identifier, token.value == "defined" {
                 let name: String?
                 if k + 1 < tokens.count, tokens[k + 1].kind == .Separator(.OpenParen),
-                    k + 2 < tokens.count, tokens[k + 2].kind == .Identifier,
-                    k + 3 < tokens.count, tokens[k + 3].kind == .Separator(.CloseParen)
+                   k + 2 < tokens.count, tokens[k + 2].kind == .Identifier,
+                   k + 3 < tokens.count, tokens[k + 3].kind == .Separator(.CloseParen)
                 {
                     name = tokens[k + 2].value
                     k += 4
@@ -789,14 +813,16 @@ public final class Preprocessor {
                     k += 1
                 }
                 if let name {
-                    if self.isDefined(name) {
+                    if isDefined(name) {
                         result.append(
                             Token(
-                                value: "1", kind: .IntegerLiteral(1), pos: token.pos, id: token.id))
+                                value: "1", kind: .IntegerLiteral(1), pos: token.pos, id: token.id
+                            ))
                     } else {
                         result.append(
                             Token(
-                                value: "0", kind: .IntegerLiteral(0), pos: token.pos, id: token.id))
+                                value: "0", kind: .IntegerLiteral(0), pos: token.pos, id: token.id
+                            ))
                     }
                 } else {
                     result.append(token)
@@ -810,11 +836,11 @@ public final class Preprocessor {
     }
 
     private func emitError(_ message: String, at token: Token) {
-        self.emitDiagnostic(.error, message: message, at: token)
+        emitDiagnostic(.error, message: message, at: token)
     }
 
     private func emitNote(_ message: String, at token: Token) {
-        self.emitDiagnostic(.note, message: message, at: token)
+        emitDiagnostic(.note, message: message, at: token)
     }
 
     private func emitDiagnostic(
@@ -825,7 +851,8 @@ public final class Preprocessor {
             Diagnostic(
                 severity: severity, message: message,
                 range: token.sourceRange(in: source.stringSourceBuffer),
-                notes: token.expansionNotes(in: context)))
+                notes: token.expansionNotes(in: context)
+            ))
     }
 }
 
@@ -835,10 +862,11 @@ private struct TargetInfo {
     let simulator: Bool
     init(target: String) {
         let parts = target.split(separator: "-").map(String.init)
-        self.arch = parts.first ?? ""
-        self.simulator = parts.contains("simulator")
-        self.os = TargetInfo.osName(parts.count > 2 ? parts[2] : "")
+        arch = parts.first ?? ""
+        simulator = parts.contains("simulator")
+        os = TargetInfo.osName(parts.count > 2 ? parts[2] : "")
     }
+
     private static func osName(_ raw: String) -> String {
         if raw.hasPrefix("linux") { return "Linux" }
         if raw.hasPrefix("darwin") || raw.hasPrefix("macos") { return "macOS" }
@@ -859,27 +887,27 @@ private struct ConditionEvaluator {
     var index = 0
 
     mutating func evaluate() -> Bool? {
-        if self.tokens.isEmpty {
-            self.onError("expected expression in #if condition", self.directiveToken)
+        if tokens.isEmpty {
+            onError("expected expression in #if condition", directiveToken)
             return nil
         }
-        guard let value = self.parseOrExpr() else { return nil }
-        if self.index != self.tokens.count {
-            let token = self.tokens[self.index]
-            self.onError("unexpected token '\(token.value)' in #if condition", token)
+        guard let value = parseOrExpr() else { return nil }
+        if index != tokens.count {
+            let token = tokens[index]
+            onError("unexpected token '\(token.value)' in #if condition", token)
             return nil
         }
         return value != 0
     }
 
     private mutating func parseOrExpr() -> Int128? {
-        guard var value = self.parseAndExpr() else { return nil }
-        while self.index < self.tokens.count, self.tokens[self.index].kind == .Operator(.Or) {
-            self.index += 1
+        guard var value = parseAndExpr() else { return nil }
+        while index < tokens.count, tokens[index].kind == .Operator(.Or) {
+            index += 1
             if value != 0 {
-                guard self.skipUntil(.Or) else { return nil }
+                guard skipUntil(.Or) else { return nil }
             } else {
-                guard let rhs = self.parseAndExpr() else { return nil }
+                guard let rhs = parseAndExpr() else { return nil }
                 value = rhs != 0 ? 1 : 0
             }
         }
@@ -887,13 +915,13 @@ private struct ConditionEvaluator {
     }
 
     private mutating func parseAndExpr() -> Int128? {
-        guard var value = self.parseBitOr() else { return nil }
-        while self.index < self.tokens.count, self.tokens[self.index].kind == .Operator(.And) {
-            self.index += 1
+        guard var value = parseBitOr() else { return nil }
+        while index < tokens.count, tokens[index].kind == .Operator(.And) {
+            index += 1
             if value == 0 {
-                guard self.skipUntil(.And, .Or) else { return nil }
+                guard skipUntil(.And, .Or) else { return nil }
             } else {
-                guard let rhs = self.parseBitOr() else { return nil }
+                guard let rhs = parseBitOr() else { return nil }
                 value = rhs != 0 ? 1 : 0
             }
         }
@@ -902,11 +930,11 @@ private struct ConditionEvaluator {
 
     private mutating func skipUntil(_ operators: OperatorKind...) -> Bool {
         var depth = 0
-        while self.index < self.tokens.count {
-            let token = self.tokens[self.index]
+        while index < tokens.count {
+            let token = tokens[index]
             if depth == 0 {
-                if case .Operator(let op) = token.kind,
-                    operators.contains(where: { $0 == op })
+                if case let .Operator(op) = token.kind,
+                   operators.contains(where: { $0 == op })
                 {
                     return true
                 }
@@ -923,52 +951,52 @@ private struct ConditionEvaluator {
                     depth -= 1
                 }
             }
-            self.index += 1
+            index += 1
         }
         return true
     }
 
     private mutating func parseBitOr() -> Int128? {
-        guard var value = self.parseBitXor() else { return nil }
-        while self.index < self.tokens.count, self.tokens[self.index].kind == .Operator(.BitOr) {
-            self.index += 1
-            guard let rhs = self.parseBitXor() else { return nil }
+        guard var value = parseBitXor() else { return nil }
+        while index < tokens.count, tokens[index].kind == .Operator(.BitOr) {
+            index += 1
+            guard let rhs = parseBitXor() else { return nil }
             value = value | rhs
         }
         return value
     }
 
     private mutating func parseBitXor() -> Int128? {
-        guard var value = self.parseBitAnd() else { return nil }
-        while self.index < self.tokens.count, self.tokens[self.index].kind == .Operator(.BitXor) {
-            self.index += 1
-            guard let rhs = self.parseBitAnd() else { return nil }
+        guard var value = parseBitAnd() else { return nil }
+        while index < tokens.count, tokens[index].kind == .Operator(.BitXor) {
+            index += 1
+            guard let rhs = parseBitAnd() else { return nil }
             value = value ^ rhs
         }
         return value
     }
 
     private mutating func parseBitAnd() -> Int128? {
-        guard var value = self.parseEquality() else { return nil }
-        while self.index < self.tokens.count, self.tokens[self.index].kind == .Operator(.BitAnd) {
-            self.index += 1
-            guard let rhs = self.parseEquality() else { return nil }
+        guard var value = parseEquality() else { return nil }
+        while index < tokens.count, tokens[index].kind == .Operator(.BitAnd) {
+            index += 1
+            guard let rhs = parseEquality() else { return nil }
             value = value & rhs
         }
         return value
     }
 
     private mutating func parseEquality() -> Int128? {
-        guard var value = self.parseRelational() else { return nil }
-        while self.index < self.tokens.count {
-            let op = self.tokens[self.index].kind
+        guard var value = parseRelational() else { return nil }
+        while index < tokens.count {
+            let op = tokens[index].kind
             if op == .Operator(.Equal) {
-                self.index += 1
-                guard let rhs = self.parseRelational() else { return nil }
+                index += 1
+                guard let rhs = parseRelational() else { return nil }
                 value = value == rhs ? 1 : 0
             } else if op == .Operator(.NotEqual) {
-                self.index += 1
-                guard let rhs = self.parseRelational() else { return nil }
+                index += 1
+                guard let rhs = parseRelational() else { return nil }
                 value = value != rhs ? 1 : 0
             } else {
                 break
@@ -978,25 +1006,25 @@ private struct ConditionEvaluator {
     }
 
     private mutating func parseRelational() -> Int128? {
-        guard var value = self.parseShift() else { return nil }
-        while self.index < self.tokens.count {
-            let op = self.tokens[self.index].kind
+        guard var value = parseShift() else { return nil }
+        while index < tokens.count {
+            let op = tokens[index].kind
             switch op {
             case .Operator(.Less):
-                self.index += 1
-                guard let rhs = self.parseShift() else { return nil }
+                index += 1
+                guard let rhs = parseShift() else { return nil }
                 value = value < rhs ? 1 : 0
             case .Operator(.Greater):
-                self.index += 1
-                guard let rhs = self.parseShift() else { return nil }
+                index += 1
+                guard let rhs = parseShift() else { return nil }
                 value = value > rhs ? 1 : 0
             case .Operator(.LessEqual):
-                self.index += 1
-                guard let rhs = self.parseShift() else { return nil }
+                index += 1
+                guard let rhs = parseShift() else { return nil }
                 value = value <= rhs ? 1 : 0
             case .Operator(.GreaterEqual):
-                self.index += 1
-                guard let rhs = self.parseShift() else { return nil }
+                index += 1
+                guard let rhs = parseShift() else { return nil }
                 value = value >= rhs ? 1 : 0
             default:
                 return value
@@ -1006,16 +1034,17 @@ private struct ConditionEvaluator {
     }
 
     private mutating func parseShift() -> Int128? {
-        guard var value = self.parseAdditive() else { return nil }
-        while self.index < self.tokens.count {
-            let op = self.tokens[self.index].kind
+        guard var value = parseAdditive() else { return nil }
+        while index < tokens.count {
+            let op = tokens[index].kind
             if op == .Operator(.LeftShift) || op == .Operator(.RightShift) {
                 let isLeft = op == .Operator(.LeftShift)
-                self.index += 1
-                guard let rhs = self.parseAdditive() else { return nil }
+                index += 1
+                guard let rhs = parseAdditive() else { return nil }
                 guard rhs >= 0, rhs < 128 else {
-                    self.onError(
-                        "shift count out of range in #if condition", self.tokens[self.index - 1])
+                    onError(
+                        "shift count out of range in #if condition", tokens[index - 1]
+                    )
                     return nil
                 }
                 value = isLeft ? value << rhs : value >> rhs
@@ -1027,16 +1056,16 @@ private struct ConditionEvaluator {
     }
 
     private mutating func parseAdditive() -> Int128? {
-        guard var value = self.parseMultiplicative() else { return nil }
-        while self.index < self.tokens.count {
-            let op = self.tokens[self.index].kind
+        guard var value = parseMultiplicative() else { return nil }
+        while index < tokens.count {
+            let op = tokens[index].kind
             if op == .Operator(.Plus) {
-                self.index += 1
-                guard let rhs = self.parseMultiplicative() else { return nil }
+                index += 1
+                guard let rhs = parseMultiplicative() else { return nil }
                 value = value &+ rhs
             } else if op == .Operator(.Minus) {
-                self.index += 1
-                guard let rhs = self.parseMultiplicative() else { return nil }
+                index += 1
+                guard let rhs = parseMultiplicative() else { return nil }
                 value = value &- rhs
             } else {
                 break
@@ -1046,27 +1075,27 @@ private struct ConditionEvaluator {
     }
 
     private mutating func parseMultiplicative() -> Int128? {
-        guard var value = self.parseUnary() else { return nil }
-        while self.index < self.tokens.count {
-            let op = self.tokens[self.index].kind
+        guard var value = parseUnary() else { return nil }
+        while index < tokens.count {
+            let op = tokens[index].kind
             switch op {
             case .Operator(.Multiply):
-                self.index += 1
-                guard let rhs = self.parseUnary() else { return nil }
+                index += 1
+                guard let rhs = parseUnary() else { return nil }
                 value = value &* rhs
             case .Operator(.Divide):
-                self.index += 1
-                guard let rhs = self.parseUnary() else { return nil }
+                index += 1
+                guard let rhs = parseUnary() else { return nil }
                 guard rhs != 0 else {
-                    self.onError("division by zero in #if condition", self.tokens[self.index - 1])
+                    onError("division by zero in #if condition", tokens[index - 1])
                     return nil
                 }
                 value = value / rhs
             case .Operator(.Modulus):
-                self.index += 1
-                guard let rhs = self.parseUnary() else { return nil }
+                index += 1
+                guard let rhs = parseUnary() else { return nil }
                 guard rhs != 0 else {
-                    self.onError("division by zero in #if condition", self.tokens[self.index - 1])
+                    onError("division by zero in #if condition", tokens[index - 1])
                     return nil
                 }
                 value = value % rhs
@@ -1078,102 +1107,102 @@ private struct ConditionEvaluator {
     }
 
     private mutating func parseUnary() -> Int128? {
-        guard self.index < self.tokens.count else {
-            self.onError("expected expression in #if condition", self.tokens.last!)
+        guard index < tokens.count else {
+            onError("expected expression in #if condition", tokens.last!)
             return nil
         }
-        let op = self.tokens[self.index].kind
+        let op = tokens[index].kind
         switch op {
         case .Operator(.Not):
-            self.index += 1
-            guard let value = self.parseUnary() else { return nil }
+            index += 1
+            guard let value = parseUnary() else { return nil }
             return value == 0 ? 1 : 0
         case .Operator(.BitNot):
-            self.index += 1
-            guard let value = self.parseUnary() else { return nil }
+            index += 1
+            guard let value = parseUnary() else { return nil }
             return ~value
         case .Operator(.Minus):
-            self.index += 1
-            guard let value = self.parseUnary() else { return nil }
+            index += 1
+            guard let value = parseUnary() else { return nil }
             return 0 &- value
         case .Operator(.Plus):
-            self.index += 1
-            return self.parseUnary()
+            index += 1
+            return parseUnary()
         default:
-            return self.parsePrimary()
+            return parsePrimary()
         }
     }
 
     private mutating func parseConditionFunction() -> Int128? {
-        let fn = self.tokens[self.index]
+        let fn = tokens[index]
         let name = fn.value
         guard name == "os" || name == "arch" || name == "targetEnvironment" else {
-            self.onError("unknown function '\(name)' in #if condition", fn)
+            onError("unknown function '\(name)' in #if condition", fn)
             return nil
         }
-        self.index += 2
-        guard self.index < self.tokens.count,
-            self.tokens[self.index].kind == .Identifier
+        index += 2
+        guard index < tokens.count,
+              tokens[index].kind == .Identifier
         else {
-            self.onError("expected argument in '\(name)' condition", fn)
+            onError("expected argument in '\(name)' condition", fn)
             return nil
         }
-        let arg = self.tokens[self.index].value
-        self.index += 1
-        guard self.index < self.tokens.count,
-            self.tokens[self.index].kind == .Separator(.CloseParen)
+        let arg = tokens[index].value
+        index += 1
+        guard index < tokens.count,
+              tokens[index].kind == .Separator(.CloseParen)
         else {
-            self.onError("expected ')' after '\(name)' argument", fn)
+            onError("expected ')' after '\(name)' argument", fn)
             return nil
         }
-        self.index += 1
+        index += 1
         switch name {
         case "os":
-            return arg.lowercased() == self.target.os.lowercased() ? 1 : 0
+            return arg.lowercased() == target.os.lowercased() ? 1 : 0
         case "arch":
-            return arg.lowercased() == self.target.arch.lowercased() ? 1 : 0
+            return arg.lowercased() == target.arch.lowercased() ? 1 : 0
         default:
-            return arg == "simulator" && self.target.simulator ? 1 : 0
+            return arg == "simulator" && target.simulator ? 1 : 0
         }
     }
 
     private mutating func parsePrimary() -> Int128? {
-        guard self.index < self.tokens.count else {
-            self.onError("expected expression in #if condition", self.tokens.last!)
+        guard index < tokens.count else {
+            onError("expected expression in #if condition", tokens.last!)
             return nil
         }
-        let token = self.tokens[self.index]
+        let token = tokens[index]
         switch token.kind {
-        case .IntegerLiteral(let value):
-            self.index += 1
+        case let .IntegerLiteral(value):
+            index += 1
             return value
-        case .CharLiteral(let ch):
-            self.index += 1
+        case let .CharLiteral(ch):
+            index += 1
             return Int128(ch.unicodeScalars.first?.value ?? 0)
-        case .BooleanLiteral(let value):
-            self.index += 1
+        case let .BooleanLiteral(value):
+            index += 1
             return value ? 1 : 0
         case .Identifier:
-            if self.index + 1 < self.tokens.count,
-                self.tokens[self.index + 1].kind == .Separator(.OpenParen)
+            if index + 1 < tokens.count,
+               tokens[index + 1].kind == .Separator(.OpenParen)
             {
-                return self.parseConditionFunction()
+                return parseConditionFunction()
             }
-            self.index += 1
-            return self.flags.contains(token.value) ? 1 : 0
+            index += 1
+            return flags.contains(token.value) ? 1 : 0
         case .Separator(.OpenParen):
-            self.index += 1
-            guard let value = self.parseOrExpr() else { return nil }
-            guard self.index < self.tokens.count,
-                self.tokens[self.index].kind == .Separator(.CloseParen)
+            index += 1
+            guard let value = parseOrExpr() else { return nil }
+            guard index < tokens.count,
+                  tokens[index].kind == .Separator(.CloseParen)
             else {
-                self.onError("expected ')' in #if condition", token)
+                onError("expected ')' in #if condition", token)
                 return nil
             }
-            self.index += 1
+            index += 1
             return value
         default:
-            self.onError("unexpected token '\(token.value)' in #if condition", token)
+            onError("unexpected token '\(token.value)' in #if condition", token)
             return nil
         }
     }

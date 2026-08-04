@@ -42,7 +42,7 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     let (context, program) = resolve(
         "func f() {} func f(x: Int) {} func caller() { var f: Int = 0 let x = f }")
     let caller = program.statements[2] as! AST.FunctionDecl
-    guard case .Block(let statements) = caller.body else { return }
+    guard case let .Block(statements) = caller.body else { return }
     let decl = statements[1] as! AST.VariableDecl
     let initializer = decl.initializer as! AST.Variable
     #expect(initializer.symbol is Symbol.VariableSymbol)
@@ -101,7 +101,7 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     let (context, program) = resolve(
         "struct S { var x: Int } func caller() { let s: S = S() s.x }")
     let caller = program.statements[1] as! AST.FunctionDecl
-    guard case .Block(let statements) = caller.body else { return }
+    guard case let .Block(statements) = caller.body else { return }
     let member = (statements[1] as! AST.ExpressionStatement).expression as! AST.MemberAccess
     #expect(member.symbol == nil)
     #expect(member.overloads == nil)

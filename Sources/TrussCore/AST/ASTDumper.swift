@@ -1,13 +1,13 @@
 extension AST.ModifierKind {
     var sourceText: String {
         switch self {
-        case .Open(let setter): return setter ? "open(set)" : "open"
-        case .Public(let setter): return setter ? "public(set)" : "public"
-        case .Protected(let setter): return setter ? "protected(set)" : "protected"
-        case .PackagePrivate(let setter): return setter ? "packageprivate(set)" : "packageprivate"
-        case .Internal(let setter): return setter ? "internal(set)" : "internal"
-        case .FilePrivate(let setter): return setter ? "fileprivate(set)" : "fileprivate"
-        case .Private(let setter): return setter ? "private(set)" : "private"
+        case let .Open(setter): return setter ? "open(set)" : "open"
+        case let .Public(setter): return setter ? "public(set)" : "public"
+        case let .Protected(setter): return setter ? "protected(set)" : "protected"
+        case let .PackagePrivate(setter): return setter ? "packageprivate(set)" : "packageprivate"
+        case let .Internal(setter): return setter ? "internal(set)" : "internal"
+        case let .FilePrivate(setter): return setter ? "fileprivate(set)" : "fileprivate"
+        case let .Private(setter): return setter ? "private(set)" : "private"
         case .Abstract: return "abstract"
         case .Final: return "final"
         case .Mutating: return "mutating"
@@ -138,7 +138,7 @@ public final class ASTDumper: AST.Visitor {
                 var children: [() -> Void] = []
                 if let type = parameter.type { children.append { self.visit(type) } }
                 if let defaultValue = parameter.defaultValue {
-                    children.append { self.dumpNode("Default", children: [ { self.visit(defaultValue) } ]) }
+                    children.append { self.dumpNode("Default", children: [{ self.visit(defaultValue) }]) }
                 }
                 self.dumpNode(text, children: children)
             }
@@ -146,15 +146,15 @@ public final class ASTDumper: AST.Visitor {
     }
 
     private func whereRequirementNode(_ requirement: AST.WhereRequirement) {
-        var children: [() -> Void] = [ { self.visit(requirement.left) } ]
+        var children: [() -> Void] = [{ self.visit(requirement.left) }]
         switch requirement.constraint {
-        case .conformance(let expression):
+        case let .conformance(expression):
             children.append {
-                self.dumpNode("Conformance", children: [ { self.visit(expression) } ])
+                self.dumpNode("Conformance", children: [{ self.visit(expression) }])
             }
-        case .equality(let expression):
+        case let .equality(expression):
             children.append {
-                self.dumpNode("Equality", children: [ { self.visit(expression) } ])
+                self.dumpNode("Equality", children: [{ self.visit(expression) }])
             }
         }
         dumpNode("WhereRequirement", children: children)
@@ -169,7 +169,7 @@ public final class ASTDumper: AST.Visitor {
     private func throwsClauseNodes(_ throwsClause: AST.ThrowsClause?) -> [() -> Void] {
         guard let throwsClause, let types = throwsClause.types else { return [] }
         return types.map { type in
-            { self.dumpNode("Throws", children: [ { self.visit(type) } ]) }
+            { self.dumpNode("Throws", children: [{ self.visit(type) }]) }
         }
     }
 
@@ -180,13 +180,13 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
+    override public func visitProgram(_ program: AST.Program, additional _: Any? = nil) -> Any? {
         dumpNode("Program \"\(program.packageName)\"", children: statementNodes(program.statements))
         return nil
     }
 
     @discardableResult
-    public override func visitGenericDecl(_ genericDecl: AST.GenericDecl, additional: Any? = nil) -> Any? {
+    override public func visitGenericDecl(_ genericDecl: AST.GenericDecl, additional: Any? = nil) -> Any? {
         dumpNode(
             "GenericDecl",
             children: genericDecl.generics.map { generic in
@@ -197,8 +197,8 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitGenericParameter(
-        _ genericParameter: AST.GenericParameter, additional: Any? = nil
+    override public func visitGenericParameter(
+        _ genericParameter: AST.GenericParameter, additional _: Any? = nil
     ) -> Any? {
         var text = "GenericParameter "
         if genericParameter.eachToken != nil { text += "each " }
@@ -212,39 +212,39 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitEmptyStatement(
-        _ emptyStatement: AST.EmptyStatement, additional: Any? = nil
+    override public func visitEmptyStatement(
+        _: AST.EmptyStatement, additional _: Any? = nil
     ) -> Any? {
         dumpNode("EmptyStatement")
         return nil
     }
 
     @discardableResult
-    public override func visitErrorStatement(
-        _ errorStatement: AST.ErrorStatement, additional: Any? = nil
+    override public func visitErrorStatement(
+        _: AST.ErrorStatement, additional _: Any? = nil
     ) -> Any? {
         dumpNode("ErrorStatement")
         return nil
     }
 
     @discardableResult
-    public override func visitImport(_ importStatement: AST.Import, additional: Any? = nil) -> Any? {
+    override public func visitImport(_ importStatement: AST.Import, additional _: Any? = nil) -> Any? {
         var text = "Import "
         text += importStatement.path.components.map { component in
             switch component {
-            case .identifier(let token), .self_(let token): return token.value
+            case let .identifier(token), let .self_(token): return token.value
             }
         }.joined(separator: ".")
         switch importStatement.selector {
-        case .wholeModule(let alias):
+        case let .wholeModule(alias):
             if let alias { text += " as \(alias.value)" }
         case .wildcard:
             text += ".*"
-        case .explicit(let items):
+        case let .explicit(items):
             let rendered = items.map { item in
                 var itemText: String
                 switch item.kind {
-                case .self_(let token), .name(let token): itemText = token.value
+                case let .self_(token), let .name(token): itemText = token.value
                 }
                 if let alias = item.alias { itemText += " as \(alias.value)" }
                 return itemText
@@ -256,12 +256,12 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitExternDecl(_ externDecl: AST.ExternDecl, additional: Any? = nil) -> Any? {
+    override public func visitExternDecl(_ externDecl: AST.ExternDecl, additional _: Any? = nil) -> Any? {
         var children: [() -> Void] = []
         switch externDecl.body {
-        case .Block(let statements):
+        case let .Block(statements):
             children.append(contentsOf: statementNodes(statements))
-        case .Declaration(let decl):
+        case let .Declaration(decl):
             children.append { self.visit(decl) }
         }
         dumpNode(declText("ExternDecl \(externDecl.convention.value)", externDecl), children: children)
@@ -269,26 +269,26 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitExpressionStatement(
-        _ expressionStatement: AST.ExpressionStatement, additional: Any? = nil
+    override public func visitExpressionStatement(
+        _ expressionStatement: AST.ExpressionStatement, additional _: Any? = nil
     ) -> Any? {
-        dumpNode("ExpressionStatement", children: [ { self.visit(expressionStatement.expression) } ])
+        dumpNode("ExpressionStatement", children: [{ self.visit(expressionStatement.expression) }])
         return nil
     }
 
     @discardableResult
-    public override func visitTypeAliasDecl(
-        _ typeAliasDecl: AST.TypeAliasDecl, additional: Any? = nil
+    override public func visitTypeAliasDecl(
+        _ typeAliasDecl: AST.TypeAliasDecl, additional _: Any? = nil
     ) -> Any? {
         dumpNode(
             declText("TypeAliasDecl \(typeAliasDecl.name.value)", typeAliasDecl),
-            children: [ { self.visit(typeAliasDecl.typeExpression) } ]
+            children: [{ self.visit(typeAliasDecl.typeExpression) }]
         )
         return nil
     }
 
     @discardableResult
-    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil) -> Any? {
+    override public func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional _: Any? = nil) -> Any? {
         dumpNode(
             declText("ModuleDecl \(moduleDecl.name.value)", moduleDecl) + symText(moduleDecl.symbol),
             children: statementNodes(moduleDecl.body)
@@ -297,22 +297,22 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitOperatorDecl(
-        _ operatorDecl: AST.OperatorDecl, additional: Any? = nil
+    override public func visitOperatorDecl(
+        _ operatorDecl: AST.OperatorDecl, additional _: Any? = nil
     ) -> Any? {
         let kindText: String
         switch operatorDecl.kind {
-        case .Infix(let token): kindText = "infix \(token.value)"
-        case .Prefix(let token): kindText = "prefix \(token.value)"
-        case .Postfix(let token): kindText = "postfix \(token.value)"
+        case let .Infix(token): kindText = "infix \(token.value)"
+        case let .Prefix(token): kindText = "prefix \(token.value)"
+        case let .Postfix(token): kindText = "postfix \(token.value)"
         }
         dumpNode(declText("OperatorDecl \(kindText)", operatorDecl))
         return nil
     }
 
     @discardableResult
-    public override func visitPrecedenceGroupDecl(
-        _ precedenceGroupDecl: AST.PrecedenceGroupDecl, additional: Any? = nil
+    override public func visitPrecedenceGroupDecl(
+        _ precedenceGroupDecl: AST.PrecedenceGroupDecl, additional _: Any? = nil
     ) -> Any? {
         var text = declText("PrecedenceGroupDecl \(precedenceGroupDecl.name.value)", precedenceGroupDecl)
         switch precedenceGroupDecl.associativity {
@@ -353,7 +353,7 @@ public final class ASTDumper: AST.Visitor {
         var children: [() -> Void] = []
         if let genericDecl { children.append { self.visitGenericDecl(genericDecl) } }
         for conformance in conformances {
-            children.append { self.dumpNode("Conformance", children: [ { self.visit(conformance) } ]) }
+            children.append { self.dumpNode("Conformance", children: [{ self.visit(conformance) }]) }
         }
         if let whereClause { children.append(contentsOf: whereClauseNodes(whereClause)) }
         children.append(contentsOf: statementNodes(body))
@@ -361,52 +361,56 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil) -> Any? {
+    override public func visitStructDecl(_ structDecl: AST.StructDecl, additional _: Any? = nil) -> Any? {
         dumpNode(
             declText("StructDecl \(structDecl.name.value)", structDecl),
             children: typeDeclNodes(
-                structDecl.genericDecl, structDecl.conformances, structDecl.whereClause, structDecl.body)
+                structDecl.genericDecl, structDecl.conformances, structDecl.whereClause, structDecl.body
+            )
         )
         return nil
     }
 
     @discardableResult
-    public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil) -> Any? {
+    override public func visitClassDecl(_ classDecl: AST.ClassDecl, additional _: Any? = nil) -> Any? {
         dumpNode(
             declText("ClassDecl \(classDecl.name.value)", classDecl),
             children: typeDeclNodes(
                 classDecl.genericDecl, classDecl.inheritanceClauses, classDecl.whereClause,
-                classDecl.body)
+                classDecl.body
+            )
         )
         return nil
     }
 
     @discardableResult
-    public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil) -> Any? {
+    override public func visitActorDecl(_ actorDecl: AST.ActorDecl, additional _: Any? = nil) -> Any? {
         dumpNode(
             declText("ActorDecl \(actorDecl.name.value)", actorDecl),
             children: typeDeclNodes(
-                actorDecl.genericDecl, actorDecl.conformances, actorDecl.whereClause, actorDecl.body)
+                actorDecl.genericDecl, actorDecl.conformances, actorDecl.whereClause, actorDecl.body
+            )
         )
         return nil
     }
 
     @discardableResult
-    public override func visitProtocolDecl(_ protocolDecl: AST.ProtocolDecl, additional: Any? = nil) -> Any? {
+    override public func visitProtocolDecl(_ protocolDecl: AST.ProtocolDecl, additional _: Any? = nil) -> Any? {
         dumpNode(
             declText("ProtocolDecl \(protocolDecl.name.value)", protocolDecl),
             children: typeDeclNodes(
                 protocolDecl.genericDecl, protocolDecl.conformances, protocolDecl.whereClause,
-                protocolDecl.body)
+                protocolDecl.body
+            )
         )
         return nil
     }
 
     @discardableResult
-    public override func visitExtensionDecl(_ extensionDecl: AST.ExtensionDecl, additional: Any? = nil) -> Any? {
-        var children: [() -> Void] = [ { self.visit(extensionDecl.base) } ]
+    override public func visitExtensionDecl(_ extensionDecl: AST.ExtensionDecl, additional _: Any? = nil) -> Any? {
+        var children: [() -> Void] = [{ self.visit(extensionDecl.base) }]
         for conformance in extensionDecl.conformances {
-            children.append { self.dumpNode("Conformance", children: [ { self.visit(conformance) } ]) }
+            children.append { self.dumpNode("Conformance", children: [{ self.visit(conformance) }]) }
         }
         children.append(contentsOf: statementNodes(extensionDecl.body))
         dumpNode(declText("ExtensionDecl", extensionDecl), children: children)
@@ -414,18 +418,19 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil) -> Any? {
+    override public func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional _: Any? = nil) -> Any? {
         dumpNode(
             declText("EnumDecl \(enumDecl.name.value)", enumDecl),
             children: typeDeclNodes(
-                enumDecl.genericDecl, enumDecl.conformances, enumDecl.whereClause, enumDecl.body)
+                enumDecl.genericDecl, enumDecl.conformances, enumDecl.whereClause, enumDecl.body
+            )
         )
         return nil
     }
 
     @discardableResult
-    public override func visitEnumCaseDecl(
-        _ enumCaseDecl: AST.EnumCaseDecl, additional: Any? = nil
+    override public func visitEnumCaseDecl(
+        _ enumCaseDecl: AST.EnumCaseDecl, additional _: Any? = nil
     ) -> Any? {
         var children: [() -> Void] = []
         for element in enumCaseDecl.elements {
@@ -435,11 +440,11 @@ public final class ASTDumper: AST.Visitor {
                     elementChildren.append {
                         var text = "AssociatedValue "
                         if let label = associatedValue.label { text += "\(label.value):" }
-                        self.dumpNode(text, children: [ { self.visit(associatedValue.typeExpression) } ])
+                        self.dumpNode(text, children: [{ self.visit(associatedValue.typeExpression) }])
                     }
                 }
                 if let rawValue = element.rawValue {
-                    elementChildren.append { self.dumpNode("RawValue", children: [ { self.visit(rawValue) } ]) }
+                    elementChildren.append { self.dumpNode("RawValue", children: [{ self.visit(rawValue) }]) }
                 }
                 self.dumpNode("Element \(element.name.value)", children: elementChildren)
             }
@@ -449,7 +454,7 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil) -> Any? {
+    override public func visitInitDecl(_ initDecl: AST.InitDecl, additional _: Any? = nil) -> Any? {
         var text = declText("InitDecl", initDecl)
         if initDecl.optionalToken != nil { text += " ?" }
         var children: [() -> Void] = []
@@ -465,14 +470,14 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil) -> Any? {
+    override public func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional _: Any? = nil) -> Any? {
         dumpNode(declText("DeinitDecl", deinitDecl), children: statementNodes(deinitDecl.body))
         return nil
     }
 
     @discardableResult
-    public override func visitFunctionDecl(
-        _ functionDecl: AST.FunctionDecl, additional: Any? = nil
+    override public func visitFunctionDecl(
+        _ functionDecl: AST.FunctionDecl, additional _: Any? = nil
     ) -> Any? {
         var text = declText("FunctionDecl \(functionDecl.name.value)", functionDecl)
         if functionDecl.varargToken != nil { text += " [vararg]" }
@@ -488,10 +493,10 @@ public final class ASTDumper: AST.Visitor {
             children.append { self.visit(returnTypeExpression) }
         }
         switch functionDecl.body {
-        case .Block(let statements):
+        case let .Block(statements):
             children.append(contentsOf: statementNodes(statements))
-        case .Expression(let expression):
-            children.append { self.dumpNode("BodyExpression", children: [ { self.visit(expression) } ]) }
+        case let .Expression(expression):
+            children.append { self.dumpNode("BodyExpression", children: [{ self.visit(expression) }]) }
         case nil:
             break
         }
@@ -500,7 +505,7 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitVariableDecl(
+    override public func visitVariableDecl(
         _ variableDecl: AST.VariableDecl, additional: Any? = nil
     ) -> Any? {
         var text = declText("VariableDecl \(variableDecl.name.value)", variableDecl)
@@ -508,10 +513,10 @@ public final class ASTDumper: AST.Visitor {
         text += symText(variableDecl.symbol)
         var children: [() -> Void] = []
         if let typeExpression = variableDecl.typeExpression {
-            children.append { self.dumpNode("Type", children: [ { self.visit(typeExpression) } ]) }
+            children.append { self.dumpNode("Type", children: [{ self.visit(typeExpression) }]) }
         }
         if let initializer = variableDecl.initializer {
-            children.append { self.dumpNode("Initializer", children: [ { self.visit(initializer) } ]) }
+            children.append { self.dumpNode("Initializer", children: [{ self.visit(initializer) }]) }
         }
         for accessor in variableDecl.accessors {
             children.append { self.visitAccessor(accessor, additional: additional) }
@@ -521,7 +526,7 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitReturn(_ ret: AST.Return, additional: Any? = nil) -> Any? {
+    override public func visitReturn(_ ret: AST.Return, additional _: Any? = nil) -> Any? {
         var children: [() -> Void] = []
         if let value = ret.value { children.append { self.visit(value) } }
         dumpNode("Return", children: children)
@@ -529,21 +534,21 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitThrow(_ throwStatement: AST.Throw, additional: Any? = nil) -> Any? {
-        dumpNode("Throw", children: [ { self.visit(throwStatement.expression) } ])
+    override public func visitThrow(_ throwStatement: AST.Throw, additional _: Any? = nil) -> Any? {
+        dumpNode("Throw", children: [{ self.visit(throwStatement.expression) }])
         return nil
     }
 
     @discardableResult
-    public override func visitWhile(_ whileStatement: AST.While, additional: Any? = nil) -> Any? {
-        var children: [() -> Void] = [ { self.visit(whileStatement.condition) } ]
+    override public func visitWhile(_ whileStatement: AST.While, additional _: Any? = nil) -> Any? {
+        var children: [() -> Void] = [{ self.visit(whileStatement.condition) }]
         children.append(contentsOf: statementNodes(whileStatement.body))
         dumpNode("While", children: children)
         return nil
     }
 
     @discardableResult
-    public override func visitRepeatWhile(_ repeatWhile: AST.RepeatWhile, additional: Any? = nil) -> Any? {
+    override public func visitRepeatWhile(_ repeatWhile: AST.RepeatWhile, additional _: Any? = nil) -> Any? {
         var children: [() -> Void] = []
         children.append(contentsOf: statementNodes(repeatWhile.body))
         children.append { self.visit(repeatWhile.condition) }
@@ -552,20 +557,20 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitGuard(_ guardStatement: AST.Guard, additional: Any? = nil) -> Any? {
-        var children: [() -> Void] = [ { self.visit(guardStatement.condition) } ]
+    override public func visitGuard(_ guardStatement: AST.Guard, additional _: Any? = nil) -> Any? {
+        var children: [() -> Void] = [{ self.visit(guardStatement.condition) }]
         children.append(contentsOf: statementNodes(guardStatement.body))
         dumpNode("Guard", children: children)
         return nil
     }
 
     @discardableResult
-    public override func visitFor(_ forStatement: AST.For, additional: Any? = nil) -> Any? {
+    override public func visitFor(_ forStatement: AST.For, additional _: Any? = nil) -> Any? {
         var text = "For"
         if forStatement.asyncToken != nil { text += " async" }
         var children: [() -> Void] = [
-            { self.dumpNode("Pattern", children: [ { self.visit(forStatement.pattern) } ]) },
-            { self.dumpNode("Sequence", children: [ { self.visit(forStatement.sequence) } ]) },
+            { self.dumpNode("Pattern", children: [{ self.visit(forStatement.pattern) }]) },
+            { self.dumpNode("Sequence", children: [{ self.visit(forStatement.sequence) }]) },
         ]
         children.append(contentsOf: statementNodes(forStatement.body))
         dumpNode(text, children: children)
@@ -573,13 +578,13 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitDefer(_ deferStatement: AST.Defer, additional: Any? = nil) -> Any? {
+    override public func visitDefer(_ deferStatement: AST.Defer, additional _: Any? = nil) -> Any? {
         dumpNode("Defer", children: statementNodes(deferStatement.body))
         return nil
     }
 
     @discardableResult
-    public override func visitAsm(_ asmStatement: AST.Asm, additional: Any? = nil) -> Any? {
+    override public func visitAsm(_ asmStatement: AST.Asm, additional _: Any? = nil) -> Any? {
         var children: [() -> Void] = []
         for template in asmStatement.templates {
             children.append { self.visit(template) }
@@ -601,7 +606,7 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitBreak(_ breakStatement: AST.Break, additional: Any? = nil) -> Any? {
+    override public func visitBreak(_ breakStatement: AST.Break, additional _: Any? = nil) -> Any? {
         var text = "Break"
         if let label = breakStatement.label { text += " \(label.value)" }
         dumpNode(text)
@@ -609,7 +614,7 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitContinue(_ continueStatement: AST.Continue, additional: Any? = nil) -> Any? {
+    override public func visitContinue(_ continueStatement: AST.Continue, additional _: Any? = nil) -> Any? {
         var text = "Continue"
         if let label = continueStatement.label { text += " \(label.value)" }
         dumpNode(text)
@@ -617,24 +622,24 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitGoto(_ gotoStatement: AST.Goto, additional: Any? = nil) -> Any? {
+    override public func visitGoto(_ gotoStatement: AST.Goto, additional _: Any? = nil) -> Any? {
         dumpNode("Goto \(gotoStatement.label.value)")
         return nil
     }
 
     @discardableResult
-    public override func visitLabeledStatement(
-        _ labeledStatement: AST.LabeledStatement, additional: Any? = nil
+    override public func visitLabeledStatement(
+        _ labeledStatement: AST.LabeledStatement, additional _: Any? = nil
     ) -> Any? {
         dumpNode(
             "LabeledStatement \(labeledStatement.label.value)",
-            children: [ { self.visit(labeledStatement.body) } ]
+            children: [{ self.visit(labeledStatement.body) }]
         )
         return nil
     }
 
     @discardableResult
-    public override func visitAccessor(_ accessor: AST.Accessor, additional: Any? = nil) -> Any? {
+    override public func visitAccessor(_ accessor: AST.Accessor, additional _: Any? = nil) -> Any? {
         var text: String
         switch accessor.kind {
         case .Get: text = "Accessor get"
@@ -646,18 +651,18 @@ public final class ASTDumper: AST.Visitor {
         text += modifiersText(accessor.modifiers) + attributesText(accessor.attributes)
         var children: [() -> Void] = []
         switch accessor.body {
-        case .Block(let statements):
+        case let .Block(statements):
             children.append(contentsOf: statementNodes(statements))
-        case .Expression(let expression):
-            children.append { self.dumpNode("BodyExpression", children: [ { self.visit(expression) } ]) }
+        case let .Expression(expression):
+            children.append { self.dumpNode("BodyExpression", children: [{ self.visit(expression) }]) }
         }
         dumpNode(text, children: children)
         return nil
     }
 
     @discardableResult
-    public override func visitSubscriptDecl(
-        _ subscriptDecl: AST.SubscriptDecl, additional: Any? = nil
+    override public func visitSubscriptDecl(
+        _ subscriptDecl: AST.SubscriptDecl, additional _: Any? = nil
     ) -> Any? {
         var text = declText("SubscriptDecl", subscriptDecl)
         if let throwsClause = subscriptDecl.throwsClause { text += throwsText(throwsClause) }
@@ -667,19 +672,19 @@ public final class ASTDumper: AST.Visitor {
         if let throwsClause = subscriptDecl.throwsClause {
             children.append(contentsOf: throwsClauseNodes(throwsClause))
         }
-        children.append { self.dumpNode("ReturnType", children: [ { self.visit(subscriptDecl.returnType) } ]) }
+        children.append { self.dumpNode("ReturnType", children: [{ self.visit(subscriptDecl.returnType) }]) }
         children.append(contentsOf: statementNodes(subscriptDecl.body))
         dumpNode(text, children: children)
         return nil
     }
 
     @discardableResult
-    public override func visitAssociatedTypeDecl(
-        _ associatedTypeDecl: AST.AssociatedTypeDecl, additional: Any? = nil
+    override public func visitAssociatedTypeDecl(
+        _ associatedTypeDecl: AST.AssociatedTypeDecl, additional _: Any? = nil
     ) -> Any? {
         var children: [() -> Void] = []
         if let constraint = associatedTypeDecl.constraint {
-            children.append { self.dumpNode("Constraint", children: [ { self.visit(constraint) } ]) }
+            children.append { self.dumpNode("Constraint", children: [{ self.visit(constraint) }]) }
         }
         if let whereClause = associatedTypeDecl.whereClause {
             children.append(contentsOf: whereClauseNodes(whereClause))
@@ -689,26 +694,26 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitErrorExpression(
-        _ errorExpression: AST.ErrorExpression, additional: Any? = nil
+    override public func visitErrorExpression(
+        _ errorExpression: AST.ErrorExpression, additional _: Any? = nil
     ) -> Any? {
         dumpNode("ErrorExpression" + tyText(errorExpression.ty))
         return nil
     }
 
     @discardableResult
-    public override func visitParentheticalExpression(
-        _ parentheticalExpression: AST.ParentheticalExpression, additional: Any? = nil
+    override public func visitParentheticalExpression(
+        _ parentheticalExpression: AST.ParentheticalExpression, additional _: Any? = nil
     ) -> Any? {
         dumpNode(
             "ParentheticalExpression" + tyText(parentheticalExpression.ty),
-            children: [ { self.visit(parentheticalExpression.inner) } ]
+            children: [{ self.visit(parentheticalExpression.inner) }]
         )
         return nil
     }
 
     @discardableResult
-    public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
+    override public func visitVariable(_ variable: AST.Variable, additional _: Any? = nil) -> Any? {
         dumpNode(
             "Variable \(variable.name.value)" + tyText(variable.ty) + symText(variable.symbol)
                 + overloadsText(variable.overloads))
@@ -716,85 +721,85 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitGenericApplication(
-        _ genericApplication: AST.GenericApplication, additional: Any? = nil
+    override public func visitGenericApplication(
+        _ genericApplication: AST.GenericApplication, additional _: Any? = nil
     ) -> Any? {
-        var children: [() -> Void] = [ { self.visit(genericApplication.base) } ]
+        var children: [() -> Void] = [{ self.visit(genericApplication.base) }]
         for argument in genericApplication.genericArguments {
-            children.append { self.dumpNode("Argument", children: [ { self.visit(argument) } ]) }
+            children.append { self.dumpNode("Argument", children: [{ self.visit(argument) }]) }
         }
         dumpNode("GenericApplication" + tyText(genericApplication.ty), children: children)
         return nil
     }
 
     @discardableResult
-    public override func visitIntegerLiteral(
-        _ integerLiteral: AST.IntegerLiteral, additional: Any? = nil
+    override public func visitIntegerLiteral(
+        _ integerLiteral: AST.IntegerLiteral, additional _: Any? = nil
     ) -> Any? {
         dumpNode("IntegerLiteral \(integerLiteral.token.value)" + tyText(integerLiteral.ty))
         return nil
     }
 
     @discardableResult
-    public override func visitFloatLiteral(
-        _ floatLiteral: AST.FloatLiteral, additional: Any? = nil
+    override public func visitFloatLiteral(
+        _ floatLiteral: AST.FloatLiteral, additional _: Any? = nil
     ) -> Any? {
         dumpNode("FloatLiteral \(floatLiteral.token.value)" + tyText(floatLiteral.ty))
         return nil
     }
 
     @discardableResult
-    public override func visitStringLiteral(
-        _ stringLiteral: AST.StringLiteral, additional: Any? = nil
+    override public func visitStringLiteral(
+        _ stringLiteral: AST.StringLiteral, additional _: Any? = nil
     ) -> Any? {
         dumpNode("StringLiteral \"\(escapeString(stringLiteral.token.value))\"" + tyText(stringLiteral.ty))
         return nil
     }
 
     @discardableResult
-    public override func visitCharLiteral(
-        _ charLiteral: AST.CharLiteral, additional: Any? = nil
+    override public func visitCharLiteral(
+        _ charLiteral: AST.CharLiteral, additional _: Any? = nil
     ) -> Any? {
         dumpNode("CharLiteral \(charLiteral.token.value)" + tyText(charLiteral.ty))
         return nil
     }
 
     @discardableResult
-    public override func visitBoolLiteral(
-        _ boolLiteral: AST.BoolLiteral, additional: Any? = nil
+    override public func visitBoolLiteral(
+        _ boolLiteral: AST.BoolLiteral, additional _: Any? = nil
     ) -> Any? {
         dumpNode("BoolLiteral \(boolLiteral.token.value)" + tyText(boolLiteral.ty))
         return nil
     }
 
     @discardableResult
-    public override func visitNullLiteral(
-        _ nullLiteral: AST.NullLiteral, additional: Any? = nil
+    override public func visitNullLiteral(
+        _ nullLiteral: AST.NullLiteral, additional _: Any? = nil
     ) -> Any? {
         dumpNode("NullLiteral" + tyText(nullLiteral.ty))
         return nil
     }
 
     @discardableResult
-    public override func visitVoidLiteral(
-        _ voidLiteral: AST.VoidLiteral, additional: Any? = nil
+    override public func visitVoidLiteral(
+        _ voidLiteral: AST.VoidLiteral, additional _: Any? = nil
     ) -> Any? {
         dumpNode("VoidLiteral" + tyText(voidLiteral.ty))
         return nil
     }
 
     @discardableResult
-    public override func visitIf(_ ifExpression: AST.If, additional: Any? = nil) -> Any? {
+    override public func visitIf(_ ifExpression: AST.If, additional _: Any? = nil) -> Any? {
         var children: [() -> Void] = [
-            { self.dumpNode("Condition", children: [ { self.visit(ifExpression.condition) } ]) }
+            { self.dumpNode("Condition", children: [{ self.visit(ifExpression.condition) }]) },
         ]
         children.append(contentsOf: statementNodes(ifExpression.then))
         if let elseKind = ifExpression.elseKind {
             switch elseKind {
-            case .Block(let statements):
+            case let .Block(statements):
                 children.append { self.dumpNode("Else", children: self.statementNodes(statements)) }
-            case .If(let elseIfExpression):
-                children.append { self.dumpNode("Else", children: [ { self.visitIf(elseIfExpression) } ]) }
+            case let .If(elseIfExpression):
+                children.append { self.dumpNode("Else", children: [{ self.visitIf(elseIfExpression) }]) }
             }
         }
         dumpNode("If" + tyText(ifExpression.ty), children: children)
@@ -802,15 +807,15 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitMatch(_ matchExpression: AST.Match, additional: Any? = nil) -> Any? {
+    override public func visitMatch(_ matchExpression: AST.Match, additional _: Any? = nil) -> Any? {
         var children: [() -> Void] = [
-            { self.dumpNode("Subject", children: [ { self.visit(matchExpression.subject) } ]) }
+            { self.dumpNode("Subject", children: [{ self.visit(matchExpression.subject) }]) },
         ]
         for matchCase in matchExpression.cases {
             children.append {
                 var caseChildren: [() -> Void] = []
                 for pattern in matchCase.patterns {
-                    caseChildren.append { self.dumpNode("Pattern", children: [ { self.visit(pattern) } ]) }
+                    caseChildren.append { self.dumpNode("Pattern", children: [{ self.visit(pattern) }]) }
                 }
                 caseChildren.append(contentsOf: self.statementNodes(matchCase.body))
                 self.dumpNode("Case", children: caseChildren)
@@ -821,18 +826,18 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitDo(_ doExpression: AST.Do, additional: Any? = nil) -> Any? {
+    override public func visitDo(_ doExpression: AST.Do, additional _: Any? = nil) -> Any? {
         var children: [() -> Void] = []
         children.append(contentsOf: statementNodes(doExpression.body))
         for catchClause in doExpression.catches {
             children.append {
                 var catchChildren: [() -> Void] = []
                 if let pattern = catchClause.pattern {
-                    catchChildren.append { self.dumpNode("Pattern", children: [ { self.visit(pattern) } ]) }
+                    catchChildren.append { self.dumpNode("Pattern", children: [{ self.visit(pattern) }]) }
                 }
                 if let whereCondition = catchClause.whereCondition {
                     catchChildren.append {
-                        self.dumpNode("Where", children: [ { self.visit(whereCondition) } ])
+                        self.dumpNode("Where", children: [{ self.visit(whereCondition) }])
                     }
                 }
                 catchChildren.append(contentsOf: self.statementNodes(catchClause.body))
@@ -847,20 +852,20 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitCall(_ call: AST.Call, additional: Any? = nil) -> Any? {
-        var children: [() -> Void] = [ { self.visit(call.callee) } ]
+    override public func visitCall(_ call: AST.Call, additional _: Any? = nil) -> Any? {
+        var children: [() -> Void] = [{ self.visit(call.callee) }]
         for argument in call.arguments {
             children.append {
                 var text = "Argument"
                 if let label = argument.label { text += " label:\(label.value)" }
-                self.dumpNode(text, children: [ { self.visit(argument.value) } ])
+                self.dumpNode(text, children: [{ self.visit(argument.value) }])
             }
         }
         for (label, closure) in call.trailingClosures {
             children.append {
                 var text = "TrailingClosure"
                 if let label { text += " label:\(label.value)" }
-                self.dumpNode(text, children: [ { self.visitClosure(closure) } ])
+                self.dumpNode(text, children: [{ self.visitClosure(closure) }])
             }
         }
         dumpNode("Call" + tyText(call.ty) + overloadsText(call.overloads), children: children)
@@ -868,52 +873,53 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitMemberAccess(
-        _ memberAccess: AST.MemberAccess, additional: Any? = nil
+    override public func visitMemberAccess(
+        _ memberAccess: AST.MemberAccess, additional _: Any? = nil
     ) -> Any? {
         var text = "MemberAccess \(memberAccess.member.value)"
         if memberAccess.isOptional { text += " ?" }
         dumpNode(
             text + tyText(memberAccess.ty) + symText(memberAccess.symbol)
                 + overloadsText(memberAccess.overloads),
-            children: [ { self.visit(memberAccess.object) } ])
+            children: [{ self.visit(memberAccess.object) }]
+        )
         return nil
     }
 
     @discardableResult
-    public override func visitSelfTypeExpression(
-        _ selfTypeExpression: AST.SelfTypeExpression, additional: Any? = nil
+    override public func visitSelfTypeExpression(
+        _ selfTypeExpression: AST.SelfTypeExpression, additional _: Any? = nil
     ) -> Any? {
         dumpNode("SelfTypeExpression" + tyText(selfTypeExpression.ty))
         return nil
     }
 
     @discardableResult
-    public override func visitSelfExpression(
-        _ selfExpression: AST.SelfExpression, additional: Any? = nil
+    override public func visitSelfExpression(
+        _ selfExpression: AST.SelfExpression, additional _: Any? = nil
     ) -> Any? {
         dumpNode("SelfExpression" + tyText(selfExpression.ty))
         return nil
     }
 
     @discardableResult
-    public override func visitSuperExpression(
-        _ superExpression: AST.SuperExpression, additional: Any? = nil
+    override public func visitSuperExpression(
+        _ superExpression: AST.SuperExpression, additional _: Any? = nil
     ) -> Any? {
         dumpNode("SuperExpression" + tyText(superExpression.ty))
         return nil
     }
 
     @discardableResult
-    public override func visitImplicitMemberAccess(
-        _ implicitMemberAccess: AST.ImplicitMemberAccess, additional: Any? = nil
+    override public func visitImplicitMemberAccess(
+        _ implicitMemberAccess: AST.ImplicitMemberAccess, additional _: Any? = nil
     ) -> Any? {
         dumpNode("ImplicitMemberAccess \(implicitMemberAccess.name.value)" + tyText(implicitMemberAccess.ty))
         return nil
     }
 
     @discardableResult
-    public override func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
+    override public func visitClosure(_ closure: AST.Closure, additional _: Any? = nil) -> Any? {
         var children: [() -> Void] = []
         if let signature = closure.signature {
             children.append {
@@ -943,12 +949,12 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitClosureType(
-        _ closureType: AST.ClosureType, additional: Any? = nil
+    override public func visitClosureType(
+        _ closureType: AST.ClosureType, additional _: Any? = nil
     ) -> Any? {
         var text = "ClosureType"
         if let throwsClause = closureType.throwsClause { text += throwsText(throwsClause) }
-        var children: [() -> Void] = [ { self.visit(closureType.parameterTypes) } ]
+        var children: [() -> Void] = [{ self.visit(closureType.parameterTypes) }]
         if let throwsClause = closureType.throwsClause {
             children.append(contentsOf: throwsClauseNodes(throwsClause))
         }
@@ -958,32 +964,32 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitOptionalType(_ optionalType: AST.OptionalType, additional: Any? = nil) -> Any? {
-        dumpNode("OptionalType ?" + tyText(optionalType.ty), children: [ { self.visit(optionalType.wrappedType) } ])
+    override public func visitOptionalType(_ optionalType: AST.OptionalType, additional _: Any? = nil) -> Any? {
+        dumpNode("OptionalType ?" + tyText(optionalType.ty), children: [{ self.visit(optionalType.wrappedType) }])
         return nil
     }
 
     @discardableResult
-    public override func visitVariadicType(_ variadicType: AST.VariadicType, additional: Any? = nil) -> Any? {
-        dumpNode("VariadicType ..." + tyText(variadicType.ty), children: [ { self.visit(variadicType.base) } ])
+    override public func visitVariadicType(_ variadicType: AST.VariadicType, additional _: Any? = nil) -> Any? {
+        dumpNode("VariadicType ..." + tyText(variadicType.ty), children: [{ self.visit(variadicType.base) }])
         return nil
     }
 
     @discardableResult
-    public override func visitSomeType(_ someType: AST.SomeType, additional: Any? = nil) -> Any? {
-        dumpNode("SomeType some" + tyText(someType.ty), children: [ { self.visit(someType.wrappedType) } ])
+    override public func visitSomeType(_ someType: AST.SomeType, additional _: Any? = nil) -> Any? {
+        dumpNode("SomeType some" + tyText(someType.ty), children: [{ self.visit(someType.wrappedType) }])
         return nil
     }
 
     @discardableResult
-    public override func visitAnyType(_ anyType: AST.AnyType, additional: Any? = nil) -> Any? {
-        dumpNode("AnyType any" + tyText(anyType.ty), children: [ { self.visit(anyType.wrappedType) } ])
+    override public func visitAnyType(_ anyType: AST.AnyType, additional _: Any? = nil) -> Any? {
+        dumpNode("AnyType any" + tyText(anyType.ty), children: [{ self.visit(anyType.wrappedType) }])
         return nil
     }
 
     @discardableResult
-    public override func visitProtocolCompositionType(
-        _ protocolCompositionType: AST.ProtocolCompositionType, additional: Any? = nil
+    override public func visitProtocolCompositionType(
+        _ protocolCompositionType: AST.ProtocolCompositionType, additional _: Any? = nil
     ) -> Any? {
         dumpNode(
             "ProtocolCompositionType &" + tyText(protocolCompositionType.ty),
@@ -995,15 +1001,15 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitTupleExpression(
-        _ tupleExpression: AST.TupleExpression, additional: Any? = nil
+    override public func visitTupleExpression(
+        _ tupleExpression: AST.TupleExpression, additional _: Any? = nil
     ) -> Any? {
         var children: [() -> Void] = []
         for element in tupleExpression.elements {
             children.append {
                 var text = "Element"
                 if let label = element.label { text += " label:\(label.value)" }
-                self.dumpNode(text, children: [ { self.visit(element.value) } ])
+                self.dumpNode(text, children: [{ self.visit(element.value) }])
             }
         }
         dumpNode("TupleExpression" + tyText(tupleExpression.ty), children: children)
@@ -1011,22 +1017,22 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitIsPattern(_ isPattern: AST.IsPattern, additional: Any? = nil) -> Any? {
-        dumpNode("IsPattern is", children: [ { self.visit(isPattern.typeExpression) } ])
+    override public func visitIsPattern(_ isPattern: AST.IsPattern, additional _: Any? = nil) -> Any? {
+        dumpNode("IsPattern is", children: [{ self.visit(isPattern.typeExpression) }])
         return nil
     }
 
     @discardableResult
-    public override func visitAsPattern(_ asPattern: AST.AsPattern, additional: Any? = nil) -> Any? {
-        var children: [() -> Void] = [ { self.visit(asPattern.pattern) } ]
+    override public func visitAsPattern(_ asPattern: AST.AsPattern, additional _: Any? = nil) -> Any? {
+        var children: [() -> Void] = [{ self.visit(asPattern.pattern) }]
         children.append { self.visit(asPattern.typeExpression) }
         dumpNode("AsPattern as", children: children)
         return nil
     }
 
     @discardableResult
-    public override func visitSequentialExpression(
-        _ sequentialExpression: AST.SequentialExpression, additional: Any? = nil
+    override public func visitSequentialExpression(
+        _ sequentialExpression: AST.SequentialExpression, additional _: Any? = nil
     ) -> Any? {
         var text = "SequentialExpression "
         if sequentialExpression.ops.isEmpty {
@@ -1044,34 +1050,34 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitBinary(_ binary: AST.Binary, additional: Any? = nil) -> Any? {
-        var children: [() -> Void] = [ { self.visit(binary.left) } ]
+    override public func visitBinary(_ binary: AST.Binary, additional _: Any? = nil) -> Any? {
+        var children: [() -> Void] = [{ self.visit(binary.left) }]
         children.append { self.visit(binary.right) }
         dumpNode("Binary \(binary.operatorToken.value)" + tyText(binary.ty), children: children)
         return nil
     }
 
     @discardableResult
-    public override func visitPrefix(_ prefixExpression: AST.Prefix, additional: Any? = nil) -> Any? {
+    override public func visitPrefix(_ prefixExpression: AST.Prefix, additional _: Any? = nil) -> Any? {
         dumpNode(
             "Prefix \(prefixExpression.operatorToken.value)" + tyText(prefixExpression.ty),
-            children: [ { self.visit(prefixExpression.expression) } ]
+            children: [{ self.visit(prefixExpression.expression) }]
         )
         return nil
     }
 
     @discardableResult
-    public override func visitPostfix(_ postfixExpression: AST.Postfix, additional: Any? = nil) -> Any? {
+    override public func visitPostfix(_ postfixExpression: AST.Postfix, additional _: Any? = nil) -> Any? {
         dumpNode(
             "Postfix \(postfixExpression.operatorToken.value)" + tyText(postfixExpression.ty),
-            children: [ { self.visit(postfixExpression.expression) } ]
+            children: [{ self.visit(postfixExpression.expression) }]
         )
         return nil
     }
 
     @discardableResult
-    public override func visitArrayLiteral(
-        _ arrayLiteral: AST.ArrayLiteral, additional: Any? = nil
+    override public func visitArrayLiteral(
+        _ arrayLiteral: AST.ArrayLiteral, additional _: Any? = nil
     ) -> Any? {
         dumpNode(
             "ArrayLiteral" + tyText(arrayLiteral.ty),
@@ -1083,15 +1089,15 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitDictionaryLiteral(
-        _ dictionaryLiteral: AST.DictionaryLiteral, additional: Any? = nil
+    override public func visitDictionaryLiteral(
+        _ dictionaryLiteral: AST.DictionaryLiteral, additional _: Any? = nil
     ) -> Any? {
         var children: [() -> Void] = []
         for entry in dictionaryLiteral.entries {
             children.append {
                 let entryChildren: [() -> Void] = [
-                    { self.dumpNode("Key", children: [ { self.visit(entry.key) } ]) },
-                    { self.dumpNode("Value", children: [ { self.visit(entry.value) } ]) },
+                    { self.dumpNode("Key", children: [{ self.visit(entry.key) }]) },
+                    { self.dumpNode("Value", children: [{ self.visit(entry.value) }]) },
                 ]
                 self.dumpNode("Entry", children: entryChildren)
             }
@@ -1101,8 +1107,8 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitCastExpression(
-        _ castExpression: AST.CastExpression, additional: Any? = nil
+    override public func visitCastExpression(
+        _ castExpression: AST.CastExpression, additional _: Any? = nil
     ) -> Any? {
         let kindText: String
         switch castExpression.kind {
@@ -1111,15 +1117,15 @@ public final class ASTDumper: AST.Visitor {
         case .AsExclamation: kindText = "as!"
         case .Is: kindText = "is"
         }
-        var children: [() -> Void] = [ { self.visit(castExpression.left) } ]
+        var children: [() -> Void] = [{ self.visit(castExpression.left) }]
         children.append { self.visit(castExpression.right) }
         dumpNode("CastExpression \(kindText)" + tyText(castExpression.ty), children: children)
         return nil
     }
 
     @discardableResult
-    public override func visitTryExpression(
-        _ tryExpression: AST.TryExpression, additional: Any? = nil
+    override public func visitTryExpression(
+        _ tryExpression: AST.TryExpression, additional _: Any? = nil
     ) -> Any? {
         let kindText: String
         switch tryExpression.kind {
@@ -1129,30 +1135,30 @@ public final class ASTDumper: AST.Visitor {
         }
         dumpNode(
             "TryExpression \(kindText)" + tyText(tryExpression.ty),
-            children: [ { self.visit(tryExpression.expression) } ]
+            children: [{ self.visit(tryExpression.expression) }]
         )
         return nil
     }
 
     @discardableResult
-    public override func visitAwaitExpression(
-        _ awaitExpression: AST.AwaitExpression, additional: Any? = nil
+    override public func visitAwaitExpression(
+        _ awaitExpression: AST.AwaitExpression, additional _: Any? = nil
     ) -> Any? {
         dumpNode(
             "AwaitExpression await" + tyText(awaitExpression.ty),
-            children: [ { self.visit(awaitExpression.expression) } ]
+            children: [{ self.visit(awaitExpression.expression) }]
         )
         return nil
     }
 
     @discardableResult
-    public override func visitSubscript(_ subscriptExpr: AST.Subscript, additional: Any? = nil) -> Any? {
-        var children: [() -> Void] = [ { self.visit(subscriptExpr.base) } ]
+    override public func visitSubscript(_ subscriptExpr: AST.Subscript, additional _: Any? = nil) -> Any? {
+        var children: [() -> Void] = [{ self.visit(subscriptExpr.base) }]
         for argument in subscriptExpr.arguments {
             children.append {
                 var text = "Argument"
                 if let label = argument.label { text += " label:\(label.value)" }
-                self.dumpNode(text, children: [ { self.visit(argument.value) } ])
+                self.dumpNode(text, children: [{ self.visit(argument.value) }])
             }
         }
         dumpNode("Subscript" + tyText(subscriptExpr.ty), children: children)
@@ -1160,8 +1166,8 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitOptionalBinding(
-        _ optionalBinding: AST.OptionalBinding, additional: Any? = nil
+    override public func visitOptionalBinding(
+        _ optionalBinding: AST.OptionalBinding, additional _: Any? = nil
     ) -> Any? {
         var children: [() -> Void] = []
         if let typeExpression = optionalBinding.typeExpression {
@@ -1173,9 +1179,9 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitCaseMatch(_ caseMatch: AST.CaseMatch, additional: Any? = nil) -> Any? {
+    override public func visitCaseMatch(_ caseMatch: AST.CaseMatch, additional _: Any? = nil) -> Any? {
         var children: [() -> Void] = [
-            { self.dumpNode("Pattern", children: [ { self.visit(caseMatch.pattern) } ]) }
+            { self.dumpNode("Pattern", children: [{ self.visit(caseMatch.pattern) }]) },
         ]
         children.append { self.visit(caseMatch.subject) }
         dumpNode("CaseMatch" + tyText(caseMatch.ty), children: children)
@@ -1183,8 +1189,8 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitBindingPattern(
-        _ bindingPattern: AST.BindingPattern, additional: Any? = nil
+    override public func visitBindingPattern(
+        _ bindingPattern: AST.BindingPattern, additional _: Any? = nil
     ) -> Any? {
         var children: [() -> Void] = []
         if let typeExpression = bindingPattern.typeExpression {
@@ -1198,32 +1204,32 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitWildcardPattern(
-        _ wildcardPattern: AST.WildcardPattern, additional: Any? = nil
+    override public func visitWildcardPattern(
+        _ wildcardPattern: AST.WildcardPattern, additional _: Any? = nil
     ) -> Any? {
         dumpNode("WildcardPattern _" + tyText(wildcardPattern.ty))
         return nil
     }
 
     @discardableResult
-    public override func visitShorthandArgument(
-        _ shorthandArgument: AST.ShorthandArgument, additional: Any? = nil
+    override public func visitShorthandArgument(
+        _ shorthandArgument: AST.ShorthandArgument, additional _: Any? = nil
     ) -> Any? {
         dumpNode("ShorthandArgument $\(shorthandArgument.index)" + tyText(shorthandArgument.ty))
         return nil
     }
 
     @discardableResult
-    public override func visitStringInterpolation(
-        _ interpolation: AST.StringInterpolation, additional: Any? = nil
+    override public func visitStringInterpolation(
+        _ interpolation: AST.StringInterpolation, additional _: Any? = nil
     ) -> Any? {
         var children: [() -> Void] = []
         for segment in interpolation.segments {
             switch segment {
-            case .literal(let token):
+            case let .literal(token):
                 children.append { self.dumpNode("Literal \"\(self.escapeString(token.value))\"") }
-            case .expression(let expression):
-                children.append { self.dumpNode("Interpolation", children: [ { self.visit(expression) } ]) }
+            case let .expression(expression):
+                children.append { self.dumpNode("Interpolation", children: [{ self.visit(expression) }]) }
             }
         }
         dumpNode("StringInterpolation" + tyText(interpolation.ty), children: children)

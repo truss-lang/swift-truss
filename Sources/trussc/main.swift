@@ -7,19 +7,22 @@ struct Trussc: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "trussc",
         abstract: "Compile truss source files to semantic checks and dumps.",
-        version: "0.1.0")
+        version: "0.1.0"
+    )
 
     @Argument(help: "Input .truss source files.")
     var files: [String]
 
     @Option(
         name: .long,
-        help: "Target triple used by the preprocessor.")
+        help: "Target triple used by the preprocessor."
+    )
     var target: String = DriverConfig.hostTarget
 
     @Option(
         name: [.customShort("D"), .customLong("define")],
-        help: "Define a preprocessor build flag, as NAME or NAME=value.")
+        help: "Define a preprocessor build flag, as NAME or NAME=value."
+    )
     var defines: [String] = []
 
     @Flag(help: "Print the AST dump.")
@@ -33,21 +36,22 @@ struct Trussc: ParsableCommand {
 
     func run() throws {
         let defineMap = Dictionary(
-            self.defines.map { raw -> (String, String) in
+            defines.map { raw -> (String, String) in
                 if let eq = raw.firstIndex(of: "=") {
                     return (String(raw[..<eq]), String(raw[raw.index(after: eq)...]))
                 }
                 return (raw, "1")
             },
-            uniquingKeysWith: { _, new in new })
-        let config = DriverConfig(
-            target: self.target,
-            defines: defineMap,
-            dumpAST: self.dumpAST,
-            dumpSymbols: self.dumpSymbols,
-            dumpSource: self.dumpSource
+            uniquingKeysWith: { _, new in new }
         )
-        let result = Driver(config: config).run(files: self.files)
+        let config = DriverConfig(
+            target: target,
+            defines: defineMap,
+            dumpAST: dumpAST,
+            dumpSymbols: dumpSymbols,
+            dumpSource: dumpSource
+        )
+        let result = Driver(config: config).run(files: files)
         if !result.stdout.isEmpty {
             print(result.stdout, terminator: "")
         }

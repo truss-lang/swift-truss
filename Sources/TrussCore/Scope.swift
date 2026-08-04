@@ -7,9 +7,9 @@ public final class Scope {
     public init() {}
 }
 
-extension Scope {
+public extension Scope {
     @discardableResult
-    public func registerType(_ symbol: Symbol.Symbol, at token: Token, context: Context)
+    func registerType(_ symbol: Symbol.Symbol, at token: Token, context: Context)
         -> Bool
     {
         if symbol.sourceToken == nil {
@@ -24,7 +24,7 @@ extension Scope {
     }
 
     @discardableResult
-    public func registerValue(_ symbol: Symbol.Symbol, at token: Token, context: Context)
+    func registerValue(_ symbol: Symbol.Symbol, at token: Token, context: Context)
         -> Bool
     {
         if symbol.sourceToken == nil {
@@ -32,7 +32,7 @@ extension Scope {
         }
         if let existing = values[symbol.name] {
             if symbol is Symbol.FunctionSymbol,
-                existing.allSatisfy({ $0 is Symbol.FunctionSymbol })
+               existing.allSatisfy({ $0 is Symbol.FunctionSymbol })
             {
                 values[symbol.name]!.append(symbol)
                 return true
@@ -45,7 +45,7 @@ extension Scope {
     }
 
     @discardableResult
-    public func registerModule(_ symbol: Symbol.ModuleSymbol) -> Bool {
+    func registerModule(_ symbol: Symbol.ModuleSymbol) -> Bool {
         if modules[symbol.name] != nil {
             return false
         }

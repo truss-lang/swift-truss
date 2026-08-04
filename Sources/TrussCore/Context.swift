@@ -11,33 +11,38 @@ public final class Context {
         sourceTable[source.id] = source
         return self
     }
+
     @discardableResult
     public func register(symbol: Symbol.Symbol) -> Context {
-        self.id2Symbol[symbol.id] = symbol
+        id2Symbol[symbol.id] = symbol
         return self
     }
+
     @discardableResult
     public func register(packageSymbol: Symbol.PackageSymbol) -> Context {
-        self.name2Package[packageSymbol.name] = packageSymbol
-        self.id2Symbol[packageSymbol.id] = packageSymbol
+        name2Package[packageSymbol.name] = packageSymbol
+        id2Symbol[packageSymbol.id] = packageSymbol
         return self
     }
+
     public var nextSourceId: Id.SourceId {
-        Id.SourceId(id: UInt64(self.sourceTable.count))
+        Id.SourceId(id: UInt64(sourceTable.count))
     }
+
     public var nextSymbolId: Id.SymbolId {
-        Id.SymbolId(id: UInt64(self.id2Symbol.count))
+        Id.SymbolId(id: UInt64(id2Symbol.count))
     }
 }
 
-extension Context {
-    public func emitError(_ message: String, at token: Token) {
+public extension Context {
+    func emitError(_ message: String, at token: Token) {
         guard let source = sourceTable[token.id] else { return }
         diagnositicEngine.emit(
             Diagnostic(
                 severity: .error, message: message,
                 range: token.sourceRange(in: source.stringSourceBuffer),
-                notes: token.expansionNotes(in: self)))
+                notes: token.expansionNotes(in: self)
+            ))
     }
 }
 
@@ -51,7 +56,7 @@ public final class Source {
         self.id = id
         self.filepath = filepath
         self.content = content
-        self.charStream = CharStream(content: content, id: id)
-        self.stringSourceBuffer = StringSourceBuffer(filePath: filepath, content: content)
+        charStream = CharStream(content: content, id: id)
+        stringSourceBuffer = StringSourceBuffer(filePath: filepath, content: content)
     }
 }

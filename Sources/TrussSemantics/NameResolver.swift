@@ -8,7 +8,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
+    override public func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         scopeStack.append(program.packageSymbol!.scope)
         super.visitProgram(program, additional: additional)
         scopeStack.removeLast()
@@ -16,7 +16,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
+    override public func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
         -> Any?
     {
         scopeStack.append(moduleDecl.symbol!.scope)
@@ -26,7 +26,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil)
+    override public func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil)
         -> Any?
     {
         scopeStack.append(functionDecl.symbol!.scope)
@@ -36,7 +36,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
+    override public func visitVariable(_ variable: AST.Variable, additional _: Any? = nil) -> Any? {
         guard let (_, entries) = lookupScopeEntry(variable.name.value) else { return nil }
         if entries.allSatisfy({ $0 is Symbol.FunctionSymbol }) {
             variable.overloads = entries.map { $0 as! Symbol.FunctionSymbol }
@@ -48,7 +48,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitMemberAccess(
+    override public func visitMemberAccess(
         _ memberAccess: AST.MemberAccess, additional: Any? = nil
     ) -> Any? {
         visit(memberAccess.object, additional: additional)

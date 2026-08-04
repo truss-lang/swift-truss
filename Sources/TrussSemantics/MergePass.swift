@@ -9,7 +9,7 @@ public final class MergePass: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
+    override public func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         guard let packageSymbol = program.packageSymbol else { return nil }
         scopeStack.append(packageSymbol.scope)
         super.visitProgram(program, additional: additional)
@@ -18,7 +18,7 @@ public final class MergePass: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
+    override public func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
         -> Any?
     {
         guard let moduleSymbol = moduleDecl.symbol else { return nil }
@@ -29,7 +29,7 @@ public final class MergePass: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitExtensionDecl(_ extensionDecl: AST.ExtensionDecl, additional: Any? = nil)
+    override public func visitExtensionDecl(_ extensionDecl: AST.ExtensionDecl, additional _: Any? = nil)
         -> Any?
     {
         guard let virtualScope = extensionDecl.virtualScope else { return nil }
@@ -48,7 +48,7 @@ public final class MergePass: AST.Visitor {
             var remaining: [(AST.ExtensionDecl, [Scope])] = []
             for (extensionDecl, chain) in pending {
                 if let virtualScope = extensionDecl.virtualScope,
-                    let base = resolveBase(extensionDecl.base, chain: chain)
+                   let base = resolveBase(extensionDecl.base, chain: chain)
                 {
                     merge(virtualScope, into: base.scope, extensionDecl: extensionDecl)
                     progressed = true
@@ -61,7 +61,8 @@ public final class MergePass: AST.Visitor {
         for (extensionDecl, _) in pending {
             context.emitError(
                 "extension of type '\(baseName(extensionDecl.base))' has no matching declaration",
-                at: extensionDecl.token)
+                at: extensionDecl.token
+            )
         }
         pending = []
     }
@@ -69,12 +70,14 @@ public final class MergePass: AST.Visitor {
     private func merge(_ virtualScope: Scope, into baseScope: Scope, extensionDecl: AST.ExtensionDecl) {
         for (_, symbol) in virtualScope.types {
             baseScope.registerType(
-                symbol, at: symbol.sourceToken ?? extensionDecl.token, context: context)
+                symbol, at: symbol.sourceToken ?? extensionDecl.token, context: context
+            )
         }
         for (_, symbols) in virtualScope.values {
             for symbol in symbols {
                 baseScope.registerValue(
-                    symbol, at: symbol.sourceToken ?? extensionDecl.token, context: context)
+                    symbol, at: symbol.sourceToken ?? extensionDecl.token, context: context
+                )
             }
         }
         for (_, module) in virtualScope.modules {

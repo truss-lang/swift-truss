@@ -26,7 +26,7 @@ func parseStatements(_ source: String) -> [AST.Statement] {
 func parseBlockStatements(_ source: String) -> [AST.Statement] {
     let program = parse(source)
     let funcDecl = program.statements[0] as! AST.FunctionDecl
-    if case .Block(let stmts) = funcDecl.body {
+    if case let .Block(stmts) = funcDecl.body {
         return stmts
     }
     return []
@@ -40,18 +40,18 @@ func firstExpression(_ source: String) -> AST.Expression {
 
 func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -> Bool {
     switch (kind, expected) {
-    case (.Open(let a), .Open(let b)): return a == b
-    case (.Public(let a), .Public(let b)): return a == b
-    case (.Protected(let a), .Protected(let b)): return a == b
-    case (.PackagePrivate(let a), .PackagePrivate(let b)): return a == b
-    case (.Internal(let a), .Internal(let b)): return a == b
-    case (.FilePrivate(let a), .FilePrivate(let b)): return a == b
-    case (.Private(let a), .Private(let b)): return a == b
+    case let (.Open(a), .Open(b)): return a == b
+    case let (.Public(a), .Public(b)): return a == b
+    case let (.Protected(a), .Protected(b)): return a == b
+    case let (.PackagePrivate(a), .PackagePrivate(b)): return a == b
+    case let (.Internal(a), .Internal(b)): return a == b
+    case let (.FilePrivate(a), .FilePrivate(b)): return a == b
+    case let (.Private(a), .Private(b)): return a == b
     case (.Abstract, .Abstract), (.Final, .Final), (.Mutating, .Mutating),
-        (.Nonmutating, .Nonmutating), (.Convenience, .Convenience),
-        (.Override, .Override), (.Lazy, .Lazy), (.Weak, .Weak),
-        (.Unowned, .Unowned), (.Indirect, .Indirect), (.Isolated, .Isolated),
-        (.Async, .Async):
+         (.Nonmutating, .Nonmutating), (.Convenience, .Convenience),
+         (.Override, .Override), (.Lazy, .Lazy), (.Weak, .Weak),
+         (.Unowned, .Unowned), (.Indirect, .Indirect), (.Isolated, .Isolated),
+         (.Async, .Async):
         return true
     default: return false
     }
@@ -152,7 +152,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(decl!.name.kind == .Identifier)
     #expect(decl!.name.value == "main")
     #expect(decl!.returnTypeExpression == nil)
-    if case .Block(let body) = decl!.body {
+    if case let .Block(body) = decl!.body {
         #expect(body.isEmpty)
     } else {
         Issue.record("expected block body")
@@ -165,7 +165,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let decl = statements[0] as? AST.FunctionDecl
     #expect(decl != nil)
     #expect(decl!.returnTypeExpression == nil)
-    if case .Expression(let expr) = decl!.body {
+    if case let .Expression(expr) = decl!.body {
         let intLit = expr as? AST.IntegerLiteral
         #expect(intLit != nil)
         #expect(intLit!.value == 42)
@@ -199,7 +199,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let inner = body[0] as? AST.FunctionDecl
     #expect(inner != nil)
     #expect(inner!.name.value == "inner")
-    if case .Block(let innerBody) = inner!.body {
+    if case let .Block(innerBody) = inner!.body {
         #expect(innerBody.isEmpty)
     } else {
         Issue.record("expected block body")
@@ -421,7 +421,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(sequentialExpression!.ops[2].kind == .Operator(.Minus))
     #expect(sequentialExpression!.operands.count == 4)
     let names = ["a", "b", "c", "d"]
-    for i in 0..<4 {
+    for i in 0 ..< 4 {
         let v = sequentialExpression!.operands[i] as? AST.Variable
         #expect(v != nil)
         #expect(v!.name.value == names[i])
@@ -481,7 +481,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("let a = 1 let b = 2 let c = 3")
     #expect(statements.count == 3)
     let names = ["a", "b", "c"]
-    for i in 0..<3 {
+    for i in 0 ..< 3 {
         let vd = statements[i] as? AST.VariableDecl
         #expect(vd != nil)
         #expect(vd!.name.value == names[i])
@@ -1112,7 +1112,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let fd = module!.body[0] as? AST.FunctionDecl
     #expect(fd != nil)
     #expect(fd!.name.value == "bar")
-    if case .Block(let body) = fd!.body {
+    if case let .Block(body) = fd!.body {
         #expect(body.isEmpty)
     } else {
         Issue.record("expected block body")
@@ -1248,12 +1248,11 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let op = statements[0] as? AST.OperatorDecl
     #expect(op != nil)
     #expect(op!.name.value == "+")
-    if case .Infix(let t) = op!.kind {
+    if case let .Infix(t) = op!.kind {
         #expect(t.kind == .Keyword(.Infix))
     } else {
         #expect(Bool(false))
     }
-
 }
 
 @Test func parseOperatorPrefix() {
@@ -1262,12 +1261,11 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let op = statements[0] as? AST.OperatorDecl
     #expect(op != nil)
     #expect(op!.name.value == "-")
-    if case .Prefix(let t) = op!.kind {
+    if case let .Prefix(t) = op!.kind {
         #expect(t.kind == .Keyword(.Prefix))
     } else {
         #expect(Bool(false))
     }
-
 }
 
 @Test func parseOperatorPostfix() {
@@ -1276,12 +1274,11 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let op = statements[0] as? AST.OperatorDecl
     #expect(op != nil)
     #expect(op!.name.value == "++")
-    if case .Postfix(let t) = op!.kind {
+    if case let .Postfix(t) = op!.kind {
         #expect(t.kind == .Keyword(.Postfix))
     } else {
         #expect(Bool(false))
     }
-
 }
 
 @Test func parseEmptyPrecedenceGroup() {
@@ -2285,7 +2282,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(accessor.kind == .Get)
     #expect(accessor.token?.value == "get")
     #expect(accessor.parameterName == nil)
-    if case .Block(let stmts) = accessor.body {
+    if case let .Block(stmts) = accessor.body {
         #expect(stmts.count == 1)
     } else {
         Issue.record("expected block body")
@@ -2299,7 +2296,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(decl!.accessors.count == 1)
     let accessor = decl!.accessors[0]
     #expect(accessor.kind == .Get)
-    if case .Expression(let expr) = accessor.body {
+    if case let .Expression(expr) = accessor.body {
         let lit = expr as? AST.IntegerLiteral
         #expect(lit != nil)
         #expect(lit!.value == 1)
@@ -2383,7 +2380,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let accessor = decl!.accessors[0]
     #expect(accessor.kind == .Get)
     #expect(accessor.token == nil)
-    if case .Block(let stmts) = accessor.body {
+    if case let .Block(stmts) = accessor.body {
         #expect(stmts.count == 1)
     } else {
         Issue.record("expected block body")
@@ -2648,7 +2645,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let decl = statements[0] as? AST.FunctionDecl
     #expect(decl != nil)
     #expect(decl!.returnTypeExpression != nil)
-    if case .Block(let body) = decl!.body {
+    if case let .Block(body) = decl!.body {
         #expect(body.count == 1)
         #expect(body[0] is AST.Return)
     } else {
@@ -2730,7 +2727,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let returnType = decl!.returnTypeExpression as? AST.Variable
     #expect(returnType != nil)
     #expect(returnType!.name.value == "Int")
-    if case .Expression(let expr) = decl!.body {
+    if case let .Expression(expr) = decl!.body {
         let lit = expr as? AST.IntegerLiteral
         #expect(lit != nil)
         #expect(lit!.value == 42)
@@ -2802,7 +2799,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let ifExpr = exprStmt!.expression as? AST.If
     #expect(ifExpr != nil)
     #expect(ifExpr!.then.count == 1)
-    if case .Block(let elseBody) = ifExpr!.elseKind {
+    if case let .Block(elseBody) = ifExpr!.elseKind {
         #expect(elseBody.count == 1)
     } else {
         Issue.record("expected block else")
@@ -2816,7 +2813,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(exprStmt != nil)
     let ifExpr = exprStmt!.expression as? AST.If
     #expect(ifExpr != nil)
-    if case .If(let innerIf) = ifExpr!.elseKind {
+    if case let .If(innerIf) = ifExpr!.elseKind {
         let cond = innerIf.condition as? AST.Variable
         #expect(cond != nil)
         #expect(cond!.name.value == "y")
@@ -2850,7 +2847,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(target!.name.value == "x")
     let ifExpr = seq!.operands[1] as? AST.If
     #expect(ifExpr != nil)
-    if case .Block(let elseBody) = ifExpr!.elseKind {
+    if case let .Block(elseBody) = ifExpr!.elseKind {
         #expect(elseBody.isEmpty)
     } else {
         Issue.record("expected block else")
@@ -2865,7 +2862,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let ifExpr = ret!.value as? AST.If
     #expect(ifExpr != nil)
     #expect(ifExpr!.then.count == 1)
-    if case .Block(let elseBody) = ifExpr!.elseKind {
+    if case let .Block(elseBody) = ifExpr!.elseKind {
         #expect(elseBody.count == 1)
     } else {
         Issue.record("expected block else")
@@ -2889,7 +2886,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(seq != nil)
     let ifExpr = seq!.operands[1] as? AST.If
     #expect(ifExpr != nil)
-    if case .If(let innerIf) = ifExpr!.elseKind {
+    if case let .If(innerIf) = ifExpr!.elseKind {
         if case .Block = innerIf.elseKind {
         } else {
             Issue.record("expected block else in inner if")
@@ -2942,7 +2939,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let source = "func main() { + }"
     let plusIndex = source.firstIndex(of: "+")!
     let afterPlusOffset = source.distance(
-        from: source.startIndex, to: source.index(after: plusIndex))
+        from: source.startIndex, to: source.index(after: plusIndex)
+    )
     #expect(op.start.offset == afterPlusOffset)
 }
 
@@ -2987,12 +2985,12 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(statements.count == 1)
     let decl = statements[0] as! AST.Import
     #expect(decl.path.components.count == 1)
-    if case .identifier(let t) = decl.path.components[0] {
+    if case let .identifier(t) = decl.path.components[0] {
         #expect(t.value == "A")
     } else {
         Issue.record("expected identifier component")
     }
-    if case .wholeModule(let alias) = decl.selector {
+    if case let .wholeModule(alias) = decl.selector {
         #expect(alias == nil)
     } else {
         Issue.record("expected wholeModule selector")
@@ -3015,12 +3013,12 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(statements.count == 1)
     let decl = statements[0] as! AST.Import
     #expect(decl.path.components.count == 2)
-    if case .identifier(let t) = decl.path.components[1] {
+    if case let .identifier(t) = decl.path.components[1] {
         #expect(t.value == "B")
     } else {
         Issue.record("expected identifier component")
     }
-    if case .wholeModule(let alias) = decl.selector {
+    if case let .wholeModule(alias) = decl.selector {
         #expect(alias == nil)
     } else {
         Issue.record("expected wholeModule selector")
@@ -3043,19 +3041,19 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(statements.count == 1)
     let decl = statements[0] as! AST.Import
     #expect(decl.path.components.count == 1)
-    if case .explicit(let items) = decl.selector {
+    if case let .explicit(items) = decl.selector {
         #expect(items.count == 3)
         if case .self_ = items[0].kind {
         } else {
             Issue.record("expected self_ item")
         }
         #expect(items[0].alias == nil)
-        if case .name(let t) = items[1].kind {
+        if case let .name(t) = items[1].kind {
             #expect(t.value == "B")
         } else {
             Issue.record("expected name item")
         }
-        if case .name(let t) = items[2].kind {
+        if case let .name(t) = items[2].kind {
             #expect(t.value == "C")
         } else {
             Issue.record("expected name item")
@@ -3074,12 +3072,12 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     } else {
         Issue.record("expected self_ path component")
     }
-    if case .identifier(let t) = decl.path.components[1] {
+    if case let .identifier(t) = decl.path.components[1] {
         #expect(t.value == "A")
     } else {
         Issue.record("expected identifier component")
     }
-    if case .wholeModule(let alias) = decl.selector {
+    if case let .wholeModule(alias) = decl.selector {
         #expect(alias == nil)
     } else {
         Issue.record("expected wholeModule selector")
@@ -3095,14 +3093,14 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     } else {
         Issue.record("expected self_ path component")
     }
-    if case .explicit(let items) = decl.selector {
+    if case let .explicit(items) = decl.selector {
         #expect(items.count == 2)
-        if case .name(let t) = items[0].kind {
+        if case let .name(t) = items[0].kind {
             #expect(t.value == "A")
         } else {
             Issue.record("expected name item")
         }
-        if case .name(let t) = items[1].kind {
+        if case let .name(t) = items[1].kind {
             #expect(t.value == "B")
         } else {
             Issue.record("expected name item")
@@ -3116,7 +3114,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import A as B")
     #expect(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    if case .wholeModule(let alias) = decl.selector {
+    if case let .wholeModule(alias) = decl.selector {
         #expect(alias?.value == "B")
     } else {
         Issue.record("expected wholeModule selector")
@@ -3128,7 +3126,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(statements.count == 1)
     let decl = statements[0] as! AST.Import
     #expect(decl.path.components.count == 2)
-    if case .wholeModule(let alias) = decl.selector {
+    if case let .wholeModule(alias) = decl.selector {
         #expect(alias?.value == "C")
     } else {
         Issue.record("expected wholeModule selector")
@@ -3139,15 +3137,15 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import A.{B as b, C as c}")
     #expect(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    if case .explicit(let items) = decl.selector {
+    if case let .explicit(items) = decl.selector {
         #expect(items.count == 2)
-        if case .name(let t) = items[0].kind {
+        if case let .name(t) = items[0].kind {
             #expect(t.value == "B")
             #expect(items[0].alias?.value == "b")
         } else {
             Issue.record("expected name item")
         }
-        if case .name(let t) = items[1].kind {
+        if case let .name(t) = items[1].kind {
             #expect(t.value == "C")
             #expect(items[1].alias?.value == "c")
         } else {
@@ -3162,14 +3160,14 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import A.{self as a, B as b}")
     #expect(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    if case .explicit(let items) = decl.selector {
+    if case let .explicit(items) = decl.selector {
         #expect(items.count == 2)
         if case .self_ = items[0].kind {
             #expect(items[0].alias?.value == "a")
         } else {
             Issue.record("expected self_ item")
         }
-        if case .name(let t) = items[1].kind {
+        if case let .name(t) = items[1].kind {
             #expect(t.value == "B")
             #expect(items[1].alias?.value == "b")
         } else {
@@ -3184,7 +3182,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import A as _")
     #expect(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    if case .wholeModule(let alias) = decl.selector {
+    if case let .wholeModule(alias) = decl.selector {
         #expect(alias?.value == "_")
     } else {
         Issue.record("expected wholeModule selector")
@@ -3196,13 +3194,13 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(statements.count == 1)
     let decl = statements[0] as! AST.Import
     #expect(decl.path.components.count == 2)
-    if case .explicit(let items) = decl.selector {
+    if case let .explicit(items) = decl.selector {
         #expect(items.count == 2)
         if case .self_ = items[0].kind {
         } else {
             Issue.record("expected self_ item")
         }
-        if case .name(let t) = items[1].kind {
+        if case let .name(t) = items[1].kind {
             #expect(t.value == "C")
         } else {
             Issue.record("expected name item")
@@ -3620,7 +3618,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let arr = expr as? AST.ArrayLiteral
     #expect(arr != nil)
     #expect(arr!.elements.count == 3)
-    for i in 0..<3 {
+    for i in 0 ..< 3 {
         let lit = arr!.elements[i] as? AST.IntegerLiteral
         #expect(lit != nil)
         #expect(lit!.value == Int128(i + 1))
@@ -3785,7 +3783,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let call = expr as? AST.Call
     #expect(call != nil)
     #expect(call!.arguments.count == 3)
-    for i in 0..<3 {
+    for i in 0 ..< 3 {
         let arg = call!.arguments[i].value as? AST.IntegerLiteral
         #expect(arg != nil)
         #expect(arg!.value == Int128(i + 1))
@@ -4779,17 +4777,17 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let interp = expr as? AST.StringInterpolation
     #expect(interp != nil)
     #expect(interp!.segments.count == 3)
-    guard case .literal(let first) = interp!.segments[0] else {
+    guard case let .literal(first) = interp!.segments[0] else {
         #expect(Bool(false))
         return
     }
     #expect(first.value == "hello ")
-    guard case .expression(let e) = interp!.segments[1] else {
+    guard case let .expression(e) = interp!.segments[1] else {
         #expect(Bool(false))
         return
     }
     #expect(e is AST.Variable)
-    guard case .literal(let last) = interp!.segments[2] else {
+    guard case let .literal(last) = interp!.segments[2] else {
         #expect(Bool(false))
         return
     }
@@ -4802,7 +4800,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let interp = expr as? AST.StringInterpolation
     #expect(interp != nil)
     #expect(interp!.segments.count == 5)
-    guard case .literal(let first) = interp!.segments[0] else {
+    guard case let .literal(first) = interp!.segments[0] else {
         #expect(Bool(false))
         return
     }
@@ -4812,7 +4810,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
         #expect(Bool(false))
         return
     }
-    guard case .literal(let mid) = interp!.segments[2] else {
+    guard case let .literal(mid) = interp!.segments[2] else {
         #expect(Bool(false))
         return
     }
@@ -5155,7 +5153,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(decl != nil)
     #expect(decl!.token.kind == .Keyword(.Extern))
     #expect(decl!.convention.value == "C")
-    if case .Declaration(let inner) = decl!.body {
+    if case let .Declaration(inner) = decl!.body {
         let fd = inner as? AST.FunctionDecl
         #expect(fd != nil)
         #expect(fd!.name.value == "foo")
@@ -5169,7 +5167,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(statements.count == 1)
     let decl = statements[0] as? AST.ExternDecl
     #expect(decl != nil)
-    if case .Declaration(let inner) = decl!.body {
+    if case let .Declaration(inner) = decl!.body {
         let vd = inner as? AST.VariableDecl
         #expect(vd != nil)
         #expect(vd!.name.value == "errno")
@@ -5183,7 +5181,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(statements.count == 1)
     let decl = statements[0] as? AST.ExternDecl
     #expect(decl != nil)
-    if case .Block(let body) = decl!.body {
+    if case let .Block(body) = decl!.body {
         #expect(body.count == 2)
         let fd0 = body[0] as? AST.FunctionDecl
         #expect(fd0 != nil)
@@ -5201,7 +5199,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(statements.count == 1)
     let decl = statements[0] as? AST.ExternDecl
     #expect(decl != nil)
-    if case .Block(let body) = decl!.body {
+    if case let .Block(body) = decl!.body {
         #expect(body.count == 3)
         #expect(body[0] is AST.VariableDecl)
         #expect(body[1] is AST.VariableDecl)
@@ -5327,7 +5325,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let left = whereClause![0].left as? AST.Variable
     #expect(left != nil)
     #expect(left!.name.value == "T")
-    if case .conformance(let right) = whereClause![0].constraint {
+    if case let .conformance(right) = whereClause![0].constraint {
         let rightVar = right as? AST.Variable
         #expect(rightVar != nil)
         #expect(rightVar!.name.value == "Equatable")
@@ -5349,7 +5347,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let left = whereClause![0].left as? AST.Variable
     #expect(left != nil)
     #expect(left!.name.value == "T")
-    if case .equality(let right) = whereClause![0].constraint {
+    if case let .equality(right) = whereClause![0].constraint {
         let rightVar = right as? AST.Variable
         #expect(rightVar != nil)
         #expect(rightVar!.name.value == "Int32")
@@ -5365,7 +5363,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(protocolDecl != nil)
     let assoc = protocolDecl!.body[0] as? AST.AssociatedTypeDecl
     #expect(assoc != nil)
-    if case .equality(let right) = assoc!.whereClause![0].constraint {
+    if case let .equality(right) = assoc!.whereClause![0].constraint {
         let seq = right as? AST.SequentialExpression
         #expect(seq != nil)
         #expect(seq!.ops.count == 2)
@@ -5433,7 +5431,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let left = whereClause![0].left as? AST.Variable
     #expect(left != nil)
     #expect(left!.name.value == "T")
-    if case .conformance(let right) = whereClause![0].constraint {
+    if case let .conformance(right) = whereClause![0].constraint {
         let rightVar = right as? AST.Variable
         #expect(rightVar != nil)
         #expect(rightVar!.name.value == "Equatable")
@@ -6093,7 +6091,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let interp = expr as? AST.StringInterpolation
     #expect(interp != nil)
     #expect(interp!.segments.count == 3)
-    guard case .expression(let e) = interp!.segments[1] else {
+    guard case let .expression(e) = interp!.segments[1] else {
         Issue.record("expected expression segment")
         return
     }
@@ -6108,7 +6106,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let interp = expr as? AST.StringInterpolation
     #expect(interp != nil)
     #expect(interp!.segments.count == 3)
-    guard case .expression(let e) = interp!.segments[1] else {
+    guard case let .expression(e) = interp!.segments[1] else {
         Issue.record("expected expression segment")
         return
     }
@@ -6120,7 +6118,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(call!.arguments.count == 1)
     let inner = call!.arguments[0].value as? AST.StringInterpolation
     #expect(inner != nil)
-    guard case .expression(let innerExpr) = inner!.segments[1] else {
+    guard case let .expression(innerExpr) = inner!.segments[1] else {
         Issue.record("expected inner expression segment")
         return
     }
@@ -6134,7 +6132,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let interp = expr as? AST.StringInterpolation
     #expect(interp != nil)
     #expect(interp!.segments.count == 3)
-    guard case .expression(let e) = interp!.segments[1] else {
+    guard case let .expression(e) = interp!.segments[1] else {
         Issue.record("expected expression segment")
         return
     }
@@ -6144,7 +6142,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(innerCall != nil)
     let nested = innerCall!.arguments[0].value as? AST.StringInterpolation
     #expect(nested != nil)
-    guard case .expression(let nestedExpr) = nested!.segments[1] else {
+    guard case let .expression(nestedExpr) = nested!.segments[1] else {
         Issue.record("expected nested expression segment")
         return
     }

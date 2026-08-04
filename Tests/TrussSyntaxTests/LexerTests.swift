@@ -221,7 +221,6 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[1].value == "..<")
     #expect(tokens[2].kind == .Operator(.DotDotDot))
     #expect(tokens[2].value == "...")
-
 }
 
 @Test func lexRangeOperatorsInCode() {
@@ -230,7 +229,6 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[0].kind == .IntegerLiteral(1))
     #expect(tokens[1].kind == .Operator(.DotDotLess))
     #expect(tokens[2].kind == .IntegerLiteral(5))
-
 }
 
 @Test func lexXorAssignOperator() {
@@ -360,9 +358,9 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens.count == 5)
     #expect(tokens[0].kind == .FloatLiteral(3.14))
     #expect(tokens[1].kind == .FloatLiteral(0.5))
-    #expect(tokens[2].kind == .FloatLiteral(10000000000.0))
+    #expect(tokens[2].kind == .FloatLiteral(10_000_000_000.0))
     #expect(tokens[3].kind == .FloatLiteral(0.0015))
-    #expect(tokens[4].kind == .FloatLiteral(200000.0))
+    #expect(tokens[4].kind == .FloatLiteral(200_000.0))
 }
 
 @Test func lexHexIntegers() {

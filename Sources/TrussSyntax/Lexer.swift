@@ -74,317 +74,328 @@ public final class Lexer {
     public init(input: CharStream) {
         self.input = input
     }
+
     public func parse() -> LexerResult {
         var tokens: [Token] = []
-        while !self.input.isEmpty {
-            if let token = self.parseAToken() {
+        while !input.isEmpty {
+            if let token = parseAToken() {
                 tokens.append(token)
-                if self.emitInterpolationOpen {
-                    self.emitInterpolationOpen = false
-                    let openPos = self.input.currentPosition
-                    self.input.incrementPosition()
-                    self.input.incrementPosition()
+                if emitInterpolationOpen {
+                    emitInterpolationOpen = false
+                    let openPos = input.currentPosition
+                    input.incrementPosition()
+                    input.incrementPosition()
                     tokens.append(
                         Token(
                             value: "(", kind: .Separator(.OpenParen),
-                            pos: self.makePosition(openPos), id: self.input.id
+                            pos: makePosition(openPos), id: input.id
                         ))
                 }
             }
         }
         return LexerResult(id: input.id, tokens: tokens)
     }
+
     private func parseAToken() -> Token? {
-        if self.pendingStringResume {
-            self.pendingStringResume = false
-            if self.input.peek == "\"" {
-                self.input.incrementPosition()
+        if pendingStringResume {
+            pendingStringResume = false
+            if input.peek == "\"" {
+                input.incrementPosition()
                 return Token(
                     value: "", kind: .StringLiteral,
-                    pos: self.makePosition(self.input.currentPosition), id: self.input.id
+                    pos: makePosition(input.currentPosition), id: input.id
                 )
             }
-            return self.resumeStringLiteral()
+            return resumeStringLiteral()
         }
-        self.skipWhitechars()
-        guard let c = self.input.peek else {
+        skipWhitechars()
+        guard let c = input.peek else {
             return nil
         }
         switch c {
         case "\"":
-            if self.input.peek2 == "\"" && self.input.peek3 == "\"" {
-                return self.parseMultilineStringLiteral()
+            if input.peek2 == "\"", input.peek3 == "\"" {
+                return parseMultilineStringLiteral()
             }
-            return self.parseStringLiteral()
+            return parseStringLiteral()
         case "'":
-            return self.parseCharLiteral()
+            return parseCharLiteral()
         case _ where c >= "0" && c <= "9":
-            return self.parseNumber()
+            return parseNumber()
         case "`":
-            return self.parseBacktickIdentifier()
+            return parseBacktickIdentifier()
         case _ where c.isLetter || c == "_":
-            return self.parseIdentifier()
+            return parseIdentifier()
         case "(":
-            if self.interpolationDepth > 0 {
-                self.interpolationDepth += 1
+            if interpolationDepth > 0 {
+                interpolationDepth += 1
             }
-            return self.singleCharToken(.Separator(.OpenParen), "(")
+            return singleCharToken(.Separator(.OpenParen), "(")
         case ")":
-            if self.interpolationDepth > 0 {
-                self.interpolationDepth -= 1
-                if self.interpolationDepth == 0 {
-                    self.pendingStringResume = true
+            if interpolationDepth > 0 {
+                interpolationDepth -= 1
+                if interpolationDepth == 0 {
+                    pendingStringResume = true
                 }
             }
-            return self.singleCharToken(.Separator(.CloseParen), ")")
+            return singleCharToken(.Separator(.CloseParen), ")")
         case "[":
-            return self.singleCharToken(.Separator(.OpenBracket), "[")
+            return singleCharToken(.Separator(.OpenBracket), "[")
         case "]":
-            return self.singleCharToken(.Separator(.CloseBracket), "]")
+            return singleCharToken(.Separator(.CloseBracket), "]")
         case "{":
-            return self.singleCharToken(.Separator(.OpenBrace), "{")
+            return singleCharToken(.Separator(.OpenBrace), "{")
         case "}":
-            return self.singleCharToken(.Separator(.CloseBrace), "}")
+            return singleCharToken(.Separator(.CloseBrace), "}")
         case ";":
-            return self.singleCharToken(.Separator(.SemiColon), ";")
+            return singleCharToken(.Separator(.SemiColon), ";")
         case ",":
-            return self.singleCharToken(.Separator(.Comma), ",")
+            return singleCharToken(.Separator(.Comma), ",")
         case ":":
-            return self.singleCharToken(.Separator(.Colon), ":")
+            return singleCharToken(.Separator(.Colon), ":")
         case "#":
-            return self.singleCharToken(.Separator(.Sharp), "#")
+            return singleCharToken(.Separator(.Sharp), "#")
         case "$":
-            return self.singleCharToken(.Operator(.Dollar), "$")
+            return singleCharToken(.Operator(.Dollar), "$")
         case "@":
-            return self.singleCharToken(.Operator(.At), "@")
+            return singleCharToken(.Operator(.At), "@")
         case "?":
-            return self.parseQuestion()
+            return parseQuestion()
         case "-":
-            if self.input.peek2 == ">" {
-                self.input.incrementPosition()
-                self.input.incrementPosition()
-                return self.singleCharToken(.Separator(.Arrow), "->")
+            if input.peek2 == ">" {
+                input.incrementPosition()
+                input.incrementPosition()
+                return singleCharToken(.Separator(.Arrow), "->")
             } else {
-                return self.parseOperator()
+                return parseOperator()
             }
         case "~", "!", "%", "&", "*", "+", "<", ">", "=", "^", "|", ".":
-            return self.parseOperator()
+            return parseOperator()
         case "/":
-            let next = self.input.peek2
+            let next = input.peek2
             if next == "/" {
-                self.input.incrementPosition()
-                self.input.incrementPosition()
-                self.skipLineComment()
+                input.incrementPosition()
+                input.incrementPosition()
+                skipLineComment()
                 return nil
             } else if next == "*" {
-                self.input.incrementPosition()
-                self.input.incrementPosition()
-                self.skipBlockComment()
+                input.incrementPosition()
+                input.incrementPosition()
+                skipBlockComment()
                 return nil
             } else {
-                return self.parseOperator()
+                return parseOperator()
             }
         case "\\":
-            if self.input.peek2 == "\n" || self.input.peek2 == "\r\n" {
-                self.input.incrementPosition()
-                self.input.incrementPosition()
+            if input.peek2 == "\n" || input.peek2 == "\r\n" {
+                input.incrementPosition()
+                input.incrementPosition()
                 return nil
             }
-            if self.interpolationDepth > 0, self.input.peek2 == "(" {
-                self.emitInterpolationOpen = true
-                self.interpolationDepth += 1
-                let pos = self.makePosition(self.input.currentPosition)
+            if interpolationDepth > 0, input.peek2 == "(" {
+                emitInterpolationOpen = true
+                interpolationDepth += 1
+                let pos = makePosition(input.currentPosition)
                 return Token(
-                    value: "", kind: .StringLiteral, pos: pos, id: self.input.id,
+                    value: "", kind: .StringLiteral, pos: pos, id: input.id,
                     isUnterminated: true
                 )
             }
-            let begin = self.input.currentPosition
-            self.input.incrementPosition()
+            let begin = input.currentPosition
+            input.incrementPosition()
             return Token(
                 value: "\\", kind: .Unknown,
-                pos: self.makePosition(begin), id: self.input.id)
+                pos: makePosition(begin), id: input.id
+            )
         default:
-            let begin = self.input.currentPosition
-            self.input.incrementPosition()
+            let begin = input.currentPosition
+            input.incrementPosition()
             return Token(
                 value: String(c), kind: .Unknown,
-                pos: self.makePosition(begin), id: self.input.id)
+                pos: makePosition(begin), id: input.id
+            )
         }
     }
+
     private func singleCharToken(_ kind: TokenKind, _ value: String) -> Token {
-        let begin = self.input.currentPosition
-        self.input.incrementPosition()
-        return Token(value: value, kind: kind, pos: self.makePosition(begin), id: self.input.id)
+        let begin = input.currentPosition
+        input.incrementPosition()
+        return Token(value: value, kind: kind, pos: makePosition(begin), id: input.id)
     }
+
     private func makePosition(_ begin: Position) -> Position {
         return Position(
             pos: begin.pos,
             line: begin.line,
             col: begin.col,
-            len: self.input.pos - begin.pos
+            len: input.pos - begin.pos
         )
     }
+
     private func parseIdentifier() -> Token {
-        let begin = self.input.currentPosition
+        let begin = input.currentPosition
         var chars: [Character] = []
-        while let c = self.input.peek, c.isLetter || c.isNumber || c == "_" {
+        while let c = input.peek, c.isLetter || c.isNumber || c == "_" {
             chars.append(c)
-            self.input.incrementPosition()
+            input.incrementPosition()
         }
         let value = String(chars)
-        let pos = self.makePosition(begin)
+        let pos = makePosition(begin)
         switch value {
         case "true":
-            return Token(value: value, kind: .BooleanLiteral(true), pos: pos, id: self.input.id)
+            return Token(value: value, kind: .BooleanLiteral(true), pos: pos, id: input.id)
         case "false":
-            return Token(value: value, kind: .BooleanLiteral(false), pos: pos, id: self.input.id)
+            return Token(value: value, kind: .BooleanLiteral(false), pos: pos, id: input.id)
         case "null":
-            return Token(value: value, kind: .NullLiteral, pos: pos, id: self.input.id)
+            return Token(value: value, kind: .NullLiteral, pos: pos, id: input.id)
         case "nullptr":
-            return Token(value: value, kind: .NullptrLiteral, pos: pos, id: self.input.id)
+            return Token(value: value, kind: .NullptrLiteral, pos: pos, id: input.id)
         default:
             break
         }
         if let keyword = keywordLookupMap[value] {
-            return Token(value: value, kind: .Keyword(keyword), pos: pos, id: self.input.id)
+            return Token(value: value, kind: .Keyword(keyword), pos: pos, id: input.id)
         }
-        return Token(value: value, kind: .Identifier, pos: pos, id: self.input.id)
+        return Token(value: value, kind: .Identifier, pos: pos, id: input.id)
     }
+
     private func parseBacktickIdentifier() -> Token {
-        let begin = self.input.currentPosition
-        self.input.incrementPosition()
+        let begin = input.currentPosition
+        input.incrementPosition()
         var chars: [Character] = []
-        while let c = self.input.peek, c != "`" {
+        while let c = input.peek, c != "`" {
             chars.append(c)
-            self.input.incrementPosition()
+            input.incrementPosition()
         }
-        if self.input.peek == "`" {
-            self.input.incrementPosition()
-            let pos = self.makePosition(begin)
+        if input.peek == "`" {
+            input.incrementPosition()
+            let pos = makePosition(begin)
             if chars.isEmpty {
-                return Token(value: "``", kind: .Unknown, pos: pos, id: self.input.id)
+                return Token(value: "``", kind: .Unknown, pos: pos, id: input.id)
             }
-            return Token(value: String(chars), kind: .Identifier, pos: pos, id: self.input.id)
+            return Token(value: String(chars), kind: .Identifier, pos: pos, id: input.id)
         }
-        let pos = self.makePosition(begin)
-        return Token(value: "`" + String(chars), kind: .Unknown, pos: pos, id: self.input.id)
+        let pos = makePosition(begin)
+        return Token(value: "`" + String(chars), kind: .Unknown, pos: pos, id: input.id)
     }
+
     private func parseStringLiteral() -> Token {
-        let begin = self.input.currentPosition
-        self.input.incrementPosition()
+        let begin = input.currentPosition
+        input.incrementPosition()
         var raw = ""
-        while let c = self.input.peek, c != "\"" {
+        while let c = input.peek, c != "\"" {
             if c == "\\" {
-                if self.input.peek2 == "(" {
-                    let pos = self.makePosition(begin)
-                    self.emitInterpolationOpen = true
-                    self.interpolationDepth += 1
+                if input.peek2 == "(" {
+                    let pos = makePosition(begin)
+                    emitInterpolationOpen = true
+                    interpolationDepth += 1
                     return Token(
                         value: decodeStringEscapes(raw), kind: .StringLiteral, pos: pos,
-                        id: self.input.id, isUnterminated: true
+                        id: input.id, isUnterminated: true
                     )
                 }
                 raw.append(c)
-                self.input.incrementPosition()
-                if let next = self.input.peek {
+                input.incrementPosition()
+                if let next = input.peek {
                     raw.append(next)
-                    self.input.incrementPosition()
-                    if next == "u" && self.input.peek == "{" {
-                        while let u = self.input.peek, u != "}" {
+                    input.incrementPosition()
+                    if next == "u" && input.peek == "{" {
+                        while let u = input.peek, u != "}" {
                             raw.append(u)
-                            self.input.incrementPosition()
+                            input.incrementPosition()
                         }
-                        if self.input.peek == "}" {
+                        if input.peek == "}" {
                             raw.append("}")
-                            self.input.incrementPosition()
+                            input.incrementPosition()
                         }
                     }
                 }
             } else {
                 raw.append(c)
-                self.input.incrementPosition()
+                input.incrementPosition()
             }
         }
-        if self.input.peek == "\"" {
-            self.input.incrementPosition()
+        if input.peek == "\"" {
+            input.incrementPosition()
         }
-        let pos = self.makePosition(begin)
+        let pos = makePosition(begin)
         return Token(
             value: decodeStringEscapes(raw), kind: .StringLiteral, pos: pos,
-            id: self.input.id
+            id: input.id
         )
     }
+
     private func resumeStringLiteral() -> Token {
-        let begin = self.input.currentPosition
+        let begin = input.currentPosition
         var raw = ""
-        while let c = self.input.peek, c != "\"" {
+        while let c = input.peek, c != "\"" {
             if c == "\\" {
-                if self.input.peek2 == "(" {
-                    let pos = self.makePosition(begin)
-                    self.emitInterpolationOpen = true
-                    self.interpolationDepth += 1
+                if input.peek2 == "(" {
+                    let pos = makePosition(begin)
+                    emitInterpolationOpen = true
+                    interpolationDepth += 1
                     return Token(
                         value: decodeStringEscapes(raw), kind: .StringLiteral, pos: pos,
-                        id: self.input.id, isUnterminated: true
+                        id: input.id, isUnterminated: true
                     )
                 }
                 raw.append(c)
-                self.input.incrementPosition()
-                if let next = self.input.peek {
+                input.incrementPosition()
+                if let next = input.peek {
                     raw.append(next)
-                    self.input.incrementPosition()
-                    if next == "u" && self.input.peek == "{" {
-                        while let u = self.input.peek, u != "}" {
+                    input.incrementPosition()
+                    if next == "u" && input.peek == "{" {
+                        while let u = input.peek, u != "}" {
                             raw.append(u)
-                            self.input.incrementPosition()
+                            input.incrementPosition()
                         }
-                        if self.input.peek == "}" {
+                        if input.peek == "}" {
                             raw.append("}")
-                            self.input.incrementPosition()
+                            input.incrementPosition()
                         }
                     }
                 }
             } else {
                 raw.append(c)
-                self.input.incrementPosition()
+                input.incrementPosition()
             }
         }
-        if self.input.peek == "\"" {
-            self.input.incrementPosition()
+        if input.peek == "\"" {
+            input.incrementPosition()
         }
-        let pos = self.makePosition(begin)
+        let pos = makePosition(begin)
         return Token(
             value: decodeStringEscapes(raw), kind: .StringLiteral, pos: pos,
-            id: self.input.id
+            id: input.id
         )
     }
+
     private func parseMultilineStringLiteral() -> Token {
-        let begin = self.input.currentPosition
-        self.input.incrementPosition()
-        self.input.incrementPosition()
-        self.input.incrementPosition()
-        if self.input.peek == "\n" {
-            self.input.incrementPosition()
+        let begin = input.currentPosition
+        input.incrementPosition()
+        input.incrementPosition()
+        input.incrementPosition()
+        if input.peek == "\n" {
+            input.incrementPosition()
         }
         var lines: [String] = []
         var currentLine = ""
         var indentCol = 0
-        while let c = self.input.peek {
-            if c == "\"" && self.input.peek2 == "\"" && self.input.peek3 == "\"" {
-                indentCol = self.input.currentPosition.col
-                self.input.incrementPosition()
-                self.input.incrementPosition()
-                self.input.incrementPosition()
+        while let c = input.peek {
+            if c == "\"" && input.peek2 == "\"" && input.peek3 == "\"" {
+                indentCol = input.currentPosition.col
+                input.incrementPosition()
+                input.incrementPosition()
+                input.incrementPosition()
                 break
             }
             if c == "\n" {
                 lines.append(currentLine)
                 currentLine = ""
-                self.input.incrementPosition()
+                input.incrementPosition()
             } else {
                 currentLine.append(c)
-                self.input.incrementPosition()
+                input.incrementPosition()
             }
         }
         lines.append(currentLine)
@@ -393,12 +404,13 @@ public final class Lexer {
             if i > 0 { result.append("\n") }
             result.append(stripIndent(line, indentCol))
         }
-        let pos = self.makePosition(begin)
+        let pos = makePosition(begin)
         return Token(
             value: decodeStringEscapes(result), kind: .StringLiteral, pos: pos,
-            id: self.input.id
+            id: input.id
         )
     }
+
     private func stripIndent(_ line: String, _ col: Int) -> String {
         var i = 0
         var idx = line.startIndex
@@ -411,6 +423,7 @@ public final class Lexer {
         }
         return String(line[idx...])
     }
+
     private func decodeStringEscapes(_ raw: String) -> String {
         var result = ""
         var i = raw.startIndex
@@ -442,7 +455,7 @@ public final class Lexer {
                             }
                             if i < raw.endIndex { i = raw.index(after: i) }
                             if let scalar = UInt32(hex, radix: 16),
-                                let unicode = Unicode.Scalar(scalar)
+                               let unicode = Unicode.Scalar(scalar)
                             {
                                 result.append(Character(unicode))
                             }
@@ -458,16 +471,17 @@ public final class Lexer {
         }
         return result
     }
+
     private func parseCharLiteral() -> Token {
-        let begin = self.input.currentPosition
+        let begin = input.currentPosition
         var chars: [Character] = []
-        chars.append(self.input.next()!)
+        chars.append(input.next()!)
         var charValue: Character = "\0"
-        if let c = self.input.peek {
+        if let c = input.peek {
             if c == "\\" {
-                chars.append(self.input.next()!)
-                if let escaped = self.input.peek {
-                    chars.append(self.input.next()!)
+                chars.append(input.next()!)
+                if let escaped = input.peek {
+                    chars.append(input.next()!)
                     switch escaped {
                     case "n": charValue = "\n"
                     case "t": charValue = "\t"
@@ -477,18 +491,18 @@ public final class Lexer {
                     case "\"": charValue = "\""
                     case "0": charValue = "\0"
                     case "u":
-                        if self.input.peek == "{" {
-                            chars.append(self.input.next()!)
+                        if input.peek == "{" {
+                            chars.append(input.next()!)
                             var hex = ""
-                            while let h = self.input.peek, h != "}" {
+                            while let h = input.peek, h != "}" {
                                 hex.append(h)
-                                chars.append(self.input.next()!)
+                                chars.append(input.next()!)
                             }
-                            if self.input.peek == "}" {
-                                chars.append(self.input.next()!)
+                            if input.peek == "}" {
+                                chars.append(input.next()!)
                             }
                             if let scalar = UInt32(hex, radix: 16),
-                                let unicode = Unicode.Scalar(scalar)
+                               let unicode = Unicode.Scalar(scalar)
                             {
                                 charValue = Character(unicode)
                             }
@@ -499,181 +513,196 @@ public final class Lexer {
                 }
             } else {
                 charValue = c
-                chars.append(self.input.next()!)
+                chars.append(input.next()!)
             }
         }
-        if self.input.peek == "'" {
-            chars.append(self.input.next()!)
+        if input.peek == "'" {
+            chars.append(input.next()!)
         }
-        let pos = self.makePosition(begin)
+        let pos = makePosition(begin)
         return Token(
-            value: String(chars), kind: .CharLiteral(charValue), pos: pos, id: self.input.id)
+            value: String(chars), kind: .CharLiteral(charValue), pos: pos, id: input.id
+        )
     }
+
     private func parseNumber() -> Token {
-        let begin = self.input.currentPosition
+        let begin = input.currentPosition
         var chars: [Character] = []
         var isFloat = false
-        if self.input.peek == "0", let next = self.input.peek2 {
+        if input.peek == "0", let next = input.peek2 {
             if next == "x" || next == "X" {
-                if let c = self.input.next() { chars.append(c) }
-                if let c = self.input.next() { chars.append(c) }
-                while let c = self.input.peek, c.isHexDigit || c == "_" {
+                if let c = input.next() { chars.append(c) }
+                if let c = input.next() { chars.append(c) }
+                while let c = input.peek, c.isHexDigit || c == "_" {
                     chars.append(c)
-                    self.input.incrementPosition()
+                    input.incrementPosition()
                 }
                 let digits = String(chars.dropFirst(2)).filter { $0 != "_" }
                 let intValue = Int128(digits, radix: 16) ?? 0
-                let pos = self.makePosition(begin)
+                let pos = makePosition(begin)
                 return Token(
                     value: String(chars), kind: .IntegerLiteral(intValue), pos: pos,
-                    id: self.input.id)
+                    id: input.id
+                )
             } else if next == "b" || next == "B" {
-                if let c = self.input.next() { chars.append(c) }
-                if let c = self.input.next() { chars.append(c) }
-                while let c = self.input.peek, c == "0" || c == "1" || c == "_" {
+                if let c = input.next() { chars.append(c) }
+                if let c = input.next() { chars.append(c) }
+                while let c = input.peek, c == "0" || c == "1" || c == "_" {
                     chars.append(c)
-                    self.input.incrementPosition()
+                    input.incrementPosition()
                 }
                 let digits = String(chars.dropFirst(2)).filter { $0 != "_" }
                 let intValue = Int128(digits, radix: 2) ?? 0
-                let pos = self.makePosition(begin)
+                let pos = makePosition(begin)
                 return Token(
                     value: String(chars), kind: .IntegerLiteral(intValue), pos: pos,
-                    id: self.input.id)
+                    id: input.id
+                )
             } else if next == "o" || next == "O" {
-                if let c = self.input.next() { chars.append(c) }
-                if let c = self.input.next() { chars.append(c) }
-                while let c = self.input.peek, (c >= "0" && c <= "7") || c == "_" {
+                if let c = input.next() { chars.append(c) }
+                if let c = input.next() { chars.append(c) }
+                while let c = input.peek, (c >= "0" && c <= "7") || c == "_" {
                     chars.append(c)
-                    self.input.incrementPosition()
+                    input.incrementPosition()
                 }
                 let digits = String(chars.dropFirst(2)).filter { $0 != "_" }
                 let intValue = Int128(digits, radix: 8) ?? 0
-                let pos = self.makePosition(begin)
+                let pos = makePosition(begin)
                 return Token(
                     value: String(chars), kind: .IntegerLiteral(intValue), pos: pos,
-                    id: self.input.id)
+                    id: input.id
+                )
             }
         }
-        while let c = self.input.peek, (c >= "0" && c <= "9") || c == "_" {
+        while let c = input.peek, (c >= "0" && c <= "9") || c == "_" {
             chars.append(c)
-            self.input.incrementPosition()
+            input.incrementPosition()
         }
-        if self.input.peek == ".", let next = self.input.peek2, next >= "0" && next <= "9" {
+        if input.peek == ".", let next = input.peek2, next >= "0" && next <= "9" {
             isFloat = true
-            if let c = self.input.next() { chars.append(c) }
-            while let c = self.input.peek, (c >= "0" && c <= "9") || c == "_" {
+            if let c = input.next() { chars.append(c) }
+            while let c = input.peek, (c >= "0" && c <= "9") || c == "_" {
                 chars.append(c)
-                self.input.incrementPosition()
+                input.incrementPosition()
             }
         }
-        if let c = self.input.peek, c == "e" || c == "E" {
+        if let c = input.peek, c == "e" || c == "E" {
             isFloat = true
             chars.append(c)
-            self.input.incrementPosition()
-            if let sign = self.input.peek, sign == "+" || sign == "-" {
+            input.incrementPosition()
+            if let sign = input.peek, sign == "+" || sign == "-" {
                 chars.append(sign)
-                self.input.incrementPosition()
+                input.incrementPosition()
             }
-            while let c = self.input.peek, (c >= "0" && c <= "9") || c == "_" {
+            while let c = input.peek, (c >= "0" && c <= "9") || c == "_" {
                 chars.append(c)
-                self.input.incrementPosition()
+                input.incrementPosition()
             }
         }
         let value = String(chars)
-        let pos = self.makePosition(begin)
+        let pos = makePosition(begin)
         if isFloat {
             return Token(
-                value: value, kind: .FloatLiteral(Double(value) ?? 0), pos: pos, id: self.input.id)
+                value: value, kind: .FloatLiteral(Double(value) ?? 0), pos: pos, id: input.id
+            )
         } else {
             let digits = value.filter { $0 != "_" }
             let intValue = Int128(digits) ?? 0
             return Token(
-                value: value, kind: .IntegerLiteral(intValue), pos: pos, id: self.input.id)
+                value: value, kind: .IntegerLiteral(intValue), pos: pos, id: input.id
+            )
         }
     }
+
     private func parseQuestion() -> Token {
-        let begin = self.input.currentPosition
-        self.input.incrementPosition()
-        if let c = self.input.peek {
+        let begin = input.currentPosition
+        input.incrementPosition()
+        if let c = input.peek {
             if c == "." {
-                self.input.incrementPosition()
+                input.incrementPosition()
                 return Token(
                     value: "?.", kind: .Operator(.QuestionMarkDot),
-                    pos: self.makePosition(begin), id: self.input.id)
+                    pos: makePosition(begin), id: input.id
+                )
             } else if c == ":" {
-                self.input.incrementPosition()
+                input.incrementPosition()
                 return Token(
                     value: "?:", kind: .Operator(.Elvis),
-                    pos: self.makePosition(begin), id: self.input.id)
+                    pos: makePosition(begin), id: input.id
+                )
             }
         }
         return Token(
             value: "?", kind: .Operator(.QuestionMark),
-            pos: self.makePosition(begin), id: self.input.id)
+            pos: makePosition(begin), id: input.id
+        )
     }
+
     private func parseOperator() -> Token {
-        let begin = self.input.currentPosition
+        let begin = input.currentPosition
         var chars: [Character] = []
-        while let c = self.input.peek, operatorChars.contains(c) {
+        while let c = input.peek, operatorChars.contains(c) {
             if c == "." {
                 if !chars.isEmpty {
                     break
                 }
                 chars.append(c)
-                self.input.incrementPosition()
-                if self.input.peek == "." {
-                    chars.append(self.input.peek!)
-                    self.input.incrementPosition()
-                    if self.input.peek == "." {
-                        chars.append(self.input.peek!)
-                        self.input.incrementPosition()
-                    } else if self.input.peek == "<" {
-                        chars.append(self.input.peek!)
-                        self.input.incrementPosition()
+                input.incrementPosition()
+                if input.peek == "." {
+                    chars.append(input.peek!)
+                    input.incrementPosition()
+                    if input.peek == "." {
+                        chars.append(input.peek!)
+                        input.incrementPosition()
+                    } else if input.peek == "<" {
+                        chars.append(input.peek!)
+                        input.incrementPosition()
                     }
                 }
                 break
             }
             if c == "/" && !chars.isEmpty {
-                let next = self.input.peek2
+                let next = input.peek2
                 if next == "/" || next == "*" {
                     break
                 }
             }
             chars.append(c)
-            self.input.incrementPosition()
+            input.incrementPosition()
         }
         let value = String(chars)
-        let pos = self.makePosition(begin)
+        let pos = makePosition(begin)
         let kind = operatorTable[value]
-        return Token(value: value, kind: .Operator(kind), pos: pos, id: self.input.id)
+        return Token(value: value, kind: .Operator(kind), pos: pos, id: input.id)
     }
+
     private func skipLineComment() {
-        while let c = self.input.peek, c != "\n" {
-            self.input.incrementPosition()
+        while let c = input.peek, c != "\n" {
+            input.incrementPosition()
         }
     }
+
     private func skipBlockComment() {
         var depth = 1
         while depth > 0 {
-            guard let c = self.input.peek else { break }
-            if c == "/" && self.input.peek2 == "*" {
-                self.input.incrementPosition()
-                self.input.incrementPosition()
+            guard let c = input.peek else { break }
+            if c == "/", input.peek2 == "*" {
+                input.incrementPosition()
+                input.incrementPosition()
                 depth += 1
-            } else if c == "*" && self.input.peek2 == "/" {
-                self.input.incrementPosition()
-                self.input.incrementPosition()
+            } else if c == "*", input.peek2 == "/" {
+                input.incrementPosition()
+                input.incrementPosition()
                 depth -= 1
             } else {
-                self.input.incrementPosition()
+                input.incrementPosition()
             }
         }
     }
+
     private func skipWhitechars() {
-        while let c = self.input.peek, c.isWhitespace {
-            self.input.incrementPosition()
+        while let c = input.peek, c.isWhitespace {
+            input.incrementPosition()
         }
     }
 }

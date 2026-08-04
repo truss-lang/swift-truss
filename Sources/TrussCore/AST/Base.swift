@@ -9,9 +9,11 @@ public enum AST {
         public init(_ sourceRange: SourceRange) {
             self.sourceRange = sourceRange
         }
+
         @abstract
         public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any?
     }
+
     public final class Program: AstNode {
         public let id: Id.SourceId
         public let packageName: String
@@ -26,10 +28,12 @@ public enum AST {
             self.statements = statements
             super.init(sourceRange)
         }
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+
+        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitProgram(self, additional: additional)
         }
     }
+
     public final class Attribute {
         public let name: Token
         public let arguments: [[Token]]
@@ -45,6 +49,7 @@ public enum AST {
             self.sourceRange = sourceRange
         }
     }
+
     public final class Modifier {
         public let token: Token
         public let kind: ModifierKind
@@ -55,6 +60,7 @@ public enum AST {
             self.sourceRange = sourceRange
         }
     }
+
     public enum ModifierKind {
         case Open(setter: Bool)
         case Public(setter: Bool)
@@ -76,6 +82,7 @@ public enum AST {
         case Isolated
         case Async
     }
+
     public final class GenericDecl: AstNode {
         public let begin: Token
         public let generics: [GenericParameter]
@@ -88,10 +95,12 @@ public enum AST {
             self.end = end
             super.init(sourceRange)
         }
-        public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
+
+        override public func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitGenericDecl(self, additional: additional)
         }
     }
+
     public final class GenericParameter: AstNode {
         public let eachToken: Token?
         public let name: Token
@@ -105,10 +114,12 @@ public enum AST {
             self.constraint = constraint
             super.init(sourceRange)
         }
-        public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
+
+        override public func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitGenericParameter(self, additional: additional)
         }
     }
+
     public struct WhereRequirement {
         public let left: Expression
         public let constraint: Constraint
@@ -116,6 +127,7 @@ public enum AST {
             case conformance(Expression)
             case equality(Expression)
         }
+
         public init(_ left: Expression, _ constraint: Constraint) {
             self.left = left
             self.constraint = constraint

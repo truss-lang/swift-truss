@@ -58,6 +58,7 @@ public final class Parser {
         self.lexerResult = lexerResult
         source = context.sourceTable[lexerResult.id]!
     }
+
     private func errorToken() -> Token {
         return Token(
             value: "<error>", kind: .Unknown,
@@ -149,7 +150,7 @@ public final class Parser {
             }
             var statement: AST.Statement?
             switch token.kind {
-            case .Keyword(let keywordKind):
+            case let .Keyword(keywordKind):
                 switch keywordKind {
                 case .Import: statement = parseImport()
                 case .Extern: statement = parseExtern(modifiers, attributes)
@@ -168,7 +169,7 @@ public final class Parser {
                 case .Var: statement = parseVariableDecl(modifiers, attributes)
                 default: statement = nil
                 }
-            case .Separator(let kind):
+            case let .Separator(kind):
                 switch kind {
                 case .SemiColon:
                     index += 1
@@ -207,7 +208,7 @@ public final class Parser {
             }
         }
         switch t.kind {
-        case .Keyword(let keywordKind):
+        case let .Keyword(keywordKind):
             switch keywordKind {
             case .TypeAlias: return parseTypeAliasDecl(modifiers, attributes)
             case .Module: return parseModuleDecl(modifiers, attributes)
@@ -224,7 +225,7 @@ public final class Parser {
             case .Var: return parseVariableDecl(modifiers, attributes)
             default: return nil
             }
-        case .Separator(let kind):
+        case let .Separator(kind):
             switch kind {
             case .SemiColon:
                 index += 1
@@ -438,6 +439,7 @@ public final class Parser {
         }
         return AST.ImportItem(kind, alias: alias)
     }
+
     private func parseExtern(_ modifiers: [AST.Modifier], _ attributes: [AST.Attribute])
         -> AST.Statement
     {
@@ -453,7 +455,7 @@ public final class Parser {
         if let t = peek {
             let body: AST.ExternDecl.Body
             if t.kind == .Separator(.OpenBrace) {
-                self.index += 1
+                index += 1
                 var statements: [AST.Statement] = []
                 _loop: while peek != nil {
                     let (modifiers, attributes) = parseAnnotations()
@@ -463,7 +465,7 @@ public final class Parser {
                         }
                         break
                     }
-                    if case .Keyword(let kind) = t3.kind {
+                    if case let .Keyword(kind) = t3.kind {
                         switch kind {
                         case .Let: statements.append(parseVariableDecl(modifiers, attributes))
                         case .Var: statements.append(parseVariableDecl(modifiers, attributes))
@@ -521,6 +523,7 @@ public final class Parser {
             return errorStatement(from: token, to: endOfFile)
         }
     }
+
     private func parseTypeAliasDecl(_ modifiers: [AST.Modifier], _ attributes: [AST.Attribute])
         -> AST.Statement
     {
@@ -610,7 +613,7 @@ public final class Parser {
             emitError("expected '}' after module body", at: endOfFile)
             endToken = openToken
         }
-        var moduleDecl: AST.ModuleDecl = AST.ModuleDecl(
+        var moduleDecl = AST.ModuleDecl(
             modifiers, attributes, token, components.removeLast(), body,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
@@ -633,7 +636,8 @@ public final class Parser {
         }
         guard case .Operator = name.kind else {
             emitError(
-                "expected operator name after 'operator', but got '\(name.value)'", at: name)
+                "expected operator name after 'operator', but got '\(name.value)'", at: name
+            )
             return errorStatement(from: token, to: name)
         }
         guard let kindToken = next else {
@@ -651,7 +655,8 @@ public final class Parser {
         default:
             emitError(
                 "expected 'infix', 'prefix', or 'postfix', but got '\(kindToken.value)'",
-                at: kindToken)
+                at: kindToken
+            )
             return errorStatement(from: token, to: kindToken)
         }
         return AST.OperatorDecl(
@@ -773,7 +778,7 @@ public final class Parser {
                         emitError("expected ':' after 'assignment'", at: endOfFile)
                     }
                     if let t2 = peek {
-                        if case .BooleanLiteral(let v) = t2.kind {
+                        if case let .BooleanLiteral(v) = t2.kind {
                             index += 1
                             assignment = v
                         } else {
@@ -808,8 +813,8 @@ public final class Parser {
                             break
                         }
                         if case .Identifier = t2.kind,
-                            ["higherThan", "lowerThan", "associativity", "assignment"].contains(
-                                t2.value)
+                           ["higherThan", "lowerThan", "associativity", "assignment"].contains(
+                               t2.value)
                         {
                             break
                         }
@@ -842,8 +847,8 @@ public final class Parser {
                             break
                         }
                         if case .Identifier = t2.kind,
-                            ["higherThan", "lowerThan", "associativity", "assignment"].contains(
-                                t2.value)
+                           ["higherThan", "lowerThan", "associativity", "assignment"].contains(
+                               t2.value)
                         {
                             break
                         }
@@ -1076,7 +1081,7 @@ public final class Parser {
                     let label: Token?
                     let typeExpr: AST.Expression?
                     if let ident = peek, case .Identifier = ident.kind,
-                        let colon = peek2, case .Separator(.Colon) = colon.kind
+                       let colon = peek2, case .Separator(.Colon) = colon.kind
                     {
                         label = ident
                         index += 2
@@ -1495,7 +1500,7 @@ public final class Parser {
             suppressTrailingClosures = true
             let left =
                 parseExpression(excepts: [.Equal], isTypeContext: true)
-                ?? errorExpression(from: t, to: t)
+                    ?? errorExpression(from: t, to: t)
             suppressTrailingClosures = false
             let op = peek
             if op == nil {
@@ -1524,8 +1529,8 @@ public final class Parser {
             default:
                 emitError(
                     "expected ':' or '==' in where clause, but got '\(op!.value)'",
-                    at: op!)
-                break
+                    at: op!
+                )
             }
             if peek?.kind == .Separator(.Comma) {
                 index += 1
@@ -1543,7 +1548,7 @@ public final class Parser {
         suppressTrailingClosures = true
         let base =
             parseExpression(excepts: [.Less], isTypeContext: true)
-            ?? errorExpression(from: token, to: token)
+                ?? errorExpression(from: token, to: token)
         suppressTrailingClosures = false
         if let t = peek, case .Operator(.Less) = t.kind {
             let genericDecl = parseGenericDecl()
@@ -1691,7 +1696,7 @@ public final class Parser {
             }
         }
         switch token.kind {
-        case .Keyword(let kind):
+        case let .Keyword(kind):
             switch kind {
             case .TypeAlias: return parseTypeAliasDecl(modifiers, attributes)
             case .PrecedenceGroup: return parsePrecedenceGroupDecl(modifiers, attributes)
@@ -1714,7 +1719,7 @@ public final class Parser {
                 emitError("expected a statement, but got \(token.value)", at: token)
                 return errorStatement(from: startToken ?? token, to: token)
             }
-        case .Separator(let kind):
+        case let .Separator(kind):
             switch kind {
             case .SemiColon:
                 index += 1
@@ -1780,7 +1785,8 @@ public final class Parser {
                 index += 1
             } else if let t = peek {
                 emitError(
-                    "expected ')' after initializer parameters, but got '\(t.value)'", at: t)
+                    "expected ')' after initializer parameters, but got '\(t.value)'", at: t
+                )
             } else {
                 emitError("expected ')' after initializer parameters", at: endOfFile)
             }
@@ -1824,6 +1830,7 @@ public final class Parser {
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
+
     private func parseDeinitDecl(_ modifiers: [AST.Modifier], _ attributes: [AST.Attribute])
         -> AST.Statement
     {
@@ -1865,10 +1872,11 @@ public final class Parser {
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
+
     private func parseStatement() -> AST.Statement? {
         if let labelToken = peek, case .Identifier = labelToken.kind,
-            let colonToken = peek2, case .Separator(.Colon) = colonToken.kind,
-            !(peek3?.kind == .Separator(.Colon))
+           let colonToken = peek2, case .Separator(.Colon) = colonToken.kind,
+           !(peek3?.kind == .Separator(.Colon))
         {
             index += 2
             guard let body = parseStatement() else {
@@ -1891,7 +1899,7 @@ public final class Parser {
             }
         }
         switch token.kind {
-        case .Keyword(let kind):
+        case let .Keyword(kind):
             switch kind {
             case .Func: return parseFunctionDecl(modifiers, attributes)
             case .Operator: return parseOperatorDecl(modifiers, attributes)
@@ -1919,7 +1927,7 @@ public final class Parser {
                 }
                 return errorStatement(from: startToken ?? token, to: last ?? token)
             }
-        case .Separator(let kind):
+        case let .Separator(kind):
             switch kind {
             case .SemiColon:
                 index += 1
@@ -2073,7 +2081,7 @@ public final class Parser {
             return nil
         }
         index += 1
-        var types: [AST.Expression]? = nil
+        var types: [AST.Expression]?
         var endToken = token
         if let t = peek, case .Separator(.OpenParen) = t.kind {
             index += 1
@@ -2172,7 +2180,7 @@ public final class Parser {
             && peek3?.kind == .Separator(.CloseParen)
         {
             internalToken = peek2
-            self.index += 3
+            index += 3
         } else {
             internalToken = nil
         }
@@ -2241,7 +2249,7 @@ public final class Parser {
                                 severity: .note,
                                 message: "initializer makes this a stored property",
                                 range: initializer.sourceRange
-                            )
+                            ),
                         ]
                     )
                 )
@@ -2656,14 +2664,14 @@ public final class Parser {
         inPatternContext = true
         var pattern =
             parseExpression(excepts: [.Assign])
-            ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
+                ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
         inPatternContext = false
         if let eq = peek, case .Operator(.Assign) = eq.kind {
             index += 1
             suppressTrailingClosures = true
             let subject =
                 parseExpression()
-                ?? AST.ErrorExpression(SourceRange(location: locationAfter(eq)))
+                    ?? AST.ErrorExpression(SourceRange(location: locationAfter(eq)))
             suppressTrailingClosures = false
             pattern = AST.CaseMatch(
                 caseToken ?? token, pattern, subject,
@@ -2673,19 +2681,20 @@ public final class Parser {
             )
         }
         guard let inToken = peek,
-            case .Identifier = inToken.kind,
-            inToken.value == "in"
+              case .Identifier = inToken.kind,
+              inToken.value == "in"
         else {
             emitError(
                 "expected 'in' after for pattern",
-                at: SourceRange(from: token, to: last ?? token, in: buffer))
+                at: SourceRange(from: token, to: last ?? token, in: buffer)
+            )
             return errorStatement(from: token, to: last ?? token)
         }
         index += 1
         suppressTrailingClosures = true
         let sequence =
             parseExpression()
-            ?? AST.ErrorExpression(SourceRange(location: locationAfter(inToken)))
+                ?? AST.ErrorExpression(SourceRange(location: locationAfter(inToken)))
         suppressTrailingClosures = false
         guard let openToken = next else {
             emitError("expected '{' after for-in sequence", at: endOfFile)
@@ -2731,7 +2740,7 @@ public final class Parser {
         let token = next!
         let condition =
             parseExpression(isCondition: true)
-            ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
+                ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
         guard let openToken = next else {
             emitError("expected '{' after while condition", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -2821,7 +2830,7 @@ public final class Parser {
         }
         let condition =
             parseExpression(isCondition: true)
-            ?? AST.ErrorExpression(SourceRange(location: locationAfter(whileToken)))
+                ?? AST.ErrorExpression(SourceRange(location: locationAfter(whileToken)))
         return AST.RepeatWhile(
             token, openToken, body, closeToken, whileToken, condition,
             sourceRange: SourceRange(from: token, to: whileToken, in: buffer)
@@ -2832,7 +2841,7 @@ public final class Parser {
         let token = next!
         let condition =
             parseExpression(isCondition: true)
-            ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
+                ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
         guard let t = next else {
             emitError("expected 'else' after guard condition", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -3037,9 +3046,9 @@ public final class Parser {
 
     private func skipAsmUntilSyncPoint() {
         while let t = peek,
-            t.kind != .Separator(.CloseBrace),
-            t.kind != .Separator(.Comma),
-            t.kind != .Separator(.Colon)
+              t.kind != .Separator(.CloseBrace),
+              t.kind != .Separator(.Comma),
+              t.kind != .Separator(.Colon)
         {
             index += 1
         }
@@ -3107,7 +3116,7 @@ public final class Parser {
                 justClosedAngle = false
                 let range: SourceRange
                 if let firstRange = operands.first?.sourceRange,
-                    let lastRange = operands.last?.sourceRange
+                   let lastRange = operands.last?.sourceRange
                 {
                     range = SourceRange(start: firstRange.start, end: lastRange.end)
                 } else {
@@ -3129,7 +3138,7 @@ public final class Parser {
                 operands.append(postfixed)
                 lastIsExpression = true
             case .Operator(.Dot) where lastIsExpression,
-                .Operator(.QuestionMarkDot) where lastIsExpression:
+                 .Operator(.QuestionMarkDot) where lastIsExpression:
                 index += 1
                 guard let member = peek else {
                     emitError("expected member name after '\(token.value)'", at: endOfFile)
@@ -3158,11 +3167,11 @@ public final class Parser {
                 lastIsExpression = true
                 justClosedAngle = false
             case .Operator(.Dot) where justClosedAngle,
-                .Operator(.QuestionMarkDot) where justClosedAngle:
+                 .Operator(.QuestionMarkDot) where justClosedAngle:
                 justClosedAngle = false
                 let range: SourceRange
                 if let firstRange = operands.first?.sourceRange,
-                    let lastRange = operands.last?.sourceRange
+                   let lastRange = operands.last?.sourceRange
                 {
                     range = SourceRange(start: firstRange.start, end: lastRange.end)
                 } else {
@@ -3215,7 +3224,7 @@ public final class Parser {
                 index += 1
                 lastIsExpression = true
             case .Keyword(.As) where lastIsExpression && !suppressTrailingClosures,
-                .Keyword(.Is) where lastIsExpression && !suppressTrailingClosures:
+                 .Keyword(.Is) where lastIsExpression && !suppressTrailingClosures:
                 let left = operands.removeLast()
                 index += 1
                 let kind: AST.CastExpression.Kind
@@ -3233,10 +3242,10 @@ public final class Parser {
                 suppressTrailingClosures = true
                 let right =
                     parseExpression(excepts: excepts, isTypeContext: true)
-                    ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
+                        ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
                 suppressTrailingClosures = false
                 let result: AST.Expression
-                if inPatternContext && kind == .As {
+                if inPatternContext, kind == .As {
                     result = AST.AsPattern(
                         left, token, right,
                         sourceRange: SourceRange(
@@ -3258,15 +3267,15 @@ public final class Parser {
                 lastIsExpression = true
             case .Operator(.Dollar) where !lastIsExpression:
                 if let expr = parsePrimary(
-                    excepts, isCondition: isCondition, isTypeContext: isTypeContext)
-                {
+                    excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                ) {
                     operands.append(expr)
                     lastIsExpression = true
                 } else {
                     break _loop
                 }
             case .Separator(.OpenBrace)
-            where lastIsExpression && !isCondition && !suppressTrailingClosures:
+                where lastIsExpression && !isCondition && !suppressTrailingClosures:
                 angleDepth = 0
                 justClosedAngle = false
                 let expr = operands.removeLast()
@@ -3281,10 +3290,10 @@ public final class Parser {
                 }
                 var trailing: [(Token?, AST.Closure)] = []
                 while true {
-                    var label: Token? = nil
+                    var label: Token?
                     if let t = peek, case .Identifier = t.kind,
-                        let c = peek2, case .Separator(.Colon) = c.kind,
-                        let b = peek3, case .Separator(.OpenBrace) = b.kind
+                       let c = peek2, case .Separator(.Colon) = c.kind,
+                       let b = peek3, case .Separator(.OpenBrace) = b.kind
                     {
                         label = t
                         index += 2
@@ -3318,7 +3327,7 @@ public final class Parser {
                 index += 1
                 lastIsExpression = true
                 justClosedAngle = false
-            case .Operator(let kind) where kind != .Dot:
+            case let .Operator(kind) where kind != .Dot:
                 if let excepts = excepts, let kind = kind, excepts.contains(kind) {
                     break _loop
                 }
@@ -3354,8 +3363,9 @@ public final class Parser {
                 }
             default:
                 if !lastIsExpression,
-                    let expr = parsePrimary(
-                        excepts, isCondition: isCondition, isTypeContext: isTypeContext)
+                   let expr = parsePrimary(
+                       excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                   )
                 {
                     operands.append(expr)
                     lastIsExpression = true
@@ -3381,7 +3391,7 @@ public final class Parser {
         }
         let range: SourceRange
         if let firstRange = operands.first?.sourceRange,
-            let lastRange = operands.last?.sourceRange
+           let lastRange = operands.last?.sourceRange
         {
             range = SourceRange(start: firstRange.start, end: lastRange.end)
         } else if let firstOp = ops.first, let lastOp = ops.last {
@@ -3410,7 +3420,7 @@ public final class Parser {
                     index += 1
                     expression =
                         parseExpression(excepts: excepts)
-                        ?? errorExpression(from: at, to: at)
+                            ?? errorExpression(from: at, to: at)
                 }
             } else {
                 expression = AST.Variable(name: token, sourceRange: token.sourceRange(in: buffer))
@@ -3421,28 +3431,29 @@ public final class Parser {
                 expression = parseStringInterpolation(token)
             } else {
                 expression = AST.StringLiteral(
-                    token, sourceRange: token.sourceRange(in: buffer))
+                    token, sourceRange: token.sourceRange(in: buffer)
+                )
             }
-        case .IntegerLiteral(let value):
+        case let .IntegerLiteral(value):
             index += 1
             expression = AST.IntegerLiteral(
                 token,
                 value,
                 sourceRange: token.sourceRange(in: buffer)
             )
-        case .FloatLiteral(let value):
+        case let .FloatLiteral(value):
             index += 1
             expression = AST.FloatLiteral(token, value, sourceRange: token.sourceRange(in: buffer))
-        case .CharLiteral(let value):
+        case let .CharLiteral(value):
             index += 1
             expression = AST.CharLiteral(token, value, sourceRange: token.sourceRange(in: buffer))
-        case .BooleanLiteral(let value):
+        case let .BooleanLiteral(value):
             index += 1
             expression = AST.BoolLiteral(token, value, sourceRange: token.sourceRange(in: buffer))
         case .NullLiteral:
             index += 1
             expression = AST.NullLiteral(token, sourceRange: token.sourceRange(in: buffer))
-        case .Keyword(let kind):
+        case let .Keyword(kind):
             switch kind {
             case .SelfKw:
                 index += 1
@@ -3474,7 +3485,8 @@ public final class Parser {
                     guard case .Identifier = name.kind else {
                         emitError(
                             "expected identifier after '\(token.value)', but got '\(name.value)'",
-                            at: name)
+                            at: name
+                        )
                         return errorExpression(from: token, to: name)
                     }
                     var typeExpression: AST.Expression? = nil
@@ -3482,19 +3494,19 @@ public final class Parser {
                         index += 1
                         typeExpression =
                             parseExpression(excepts: [.Assign, .At])
-                            ?? errorExpression(from: colon, to: colon)
+                                ?? errorExpression(from: colon, to: colon)
                     }
                     var subpattern: AST.Expression? = nil
                     if let at = peek, case .Operator(.At) = at.kind {
                         index += 1
                         subpattern =
                             parseExpression(excepts: excepts)
-                            ?? errorExpression(from: at, to: at)
+                                ?? errorExpression(from: at, to: at)
                     }
                     let endToken =
                         subpattern?.sourceRange.end
-                        ?? typeExpression?.sourceRange.end
-                        ?? name.sourceRange(in: buffer).end
+                            ?? typeExpression?.sourceRange.end
+                            ?? name.sourceRange(in: buffer).end
                     expression = AST.BindingPattern(
                         token, name, typeExpression, subpattern,
                         sourceRange: SourceRange(
@@ -3509,15 +3521,16 @@ public final class Parser {
                 index += 1
                 let wrapped =
                     parseExpression(
-                        excepts: excepts, isCondition: isCondition, isTypeContext: isTypeContext)
+                        excepts: excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                    )
                     ?? errorExpression(from: token, to: token)
                 let inner: AST.Expression
                 if let seq = wrapped as? AST.SequentialExpression,
-                    !seq.ops.isEmpty,
-                    seq.ops.allSatisfy({ op in
-                        if case .Operator(.BitAnd) = op.kind { return true }
-                        return false
-                    })
+                   !seq.ops.isEmpty,
+                   seq.ops.allSatisfy({ op in
+                       if case .Operator(.BitAnd) = op.kind { return true }
+                       return false
+                   })
                 {
                     inner = AST.ProtocolCompositionType(
                         seq.operands, sourceRange: seq.sourceRange
@@ -3547,7 +3560,7 @@ public final class Parser {
                 index += 1
                 let typeExpr =
                     parseExpression(excepts: excepts, isTypeContext: isTypeContext)
-                    ?? errorExpression(from: token, to: token)
+                        ?? errorExpression(from: token, to: token)
                 expression = AST.IsPattern(
                     token, typeExpr,
                     sourceRange: SourceRange(
@@ -3565,7 +3578,7 @@ public final class Parser {
             default:
                 return nil
             }
-        case .Separator(let kind):
+        case let .Separator(kind):
             switch kind {
             case .OpenParen:
                 index += 1
@@ -3578,7 +3591,8 @@ public final class Parser {
                 } else {
                     guard
                         let first = parseExpression(
-                            isCondition: isCondition, isTypeContext: isTypeContext)
+                            isCondition: isCondition, isTypeContext: isTypeContext
+                        )
                     else {
                         emitError("expected expression after '('", at: locationAfter(token))
                         if let t = peek, case .Separator(.CloseParen) = t.kind {
@@ -3589,17 +3603,17 @@ public final class Parser {
                     var label: Token? = nil
                     var value = first
                     if let variable = first as? AST.Variable,
-                        let colon = peek, case .Separator(.Colon) = colon.kind
+                       let colon = peek, case .Separator(.Colon) = colon.kind
                     {
                         label = variable.name
                         index += 1
                         value =
                             parseExpression(isTypeContext: isTypeContext)
-                            ?? errorExpression(from: colon, to: colon)
+                                ?? errorExpression(from: colon, to: colon)
                     }
                     let isTuple =
                         label != nil
-                        || (peek?.kind == .Separator(.Comma))
+                            || (peek?.kind == .Separator(.Comma))
                     if isTuple {
                         var elements: [AST.LabeledArgument] = [
                             AST.LabeledArgument(
@@ -3608,7 +3622,7 @@ public final class Parser {
                                     start: first.sourceRange.start,
                                     end: value.sourceRange.end
                                 )
-                            )
+                            ),
                         ]
                         while let comma = peek, case .Separator(.Comma) = comma.kind {
                             index += 1
@@ -3622,13 +3636,13 @@ public final class Parser {
                             var elemLabel: Token? = nil
                             var elemValue = elem
                             if let variable = elem as? AST.Variable,
-                                let colon = peek, case .Separator(.Colon) = colon.kind
+                               let colon = peek, case .Separator(.Colon) = colon.kind
                             {
                                 elemLabel = variable.name
                                 index += 1
                                 elemValue =
                                     parseExpression(isTypeContext: isTypeContext)
-                                    ?? errorExpression(from: colon, to: colon)
+                                        ?? errorExpression(from: colon, to: colon)
                             }
                             elements.append(
                                 AST.LabeledArgument(
@@ -3646,7 +3660,8 @@ public final class Parser {
                             closeToken = t
                         } else if let t = peek {
                             emitError(
-                                "expected ')' after tuple elements, but got '\(t.value)'", at: t)
+                                "expected ')' after tuple elements, but got '\(t.value)'", at: t
+                            )
                             closeToken = t
                         } else {
                             emitError("expected ')' after tuple elements", at: endOfFile)
@@ -3659,7 +3674,8 @@ public final class Parser {
                         if let t = next {
                             if t.kind != .Separator(.CloseParen) {
                                 emitError(
-                                    "expected ')' after expression, but got '\(t.value)'", at: t)
+                                    "expected ')' after expression, but got '\(t.value)'", at: t
+                                )
                             }
                             expression = AST.ParentheticalExpression(
                                 value, sourceRange: SourceRange(from: token, to: t, in: buffer)
@@ -3683,7 +3699,7 @@ public final class Parser {
                 expression = parseCollectionLiteral(openBracket: token)
             default: return nil
             }
-        case .Operator(let kind):
+        case let .Operator(kind):
             switch kind {
             case .Dot:
                 index += 1
@@ -3708,10 +3724,11 @@ public final class Parser {
                     emitError("expected integer after '$'", at: endOfFile)
                     return errorExpression(from: token, to: endOfFile)
                 }
-                guard case .IntegerLiteral(let value) = numToken.kind else {
+                guard case let .IntegerLiteral(value) = numToken.kind else {
                     emitError(
                         "expected integer literal after '$', but got '\(numToken.value)'",
-                        at: numToken)
+                        at: numToken
+                    )
                     return errorExpression(from: token, to: numToken)
                 }
                 expression = AST.ShorthandArgument(
@@ -3759,7 +3776,7 @@ public final class Parser {
                     sourceRange: SourceRange(
                         start: first.sourceRange.start, end: value.sourceRange.end
                     )
-                )
+                ),
             ]
             while let comma = peek, case .Separator(.Comma) = comma.kind {
                 index += 1
@@ -3840,7 +3857,7 @@ public final class Parser {
         var expression = expression
         _loop: while let t = peek {
             switch t.kind {
-            case .Separator(let kind):
+            case let .Separator(kind):
                 switch kind {
                 case .Arrow:
                     if inPatternContext { break _loop }
@@ -3855,7 +3872,8 @@ public final class Parser {
                         if let tok = peek {
                             emitError(
                                 "expected '->' after 'throws' in closure type, but got '\(tok.value)'",
-                                at: tok)
+                                at: tok
+                            )
                         } else {
                             emitError("expected '->' after 'throws' in closure type", at: endOfFile)
                         }
@@ -3878,7 +3896,8 @@ public final class Parser {
         }
         guard case .Identifier = name.kind else {
             emitError(
-                "expected identifier after '\(token.value)', but got '\(name.value)'", at: name)
+                "expected identifier after '\(token.value)', but got '\(name.value)'", at: name
+            )
             return errorExpression(from: token, to: name)
         }
         var typeExpression: AST.Expression? = nil
@@ -3891,7 +3910,8 @@ public final class Parser {
         guard let eq = peek, case .Operator(.Assign) = eq.kind else {
             emitError(
                 "expected '=' in optional binding",
-                at: SourceRange(from: token, to: name, in: buffer))
+                at: SourceRange(from: token, to: name, in: buffer)
+            )
             return errorExpression(from: token, to: name)
         }
         index += 1
@@ -3916,7 +3936,8 @@ public final class Parser {
         guard let eq = peek, case .Operator(.Assign) = eq.kind else {
             emitError(
                 "expected '=' after case pattern",
-                at: SourceRange(from: token, to: last ?? token, in: buffer))
+                at: SourceRange(from: token, to: last ?? token, in: buffer)
+            )
             return errorExpression(from: token, to: last ?? token)
         }
         index += 1
@@ -4155,9 +4176,9 @@ public final class Parser {
 
     private func parseCatchClause() -> AST.Do.CatchClause? {
         let beginToken = next!
-        var pattern: AST.Expression? = nil
-        var whereToken: Token? = nil
-        var whereCondition: AST.Expression? = nil
+        var pattern: AST.Expression?
+        var whereToken: Token?
+        var whereCondition: AST.Expression?
         if let t = peek, case .Separator(.OpenBrace) = t.kind {
         } else if let t = peek, case .Keyword(.Where) = t.kind {
             whereToken = t
@@ -4250,13 +4271,15 @@ public final class Parser {
         }
         guard case .Separator(.CloseBrace) = closeToken.kind else {
             emitError(
-                "expected '}' after match cases, but got '\(closeToken.value)'", at: closeToken)
+                "expected '}' after match cases, but got '\(closeToken.value)'", at: closeToken
+            )
             return errorExpression(from: token, to: closeToken)
         }
         return AST.Match(
             token, subject, cases, sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
         )
     }
+
     private func parseMatchCase() -> AST.Match.Case? {
         let beginToken = peek!
         var patterns: [AST.Expression] = []
@@ -4266,7 +4289,7 @@ public final class Parser {
             case .Separator(.Arrow):
                 break _loop
             case .Separator(.Comma):
-                self.index += 1
+                index += 1
             default:
                 if let pattern = parseExpression() {
                     patterns.append(pattern)
@@ -4291,7 +4314,7 @@ public final class Parser {
             var body: [AST.Statement] = []
             switch t.kind {
             case .Separator(.OpenBrace):
-                self.index += 1
+                index += 1
                 while let t = peek {
                     if case .Separator(.CloseBrace) = t.kind {
                         break
@@ -4349,7 +4372,8 @@ public final class Parser {
             if close.kind != .Separator(.CloseParen) {
                 emitError(
                     "expected ')' after interpolation expression, but got '\(close.value)'",
-                    at: close)
+                    at: close
+                )
                 return errorExpression(from: firstToken, to: close)
             }
             index += 1
@@ -4380,7 +4404,7 @@ public final class Parser {
         } else if let t = peek, t.kind == .Keyword(.Async) {
             signature = parseClosureSignature()
         } else if let t = peek, case .Identifier = t.kind,
-            let t2 = peek2, case .Identifier = t2.kind, t2.value == "in"
+                  let t2 = peek2, case .Identifier = t2.kind, t2.value == "in"
         {
             index += 1
             let parameter = AST.FunctionDecl.Parameter(
@@ -4470,16 +4494,18 @@ public final class Parser {
             }
             let fallback =
                 peek
-                ?? Token(
-                    value: "", kind: .Unknown,
-                    pos: Position(pos: 0, line: 0, col: 0, len: 0), id: lexerResult.id
-                )
+                    ?? Token(
+                        value: "", kind: .Unknown,
+                        pos: Position(pos: 0, line: 0, col: 0, len: 0), id: lexerResult.id
+                    )
             return AST.ClosureSignature(
-                captureList, parameters, throwsClause, returnType, asyncToken, fallback)
+                captureList, parameters, throwsClause, returnType, asyncToken, fallback
+            )
         }
         index += 1
         return AST.ClosureSignature(
-            captureList, parameters, throwsClause, returnType, asyncToken, inToken!)
+            captureList, parameters, throwsClause, returnType, asyncToken, inToken!
+        )
     }
 
     private func parseCaptureList() -> [AST.CaptureItem] {
@@ -4487,7 +4513,7 @@ public final class Parser {
         var items: [AST.CaptureItem] = []
         while let t = peek {
             if t.kind == .Separator(.CloseBracket) { break }
-            var specifier: Token? = nil
+            var specifier: Token?
             if t.value == "weak" || t.value == "unowned" {
                 specifier = t
                 index += 1
@@ -4544,7 +4570,7 @@ public final class Parser {
         }
         let returnTypeExpression =
             parseExpression(excepts: excepts, isTypeContext: true)
-            ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
+                ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
         return AST.ClosureType(
             parameterTypes, throwsClause, returnTypeExpression,
             sourceRange: SourceRange(
@@ -4559,10 +4585,10 @@ public final class Parser {
             guard let expr = parseExpression() else {
                 break _loop
             }
-            var label: Token? = nil
+            var label: Token?
             var value = expr
             if let variable = expr as? AST.Variable,
-                let colon = peek, case .Separator(.Colon) = colon.kind
+               let colon = peek, case .Separator(.Colon) = colon.kind
             {
                 label = variable.name
                 index += 1
@@ -4612,7 +4638,8 @@ public final class Parser {
             range = callee.sourceRange
         }
         return AST.Call(
-            callee: callee, arguments: arguments, trailingClosures: [], sourceRange: range)
+            callee: callee, arguments: arguments, trailingClosures: [], sourceRange: range
+        )
     }
 
     private func parseSubscript(_ base: AST.Expression) -> AST.Subscript {
@@ -4650,7 +4677,7 @@ public final class Parser {
         var attributes: [AST.Attribute] = []
         _loop: while let token = peek {
             switch token.kind {
-            case .Keyword(let kind):
+            case let .Keyword(kind):
                 switch kind {
                 case .Open:
                     index += 1
@@ -5048,7 +5075,7 @@ public final class Parser {
                     emitError("expected '(' or ']' after attribute name", at: endOfFile)
                     break _loop
                 }
-                guard case .Separator(let t2Kind) = t2.kind else {
+                guard case let .Separator(t2Kind) = t2.kind else {
                     emitError(
                         "expected '(' or ']' after attribute name, but got '\(t2.value)'", at: t2
                     )
@@ -5062,7 +5089,7 @@ public final class Parser {
                         if case .Separator(.CloseParen) = t.kind { break }
                         index += 1
                         if case .Identifier = t.kind, let t2 = peek,
-                            case .Separator(.Colon) = t2.kind
+                           case .Separator(.Colon) = t2.kind
                         {
                             index += 1
                             var args: [Token] = []

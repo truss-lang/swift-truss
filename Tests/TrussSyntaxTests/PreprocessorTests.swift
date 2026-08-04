@@ -1,8 +1,8 @@
+import Foundation
 import SwiftBetterDiagnostic
 import Testing
 import TrussCore
 import TrussSyntax
-import Foundation
 
 func preprocessWithDiagnostics(
     _ source: String, flags: Set<String> = [], target: String = "x86_64-unknown-linux-gnu",
@@ -15,7 +15,8 @@ func preprocessWithDiagnostics(
     let lexerResult = Lexer(input: stream).parse()
     let result = Preprocessor(context: context).process(
         lexerResult,
-        config: PreprocessorConfig(flags: flags, target: target, workingDirectory: workingDirectory))
+        config: PreprocessorConfig(flags: flags, target: target, workingDirectory: workingDirectory)
+    )
     return (result.tokens, context.diagnositicEngine.diagnostics)
 }
 
@@ -517,7 +518,8 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     try "#include \"b.truss\"".write(to: a, atomically: true, encoding: .utf8)
     try "#include \"a.truss\"".write(to: b, atomically: true, encoding: .utf8)
     let (tokens, diagnostics) = preprocessWithDiagnostics(
-        "#include \"a.truss\"", workingDirectory: dir.path)
+        "#include \"a.truss\"", workingDirectory: dir.path
+    )
     #expect(diagnostics.contains { $0.message.contains("circular #include") })
     #expect(tokens.isEmpty)
 }
@@ -614,16 +616,19 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     let context = Context()
     let src = Source(
         id: Id.SourceId(id: 0), filepath: "<test>",
-        content: "#define MAX 100\nMAX")
+        content: "#define MAX 100\nMAX"
+    )
     context.register(source: src)
     let site = MacroExpansionSite(
         name: "MAX",
         definitionPosition: Position(pos: 8, line: 1, col: 9, len: 3),
-        definitionSourceId: Id.SourceId(id: 0))
+        definitionSourceId: Id.SourceId(id: 0)
+    )
     let token = Token(
         value: "100", kind: .IntegerLiteral(100),
         pos: Position(pos: 16, line: 2, col: 1, len: 3),
-        id: Id.SourceId(id: 0), expansion: [site])
+        id: Id.SourceId(id: 0), expansion: [site]
+    )
     let notes = token.expansionNotes(in: context)
     #expect(notes.count == 1)
     #expect(notes[0].message == "in expansion of macro 'MAX'")
@@ -638,7 +643,8 @@ func parseWithPreprocessor(_ source: String) -> [Diagnostic] {
     let stream = CharStream(content: source, id: Id.SourceId(id: 0))
     let lexerResult = Lexer(input: stream).parse()
     let processed = Preprocessor(context: context).process(
-        lexerResult, config: PreprocessorConfig())
+        lexerResult, config: PreprocessorConfig()
+    )
     let parser = Parser(context: context, packageName: "main", processed)
     _ = parser.parse()
     return context.diagnositicEngine.diagnostics
@@ -665,21 +671,21 @@ func parseWithPreprocessor(_ source: String) -> [Diagnostic] {
     let (_, diagnostics) = preprocessWithDiagnostics("#define A B\n#define B / 0\n#if 1 A")
     let divError = diagnostics.first { $0.message.contains("division by zero") }
     #expect(divError?.notes.map { $0.message } == [
-        "in expansion of macro 'B'", "in expansion of macro 'A'"
+        "in expansion of macro 'B'", "in expansion of macro 'A'",
     ])
 }
 
 @Test func ppMacroChainExpansionInFunction() {
     let source = """
-        #define A B + 2
-        #define B C * 3
-        #define C D - 4
-        #define D E / 5
-        #define E A | 1
-        func f() {
-            A
-        }
-        """
+    #define A B + 2
+    #define B C * 3
+    #define C D - 4
+    #define D E / 5
+    #define E A | 1
+    func f() {
+        A
+    }
+    """
     let tokens = preprocess(source)
     #expect(tokenValues(tokens) == [
         "func", "f", "(", ")", "{",
@@ -690,12 +696,12 @@ func parseWithPreprocessor(_ source: String) -> [Diagnostic] {
 
 @Test func ppFunclikeChainInFunction() {
     let source = """
-        #define funclike() add
-        #define add(x, y) x + y
-        func f() {
-            funclike()(1, 2)
-        }
-        """
+    #define funclike() add
+    #define add(x, y) x + y
+    func f() {
+        funclike()(1, 2)
+    }
+    """
     let tokens = preprocess(source)
     #expect(tokenValues(tokens) == [
         "func", "f", "(", ")", "{",
@@ -706,17 +712,17 @@ func parseWithPreprocessor(_ source: String) -> [Diagnostic] {
 
 @Test func ppDeferFamilyInFunction() {
     let source = """
-        #define EMPTY()
-        #define DEFER1(A) A
-        #define DEFER2(A) AA EMPTY()
-        #define AA() 123
-        #define EXPAND(x) x
-        func f() {
-            DEFER1(AA)()
-            DEFER2(AA)()
-            EXPAND(DEFER2(AA)())
-        }
-        """
+    #define EMPTY()
+    #define DEFER1(A) A
+    #define DEFER2(A) AA EMPTY()
+    #define AA() 123
+    #define EXPAND(x) x
+    func f() {
+        DEFER1(AA)()
+        DEFER2(AA)()
+        EXPAND(DEFER2(AA)())
+    }
+    """
     let tokens = preprocess(source)
     #expect(tokenValues(tokens) == [
         "func", "f", "(", ")", "{",

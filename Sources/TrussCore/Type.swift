@@ -6,14 +6,17 @@ public enum TrussType {
         @abstractInit
         public init() {}
     }
+
     public final class VoidType: TrussType, @unchecked Sendable {
         public static let INSTANCE = VoidType()
-        private override init() {}
+        override private init() {}
     }
+
     public final class NeverType: TrussType, @unchecked Sendable {
         public static let INSTANCE = NeverType()
-        private override init() {}
+        override private init() {}
     }
+
     public final class NamedType: TrussType {
         public let name: String
         public var symbol: Symbol.Symbol? = nil

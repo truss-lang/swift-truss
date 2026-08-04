@@ -10,7 +10,8 @@ func parseProgram(_ source: String, semantic: Bool = false) -> AST.Program {
     context.register(source: src)
     let lexerResult = Lexer(input: CharStream(content: source, id: src.id)).parse()
     let preprocessed = Preprocessor(context: context).process(
-        lexerResult, config: PreprocessorConfig())
+        lexerResult, config: PreprocessorConfig()
+    )
     let program = Parser(context: context, packageName: "main", preprocessed).parse()
     if semantic {
         DeclCollector(context: context).visitProgram(program)

@@ -56,24 +56,31 @@ public final class Driver {
                 config: PreprocessorConfig(
                     defines: self.config.defines,
                     target: self.config.target,
-                    workingDirectory: (file as NSString).deletingLastPathComponent))
+                    workingDirectory: (file as NSString).deletingLastPathComponent
+                )
+            )
             return Parser(context: context, packageName: "main", preprocessed).parse()
         }
-        programs.forEach { DeclCollector(context: context).visitProgram($0) }
-        programs.forEach { Enter(context: context).visitProgram($0) }
+        let declCollector = DeclCollector(context: context)
+        programs.forEach { declCollector.visitProgram($0) }
+        let enter = Enter(context: context)
+        programs.forEach { enter.visitProgram($0) }
         let merger = MergePass(context: context)
         programs.forEach { merger.visitProgram($0) }
         merger.resolvePending()
-        programs.forEach { NameResolver(context: context).visitProgram($0) }
+        let nameResolver = NameResolver(context: context)
+        programs.forEach { nameResolver.visitProgram($0) }
         var stdout = ""
-        if self.config.dumpAST, !programs.isEmpty {
-            stdout += programs.map { ASTDumper().dump($0) }.joined(separator: "\n") + "\n"
+        if config.dumpAST, !programs.isEmpty {
+            let dumper = ASTDumper()
+            stdout += programs.map { dumper.dump($0) }.joined(separator: "\n") + "\n"
         }
-        if self.config.dumpSymbols, let first = programs.first {
+        if config.dumpSymbols, let first = programs.first {
             stdout += SymbolDumper().dump(first) + "\n"
         }
-        if self.config.dumpSource, !programs.isEmpty {
-            stdout += programs.map { SourcePrinter().print($0) }.joined(separator: "\n") + "\n"
+        if config.dumpSource, !programs.isEmpty {
+            let printer = SourcePrinter()
+            stdout += programs.map { printer.print($0) }.joined(separator: "\n") + "\n"
         }
         let hasErrors = context.diagnositicEngine.hasErrors
         var stderr = ""
@@ -92,6 +99,7 @@ public final class Driver {
         context.diagnositicEngine.emit(
             Diagnostic(
                 severity: .error, message: "could not read file '\(file)'",
-                range: SourceRange(start: location, end: location)))
+                range: SourceRange(start: location, end: location)
+            ))
     }
 }

@@ -163,73 +163,73 @@ public enum KeywordKind: CaseIterable, Sendable {
 }
 
 public enum SeparatorKind: Sendable {
-    case OpenParen  // (
-    case CloseParen  // )
-    case OpenBracket  // [
-    case CloseBracket  // ]
-    case OpenBrace  // {
-    case CloseBrace  // }
-    case SemiColon  // ;
-    case Comma  // ,
-    case Colon  // :
-    case Sharp  // #
-    case Arrow  // ->
+    case OpenParen // (
+    case CloseParen // )
+    case OpenBracket // [
+    case CloseBracket // ]
+    case OpenBrace // {
+    case CloseBrace // }
+    case SemiColon // ;
+    case Comma // ,
+    case Colon // :
+    case Sharp // #
+    case Arrow // ->
 }
 
 public enum OperatorKind: Sendable {
-    case Dollar  // $
-    case At  // @
-    case QuestionMark  // ?
-    case Dot  // .
-    case LeftShift  // <<
-    case RightShift  // >>
-    case RightShiftLogical  // >>>
-    case BitNot  // ~
-    case BitAnd  // &
-    case BitOr  // |
-    case BitXor  // ^
+    case Dollar // $
+    case At // @
+    case QuestionMark // ?
+    case Dot // .
+    case LeftShift // <<
+    case RightShift // >>
+    case RightShiftLogical // >>>
+    case BitNot // ~
+    case BitAnd // &
+    case BitOr // |
+    case BitXor // ^
 
-    case Not  // !
-    case And  // &&
-    case Or  // ||
+    case Not // !
+    case And // &&
+    case Or // ||
 
-    case Assign  // =
-    case MultiplyAssign  // *=
-    case DivideAssign  // /=
-    case ModulusAssign  // %=
-    case PlusAssign  // +=
-    case MinusAssign  // -=
-    case LeftShiftAssign  // <<=
-    case RightShiftAssign  // >>=
-    case RightShiftLogicalAssign  // >>>=
-    case BitAndAssign  // &=
-    case BitXorAssign  // ^=
-    case BitOrAssign  // |=
+    case Assign // =
+    case MultiplyAssign // *=
+    case DivideAssign // /=
+    case ModulusAssign // %=
+    case PlusAssign // +=
+    case MinusAssign // -=
+    case LeftShiftAssign // <<=
+    case RightShiftAssign // >>=
+    case RightShiftLogicalAssign // >>>=
+    case BitAndAssign // &=
+    case BitXorAssign // ^=
+    case BitOrAssign // |=
 
-    case RightArrow  // =>
+    case RightArrow // =>
 
-    case Inc  // ++
-    case Dec  // --
+    case Inc // ++
+    case Dec // --
 
-    case Plus  // +
-    case Minus  // -
-    case Multiply  // *
-    case Divide  // /
-    case Modulus  // %
+    case Plus // +
+    case Minus // -
+    case Multiply // *
+    case Divide // /
+    case Modulus // %
 
-    case Equal  // ==
-    case NotEqual  // !=
-    case Greater  // >
-    case GreaterEqual  // >=
-    case Less  // <
-    case LessEqual  // <=
+    case Equal // ==
+    case NotEqual // !=
+    case Greater // >
+    case GreaterEqual // >=
+    case Less // <
+    case LessEqual // <=
 
-    case QuestionMarkDot  // ?.
-    case Elvis  // ?:
+    case QuestionMarkDot // ?.
+    case Elvis // ?:
 
-    case DotDot  // ..
-    case DotDotLess  // ..<
-    case DotDotDot  // ...
+    case DotDot // ..
+    case DotDotLess // ..<
+    case DotDotDot // ...
 }
 
 public enum TokenKind: Hashable, Equatable {
@@ -278,10 +278,12 @@ public final class Token: Hashable, Equatable {
         self.isUnterminated = isUnterminated
         self.expansion = expansion
     }
+
     public static func == (_ lhs: Token, _ rhs: Token) -> Bool {
         return lhs.value == rhs.value && lhs.kind == rhs.kind && lhs.pos == rhs.pos
             && lhs.id == rhs.id && lhs.isUnterminated == rhs.isUnterminated
     }
+
     public func hash(into hasher: inout Hasher) {
         hasher.combine(value)
         hasher.combine(kind)
@@ -291,21 +293,24 @@ public final class Token: Hashable, Equatable {
     }
 }
 
-extension Token {
-    public func expansionNotes(in context: Context) -> [Diagnostic] {
-        guard let chain = self.expansion, !chain.isEmpty else { return [] }
+public extension Token {
+    func expansionNotes(in context: Context) -> [Diagnostic] {
+        guard let chain = expansion, !chain.isEmpty else { return [] }
         return chain.compactMap { site in
             guard let source = context.sourceTable[site.definitionSourceId] else { return nil }
             let buffer = source.stringSourceBuffer
             let position = site.definitionPosition
             let start = SourceLocation(
-                buffer: buffer, offset: position.pos, line: position.line, column: position.col)
+                buffer: buffer, offset: position.pos, line: position.line, column: position.col
+            )
             let end = SourceLocation(
                 buffer: buffer, offset: position.pos + position.len, line: position.line,
-                column: position.col + position.len)
+                column: position.col + position.len
+            )
             return Diagnostic(
                 severity: .note, message: "in expansion of macro '\(site.name)'",
-                range: SourceRange(start: start, end: end))
+                range: SourceRange(start: start, end: end)
+            )
         }
     }
 }
@@ -317,18 +322,21 @@ public class CharStream: IteratorProtocol {
     public var line: Int
     public var col: Int
     public init(content: String, id: Id.SourceId) {
-        self.chars = Array(content)
+        chars = Array(content)
         self.id = id
-        self.pos = 0
-        self.line = 1
-        self.col = 1
+        pos = 0
+        line = 1
+        col = 1
     }
+
     public var isEmpty: Bool {
-        self.pos >= self.chars.count
+        pos >= chars.count
     }
+
     public var count: Int {
         chars.count
     }
+
     public var peek: Character? {
         if pos < chars.count {
             chars[pos]
@@ -336,6 +344,7 @@ public class CharStream: IteratorProtocol {
             nil
         }
     }
+
     public var peek2: Character? {
         if pos + 1 < chars.count {
             chars[pos + 1]
@@ -343,6 +352,7 @@ public class CharStream: IteratorProtocol {
             nil
         }
     }
+
     public var peek3: Character? {
         if pos + 2 < chars.count {
             chars[pos + 2]
@@ -350,6 +360,7 @@ public class CharStream: IteratorProtocol {
             nil
         }
     }
+
     public func next() -> Character? {
         if pos < chars.count {
             let c = chars[pos]
@@ -365,11 +376,13 @@ public class CharStream: IteratorProtocol {
             return nil
         }
     }
+
     public var currentPosition: Position {
-        Position(pos: self.pos, line: self.line, col: self.col, len: 1)
+        Position(pos: pos, line: line, col: col, len: 1)
     }
+
     public func incrementPosition() {
-        let c = self.peek
+        let c = peek
         pos += 1
         if c == "\n" {
             line += 1
@@ -380,10 +393,11 @@ public class CharStream: IteratorProtocol {
     }
 }
 
-extension Token {
-    public func sourceRange(in buffer: SourceBuffer) -> SourceRange {
+public extension Token {
+    func sourceRange(in buffer: SourceBuffer) -> SourceRange {
         let start = SourceLocation(
-            buffer: buffer, offset: pos.pos, line: pos.line, column: pos.col)
+            buffer: buffer, offset: pos.pos, line: pos.line, column: pos.col
+        )
         var endLine = pos.line
         var endCol = pos.col
         for ch in value {
@@ -395,17 +409,20 @@ extension Token {
             }
         }
         let end = SourceLocation(
-            buffer: buffer, offset: pos.pos + pos.len, line: endLine, column: endCol)
+            buffer: buffer, offset: pos.pos + pos.len, line: endLine, column: endCol
+        )
         return SourceRange(start: start, end: end)
     }
 }
 
-extension SourceRange {
-    public init(from startToken: Token, to endToken: Token, in buffer: SourceBuffer) {
+public extension SourceRange {
+    init(from startToken: Token, to endToken: Token, in buffer: SourceBuffer) {
         self.init(
             start: SourceLocation(
                 buffer: buffer, offset: startToken.pos.pos, line: startToken.pos.line,
-                column: startToken.pos.col),
-            end: endToken.sourceRange(in: buffer).end)
+                column: startToken.pos.col
+            ),
+            end: endToken.sourceRange(in: buffer).end
+        )
     }
 }
