@@ -14,6 +14,7 @@ extension AST.ModifierKind {
         case .Nonmutating: "nonmutating"
         case .Convenience: "convenience"
         case .Override: "override"
+        case .Static: "static"
         case .Lazy: "lazy"
         case .Weak: "weak"
         case .Unowned: "unowned"

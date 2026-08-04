@@ -156,16 +156,14 @@ public final class NameResolver: AST.Visitor {
     ) -> Any? {
         visit(memberAccess.object, additional: additional)
         guard let objectSymbol = resolvedSymbol(memberAccess.object) else { return nil }
-        let scope: Scope?
+        let (symbol, overloads): (Symbol.Symbol?, [Symbol.FunctionSymbol]?)
         if let typeSymbol = objectSymbol as? Symbol.NominalTypeSymbol {
-            scope = typeSymbol.scope
+            (symbol, overloads) = memberResolution(memberAccess.member.value, in: typeSymbol)
         } else if let moduleSymbol = objectSymbol as? Symbol.ModuleSymbol {
-            scope = moduleSymbol.scope
+            (symbol, overloads) = memberResolution(memberAccess.member.value, in: moduleSymbol.scope)
         } else {
             return nil
         }
-        guard let scope else { return nil }
-        let (symbol, overloads) = memberResolution(memberAccess.member.value, in: scope)
         memberAccess.symbol = symbol
         memberAccess.overloads = overloads
         return nil
@@ -176,10 +174,24 @@ public final class NameResolver: AST.Visitor {
         _ implicitMemberAccess: AST.ImplicitMemberAccess, additional _: Any? = nil
     ) -> Any? {
         guard let type = typeStack.last else { return nil }
-        let (symbol, overloads) = memberResolution(implicitMemberAccess.name.value, in: type.scope)
+        let (symbol, overloads) = memberResolution(implicitMemberAccess.name.value, in: type)
         implicitMemberAccess.symbol = symbol
         implicitMemberAccess.overloads = overloads
         return nil
+    }
+
+    private func memberResolution(
+        _ name: String, in type: Symbol.NominalTypeSymbol
+    ) -> (Symbol.Symbol?, [Symbol.FunctionSymbol]?) {
+        var current: Symbol.NominalTypeSymbol? = type
+        while let currentType = current {
+            let result = memberResolution(name, in: currentType.scope)
+            if result.0 != nil || result.1 != nil {
+                return result
+            }
+            current = currentType.superclass
+        }
+        return (nil, nil)
     }
 
     private func memberResolution(_ name: String, in scope: Scope) -> (

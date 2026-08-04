@@ -27,6 +27,7 @@ public enum KeywordKind: CaseIterable, Sendable {
     case Nonmutating
     case Convenience
     case Override
+    case Static
     case Lazy
     case Weak
     case Unowned
@@ -100,6 +101,7 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .Nonmutating: "nonmutating"
         case .Convenience: "convenience"
         case .Override: "override"
+        case .Static: "static"
         case .Lazy: "lazy"
         case .Weak: "weak"
         case .Unowned: "unowned"

@@ -156,3 +156,34 @@ func probe(_ source: String) -> (Context, SymbolProbe) {
     #expect(probe.implicitMembers[0].symbol is Symbol.VariableSymbol)
     #expect(!context.diagnositicEngine.hasErrors)
 }
+
+@Test func staticModifierParsedInTypeBody() {
+    let (context, probe) = probe("struct S { static func f() {} func m() { .f } }")
+    #expect(probe.implicitMembers.count == 1)
+    #expect(probe.implicitMembers[0].overloads?.count == 1)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func inheritedMemberResolvedThroughSelf() {
+    let (context, probe) = probe(
+        "class A { func base() {} } class B: A { func m() { self.base() } }")
+    let member = probe.memberAccesses.first { $0.member.value == "base" }
+    #expect(member?.overloads?.count == 1)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func inheritedMemberResolvedThroughMultiLevelChain() {
+    let (context, probe) = probe(
+        "class A { func x() {} } class B: A {} class C: B { func m() { self.x() } }")
+    let member = probe.memberAccesses.first { $0.member.value == "x" }
+    #expect(member?.overloads?.count == 1)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func inheritedMemberResolvedThroughImplicitMember() {
+    let (context, probe) = probe(
+        "class A { func base() {} } class B: A { func m() { .base } }")
+    #expect(probe.implicitMembers.count == 1)
+    #expect(probe.implicitMembers[0].overloads?.count == 1)
+    #expect(!context.diagnositicEngine.hasErrors)
+}

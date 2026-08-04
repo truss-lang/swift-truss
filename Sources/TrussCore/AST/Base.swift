@@ -75,6 +75,7 @@ public enum AST {
         case Nonmutating
         case Convenience
         case Override
+        case Static
         case Lazy
         case Weak
         case Unowned

@@ -4982,6 +4982,15 @@ public final class Parser {
                             sourceRange: token.sourceRange(in: buffer)
                         )
                     )
+                case .Static:
+                    index += 1
+                    modifiers.append(
+                        AST.Modifier(
+                            token: token,
+                            kind: .Static,
+                            sourceRange: token.sourceRange(in: buffer)
+                        )
+                    )
                 case .Lazy:
                     index += 1
                     modifiers.append(
