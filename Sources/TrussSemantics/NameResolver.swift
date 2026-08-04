@@ -180,6 +180,39 @@ public final class NameResolver: AST.Visitor {
         return nil
     }
 
+    @discardableResult
+    override public func visitKeyPathExpression(
+        _ keyPathExpression: AST.KeyPathExpression, additional: Any? = nil
+    ) -> Any? {
+        if let root = keyPathExpression.root {
+            visit(root, additional: additional)
+        }
+        var base = keyPathExpression.root.flatMap { resolvedSymbol($0) }
+        for component in keyPathExpression.components {
+            guard let baseSymbol = base else { break }
+            if component.name.kind == .Keyword(.SelfKw) {
+                component.symbol = baseSymbol
+                continue
+            }
+            let (symbol, overloads): (Symbol.Symbol?, [Symbol.FunctionSymbol]?)
+            if let typeSymbol = baseSymbol as? Symbol.NominalTypeSymbol {
+                (symbol, overloads) = memberResolution(component.name.value, in: typeSymbol)
+            } else if let moduleSymbol = baseSymbol as? Symbol.ModuleSymbol {
+                (symbol, overloads) = memberResolution(component.name.value, in: moduleSymbol.scope)
+            } else {
+                break
+            }
+            component.symbol = symbol
+            component.overloads = overloads
+            if let typeSymbol = symbol as? Symbol.NominalTypeSymbol {
+                base = typeSymbol
+            } else {
+                base = nil
+            }
+        }
+        return nil
+    }
+
     private func memberResolution(
         _ name: String, in type: Symbol.NominalTypeSymbol
     ) -> (Symbol.Symbol?, [Symbol.FunctionSymbol]?) {

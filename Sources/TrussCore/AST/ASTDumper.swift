@@ -1236,6 +1236,8 @@ public final class ASTDumper: AST.Visitor {
             children.append {
                 self.dumpNode(
                     "Component \(component.dotToken.value)\(component.name.value)\(postfixText)"
+                        + self.symText(component.symbol)
+                        + self.overloadsText(component.overloads)
                 )
             }
         }

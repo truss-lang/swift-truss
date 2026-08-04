@@ -8,6 +8,7 @@ final class SymbolProbe: AST.Visitor {
     var superExpressions: [AST.SuperExpression] = []
     var memberAccesses: [AST.MemberAccess] = []
     var implicitMembers: [AST.ImplicitMemberAccess] = []
+    var keyPaths: [AST.KeyPathExpression] = []
 
     override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
         variables.append(variable)
@@ -40,6 +41,13 @@ final class SymbolProbe: AST.Visitor {
     ) -> Any? {
         implicitMembers.append(implicitMemberAccess)
         return super.visitImplicitMemberAccess(implicitMemberAccess, additional: additional)
+    }
+
+    override func visitKeyPathExpression(
+        _ keyPathExpression: AST.KeyPathExpression, additional: Any? = nil
+    ) -> Any? {
+        keyPaths.append(keyPathExpression)
+        return super.visitKeyPathExpression(keyPathExpression, additional: additional)
     }
 }
 
@@ -321,5 +329,87 @@ func resolve(_ source: String) -> (Context, AST.Program) {
         "class A { func base() {} } class B: A { func m() { .base } }")
     #expect(probe.implicitMembers.count == 1)
     #expect(probe.implicitMembers[0].overloads?.count == 1)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func keyPathRootResolvedToType() {
+    let (context, probe) = probe("struct Person { var name: Int } func f() { let k = \\Person.name }")
+    let keyPath = probe.keyPaths[0]
+    let root = keyPath.root as? AST.Variable
+    #expect(root?.symbol is Symbol.NominalTypeSymbol)
+    #expect((root?.symbol as? Symbol.NominalTypeSymbol)?.name == "Person")
+    #expect(keyPath.components.count == 1)
+    #expect(keyPath.components[0].symbol is Symbol.VariableSymbol)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func keyPathFunctionMemberOverloadsCollected() {
+    let (context, probe) = probe(
+        "struct S { func g() {} func g(x: Int) {} } func f() { let k = \\S.g }")
+    let keyPath = probe.keyPaths[0]
+    #expect(keyPath.components[0].symbol == nil)
+    #expect(keyPath.components[0].overloads?.count == 2)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func keyPathNestedTypePrefixContinued() {
+    let (context, probe) = probe(
+        "struct A { struct B { var c: Int } } func f() { let k = \\A.B.c }")
+    let keyPath = probe.keyPaths[0]
+    #expect((keyPath.root as? AST.Variable)?.symbol is Symbol.NominalTypeSymbol)
+    #expect(keyPath.components[0].symbol is Symbol.NominalTypeSymbol)
+    #expect((keyPath.components[0].symbol as? Symbol.NominalTypeSymbol)?.name == "B")
+    #expect(keyPath.components[1].symbol is Symbol.VariableSymbol)
+    #expect((keyPath.components[1].symbol as? Symbol.VariableSymbol)?.name == "c")
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func keyPathModulePrefixContinued() {
+    let (context, probe) = probe(
+        "module M { struct T { var v: Int } } func f() { let k = \\M.T.v }")
+    let keyPath = probe.keyPaths[0]
+    #expect((keyPath.root as? AST.Variable)?.symbol is Symbol.ModuleSymbol)
+    #expect(keyPath.components[0].symbol is Symbol.NominalTypeSymbol)
+    #expect((keyPath.components[0].symbol as? Symbol.NominalTypeSymbol)?.name == "T")
+    #expect(keyPath.components[1].symbol is Symbol.VariableSymbol)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func keyPathNoRootComponentsUnresolved() {
+    let (context, probe) = probe("func f() { let k = \\.name }")
+    let keyPath = probe.keyPaths[0]
+    #expect(keyPath.root == nil)
+    #expect(keyPath.components[0].symbol == nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func keyPathInstanceMemberStopsResolution() {
+    let (context, probe) = probe("struct P { var a: Int } func f() { let k = \\P.a.b }")
+    let keyPath = probe.keyPaths[0]
+    #expect(keyPath.components[0].symbol is Symbol.VariableSymbol)
+    #expect(keyPath.components[1].symbol == nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func keyPathSelfComponentResolvedToBase() {
+    let (context, probe) = probe("struct P {} func f() { let k = \\P.self }")
+    let keyPath = probe.keyPaths[0]
+    #expect(keyPath.components[0].symbol is Symbol.NominalTypeSymbol)
+    #expect((keyPath.components[0].symbol as? Symbol.NominalTypeSymbol)?.name == "P")
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func keyPathValueRootStopsResolution() {
+    let (context, probe) = probe("var p = 1 func f() { let k = \\p.name }")
+    let keyPath = probe.keyPaths[0]
+    #expect((keyPath.root as? AST.Variable)?.symbol is Symbol.VariableSymbol)
+    #expect(keyPath.components[0].symbol == nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func keyPathUnknownMemberStaysNil() {
+    let (context, probe) = probe("struct P { var a: Int } func f() { let k = \\P.missing }")
+    let keyPath = probe.keyPaths[0]
+    #expect(keyPath.components[0].symbol == nil)
     #expect(!context.diagnositicEngine.hasErrors)
 }

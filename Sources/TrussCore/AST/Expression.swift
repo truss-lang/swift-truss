@@ -821,10 +821,12 @@ public extension AST {
     }
 
     final class KeyPathExpression: Expression {
-        public struct Component {
+        public final class Component {
             public let dotToken: Token
             public let name: Token
             public let postfix: Token?
+            public var symbol: Symbol.Symbol? = nil
+            public var overloads: [Symbol.FunctionSymbol]? = nil
             public init(dotToken: Token, name: Token, postfix: Token?) {
                 self.dotToken = dotToken
                 self.name = name
