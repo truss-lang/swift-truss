@@ -15,7 +15,7 @@ struct Trussc: ParsableCommand {
     @Option(
         name: .long,
         help: "Target triple used by the preprocessor.")
-    var target: String = "x86_64-unknown-linux-gnu"
+    var target: String = DriverConfig.hostTarget
 
     @Option(
         name: [.customShort("D"), .customLong("define")],

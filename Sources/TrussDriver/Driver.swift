@@ -5,6 +5,8 @@ import TrussSemantics
 import TrussSyntax
 
 public struct DriverConfig {
+    public static let hostTarget: String = TargetTriple.host
+
     public var target: String
     public var defines: [String: String]
     public var dumpAST: Bool
@@ -12,7 +14,7 @@ public struct DriverConfig {
     public var dumpSource: Bool
 
     public init(
-        target: String = "x86_64-unknown-linux-gnu",
+        target: String = DriverConfig.hostTarget,
         defines: [String: String] = [:],
         dumpAST: Bool = false,
         dumpSymbols: Bool = false,

@@ -2,6 +2,38 @@ import Foundation
 import SwiftBetterDiagnostic
 import TrussCore
 
+public enum TargetTriple {
+    public static let host: String = {
+        #if arch(x86_64)
+        let arch = "x86_64"
+        #elseif arch(arm64)
+        let arch = "aarch64"
+        #elseif arch(i386)
+        let arch = "i386"
+        #elseif arch(arm)
+        let arch = "arm"
+        #else
+        let arch = "unknown"
+        #endif
+        #if os(Linux)
+        let os = "linux"
+        #elseif os(macOS)
+        let os = "macos"
+        #elseif os(Windows)
+        let os = "windows"
+        #elseif os(iOS)
+        let os = "ios"
+        #elseif os(Android)
+        let os = "android"
+        #elseif os(FreeBSD)
+        let os = "freebsd"
+        #else
+        let os = "unknown"
+        #endif
+        return "\(arch)-unknown-\(os)"
+    }()
+}
+
 public struct PreprocessorConfig {
     public let flags: Set<String>
     public let defines: [String: String]
@@ -9,7 +41,7 @@ public struct PreprocessorConfig {
     public let workingDirectory: String
     public init(
         flags: Set<String> = [], defines: [String: String] = [:],
-        target: String = "x86_64-unknown-linux-gnu",
+        target: String = TargetTriple.host,
         workingDirectory: String = ""
     ) {
         self.flags = flags
