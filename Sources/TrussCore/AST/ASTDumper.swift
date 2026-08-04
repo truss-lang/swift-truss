@@ -1221,6 +1221,29 @@ public final class ASTDumper: AST.Visitor {
     }
 
     @discardableResult
+    override public func visitKeyPathExpression(
+        _ keyPathExpression: AST.KeyPathExpression, additional _: Any? = nil
+    ) -> Any? {
+        var children: [() -> Void] = []
+        if let root = keyPathExpression.root {
+            children.append { self.dumpNode("Root", children: [{ self.visit(root) }]) }
+        }
+        if let rootPostfix = keyPathExpression.rootPostfix {
+            children.append { self.dumpNode("RootPostfix \(rootPostfix.value)") }
+        }
+        for component in keyPathExpression.components {
+            let postfixText = component.postfix?.value ?? ""
+            children.append {
+                self.dumpNode(
+                    "Component \(component.dotToken.value)\(component.name.value)\(postfixText)"
+                )
+            }
+        }
+        dumpNode("KeyPathExpression" + tyText(keyPathExpression.ty), children: children)
+        return nil
+    }
+
+    @discardableResult
     override public func visitStringInterpolation(
         _ interpolation: AST.StringInterpolation, additional _: Any? = nil
     ) -> Any? {

@@ -855,6 +855,16 @@ extension AST {
         }
 
         @discardableResult
+        open func visitKeyPathExpression(
+            _ keyPathExpression: AST.KeyPathExpression, additional: Any? = nil
+        ) -> Any? {
+            if let root = keyPathExpression.root {
+                visit(root, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitStringInterpolation(
             _ interpolation: AST.StringInterpolation, additional: Any? = nil
         ) -> Any? {

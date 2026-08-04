@@ -820,6 +820,38 @@ public extension AST {
         }
     }
 
+    final class KeyPathExpression: Expression {
+        public struct Component {
+            public let dotToken: Token
+            public let name: Token
+            public let postfix: Token?
+            public init(dotToken: Token, name: Token, postfix: Token?) {
+                self.dotToken = dotToken
+                self.name = name
+                self.postfix = postfix
+            }
+        }
+
+        public let backslashToken: Token
+        public let root: Expression?
+        public let rootPostfix: Token?
+        public let components: [Component]
+        public init(
+            _ backslashToken: Token, _ root: Expression?, _ rootPostfix: Token?,
+            _ components: [Component], sourceRange: SourceRange
+        ) {
+            self.backslashToken = backslashToken
+            self.root = root
+            self.rootPostfix = rootPostfix
+            self.components = components
+            super.init(sourceRange)
+        }
+
+        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitKeyPathExpression(self, additional: additional)
+        }
+    }
+
     enum StringSegment {
         case literal(Token)
         case expression(Expression)

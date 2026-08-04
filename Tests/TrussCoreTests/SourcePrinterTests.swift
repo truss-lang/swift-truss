@@ -168,6 +168,11 @@ import TrussCore
         "let x = #\"a\\nb\"#",
         "let x = #\"a\\#(x)b\"#",
         "let x = #\"a\"b\"#",
+        "let x = \\Person.name",
+        "let x = \\.self",
+        "let x = \\A.b!.c",
+        "let x = \\Person.age?.city",
+        "let x = \\A?.b",
     ] {
         assertRoundTrip(source)
     }

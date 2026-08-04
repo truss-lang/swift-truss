@@ -4875,6 +4875,94 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(last.value == " world\n")
 }
 
+// MARK: - KeyPath
+
+@Test func parseKeyPathSimple() {
+    let expr = firstExpression("\\Person.name")
+    let keyPath = expr as? AST.KeyPathExpression
+    #expect(keyPath != nil)
+    #expect(keyPath!.root != nil)
+    #expect(keyPath!.root is AST.Variable)
+    #expect((keyPath!.root as? AST.Variable)?.name.value == "Person")
+    #expect(keyPath!.components.count == 1)
+    #expect(keyPath!.components[0].dotToken.kind == .Operator(.Dot))
+    #expect(keyPath!.components[0].name.value == "name")
+    #expect(keyPath!.components[0].postfix == nil)
+}
+
+@Test func parseKeyPathNoRoot() {
+    let expr = firstExpression("\\.name")
+    let keyPath = expr as? AST.KeyPathExpression
+    #expect(keyPath != nil)
+    #expect(keyPath!.root == nil)
+    #expect(keyPath!.components.count == 1)
+    #expect(keyPath!.components[0].name.value == "name")
+}
+
+@Test func parseKeyPathSelfComponent() {
+    let expr = firstExpression("\\.self")
+    let keyPath = expr as? AST.KeyPathExpression
+    #expect(keyPath != nil)
+    #expect(keyPath!.root == nil)
+    #expect(keyPath!.components.count == 1)
+    #expect(keyPath!.components[0].name.kind == .Keyword(.SelfKw))
+}
+
+@Test func parseKeyPathIntegerComponent() {
+    let expr = firstExpression("\\Person.0")
+    let keyPath = expr as? AST.KeyPathExpression
+    #expect(keyPath != nil)
+    #expect(keyPath!.components.count == 1)
+    #expect(keyPath!.components[0].name.kind == .IntegerLiteral(0))
+}
+
+@Test func parseKeyPathPostfixComponents() {
+    let expr = firstExpression("\\Person.name!.age")
+    let keyPath = expr as? AST.KeyPathExpression
+    #expect(keyPath != nil)
+    #expect(keyPath!.components.count == 2)
+    #expect(keyPath!.components[0].name.value == "name")
+    #expect(keyPath!.components[0].postfix?.kind == .Operator(.Not))
+    #expect(keyPath!.components[1].name.value == "age")
+    #expect(keyPath!.components[1].postfix == nil)
+}
+
+@Test func parseKeyPathOptionalComponent() {
+    let expr = firstExpression("\\Person.age?.city")
+    let keyPath = expr as? AST.KeyPathExpression
+    #expect(keyPath != nil)
+    #expect(keyPath!.components.count == 2)
+    #expect(keyPath!.components[0].name.value == "age")
+    #expect(keyPath!.components[0].postfix == nil)
+    #expect(keyPath!.components[1].dotToken.kind == .Operator(.QuestionMarkDot))
+    #expect(keyPath!.components[1].name.value == "city")
+}
+
+@Test func parseKeyPathRootPostfix() {
+    let expr = firstExpression("\\A!.b")
+    let keyPath = expr as? AST.KeyPathExpression
+    #expect(keyPath != nil)
+    #expect((keyPath!.root as? AST.Variable)?.name.value == "A")
+    #expect(keyPath!.rootPostfix?.kind == .Operator(.Not))
+    #expect(keyPath!.components.count == 1)
+    #expect(keyPath!.components[0].name.value == "b")
+}
+
+@Test func parseKeyPathDottedRoot() {
+    let expr = firstExpression("\\A.b.c")
+    let keyPath = expr as? AST.KeyPathExpression
+    #expect(keyPath != nil)
+    #expect((keyPath!.root as? AST.Variable)?.name.value == "A")
+    #expect(keyPath!.components.count == 2)
+    #expect(keyPath!.components[0].name.value == "b")
+    #expect(keyPath!.components[1].name.value == "c")
+}
+
+@Test func parseKeyPathMissingComponentReportsError() {
+    let (_, errors) = parseWithDiagnostics("func main() { let x = \\ }")
+    #expect(!errors.isEmpty)
+}
+
 // MARK: - Closure Signature
 
 @Test func parseClosureWithParameters() {

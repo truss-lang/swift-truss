@@ -229,6 +229,8 @@ public enum OperatorKind: Sendable {
     case QuestionMarkDot // ?.
     case Elvis // ?:
 
+    case Backslash // \
+
     case DotDot // ..
     case DotDotLess // ..<
     case DotDotDot // ...

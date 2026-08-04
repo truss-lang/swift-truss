@@ -246,7 +246,7 @@ public final class Lexer {
             let begin = input.currentPosition
             input.incrementPosition()
             return Token(
-                value: "\\", kind: .Unknown,
+                value: "\\", kind: .Operator(.Backslash),
                 pos: makePosition(begin), id: input.id
             )
         default:

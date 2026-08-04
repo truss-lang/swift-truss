@@ -3264,6 +3264,16 @@ public final class Parser {
                 } else {
                     break _loop
                 }
+            case .Operator(.Backslash) where !lastIsExpression:
+                if let expr = parsePrimary(
+                    excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                ) {
+                    operands.append(expr)
+                    lastIsExpression = true
+                    justClosedAngle = false
+                } else {
+                    break _loop
+                }
             case .Separator(.OpenBrace)
                 where lastIsExpression && !isCondition && !suppressTrailingClosures:
                 angleDepth = 0
@@ -3723,12 +3733,80 @@ public final class Parser {
                     token, Int(truncatingIfNeeded: value),
                     sourceRange: SourceRange(from: token, to: numToken, in: buffer)
                 )
+            case .Backslash:
+                index += 1
+                expression = parseKeyPath(token)
             default:
                 return nil
             }
         default: return nil
         }
         return parsePostfix(expression, excepts: excepts)
+    }
+
+    private func parseKeyPath(_ backslashToken: Token) -> AST.Expression {
+        var root: AST.Expression? = nil
+        var lastToken = backslashToken
+        if let t = peek, case .Identifier = t.kind {
+            index += 1
+            lastToken = t
+            root = AST.Variable(name: t, sourceRange: t.sourceRange(in: buffer))
+        }
+        var rootPostfix: Token? = nil
+        if let t = peek, t.kind == .Operator(.QuestionMark) || t.kind == .Operator(.Not) {
+            rootPostfix = t
+            lastToken = t
+            index += 1
+        }
+        var components: [AST.KeyPathExpression.Component] = []
+        _loop: while let t = peek {
+            let dot: Token
+            switch t.kind {
+            case .Operator(.Dot), .Operator(.QuestionMarkDot):
+                dot = t
+                index += 1
+            default:
+                break _loop
+            }
+            guard let name = peek else {
+                emitError("expected keypath component name after '.'", at: endOfFile)
+                break _loop
+            }
+            switch name.kind {
+            case .Identifier, .IntegerLiteral, .Keyword(.SelfKw):
+                index += 1
+                lastToken = name
+            default:
+                emitError(
+                    "expected identifier, integer, or 'self' after '.', but got '\(name.value)'",
+                    at: name
+                )
+                break _loop
+            }
+            var postfix: Token? = nil
+            if let p = peek, p.kind == .Operator(.QuestionMark) || p.kind == .Operator(.Not) {
+                postfix = p
+                lastToken = p
+                index += 1
+            }
+            components.append(
+                AST.KeyPathExpression.Component(dotToken: dot, name: name, postfix: postfix)
+            )
+        }
+        if components.isEmpty {
+            if let t = peek {
+                emitError(
+                    "expected keypath component after '\\', but got '\(t.value)'",
+                    at: t
+                )
+            } else {
+                emitError("expected keypath component after '\\'", at: endOfFile)
+            }
+        }
+        return AST.KeyPathExpression(
+            backslashToken, root, rootPostfix, components,
+            sourceRange: SourceRange(from: backslashToken, to: lastToken, in: buffer)
+        )
     }
 
     private func parseCollectionLiteral(openBracket: Token) -> AST.Expression {

@@ -1263,6 +1263,27 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
+    override public func visitKeyPathExpression(
+        _ keyPathExpression: AST.KeyPathExpression, additional _: Any? = nil
+    ) -> Any? {
+        state.write("\\")
+        if let root = keyPathExpression.root {
+            visit(root)
+        }
+        if let rootPostfix = keyPathExpression.rootPostfix {
+            state.write(rootPostfix.value)
+        }
+        for component in keyPathExpression.components {
+            state.write(component.dotToken.value)
+            state.write(component.name.value)
+            if let postfix = component.postfix {
+                state.write(postfix.value)
+            }
+        }
+        return nil
+    }
+
+    @discardableResult
     override public func visitStringInterpolation(
         _ interpolation: AST.StringInterpolation, additional _: Any? = nil
     ) -> Any? {

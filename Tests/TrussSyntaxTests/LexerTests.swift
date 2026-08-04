@@ -753,3 +753,21 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[2].kind == .Separator(.Sharp))
     #expect(tokens[3].kind == .Identifier)
 }
+
+@Test func lexBackslashOperator() {
+    let tokens = lex("\\Person.name")
+    #expect(tokens.count == 4)
+    #expect(tokens[0].kind == .Operator(.Backslash))
+    #expect(tokens[0].value == "\\")
+    #expect(tokens[1].kind == .Identifier)
+    #expect(tokens[2].kind == .Operator(.Dot))
+    #expect(tokens[3].kind == .Identifier)
+}
+
+@Test func lexBackslashLineContinuationStillWorks() {
+    let tokens = lex("1 + \\\n2")
+    #expect(tokens.count == 3)
+    #expect(tokens[0].kind == .IntegerLiteral(1))
+    #expect(tokens[1].kind == .Operator(.Plus))
+    #expect(tokens[2].kind == .IntegerLiteral(2))
+}
