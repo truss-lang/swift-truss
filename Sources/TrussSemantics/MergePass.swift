@@ -43,7 +43,7 @@ public final class MergePass: AST.Visitor {
 
     public func resolvePending() {
         var progressed = true
-        while progressed && !pending.isEmpty {
+        while progressed, !pending.isEmpty {
             progressed = false
             var remaining: [(AST.ExtensionDecl, [Scope])] = []
             for (extensionDecl, chain) in pending {
@@ -114,13 +114,13 @@ public final class MergePass: AST.Visitor {
     private func baseName(_ expression: AST.Expression) -> String {
         switch expression {
         case let variable as AST.Variable:
-            return variable.name.value
+            variable.name.value
         case let memberAccess as AST.MemberAccess:
-            return baseName(memberAccess.object) + "." + memberAccess.member.value
+            baseName(memberAccess.object) + "." + memberAccess.member.value
         case let genericApplication as AST.GenericApplication:
-            return baseName(genericApplication.base)
+            baseName(genericApplication.base)
         default:
-            return "<unknown>"
+            "<unknown>"
         }
     }
 }

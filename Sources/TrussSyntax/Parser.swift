@@ -12,33 +12,33 @@ public final class Parser {
     private var buffer: SourceBuffer { source.stringSourceBuffer }
     public var last: Token? {
         if index - 1 < lexerResult.tokens.count {
-            return lexerResult.tokens[index - 1]
+            lexerResult.tokens[index - 1]
         } else {
-            return nil
+            nil
         }
     }
 
     public var peek: Token? {
         if index < lexerResult.tokens.count {
-            return lexerResult.tokens[index]
+            lexerResult.tokens[index]
         } else {
-            return nil
+            nil
         }
     }
 
     public var peek2: Token? {
         if (index + 1) < lexerResult.tokens.count {
-            return lexerResult.tokens[index + 1]
+            lexerResult.tokens[index + 1]
         } else {
-            return nil
+            nil
         }
     }
 
     public var peek3: Token? {
         if (index + 2) < lexerResult.tokens.count {
-            return lexerResult.tokens[index + 2]
+            lexerResult.tokens[index + 2]
         } else {
-            return nil
+            nil
         }
     }
 
@@ -60,7 +60,7 @@ public final class Parser {
     }
 
     private func errorToken() -> Token {
-        return Token(
+        Token(
             value: "<error>", kind: .Unknown,
             pos: Position(pos: 0, line: 0, col: 0, len: 0), id: Id.SourceId(id: 0)
         )
@@ -187,11 +187,10 @@ public final class Parser {
         }
         let firstRange = statements.first?.sourceRange
         let lastRange = statements.last?.sourceRange
-        let programRange: SourceRange
-        if let f = firstRange, let l = lastRange {
-            programRange = SourceRange(start: f.start, end: l.end)
+        let programRange = if let f = firstRange, let l = lastRange {
+            SourceRange(start: f.start, end: l.end)
         } else {
-            programRange = SourceRange(location: endOfFile)
+            SourceRange(location: endOfFile)
         }
         return AST.Program(lexerResult.id, packageName, statements, sourceRange: programRange)
     }
@@ -497,14 +496,13 @@ public final class Parser {
                     }
                     return errorStatement(from: token, to: endOfFile)
                 }
-                let decl: AST.Decl?
-                switch t3.kind {
-                case .Keyword(.Let): decl = parseVariableDecl(modifiers, attributes) as? AST.Decl
-                case .Keyword(.Var): decl = parseVariableDecl(modifiers, attributes) as? AST.Decl
-                case .Keyword(.Func): decl = parseFunctionDecl(modifiers, attributes) as? AST.Decl
-                default: decl = nil
+                let decl: AST.Decl? = switch t3.kind {
+                case .Keyword(.Let): parseVariableDecl(modifiers, attributes) as? AST.Decl
+                case .Keyword(.Var): parseVariableDecl(modifiers, attributes) as? AST.Decl
+                case .Keyword(.Func): parseFunctionDecl(modifiers, attributes) as? AST.Decl
+                default: nil
                 }
-                if let decl = decl {
+                if let decl {
                     body = .Declaration(decl)
                 } else {
                     emitError(
@@ -923,11 +921,10 @@ public final class Parser {
                 }
             }
         }
-        let whereClause: [AST.WhereRequirement]?
-        if peek?.kind == .Keyword(.Where) {
-            whereClause = parseWhereClause()
+        let whereClause: [AST.WhereRequirement]? = if peek?.kind == .Keyword(.Where) {
+            parseWhereClause()
         } else {
-            whereClause = nil
+            nil
         }
         guard let openToken = next else {
             emitError("expected '{' in struct type", at: endOfFile)
@@ -1006,11 +1003,10 @@ public final class Parser {
                 }
             }
         }
-        let whereClause: [AST.WhereRequirement]?
-        if peek?.kind == .Keyword(.Where) {
-            whereClause = parseWhereClause()
+        let whereClause: [AST.WhereRequirement]? = if peek?.kind == .Keyword(.Where) {
+            parseWhereClause()
         } else {
-            whereClause = nil
+            nil
         }
         guard let openToken = next else {
             emitError("expected '{' in enum type", at: endOfFile)
@@ -1181,11 +1177,10 @@ public final class Parser {
                 }
             }
         }
-        let whereClause: [AST.WhereRequirement]?
-        if peek?.kind == .Keyword(.Where) {
-            whereClause = parseWhereClause()
+        let whereClause: [AST.WhereRequirement]? = if peek?.kind == .Keyword(.Where) {
+            parseWhereClause()
         } else {
-            whereClause = nil
+            nil
         }
         guard let openToken = next else {
             emitError("expected '{' in class type", at: endOfFile)
@@ -1265,11 +1260,10 @@ public final class Parser {
                 }
             }
         }
-        let whereClause: [AST.WhereRequirement]?
-        if peek?.kind == .Keyword(.Where) {
-            whereClause = parseWhereClause()
+        let whereClause: [AST.WhereRequirement]? = if peek?.kind == .Keyword(.Where) {
+            parseWhereClause()
         } else {
-            whereClause = nil
+            nil
         }
         guard let openToken = next else {
             emitError("expected '{' in actor type", at: endOfFile)
@@ -1348,11 +1342,10 @@ public final class Parser {
                 }
             }
         }
-        let whereClause: [AST.WhereRequirement]?
-        if peek?.kind == .Keyword(.Where) {
-            whereClause = parseWhereClause()
+        let whereClause: [AST.WhereRequirement]? = if peek?.kind == .Keyword(.Where) {
+            parseWhereClause()
         } else {
-            whereClause = nil
+            nil
         }
         guard let openToken = next else {
             emitError("expected '{' in protocol type", at: endOfFile)
@@ -2175,9 +2168,9 @@ public final class Parser {
     {
         let token = next!
         let internalToken: Token?
-        if token.kind == .Keyword(.Var) && peek?.kind == .Separator(.OpenParen)
-            && peek2?.kind == .Keyword(.Internal)
-            && peek3?.kind == .Separator(.CloseParen)
+        if token.kind == .Keyword(.Var), peek?.kind == .Separator(.OpenParen),
+           peek2?.kind == .Keyword(.Internal),
+           peek3?.kind == .Separator(.CloseParen)
         {
             internalToken = peek2
             index += 3
@@ -2235,7 +2228,7 @@ public final class Parser {
                     at: observer.sourceRange
                 )
             }
-            if let initializer = initializer, hasGet || hasSet {
+            if let initializer, hasGet || hasSet {
                 let accessor = accessors.first {
                     $0.kind == .Get || $0.kind == .Set
                 }!
@@ -3114,13 +3107,12 @@ public final class Parser {
                 lastIsExpression = true
             case .Separator(.OpenParen) where justClosedAngle:
                 justClosedAngle = false
-                let range: SourceRange
-                if let firstRange = operands.first?.sourceRange,
-                   let lastRange = operands.last?.sourceRange
+                let range = if let firstRange = operands.first?.sourceRange,
+                               let lastRange = operands.last?.sourceRange
                 {
-                    range = SourceRange(start: firstRange.start, end: lastRange.end)
+                    SourceRange(start: firstRange.start, end: lastRange.end)
                 } else {
-                    range = SourceRange(location: endOfFile)
+                    SourceRange(location: endOfFile)
                 }
                 let callee = AST.SequentialExpression(ops, operands, sourceRange: range)
                 ops = []
@@ -3169,13 +3161,12 @@ public final class Parser {
             case .Operator(.Dot) where justClosedAngle,
                  .Operator(.QuestionMarkDot) where justClosedAngle:
                 justClosedAngle = false
-                let range: SourceRange
-                if let firstRange = operands.first?.sourceRange,
-                   let lastRange = operands.last?.sourceRange
+                let range = if let firstRange = operands.first?.sourceRange,
+                               let lastRange = operands.last?.sourceRange
                 {
-                    range = SourceRange(start: firstRange.start, end: lastRange.end)
+                    SourceRange(start: firstRange.start, end: lastRange.end)
                 } else {
-                    range = SourceRange(location: endOfFile)
+                    SourceRange(location: endOfFile)
                 }
                 let base = AST.SequentialExpression(ops, operands, sourceRange: range)
                 ops = []
@@ -3244,9 +3235,8 @@ public final class Parser {
                     parseExpression(excepts: excepts, isTypeContext: true)
                         ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
                 suppressTrailingClosures = false
-                let result: AST.Expression
-                if inPatternContext, kind == .As {
-                    result = AST.AsPattern(
+                let result: AST.Expression = if inPatternContext, kind == .As {
+                    AST.AsPattern(
                         left, token, right,
                         sourceRange: SourceRange(
                             start: left.sourceRange.start,
@@ -3254,7 +3244,7 @@ public final class Parser {
                         )
                     )
                 } else {
-                    result = AST.CastExpression(
+                    AST.CastExpression(
                         left, token, right, kind,
                         sourceRange: SourceRange(
                             start: left.sourceRange.start,
@@ -3328,25 +3318,25 @@ public final class Parser {
                 lastIsExpression = true
                 justClosedAngle = false
             case let .Operator(kind) where kind != .Dot:
-                if let excepts = excepts, let kind = kind, excepts.contains(kind) {
+                if let excepts, let kind, excepts.contains(kind) {
                     break _loop
                 }
                 ops.append(token)
                 index += 1
                 lastIsExpression = false
                 justClosedAngle = false
-                if let kind = kind {
+                if let kind {
                     switch kind {
                     case .Less:
                         angleDepth += 1
                     case .Greater:
                         let prev = angleDepth
                         angleDepth = max(0, angleDepth - 1)
-                        if prev > 0 && angleDepth == 0 { justClosedAngle = true }
+                        if prev > 0, angleDepth == 0 { justClosedAngle = true }
                     case .RightShift:
                         let prev = angleDepth
                         angleDepth = max(0, angleDepth - 2)
-                        if prev > 0 && angleDepth == 0 { justClosedAngle = true }
+                        if prev > 0, angleDepth == 0 { justClosedAngle = true }
                     case .GreaterEqual:
                         angleDepth = max(0, angleDepth - 1)
                     case .RightShiftAssign:
@@ -3354,7 +3344,7 @@ public final class Parser {
                     case .RightShiftLogical:
                         let prev = angleDepth
                         angleDepth = max(0, angleDepth - 3)
-                        if prev > 0 && angleDepth == 0 { justClosedAngle = true }
+                        if prev > 0, angleDepth == 0 { justClosedAngle = true }
                     case .RightShiftLogicalAssign:
                         angleDepth = max(0, angleDepth - 3)
                     default:
@@ -3389,15 +3379,14 @@ public final class Parser {
         if ops.isEmpty, operands.count == 1 {
             return operands[0]
         }
-        let range: SourceRange
-        if let firstRange = operands.first?.sourceRange,
-           let lastRange = operands.last?.sourceRange
+        let range = if let firstRange = operands.first?.sourceRange,
+                       let lastRange = operands.last?.sourceRange
         {
-            range = SourceRange(start: firstRange.start, end: lastRange.end)
+            SourceRange(start: firstRange.start, end: lastRange.end)
         } else if let firstOp = ops.first, let lastOp = ops.last {
-            range = SourceRange(from: firstOp, to: lastOp, in: buffer)
+            SourceRange(from: firstOp, to: lastOp, in: buffer)
         } else {
-            range = SourceRange(location: endOfFile)
+            SourceRange(location: endOfFile)
         }
         return AST.SequentialExpression(ops, operands, sourceRange: range)
     }
@@ -3412,7 +3401,7 @@ public final class Parser {
         switch token.kind {
         case .Identifier:
             index += 1
-            if inPatternContext && token.value == "_" {
+            if inPatternContext, token.value == "_" {
                 expression = AST.WildcardPattern(
                     token, sourceRange: token.sourceRange(in: buffer)
                 )
@@ -3524,19 +3513,18 @@ public final class Parser {
                         excepts: excepts, isCondition: isCondition, isTypeContext: isTypeContext
                     )
                     ?? errorExpression(from: token, to: token)
-                let inner: AST.Expression
-                if let seq = wrapped as? AST.SequentialExpression,
-                   !seq.ops.isEmpty,
-                   seq.ops.allSatisfy({ op in
-                       if case .Operator(.BitAnd) = op.kind { return true }
-                       return false
-                   })
+                let inner: AST.Expression = if let seq = wrapped as? AST.SequentialExpression,
+                                               !seq.ops.isEmpty,
+                                               seq.ops.allSatisfy({ op in
+                                                   if case .Operator(.BitAnd) = op.kind { return true }
+                                                   return false
+                                               })
                 {
-                    inner = AST.ProtocolCompositionType(
+                    AST.ProtocolCompositionType(
                         seq.operands, sourceRange: seq.sourceRange
                     )
                 } else {
-                    inner = wrapped
+                    wrapped
                 }
                 if kind == .SomeKw {
                     expression = AST.SomeType(
@@ -4519,14 +4507,13 @@ public final class Parser {
                 index += 1
             }
             let name = peek
-            let isWord: Bool
-            if let n = name {
+            let isWord = if let n = name {
                 switch n.kind {
-                case .Identifier, .Keyword: isWord = true
-                default: isWord = false
+                case .Identifier, .Keyword: true
+                default: false
                 }
             } else {
-                isWord = false
+                false
             }
             if !isWord {
                 if let tok = peek {
@@ -4629,13 +4616,12 @@ public final class Parser {
                 endToken = nil
             }
         }
-        let range: SourceRange
-        if let endToken = endToken {
-            range = SourceRange(
+        let range: SourceRange = if let endToken {
+            SourceRange(
                 start: callee.sourceRange.start, end: endToken.sourceRange(in: buffer).end
             )
         } else {
-            range = callee.sourceRange
+            callee.sourceRange
         }
         return AST.Call(
             callee: callee, arguments: arguments, trailingClosures: [], sourceRange: range
@@ -4661,13 +4647,12 @@ public final class Parser {
                 emitError("expected ']' after subscript arguments", at: endOfFile)
             }
         }
-        let range: SourceRange
-        if let endToken = endToken {
-            range = SourceRange(
+        let range: SourceRange = if let endToken {
+            SourceRange(
                 start: base.sourceRange.start, end: endToken.sourceRange(in: buffer).end
             )
         } else {
-            range = base.sourceRange
+            base.sourceRange
         }
         return AST.Subscript(base: base, arguments: arguments, sourceRange: range)
     }

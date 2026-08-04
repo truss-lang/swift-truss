@@ -224,7 +224,7 @@ public final class Lexer {
     }
 
     private func makePosition(_ begin: Position) -> Position {
-        return Position(
+        Position(
             pos: begin.pos,
             line: begin.line,
             col: begin.col,
@@ -299,7 +299,7 @@ public final class Lexer {
                 if let next = input.peek {
                     raw.append(next)
                     input.incrementPosition()
-                    if next == "u" && input.peek == "{" {
+                    if next == "u", input.peek == "{" {
                         while let u = input.peek, u != "}" {
                             raw.append(u)
                             input.incrementPosition()
@@ -344,7 +344,7 @@ public final class Lexer {
                 if let next = input.peek {
                     raw.append(next)
                     input.incrementPosition()
-                    if next == "u" && input.peek == "{" {
+                    if next == "u", input.peek == "{" {
                         while let u = input.peek, u != "}" {
                             raw.append(u)
                             input.incrementPosition()
@@ -382,7 +382,7 @@ public final class Lexer {
         var currentLine = ""
         var indentCol = 0
         while let c = input.peek {
-            if c == "\"" && input.peek2 == "\"" && input.peek3 == "\"" {
+            if c == "\"", input.peek2 == "\"", input.peek3 == "\"" {
                 indentCol = input.currentPosition.col
                 input.incrementPosition()
                 input.incrementPosition()
@@ -414,7 +414,7 @@ public final class Lexer {
     private func stripIndent(_ line: String, _ col: Int) -> String {
         var i = 0
         var idx = line.startIndex
-        while i < col - 1 && idx < line.endIndex {
+        while i < col - 1, idx < line.endIndex {
             let ch = line[idx]
             if ch == " " { i += 1 }
             else if ch == "\t" { i += 1 }
@@ -446,10 +446,10 @@ public final class Lexer {
                     case "\"": result.append("\"")
                     case "0": result.append("\0")
                     case "u":
-                        if i < raw.endIndex && raw[i] == "{" {
+                        if i < raw.endIndex, raw[i] == "{" {
                             i = raw.index(after: i)
                             var hex = ""
-                            while i < raw.endIndex && raw[i] != "}" {
+                            while i < raw.endIndex, raw[i] != "}" {
                                 hex.append(raw[i])
                                 i = raw.index(after: i)
                             }
@@ -661,7 +661,7 @@ public final class Lexer {
                 }
                 break
             }
-            if c == "/" && !chars.isEmpty {
+            if c == "/", !chars.isEmpty {
                 let next = input.peek2
                 if next == "/" || next == "*" {
                     break

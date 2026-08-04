@@ -6,6 +6,6 @@ public final class TypeBuilder: AST.Visitor {
      */
     @discardableResult
     override public func visitProgram(_: AST.Program, additional _: Any? = nil) -> Any? {
-        return nil
+        nil
     }
 }

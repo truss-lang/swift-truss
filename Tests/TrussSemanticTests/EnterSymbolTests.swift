@@ -66,14 +66,14 @@ import TrussCore
 @Test func typeRedeclarationConflict() {
     let (context, _) = runEnter(["struct A {} struct A {}"])
     #expect(context.diagnositicEngine.hasErrors)
-    let messages = context.diagnositicEngine.diagnostics.map { $0.message }
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
     #expect(messages.contains("invalid redeclaration of type 'A'"))
 }
 
 @Test func typeRedeclarationAcrossFiles() {
     let (context, _) = runEnter(["struct A {}", "class A {}"])
     #expect(context.diagnositicEngine.hasErrors)
-    let messages = context.diagnositicEngine.diagnostics.map { $0.message }
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
     #expect(messages.contains("invalid redeclaration of type 'A'"))
 }
 
@@ -82,14 +82,14 @@ import TrussCore
         "struct A {} extension A { var v: Int } extension A { var v: Int }",
     ])
     #expect(context.diagnositicEngine.hasErrors)
-    let messages = context.diagnositicEngine.diagnostics.map { $0.message }
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
     #expect(messages.contains("invalid redeclaration of 'v'"))
 }
 
 @Test func functionVariableKindConflict() {
     let (context, _) = runEnter(["func f() {} var f: Int"])
     #expect(context.diagnositicEngine.hasErrors)
-    let messages = context.diagnositicEngine.diagnostics.map { $0.message }
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
     #expect(messages.contains("invalid redeclaration of 'f'"))
 }
 
@@ -105,7 +105,7 @@ import TrussCore
 @Test func extensionBaseNotFound() {
     let (context, _) = runEnter(["extension NotFound { func f() {} }"])
     #expect(context.diagnositicEngine.hasErrors)
-    let messages = context.diagnositicEngine.diagnostics.map { $0.message }
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
     #expect(messages.contains("extension of type 'NotFound' has no matching declaration"))
 }
 

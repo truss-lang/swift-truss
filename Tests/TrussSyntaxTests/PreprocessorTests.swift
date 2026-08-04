@@ -28,7 +28,7 @@ func preprocess(
 }
 
 func tokenValues(_ tokens: [Token]) -> [String] {
-    tokens.map { $0.value }
+    tokens.map(\.value)
 }
 
 @Test func ppPassthroughWithoutDirectives() {
@@ -670,7 +670,7 @@ func parseWithPreprocessor(_ source: String) -> [Diagnostic] {
 @Test func ppNestedExpansionNotes() {
     let (_, diagnostics) = preprocessWithDiagnostics("#define A B\n#define B / 0\n#if 1 A")
     let divError = diagnostics.first { $0.message.contains("division by zero") }
-    #expect(divError?.notes.map { $0.message } == [
+    #expect(divError?.notes.map(\.message) == [
         "in expansion of macro 'B'", "in expansion of macro 'A'",
     ])
 }

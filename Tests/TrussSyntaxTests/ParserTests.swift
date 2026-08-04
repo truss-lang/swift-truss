@@ -40,20 +40,20 @@ func firstExpression(_ source: String) -> AST.Expression {
 
 func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -> Bool {
     switch (kind, expected) {
-    case let (.Open(a), .Open(b)): return a == b
-    case let (.Public(a), .Public(b)): return a == b
-    case let (.Protected(a), .Protected(b)): return a == b
-    case let (.PackagePrivate(a), .PackagePrivate(b)): return a == b
-    case let (.Internal(a), .Internal(b)): return a == b
-    case let (.FilePrivate(a), .FilePrivate(b)): return a == b
-    case let (.Private(a), .Private(b)): return a == b
+    case let (.Open(a), .Open(b)): a == b
+    case let (.Public(a), .Public(b)): a == b
+    case let (.Protected(a), .Protected(b)): a == b
+    case let (.PackagePrivate(a), .PackagePrivate(b)): a == b
+    case let (.Internal(a), .Internal(b)): a == b
+    case let (.FilePrivate(a), .FilePrivate(b)): a == b
+    case let (.Private(a), .Private(b)): a == b
     case (.Abstract, .Abstract), (.Final, .Final), (.Mutating, .Mutating),
          (.Nonmutating, .Nonmutating), (.Convenience, .Convenience),
          (.Override, .Override), (.Lazy, .Lazy), (.Weak, .Weak),
          (.Unowned, .Unowned), (.Indirect, .Indirect), (.Isolated, .Isolated),
          (.Async, .Async):
-        return true
-    default: return false
+        true
+    default: false
     }
 }
 

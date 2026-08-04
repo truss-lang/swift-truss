@@ -54,21 +54,21 @@ extension AST {
         open func visitEmptyStatement(
             _: AST.EmptyStatement, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitErrorStatement(
             _: AST.ErrorStatement, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitImport(
             _: AST.Import, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
@@ -97,7 +97,7 @@ extension AST {
         open func visitTypeAliasDecl(
             _ typeAliasDecl: AST.TypeAliasDecl, additional: Any? = nil
         ) -> Any? {
-            return visit(typeAliasDecl.typeExpression, additional: additional)
+            visit(typeAliasDecl.typeExpression, additional: additional)
         }
 
         @discardableResult
@@ -114,7 +114,7 @@ extension AST {
         open func visitOperatorDecl(
             _: AST.OperatorDecl, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         /* This method does nothing, because we don't want to visit
@@ -125,7 +125,7 @@ extension AST {
         open func visitPrecedenceGroupDecl(
             _: AST.PrecedenceGroupDecl, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
@@ -356,7 +356,7 @@ extension AST {
         open func visitThrow(
             _ throwStatement: AST.Throw, additional: Any? = nil
         ) -> Any? {
-            return visit(throwStatement.expression, additional: additional)
+            visit(throwStatement.expression, additional: additional)
         }
 
         @discardableResult
@@ -405,29 +405,29 @@ extension AST {
 
         @discardableResult
         open func visitAsm(_: AST.Asm, additional _: Any? = nil) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitBreak(_: AST.Break, additional _: Any? = nil) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitContinue(_: AST.Continue, additional _: Any? = nil) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitGoto(_: AST.Goto, additional _: Any? = nil) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitLabeledStatement(
             _ labeledStatement: AST.LabeledStatement, additional: Any? = nil
         ) -> Any? {
-            return visit(labeledStatement.body, additional: additional)
+            visit(labeledStatement.body, additional: additional)
         }
 
         @discardableResult
@@ -448,19 +448,19 @@ extension AST {
         open func visitErrorExpression(
             _: AST.ErrorExpression, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitParentheticalExpression(
             _ parentheticalExpression: AST.ParentheticalExpression, additional: Any? = nil
         ) -> Any? {
-            return visit(parentheticalExpression.inner, additional: additional)
+            visit(parentheticalExpression.inner, additional: additional)
         }
 
         @discardableResult
         open func visitVariable(_: AST.Variable, additional _: Any? = nil) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
@@ -478,49 +478,49 @@ extension AST {
         open func visitIntegerLiteral(
             _: AST.IntegerLiteral, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitFloatLiteral(
             _: AST.FloatLiteral, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitStringLiteral(
             _: AST.StringLiteral, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitCharLiteral(
             _: AST.CharLiteral, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitBoolLiteral(
             _: AST.BoolLiteral, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitNullLiteral(
             _: AST.NullLiteral, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitVoidLiteral(
             _: AST.VoidLiteral, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
@@ -600,35 +600,35 @@ extension AST {
         open func visitMemberAccess(
             _ memberAccess: AST.MemberAccess, additional: Any? = nil
         ) -> Any? {
-            return visit(memberAccess.object, additional: additional)
+            visit(memberAccess.object, additional: additional)
         }
 
         @discardableResult
         open func visitSelfTypeExpression(
             _: AST.SelfTypeExpression, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitSelfExpression(
             _: AST.SelfExpression, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitSuperExpression(
             _: AST.SuperExpression, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitImplicitMemberAccess(
             _: AST.ImplicitMemberAccess, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
@@ -666,24 +666,24 @@ extension AST {
         open func visitOptionalType(_ optionalType: AST.OptionalType, additional: Any? = nil)
             -> Any?
         {
-            return visit(optionalType.wrappedType, additional: additional)
+            visit(optionalType.wrappedType, additional: additional)
         }
 
         @discardableResult
         open func visitVariadicType(
             _ variadicType: AST.VariadicType, additional: Any? = nil
         ) -> Any? {
-            return visit(variadicType.base, additional: additional)
+            visit(variadicType.base, additional: additional)
         }
 
         @discardableResult
         open func visitSomeType(_ someType: AST.SomeType, additional: Any? = nil) -> Any? {
-            return visit(someType.wrappedType, additional: additional)
+            visit(someType.wrappedType, additional: additional)
         }
 
         @discardableResult
         open func visitAnyType(_ anyType: AST.AnyType, additional: Any? = nil) -> Any? {
-            return visit(anyType.wrappedType, additional: additional)
+            visit(anyType.wrappedType, additional: additional)
         }
 
         @discardableResult
@@ -710,7 +710,7 @@ extension AST {
         open func visitIsPattern(
             _ isPattern: AST.IsPattern, additional: Any? = nil
         ) -> Any? {
-            return visit(isPattern.typeExpression, additional: additional)
+            visit(isPattern.typeExpression, additional: additional)
         }
 
         @discardableResult
@@ -744,14 +744,14 @@ extension AST {
         open func visitPrefix(
             _ prefixExpression: AST.Prefix, additional: Any? = nil
         ) -> Any? {
-            return visit(prefixExpression.expression, additional: additional)
+            visit(prefixExpression.expression, additional: additional)
         }
 
         @discardableResult
         open func visitPostfix(
             _ postfixExpression: AST.Postfix, additional: Any? = nil
         ) -> Any? {
-            return visit(postfixExpression.expression, additional: additional)
+            visit(postfixExpression.expression, additional: additional)
         }
 
         @discardableResult
@@ -788,14 +788,14 @@ extension AST {
         open func visitTryExpression(
             _ tryExpression: AST.TryExpression, additional: Any? = nil
         ) -> Any? {
-            return visit(tryExpression.expression, additional: additional)
+            visit(tryExpression.expression, additional: additional)
         }
 
         @discardableResult
         open func visitAwaitExpression(
             _ awaitExpression: AST.AwaitExpression, additional: Any? = nil
         ) -> Any? {
-            return visit(awaitExpression.expression, additional: additional)
+            visit(awaitExpression.expression, additional: additional)
         }
 
         @discardableResult
@@ -844,14 +844,14 @@ extension AST {
         open func visitWildcardPattern(
             _: AST.WildcardPattern, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult
         open func visitShorthandArgument(
             _: AST.ShorthandArgument, additional _: Any? = nil
         ) -> Any? {
-            return nil
+            nil
         }
 
         @discardableResult

@@ -584,7 +584,7 @@ public final class Preprocessor {
             let bt = pastedBody[k]
             if bt.kind == .Separator(.Sharp), k + 1 < pastedBody.count {
                 if let paramIndex = params.firstIndex(of: pastedBody[k + 1].value) {
-                    let text = args[paramIndex].map { $0.value }.joined(separator: " ")
+                    let text = args[paramIndex].map(\.value).joined(separator: " ")
                     replaced.append(
                         Token(value: text, kind: .StringLiteral, pos: bt.pos, id: bt.id))
                     k += 2
@@ -593,7 +593,7 @@ public final class Preprocessor {
                 if variadic, pastedBody[k + 1].kind == .Identifier,
                    pastedBody[k + 1].value == "__VA_ARGS__"
                 {
-                    let text = args.dropFirst(params.count).flatMap { $0 }.map { $0.value }
+                    let text = args.dropFirst(params.count).flatMap { $0 }.map(\.value)
                         .joined(separator: ", ")
                     replaced.append(
                         Token(value: text, kind: .StringLiteral, pos: bt.pos, id: bt.id))

@@ -76,7 +76,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     private func modifiersText(_ modifiers: [AST.Modifier]) -> String {
-        modifiers.map { $0.kind.sourceText }.joined(separator: " ")
+        modifiers.map(\.kind.sourceText).joined(separator: " ")
     }
 
     private func attributesText(_ attributes: [AST.Attribute]) -> String {
@@ -147,7 +147,7 @@ public final class SourcePrinter: AST.Visitor {
         for (index, parameter) in parameters.enumerated() {
             if index > 0 { text += ", " }
             text += parameterText(parameter)
-            if vararg && index == parameters.count - 1 { text += "..." }
+            if vararg, index == parameters.count - 1 { text += "..." }
         }
         text += ")"
         return text
@@ -236,9 +236,8 @@ public final class SourcePrinter: AST.Visitor {
             state.write(".*")
         case let .explicit(items):
             let rendered = items.map { item in
-                var text: String
-                switch item.kind {
-                case let .self_(token), let .name(token): text = token.value
+                var text: String = switch item.kind {
+                case let .self_(token), let .name(token): token.value
                 }
                 if let alias = item.alias { text += " as " + alias.value }
                 return text
@@ -1067,11 +1066,10 @@ public final class SourcePrinter: AST.Visitor {
             let operandPosition =
                 operandIndex < operands.count
                     ? operands[operandIndex].sourceRange.start.offset : Int.max
-            let emitOp: Bool
-            if lastWasOperand {
-                emitOp = opIndex < ops.count
+            let emitOp: Bool = if lastWasOperand {
+                opIndex < ops.count
             } else {
-                emitOp = opIndex < ops.count && opPosition < operandPosition
+                opIndex < ops.count && opPosition < operandPosition
             }
             if emitOp {
                 let token = ops[opIndex]

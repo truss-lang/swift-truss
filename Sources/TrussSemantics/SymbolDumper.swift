@@ -34,13 +34,13 @@ public final class SymbolDumper {
 
     private func symbolKind(_ symbol: Symbol.Symbol) -> String {
         switch symbol {
-        case is Symbol.NominalTypeSymbol: return "nominal"
-        case is Symbol.TypeAliasSymbol: return "typealias"
-        case is Symbol.GenericParamSymbol: return "generic-param"
-        case is Symbol.CaseSymbol: return "case"
-        case is Symbol.FunctionSymbol: return "function"
-        case is Symbol.VariableSymbol: return "variable"
-        default: return "unknown"
+        case is Symbol.NominalTypeSymbol: "nominal"
+        case is Symbol.TypeAliasSymbol: "typealias"
+        case is Symbol.GenericParamSymbol: "generic-param"
+        case is Symbol.CaseSymbol: "case"
+        case is Symbol.FunctionSymbol: "function"
+        case is Symbol.VariableSymbol: "variable"
+        default: "unknown"
         }
     }
 }

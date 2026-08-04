@@ -280,7 +280,7 @@ public final class Token: Hashable, Equatable {
     }
 
     public static func == (_ lhs: Token, _ rhs: Token) -> Bool {
-        return lhs.value == rhs.value && lhs.kind == rhs.kind && lhs.pos == rhs.pos
+        lhs.value == rhs.value && lhs.kind == rhs.kind && lhs.pos == rhs.pos
             && lhs.id == rhs.id && lhs.isUnterminated == rhs.isUnterminated
     }
 
