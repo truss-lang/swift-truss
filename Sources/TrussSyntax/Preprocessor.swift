@@ -4,17 +4,6 @@ import TrussCore
 
 public enum TargetTriple {
     public static let host: String = {
-        #if arch(x86_64)
-        let arch = "x86_64"
-        #elseif arch(arm64)
-        let arch = "aarch64"
-        #elseif arch(i386)
-        let arch = "i386"
-        #elseif arch(arm)
-        let arch = "arm"
-        #else
-        let arch = "unknown"
-        #endif
         #if os(Linux)
         let os = "linux"
         #elseif os(macOS)
@@ -29,6 +18,21 @@ public enum TargetTriple {
         let os = "freebsd"
         #else
         let os = "unknown"
+        #endif
+        #if arch(x86_64)
+        let arch = "x86_64"
+        #elseif arch(arm64)
+        #if os(macOS) || os(iOS)
+        let arch = "arm64"
+        #else
+        let arch = "aarch64"
+        #endif
+        #elseif arch(i386)
+        let arch = "i386"
+        #elseif arch(arm)
+        let arch = "arm"
+        #else
+        let arch = "unknown"
         #endif
         return "\(arch)-unknown-\(os)"
     }()
