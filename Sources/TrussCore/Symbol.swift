@@ -46,15 +46,28 @@ public enum Symbol {
             super.init(id, name)
         }
     }
+    public struct FunctionSignature {
+        public let labels: [String?]
+        public let hasDefaults: [Bool]
+        public let isVararg: [Bool]
+        public init(labels: [String?], hasDefaults: [Bool], isVararg: [Bool]) {
+            self.labels = labels
+            self.hasDefaults = hasDefaults
+            self.isVararg = isVararg
+        }
+    }
+
     public final class FunctionSymbol: Symbol {
         public let scope: Scope
         public var locals: [VariableSymbol]
+        public let signature: FunctionSignature
         public init(
             id: Id.SymbolId, name: String, locals: [VariableSymbol],
-            scope: Scope
+            scope: Scope, signature: FunctionSignature
         ) {
             self.locals = locals
             self.scope = scope
+            self.signature = signature
             super.init(id, name)
 
             for local in locals {

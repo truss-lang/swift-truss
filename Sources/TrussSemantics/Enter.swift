@@ -28,6 +28,26 @@ public final class Enter: AST.Visitor {
         }
     }
 
+    private func signature(
+        of parameters: [AST.FunctionDecl.Parameter], varargToken: Token?
+    ) -> Symbol.FunctionSignature {
+        var labels: [String?] = []
+        var hasDefaults: [Bool] = []
+        var isVararg: [Bool] = []
+        for parameter in parameters {
+            labels.append(parameter.label?.value)
+            hasDefaults.append(parameter.defaultValue != nil)
+            isVararg.append(parameter.type is AST.VariadicType)
+        }
+        if varargToken != nil {
+            labels.append(nil)
+            hasDefaults.append(false)
+            isVararg.append(true)
+        }
+        return Symbol.FunctionSignature(
+            labels: labels, hasDefaults: hasDefaults, isVararg: isVararg)
+    }
+
     @discardableResult
     public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         guard let packageSymbol = program.packageSymbol else { return nil }
@@ -145,7 +165,9 @@ public final class Enter: AST.Visitor {
 
         let symbol = Symbol.FunctionSymbol(
             id: context.nextSymbolId, name: functionDecl.name.value, locals: locals(of: scope),
-            scope: scope)
+            scope: scope,
+            signature: signature(
+                of: functionDecl.parameters, varargToken: functionDecl.varargToken))
         context.register(symbol: symbol)
         functionDecl.symbol = symbol
         currentScope!.registerValue(symbol, at: functionDecl.name, context: context)
@@ -165,7 +187,8 @@ public final class Enter: AST.Visitor {
         self.currentScope = lastScope
 
         let symbol = Symbol.FunctionSymbol(
-            id: context.nextSymbolId, name: "init", locals: locals(of: scope), scope: scope)
+            id: context.nextSymbolId, name: "init", locals: locals(of: scope), scope: scope,
+            signature: signature(of: initDecl.parameters, varargToken: nil))
         context.register(symbol: symbol)
         initDecl.symbol = symbol
         currentScope!.registerValue(symbol, at: initDecl.token, context: context)
@@ -187,7 +210,8 @@ public final class Enter: AST.Visitor {
         self.currentScope = lastScope
 
         let symbol = Symbol.FunctionSymbol(
-            id: context.nextSymbolId, name: "subscript", locals: locals(of: scope), scope: scope)
+            id: context.nextSymbolId, name: "subscript", locals: locals(of: scope), scope: scope,
+            signature: signature(of: subscriptDecl.parameters, varargToken: nil))
         context.register(symbol: symbol)
         subscriptDecl.symbol = symbol
         currentScope!.registerValue(symbol, at: subscriptDecl.token, context: context)

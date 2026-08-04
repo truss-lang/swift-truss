@@ -35,6 +35,7 @@ extension AST {
     public final class Variable: Expression {
         public let name: Token
         public var symbol: Symbol.Symbol? = nil
+        public var overloads: [Symbol.FunctionSymbol]? = nil
         public init(name: Token, sourceRange: SourceRange) {
             self.name = name
             super.init(sourceRange)
@@ -237,6 +238,7 @@ extension AST {
         public let callee: Expression
         public let arguments: [LabeledArgument]
         public let trailingClosures: [(Token?, Closure)]
+        public var overloads: [Symbol.FunctionSymbol]? = nil
         public init(
             callee: Expression, arguments: [LabeledArgument],
             trailingClosures: [(Token?, Closure)] = [],
@@ -256,6 +258,8 @@ extension AST {
         public let token: Token
         public let member: Token
         public let isOptional: Bool
+        public var symbol: Symbol.Symbol? = nil
+        public var overloads: [Symbol.FunctionSymbol]? = nil
         public init(
             _ object: Expression, _ token: Token, _ member: Token, isOptional: Bool = false,
             sourceRange: SourceRange

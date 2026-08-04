@@ -99,6 +99,11 @@ public final class ASTDumper: AST.Visitor {
         return " sym:\(symbol.name)"
     }
 
+    private func overloadsText(_ overloads: [Symbol.FunctionSymbol]?) -> String {
+        guard let overloads, !overloads.isEmpty else { return "" }
+        return " overloads:\(overloads.count)"
+    }
+
     private func escapeString(_ value: String) -> String {
         var result = ""
         for ch in value {
@@ -705,7 +710,8 @@ public final class ASTDumper: AST.Visitor {
     @discardableResult
     public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
         dumpNode(
-            "Variable \(variable.name.value)" + tyText(variable.ty) + symText(variable.symbol))
+            "Variable \(variable.name.value)" + tyText(variable.ty) + symText(variable.symbol)
+                + overloadsText(variable.overloads))
         return nil
     }
 
@@ -857,7 +863,7 @@ public final class ASTDumper: AST.Visitor {
                 self.dumpNode(text, children: [ { self.visitClosure(closure) } ])
             }
         }
-        dumpNode("Call" + tyText(call.ty), children: children)
+        dumpNode("Call" + tyText(call.ty) + overloadsText(call.overloads), children: children)
         return nil
     }
 
@@ -867,7 +873,10 @@ public final class ASTDumper: AST.Visitor {
     ) -> Any? {
         var text = "MemberAccess \(memberAccess.member.value)"
         if memberAccess.isOptional { text += " ?" }
-        dumpNode(text + tyText(memberAccess.ty), children: [ { self.visit(memberAccess.object) } ])
+        dumpNode(
+            text + tyText(memberAccess.ty) + symText(memberAccess.symbol)
+                + overloadsText(memberAccess.overloads),
+            children: [ { self.visit(memberAccess.object) } ])
         return nil
     }
 
