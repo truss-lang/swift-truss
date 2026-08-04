@@ -760,7 +760,11 @@ public final class SourcePrinter: AST.Visitor {
     override public func visitStringLiteral(
         _ stringLiteral: AST.StringLiteral, additional _: Any? = nil
     ) -> Any? {
-        state.write("\"" + encodeString(stringLiteral.token.value) + "\"")
+        if stringLiteral.token.isRaw {
+            state.write("#\"" + stringLiteral.token.value + "\"#")
+        } else {
+            state.write("\"" + encodeString(stringLiteral.token.value) + "\"")
+        }
         return nil
     }
 
@@ -1262,18 +1266,28 @@ public final class SourcePrinter: AST.Visitor {
     override public func visitStringInterpolation(
         _ interpolation: AST.StringInterpolation, additional _: Any? = nil
     ) -> Any? {
-        state.write("\"")
+        let isRaw = interpolation.segments.contains {
+            if case let .literal(token) = $0 {
+                return token.isRaw
+            }
+            return false
+        }
+        state.write(isRaw ? "#\"" : "\"")
         for segment in interpolation.segments {
             switch segment {
             case let .literal(token):
-                state.write(encodeString(token.value))
+                if isRaw {
+                    state.write(token.value)
+                } else {
+                    state.write(encodeString(token.value))
+                }
             case let .expression(expression):
-                state.write("\\(")
+                state.write(isRaw ? "\\#(" : "\\(")
                 visit(expression)
                 state.write(")")
             }
         }
-        state.write("\"")
+        state.write(isRaw ? "\"#" : "\"")
         return nil
     }
 }

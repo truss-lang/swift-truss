@@ -4818,6 +4818,63 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(mid.isUnterminated)
 }
 
+@Test func parseRawStringLiteral() {
+    let expr = firstExpression("#\"hello\\nworld\"#")
+    let literal = expr as? AST.StringLiteral
+    #expect(literal != nil)
+    #expect(literal!.token.isRaw)
+    #expect(literal!.token.value == "hello\\nworld")
+}
+
+@Test func parseRawStringInterpolation() {
+    let expr = firstExpression("#\"a\\#(name)b\"#")
+    let interp = expr as? AST.StringInterpolation
+    #expect(interp != nil)
+    #expect(interp!.segments.count == 3)
+    guard case let .literal(first) = interp!.segments[0] else {
+        #expect(Bool(false))
+        return
+    }
+    #expect(first.value == "a")
+    #expect(first.isRaw)
+    guard case let .expression(e) = interp!.segments[1] else {
+        #expect(Bool(false))
+        return
+    }
+    #expect(e is AST.Variable)
+    guard case let .literal(last) = interp!.segments[2] else {
+        #expect(Bool(false))
+        return
+    }
+    #expect(last.value == "b")
+    #expect(last.isRaw)
+}
+
+@Test func parseRawMultilineStringLiteral() {
+    let expr = firstExpression("#\"\"\"\nhello\nworld\n\"\"\"#")
+    let literal = expr as? AST.StringLiteral
+    #expect(literal != nil)
+    #expect(literal!.token.isRaw)
+    #expect(literal!.token.value == "hello\nworld\n")
+}
+
+@Test func parseMultilineStringInterpolation() {
+    let expr = firstExpression("\"\"\"\nhello \\(name) world\n\"\"\"")
+    let interp = expr as? AST.StringInterpolation
+    #expect(interp != nil)
+    #expect(interp!.segments.count == 3)
+    guard case let .literal(first) = interp!.segments[0] else {
+        #expect(Bool(false))
+        return
+    }
+    #expect(first.value == "hello ")
+    guard case let .literal(last) = interp!.segments[2] else {
+        #expect(Bool(false))
+        return
+    }
+    #expect(last.value == " world\n")
+}
+
 // MARK: - Closure Signature
 
 @Test func parseClosureWithParameters() {

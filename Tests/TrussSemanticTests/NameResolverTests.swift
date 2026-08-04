@@ -51,7 +51,6 @@ func probe(_ source: String) -> (Context, SymbolProbe) {
     return (context, probe)
 }
 
-
 func resolve(_ source: String) -> (Context, AST.Program) {
     let (context, programs) = runEnter([source])
     NameResolver(context: context).visitProgram(programs[0])

@@ -607,3 +607,149 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[7].kind == .StringLiteral)
     #expect(tokens[7].value == "b")
 }
+
+@Test func lexRawStringBasic() {
+    let tokens = lex("#\"hello\"#")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].isRaw)
+    #expect(tokens[0].value == "hello")
+}
+
+@Test func lexRawStringEmpty() {
+    let tokens = lex("#\"\"#")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].isRaw)
+    #expect(tokens[0].value == "")
+}
+
+@Test func lexRawStringContentWithQuote() {
+    let tokens = lex("#\"a\"b\"#")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].isRaw)
+    #expect(tokens[0].value == "a\"b")
+}
+
+@Test func lexRawStringBackslashLiteral() {
+    let tokens = lex("#\"a\\nb\"#")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].isRaw)
+    #expect(tokens[0].value == "a\\nb")
+}
+
+@Test func lexRawStringHashInsideContent() {
+    let tokens = lex("#\"a#\"b\"#")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].isRaw)
+    #expect(tokens[0].value == "a#\"b")
+}
+
+@Test func lexRawStringInterpolationTokenSplit() {
+    let tokens = lex("#\"a\\#(b)c\"#")
+    #expect(tokens.count == 5)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].value == "a")
+    #expect(tokens[0].isRaw)
+    #expect(tokens[0].isUnterminated)
+    #expect(tokens[1].kind == .Separator(.OpenParen))
+    #expect(tokens[2].kind == .Identifier)
+    #expect(tokens[2].value == "b")
+    #expect(tokens[3].kind == .Separator(.CloseParen))
+    #expect(tokens[4].kind == .StringLiteral)
+    #expect(tokens[4].value == "c")
+    #expect(tokens[4].isRaw)
+    #expect(!tokens[4].isUnterminated)
+}
+
+@Test func lexRawStringEmptyTrailingInterpolation() {
+    let tokens = lex("#\"a\\#(b)\"#")
+    #expect(tokens.count == 5)
+    #expect(tokens[4].kind == .StringLiteral)
+    #expect(tokens[4].value == "")
+    #expect(tokens[4].isRaw)
+    #expect(!tokens[4].isUnterminated)
+}
+
+@Test func lexRawStringBackslashHashNotInterpolation() {
+    let tokens = lex("#\"a\\#x\"#")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].isRaw)
+    #expect(tokens[0].value == "a\\#x")
+}
+
+@Test func lexRawMultilineStringBasic() {
+    let tokens = lex("#\"\"\"\nhello\nworld\n\"\"\"#")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].isRaw)
+    #expect(tokens[0].value == "hello\nworld\n")
+}
+
+@Test func lexRawMultilineStringWithIndentation() {
+    let tokens = lex("#\"\"\"\n    hello\n    world\n    \"\"\"#")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].isRaw)
+    #expect(tokens[0].value == "hello\nworld\n")
+}
+
+@Test func lexRawMultilineStringBackslashLiteral() {
+    let tokens = lex("#\"\"\"\nhello\\nworld\n\"\"\"#")
+    #expect(tokens.count == 1)
+    #expect(tokens[0].isRaw)
+    #expect(tokens[0].value == "hello\\nworld\n")
+}
+
+@Test func lexMultilineStringInterpolationTokenSplit() {
+    let tokens = lex("\"\"\"\nhello \\(x) world\n\"\"\"")
+    #expect(tokens.count == 5)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].value == "hello ")
+    #expect(tokens[0].isUnterminated)
+    #expect(tokens[1].kind == .Separator(.OpenParen))
+    #expect(tokens[2].kind == .Identifier)
+    #expect(tokens[2].value == "x")
+    #expect(tokens[3].kind == .Separator(.CloseParen))
+    #expect(tokens[4].kind == .StringLiteral)
+    #expect(tokens[4].value == " world\n")
+    #expect(!tokens[4].isUnterminated)
+}
+
+@Test func lexMultilineStringInterpolationWithIndentation() {
+    let tokens = lex("\"\"\"\n    hello \\(x)\n    world\n    \"\"\"")
+    #expect(tokens.count == 5)
+    #expect(tokens[0].value == "hello ")
+    #expect(tokens[0].isUnterminated)
+    #expect(tokens[4].value == "\nworld\n")
+    #expect(!tokens[4].isUnterminated)
+}
+
+@Test func lexRawMultilineStringInterpolation() {
+    let tokens = lex("#\"\"\"\nhello \\#(x)\nworld\n\"\"\"#")
+    #expect(tokens.count == 5)
+    #expect(tokens[0].kind == .StringLiteral)
+    #expect(tokens[0].value == "hello ")
+    #expect(tokens[0].isRaw)
+    #expect(tokens[0].isUnterminated)
+    #expect(tokens[4].kind == .StringLiteral)
+    #expect(tokens[4].value == "\nworld\n")
+    #expect(tokens[4].isRaw)
+    #expect(!tokens[4].isUnterminated)
+}
+
+@Test func lexSharpDirectiveUnaffected() {
+    let tokens = lex("#if X")
+    #expect(tokens.count == 3)
+    #expect(tokens[0].kind == .Separator(.Sharp))
+    #expect(tokens[1].kind == .Keyword(.If))
+    #expect(tokens[2].kind == .Identifier)
+}
+
+@Test func lexSharpPasteUnaffected() {
+    let tokens = lex("A ## B")
+    #expect(tokens.count == 4)
+    #expect(tokens[0].kind == .Identifier)
+    #expect(tokens[1].kind == .Separator(.Sharp))
+    #expect(tokens[2].kind == .Separator(.Sharp))
+    #expect(tokens[3].kind == .Identifier)
+}

@@ -268,22 +268,26 @@ public final class Token: Hashable, Equatable {
     public let pos: Position
     public let id: Id.SourceId
     public let isUnterminated: Bool
+    public let isRaw: Bool
     public let expansion: [MacroExpansionSite]?
     public init(
         value: String, kind: TokenKind, pos: Position, id: Id.SourceId,
-        isUnterminated: Bool = false, expansion: [MacroExpansionSite]? = nil
+        isUnterminated: Bool = false, isRaw: Bool = false,
+        expansion: [MacroExpansionSite]? = nil
     ) {
         self.value = value
         self.kind = kind
         self.pos = pos
         self.id = id
         self.isUnterminated = isUnterminated
+        self.isRaw = isRaw
         self.expansion = expansion
     }
 
     public static func == (_ lhs: Token, _ rhs: Token) -> Bool {
         lhs.value == rhs.value && lhs.kind == rhs.kind && lhs.pos == rhs.pos
             && lhs.id == rhs.id && lhs.isUnterminated == rhs.isUnterminated
+            && lhs.isRaw == rhs.isRaw
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -292,6 +296,7 @@ public final class Token: Hashable, Equatable {
         hasher.combine(pos)
         hasher.combine(id)
         hasher.combine(isUnterminated)
+        hasher.combine(isRaw)
     }
 }
 
@@ -358,6 +363,14 @@ public class CharStream: IteratorProtocol {
     public var peek3: Character? {
         if pos + 2 < chars.count {
             chars[pos + 2]
+        } else {
+            nil
+        }
+    }
+
+    public var peek4: Character? {
+        if pos + 3 < chars.count {
+            chars[pos + 3]
         } else {
             nil
         }

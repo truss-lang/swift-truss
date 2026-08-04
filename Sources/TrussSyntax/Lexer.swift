@@ -71,6 +71,27 @@ public final class Lexer {
     private var interpolationDepth: Int = 0
     private var emitInterpolationOpen: Bool = false
     private var pendingStringResume: Bool = false
+    private var stringMode: StringMode = .singleLine
+    private var multilineState: MultilineState?
+
+    private enum StringMode {
+        case singleLine
+        case multiLine
+        case rawSingleLine
+        case rawMultiLine
+    }
+
+    private struct MultilineState {
+        var mode: StringMode
+        var lines: [String] = []
+        var lineStarts: [Bool] = []
+        var currentLine: String = ""
+        var currentIsLineStart: Bool = true
+        init(mode: StringMode) {
+            self.mode = mode
+        }
+    }
+
     public init(input: CharStream) {
         self.input = input
     }
@@ -99,14 +120,29 @@ public final class Lexer {
     private func parseAToken() -> Token? {
         if pendingStringResume {
             pendingStringResume = false
-            if input.peek == "\"" {
-                input.incrementPosition()
-                return Token(
-                    value: "", kind: .StringLiteral,
-                    pos: makePosition(input.currentPosition), id: input.id
-                )
+            switch stringMode {
+            case .singleLine:
+                if input.peek == "\"" {
+                    input.incrementPosition()
+                    return Token(
+                        value: "", kind: .StringLiteral,
+                        pos: makePosition(input.currentPosition), id: input.id
+                    )
+                }
+                return resumeStringLiteral()
+            case .rawSingleLine:
+                if input.peek == "\"", input.peek2 == "#" {
+                    input.incrementPosition()
+                    input.incrementPosition()
+                    return Token(
+                        value: "", kind: .StringLiteral,
+                        pos: makePosition(input.currentPosition), id: input.id, isRaw: true
+                    )
+                }
+                return resumeRawStringLiteral()
+            case .multiLine, .rawMultiLine:
+                return resumeMultilineString()
             }
-            return resumeStringLiteral()
         }
         skipWhitechars()
         guard let c = input.peek else {
@@ -154,6 +190,12 @@ public final class Lexer {
         case ":":
             return singleCharToken(.Separator(.Colon), ":")
         case "#":
+            if input.peek2 == "\"" {
+                if input.peek3 == "\"", input.peek4 == "\"" {
+                    return parseRawMultilineStringLiteral()
+                }
+                return parseRawStringLiteral()
+            }
             return singleCharToken(.Separator(.Sharp), "#")
         case "$":
             return singleCharToken(.Operator(.Dollar), "$")
@@ -281,7 +323,14 @@ public final class Lexer {
 
     private func parseStringLiteral() -> Token {
         let begin = input.currentPosition
+        if interpolationDepth == 0 {
+            stringMode = .singleLine
+        }
         input.incrementPosition()
+        return scanSingleLineBody(begin: begin)
+    }
+
+    private func scanSingleLineBody(begin: Position) -> Token {
         var raw = ""
         while let c = input.peek, c != "\"" {
             if c == "\\" {
@@ -326,89 +375,211 @@ public final class Lexer {
     }
 
     private func resumeStringLiteral() -> Token {
+        scanSingleLineBody(begin: input.currentPosition)
+    }
+
+    private func parseRawStringLiteral() -> Token {
         let begin = input.currentPosition
-        var raw = ""
-        while let c = input.peek, c != "\"" {
-            if c == "\\" {
-                if input.peek2 == "(" {
-                    let pos = makePosition(begin)
-                    emitInterpolationOpen = true
-                    interpolationDepth += 1
-                    return Token(
-                        value: decodeStringEscapes(raw), kind: .StringLiteral, pos: pos,
-                        id: input.id, isUnterminated: true
-                    )
-                }
-                raw.append(c)
-                input.incrementPosition()
-                if let next = input.peek {
-                    raw.append(next)
-                    input.incrementPosition()
-                    if next == "u", input.peek == "{" {
-                        while let u = input.peek, u != "}" {
-                            raw.append(u)
-                            input.incrementPosition()
-                        }
-                        if input.peek == "}" {
-                            raw.append("}")
-                            input.incrementPosition()
-                        }
-                    }
-                }
-            } else {
-                raw.append(c)
-                input.incrementPosition()
-            }
+        if interpolationDepth == 0 {
+            stringMode = .rawSingleLine
         }
-        if input.peek == "\"" {
+        input.incrementPosition()
+        input.incrementPosition()
+        return scanRawSingleLineBody(begin: begin)
+    }
+
+    private func resumeRawStringLiteral() -> Token {
+        scanRawSingleLineBody(begin: input.currentPosition)
+    }
+
+    private func scanRawSingleLineBody(begin: Position) -> Token {
+        var raw = ""
+        while let c = input.peek, !(c == "\"" && input.peek2 == "#") {
+            if c == "\\", input.peek2 == "#", input.peek3 == "(" {
+                input.incrementPosition()
+                emitInterpolationOpen = true
+                interpolationDepth += 1
+                let pos = makePosition(begin)
+                return Token(
+                    value: raw, kind: .StringLiteral, pos: pos, id: input.id,
+                    isUnterminated: true, isRaw: true
+                )
+            }
+            raw.append(c)
+            input.incrementPosition()
+        }
+        if input.peek == "\"", input.peek2 == "#" {
+            input.incrementPosition()
             input.incrementPosition()
         }
         let pos = makePosition(begin)
-        return Token(
-            value: decodeStringEscapes(raw), kind: .StringLiteral, pos: pos,
-            id: input.id
-        )
+        return Token(value: raw, kind: .StringLiteral, pos: pos, id: input.id, isRaw: true)
     }
 
     private func parseMultilineStringLiteral() -> Token {
         let begin = input.currentPosition
+        if interpolationDepth == 0 {
+            stringMode = .multiLine
+        }
         input.incrementPosition()
         input.incrementPosition()
         input.incrementPosition()
+        multilineState = MultilineState(mode: .multiLine)
         if input.peek == "\n" {
             input.incrementPosition()
         }
-        var lines: [String] = []
-        var currentLine = ""
-        var indentCol = 0
+        return scanMultilineBody(begin: begin)
+    }
+
+    private func parseRawMultilineStringLiteral() -> Token {
+        let begin = input.currentPosition
+        if interpolationDepth == 0 {
+            stringMode = .rawMultiLine
+        }
+        input.incrementPosition()
+        input.incrementPosition()
+        input.incrementPosition()
+        input.incrementPosition()
+        multilineState = MultilineState(mode: .rawMultiLine)
+        if input.peek == "\n" {
+            input.incrementPosition()
+        }
+        return scanMultilineBody(begin: begin)
+    }
+
+    private func resumeMultilineString() -> Token {
+        if multilineState == nil {
+            multilineState = MultilineState(
+                mode: stringMode == .rawMultiLine ? .rawMultiLine : .multiLine
+            )
+            multilineState!.currentIsLineStart = false
+        }
+        return scanMultilineBody(begin: input.currentPosition)
+    }
+
+    private func scanMultilineBody(begin: Position) -> Token {
+        let isRaw = multilineState!.mode == .rawMultiLine
         while let c = input.peek {
-            if c == "\"", input.peek2 == "\"", input.peek3 == "\"" {
-                indentCol = input.currentPosition.col
-                input.incrementPosition()
-                input.incrementPosition()
-                input.incrementPosition()
-                break
+            if c == "\"" {
+                if input.peek2 == "\"", input.peek3 == "\"" {
+                    if isRaw {
+                        if input.peek4 == "#" {
+                            let indentCol = input.currentPosition.col
+                            input.incrementPosition()
+                            input.incrementPosition()
+                            input.incrementPosition()
+                            input.incrementPosition()
+                            return finishMultilineSegment(begin: begin, indentCol: indentCol)
+                        }
+                    } else {
+                        let indentCol = input.currentPosition.col
+                        input.incrementPosition()
+                        input.incrementPosition()
+                        input.incrementPosition()
+                        return finishMultilineSegment(begin: begin, indentCol: indentCol)
+                    }
+                }
+            }
+            if c == "\\" {
+                if isRaw {
+                    if input.peek2 == "#", input.peek3 == "(" {
+                        return emitMultilineSegment(begin: begin)
+                    }
+                } else if input.peek2 == "(" {
+                    return emitMultilineSegment(begin: begin)
+                }
             }
             if c == "\n" {
-                lines.append(currentLine)
-                currentLine = ""
+                multilineState!.lines.append(multilineState!.currentLine)
+                multilineState!.lineStarts.append(multilineState!.currentIsLineStart)
+                multilineState!.currentLine = ""
+                multilineState!.currentIsLineStart = true
                 input.incrementPosition()
+                continue
+            }
+            multilineState!.currentLine.append(c)
+            input.incrementPosition()
+        }
+        return finishMultilineSegment(begin: begin, indentCol: 0)
+    }
+
+    private func emitMultilineSegment(begin: Position) -> Token {
+        let state = multilineState!
+        let isRaw = state.mode == .rawMultiLine
+        if isRaw {
+            input.incrementPosition()
+        }
+        emitInterpolationOpen = true
+        interpolationDepth += 1
+        let pos = makePosition(begin)
+        let content = assembleMultilineSegment(
+            lines: state.lines, lineStarts: state.lineStarts,
+            currentLine: state.currentLine, currentIsLineStart: state.currentIsLineStart,
+            indentCol: nil
+        )
+        multilineState = MultilineState(mode: state.mode)
+        multilineState!.currentIsLineStart = false
+        let value = isRaw ? content : decodeStringEscapes(content)
+        return Token(
+            value: value, kind: .StringLiteral, pos: pos, id: input.id,
+            isUnterminated: true, isRaw: isRaw
+        )
+    }
+
+    private func finishMultilineSegment(begin: Position, indentCol: Int) -> Token {
+        let state = multilineState!
+        let isRaw = state.mode == .rawMultiLine
+        let content = assembleMultilineSegment(
+            lines: state.lines, lineStarts: state.lineStarts,
+            currentLine: state.currentLine, currentIsLineStart: state.currentIsLineStart,
+            indentCol: indentCol
+        )
+        multilineState = nil
+        let pos = makePosition(begin)
+        let value = isRaw ? content : decodeStringEscapes(content)
+        return Token(value: value, kind: .StringLiteral, pos: pos, id: input.id, isRaw: isRaw)
+    }
+
+    private func assembleMultilineSegment(
+        lines: [String], lineStarts: [Bool], currentLine: String,
+        currentIsLineStart: Bool, indentCol: Int?
+    ) -> String {
+        var allLines = lines
+        var allStarts = lineStarts
+        allLines.append(currentLine)
+        allStarts.append(currentIsLineStart)
+        let col: Int
+        if let indentCol {
+            col = indentCol
+        } else {
+            var minIndent = Int.max
+            for (i, line) in allLines.enumerated() where allStarts[i] && !line.isEmpty {
+                var count = 0
+                for ch in line {
+                    if ch == " " || ch == "\t" {
+                        count += 1
+                    } else {
+                        break
+                    }
+                }
+                if count < minIndent {
+                    minIndent = count
+                }
+            }
+            col = minIndent == Int.max ? 0 : minIndent + 1
+        }
+        var result = ""
+        for (i, line) in allLines.enumerated() {
+            if i > 0 {
+                result.append("\n")
+            }
+            if allStarts[i] {
+                result.append(stripIndent(line, col))
             } else {
-                currentLine.append(c)
-                input.incrementPosition()
+                result.append(line)
             }
         }
-        lines.append(currentLine)
-        var result = ""
-        for (i, line) in lines.enumerated() {
-            if i > 0 { result.append("\n") }
-            result.append(stripIndent(line, indentCol))
-        }
-        let pos = makePosition(begin)
-        return Token(
-            value: decodeStringEscapes(result), kind: .StringLiteral, pos: pos,
-            id: input.id
-        )
+        return result
     }
 
     private func stripIndent(_ line: String, _ col: Int) -> String {

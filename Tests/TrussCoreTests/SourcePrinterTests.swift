@@ -164,6 +164,10 @@ import TrussCore
         "let x = .None",
         "let x = a?.b",
         "let x = Int(42)",
+        "let x = #\"hello\"#",
+        "let x = #\"a\\nb\"#",
+        "let x = #\"a\\#(x)b\"#",
+        "let x = #\"a\"b\"#",
     ] {
         assertRoundTrip(source)
     }

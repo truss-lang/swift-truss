@@ -750,7 +750,8 @@ public final class ASTDumper: AST.Visitor {
     override public func visitStringLiteral(
         _ stringLiteral: AST.StringLiteral, additional _: Any? = nil
     ) -> Any? {
-        dumpNode("StringLiteral \"\(escapeString(stringLiteral.token.value))\"" + tyText(stringLiteral.ty))
+        let rawMarker = stringLiteral.token.isRaw ? " [raw]" : ""
+        dumpNode("StringLiteral \"\(escapeString(stringLiteral.token.value))\"" + rawMarker + tyText(stringLiteral.ty))
         return nil
     }
 
@@ -1227,7 +1228,10 @@ public final class ASTDumper: AST.Visitor {
         for segment in interpolation.segments {
             switch segment {
             case let .literal(token):
-                children.append { self.dumpNode("Literal \"\(self.escapeString(token.value))\"") }
+                let rawMarker = token.isRaw ? " [raw]" : ""
+                children.append {
+                    self.dumpNode("Literal \"\(self.escapeString(token.value))\"" + rawMarker)
+                }
             case let .expression(expression):
                 children.append { self.dumpNode("Interpolation", children: [{ self.visit(expression) }]) }
             }
