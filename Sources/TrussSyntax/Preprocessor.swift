@@ -4,13 +4,16 @@ import TrussCore
 
 public struct PreprocessorConfig {
     public let flags: Set<String>
+    public let defines: [String: String]
     public let target: String
     public let workingDirectory: String
     public init(
-        flags: Set<String> = [], target: String = "x86_64-unknown-linux-gnu",
+        flags: Set<String> = [], defines: [String: String] = [:],
+        target: String = "x86_64-unknown-linux-gnu",
         workingDirectory: String = ""
     ) {
         self.flags = flags
+        self.defines = defines
         self.target = target
         self.workingDirectory = workingDirectory
     }
@@ -50,6 +53,14 @@ public final class Preprocessor {
         self.macros = [:]
         self.expanding = []
         self.includeStack = []
+        for (name, value) in config.defines {
+            let nameToken = Token(
+                value: name, kind: .Identifier,
+                pos: Position(pos: 0, line: 1, col: 1, len: name.count), id: lexerResult.id)
+            let valueTokens = Lexer(input: CharStream(content: value, id: lexerResult.id))
+                .parse().tokens
+            self.macros[name] = .Object(name: nameToken, tokens: valueTokens)
+        }
         let tokens = self.scan(lexerResult, currentDir: config.workingDirectory)
         return LexerResult(id: lexerResult.id, tokens: tokens)
     }

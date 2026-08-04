@@ -6,6 +6,7 @@ import PackageDescription
 let package = Package(
     name: "swift-truss",
     dependencies: [
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.0.0"),
         .package(url: "https://github.com/xiaoli-white/swift-abstract.git", from: "1.0.0"),
         .package(url: "https://github.com/xiaoli-white/swift-better-diagnostic.git", from: "1.1.2"),
         .package(url: "https://github.com/davecom/SwiftGraph.git", from: "4.0.0"),
@@ -33,10 +34,24 @@ let package = Package(
         .target(
             name: "TrussPackageManager"
         ),
+        .target(
+            name: "TrussDriver",
+            dependencies: [
+                "TrussSyntax", "TrussSemantics",
+                .product(name: "SwiftBetterDiagnostic", package: "swift-better-diagnostic"),
+            ]
+        ),
         .executableTarget(
             name: "truss",
             dependencies: [
                 "TrussSyntax", "TrussSemantics",
+            ]
+        ),
+        .executableTarget(
+            name: "trussc",
+            dependencies: [
+                "TrussDriver",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
         .testTarget(
@@ -62,7 +77,7 @@ let package = Package(
         ),
         .testTarget(
             name: "trussTests",
-            dependencies: ["truss"]
+            dependencies: ["truss", "TrussDriver"]
         ),
     ],
     swiftLanguageModes: [.v6]
