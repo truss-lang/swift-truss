@@ -1896,7 +1896,6 @@ public final class Parser {
             case .Operator: return parseOperatorDecl(modifiers, attributes)
             case .Let: return parseVariableDecl(modifiers, attributes, inFunctionContext: true)
             case .Var: return parseVariableDecl(modifiers, attributes, inFunctionContext: true)
-            case .Enum: return parseEnumDecl(modifiers, attributes)
             case .Return: return parseReturn()
             case .Throw: return parseThrow()
             case .While: return parseWhile()

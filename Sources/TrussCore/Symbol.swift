@@ -6,6 +6,7 @@ public enum Symbol {
         public var parent: Id.SymbolId? = nil
         public let id: Id.SymbolId
         public let name: String
+        public var sourceToken: Token? = nil
         @abstractInit
         public init(_ id: Id.SymbolId, _ name: String) {
             self.id = id
@@ -20,6 +21,27 @@ public enum Symbol {
     }
     public final class ModuleSymbol: Symbol {
         public let scope: Scope = Scope()
+        public init(id: Id.SymbolId, name: String) {
+            super.init(id, name)
+        }
+    }
+    public final class NominalTypeSymbol: Symbol {
+        public let scope: Scope = Scope()
+        public init(id: Id.SymbolId, name: String) {
+            super.init(id, name)
+        }
+    }
+    public final class TypeAliasSymbol: Symbol {
+        public init(id: Id.SymbolId, name: String) {
+            super.init(id, name)
+        }
+    }
+    public final class GenericParamSymbol: Symbol {
+        public init(id: Id.SymbolId, name: String) {
+            super.init(id, name)
+        }
+    }
+    public final class CaseSymbol: Symbol {
         public init(id: Id.SymbolId, name: String) {
             super.init(id, name)
         }

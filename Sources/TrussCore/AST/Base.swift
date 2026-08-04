@@ -16,7 +16,7 @@ public enum AST {
         public let id: Id.SourceId
         public let packageName: String
         public let statements: [Statement]
-        public weak var packageSymbol: Symbol.PackageSymbol? = nil
+        public var packageSymbol: Symbol.PackageSymbol? = nil
         public init(
             _ id: Id.SourceId, _ packageName: String, _ statements: [Statement],
             sourceRange: SourceRange

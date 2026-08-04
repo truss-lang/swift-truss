@@ -6,14 +6,18 @@ import TrussSyntax
 
 func parseProgram(_ source: String, semantic: Bool = false) -> AST.Program {
     let context = Context()
-    let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
+    let src = Source(id: context.nextSourceId, filepath: "<test>", content: source)
     context.register(source: src)
-    let lexerResult = Lexer(input: CharStream(content: source, id: Id.SourceId(id: 0))).parse()
+    let lexerResult = Lexer(input: CharStream(content: source, id: src.id)).parse()
     let preprocessed = Preprocessor(context: context).process(
         lexerResult, config: PreprocessorConfig())
     let program = Parser(context: context, packageName: "main", preprocessed).parse()
     if semantic {
+        DeclCollector(context: context).visitProgram(program)
         Enter(context: context).visitProgram(program)
+        let merger = MergePass(context: context)
+        merger.visitProgram(program)
+        merger.resolvePending()
         NameResolver(context: context).visitProgram(program)
     }
     return program

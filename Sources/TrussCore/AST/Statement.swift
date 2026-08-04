@@ -119,6 +119,7 @@ extension AST {
         public let token: Token
         public let name: Token
         public let typeExpression: Expression
+        public var symbol: Symbol.TypeAliasSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ typeExpression: Expression, sourceRange: SourceRange
@@ -219,6 +220,7 @@ extension AST {
         public let conformances: [Expression]
         public let whereClause: [AST.WhereRequirement]?
         public let body: [AST.Statement]
+        public var symbol: Symbol.NominalTypeSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
@@ -244,6 +246,7 @@ extension AST {
         public let inheritanceClauses: [Expression]
         public let whereClause: [AST.WhereRequirement]?
         public let body: [AST.Statement]
+        public var symbol: Symbol.NominalTypeSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
@@ -269,6 +272,7 @@ extension AST {
         public let conformances: [Expression]
         public let whereClause: [AST.WhereRequirement]?
         public let body: [AST.Statement]
+        public var symbol: Symbol.NominalTypeSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
@@ -294,6 +298,7 @@ extension AST {
         public let conformances: [Expression]
         public let whereClause: [AST.WhereRequirement]?
         public let body: [AST.Statement]
+        public var symbol: Symbol.NominalTypeSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
@@ -317,6 +322,7 @@ extension AST {
         public let base: Expression
         public let conformances: [Expression]
         public let body: [AST.Statement]
+        public var virtualScope: Scope? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ base: Expression, _ conformances: [Expression], _ body: [AST.Statement],
@@ -339,6 +345,7 @@ extension AST {
         public let conformances: [Expression]
         public let whereClause: [AST.WhereRequirement]?
         public let body: [AST.Statement]
+        public var symbol: Symbol.NominalTypeSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
@@ -360,6 +367,7 @@ extension AST {
     public final class EnumCaseDecl: Decl {
         public let token: Token
         public let elements: [Element]
+        public var symbols: [Symbol.CaseSymbol] = []
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ elements: [Element], sourceRange: SourceRange
@@ -414,6 +422,7 @@ extension AST {
         public let parameters: [FunctionDecl.Parameter]
         public let throwsClause: ThrowsClause?
         public let body: [Statement]
+        public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ optionalToken: Token?, _ genericDecl: GenericDecl?,
@@ -786,6 +795,7 @@ extension AST {
         public let throwsClause: ThrowsClause?
         public let returnType: Expression
         public let body: [Statement]
+        public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ genericDecl: GenericDecl?, _ parameters: [FunctionDecl.Parameter],
@@ -809,6 +819,7 @@ extension AST {
         public let name: Token
         public let constraint: Expression?
         public let whereClause: [AST.WhereRequirement]?
+        public var symbol: Symbol.NominalTypeSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ constraint: Expression?,

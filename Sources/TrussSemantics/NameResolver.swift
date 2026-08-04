@@ -45,7 +45,10 @@ public final class NameResolver: AST.Visitor {
 
     private func lookupName(_ name: String) -> Symbol.Symbol? {
         for scope in scopeStack.reversed() {
-            if let symbol = scope.name2Symbol[name] {
+            if let symbols = scope.values[name], let first = symbols.first {
+                return first
+            }
+            if let symbol = scope.modules[name] {
                 return symbol
             }
         }

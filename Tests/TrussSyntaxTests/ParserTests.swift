@@ -6614,3 +6614,18 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(forStmt != nil)
     #expect(forStmt!.asyncToken == nil)
 }
+
+@Test func parseRejectsLocalEnumInFunctionBody() {
+    let (_, errors) = parseWithDiagnostics("func f() { enum E {} }")
+    #expect(errors.count == 1)
+    #expect(errors[0].message.contains("expected a statement"))
+}
+
+@Test func parseAllowsEnumInTypeBody() {
+    let statements = parseStatements("struct S { enum E { case a } }")
+    #expect(statements.count == 1)
+    let structDecl = statements[0] as? AST.StructDecl
+    #expect(structDecl != nil)
+    #expect(structDecl!.body.count == 1)
+    #expect(structDecl!.body[0] is AST.EnumDecl)
+}

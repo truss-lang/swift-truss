@@ -36,7 +36,6 @@ public final class Preprocessor {
     private var macros: [String: Macro] = [:]
     private var expanding: [String] = []
     private var includeStack: [String] = []
-    private var nextSourceId = 1
 
     public init(context: Context) {
         self.context = context
@@ -51,7 +50,6 @@ public final class Preprocessor {
         self.macros = [:]
         self.expanding = []
         self.includeStack = []
-        self.nextSourceId = 1
         let tokens = self.scan(lexerResult, currentDir: config.workingDirectory)
         return LexerResult(id: lexerResult.id, tokens: tokens)
     }
@@ -188,11 +186,9 @@ public final class Preprocessor {
             self.emitError("file not found: '\(path)'", at: name)
             return []
         }
-        let newId = Id.SourceId(id: UInt64(self.nextSourceId))
-        self.nextSourceId += 1
-        let source = Source(id: newId, filepath: fullPath, content: content)
+        let source = Source(id: context.nextSourceId, filepath: fullPath, content: content)
         context.register(source: source)
-        let lexerResult = Lexer(input: CharStream(content: content, id: newId)).parse()
+        let lexerResult = Lexer(input: CharStream(content: content, id: source.id)).parse()
         let savedActive = self.active
         let savedFrames = self.frames
         let savedOuterIf = self.outerIfToken
