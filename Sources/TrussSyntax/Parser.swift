@@ -564,6 +564,21 @@ public final class Parser {
             emitError("expected identifier after 'module', but got '\(name.value)'", at: name)
             return errorStatement(from: token, to: name)
         }
+        var components = [name]
+        while let dotToken = peek, case .Operator(.Dot) = dotToken.kind {
+            guard let afterDot = peek2 else {
+                emitError("expected module name after '.'", at: endOfFile)
+                return errorStatement(from: token, to: endOfFile)
+            }
+            guard case .Identifier = afterDot.kind else {
+                emitError(
+                    "expected module name after '.', but got '\(afterDot.value)'", at: afterDot
+                )
+                return errorStatement(from: token, to: afterDot)
+            }
+            index += 2
+            components.append(afterDot)
+        }
         guard let openToken = next else {
             emitError("expected '{' after module name", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -594,10 +609,17 @@ public final class Parser {
             emitError("expected '}' after module body", at: endOfFile)
             endToken = openToken
         }
-        return AST.ModuleDecl(
-            modifiers, attributes, token, name, body,
+        var moduleDecl: AST.ModuleDecl = AST.ModuleDecl(
+            modifiers, attributes, token, components.removeLast(), body,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
+        for component in components.reversed() {
+            moduleDecl = AST.ModuleDecl(
+                modifiers, attributes, token, component, [moduleDecl],
+                sourceRange: SourceRange(from: token, to: endToken, in: buffer)
+            )
+        }
+        return moduleDecl
     }
 
     private func parseOperatorDecl(

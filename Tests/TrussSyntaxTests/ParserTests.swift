@@ -1158,6 +1158,65 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(inner!.body.isEmpty)
 }
 
+@Test func parseModuleWithDottedPath() {
+    let statements = parseStatements("module A.B {}")
+    #expect(statements.count == 1)
+    let outer = statements[0] as? AST.ModuleDecl
+    #expect(outer != nil)
+    #expect(outer!.name.value == "A")
+    #expect(outer!.body.count == 1)
+    let inner = outer!.body[0] as? AST.ModuleDecl
+    #expect(inner != nil)
+    #expect(inner!.token.kind == .Keyword(.Module))
+    #expect(inner!.name.value == "B")
+    #expect(inner!.body.isEmpty)
+}
+
+@Test func parseModuleWithThreeLevelPath() {
+    let statements = parseStatements("module A.B.C { let x }")
+    #expect(statements.count == 1)
+    let outer = statements[0] as? AST.ModuleDecl
+    #expect(outer != nil)
+    #expect(outer!.name.value == "A")
+    #expect(outer!.body.count == 1)
+    let mid = outer!.body[0] as? AST.ModuleDecl
+    #expect(mid != nil)
+    #expect(mid!.name.value == "B")
+    #expect(mid!.body.count == 1)
+    let inner = mid!.body[0] as? AST.ModuleDecl
+    #expect(inner != nil)
+    #expect(inner!.name.value == "C")
+    #expect(inner!.body.count == 1)
+    let vd = inner!.body[0] as? AST.VariableDecl
+    #expect(vd != nil)
+    #expect(vd!.name.value == "x")
+}
+
+@Test func parseModuleDottedPathWithModifiers() {
+    let statements = parseStatements("public module A.B {}")
+    #expect(statements.count == 1)
+    let outer = statements[0] as? AST.ModuleDecl
+    #expect(outer != nil)
+    #expect(outer!.modifiers.count == 1)
+    #expect(modifierKind(outer!.modifiers[0].kind, equals: .Public(setter: false)))
+    let inner = outer!.body[0] as? AST.ModuleDecl
+    #expect(inner != nil)
+    #expect(inner!.modifiers.count == 1)
+    #expect(modifierKind(inner!.modifiers[0].kind, equals: .Public(setter: false)))
+}
+
+@Test func parseModuleDottedPathTrailingDotError() {
+    let errors = parseWithDiagnostics("module A.").1
+    #expect(errors.count == 1)
+    #expect(errors[0].message.contains("expected module name after '.'"))
+}
+
+@Test func parseModuleDottedPathInvalidComponentError() {
+    let errors = parseWithDiagnostics("module A.3 {}").1
+    #expect(errors.count == 1)
+    #expect(errors[0].message.contains("expected module name after '.', but got '3'"))
+}
+
 @Test func parseModuleWithVariableInitializer() {
     let statements = parseStatements("module Foo { let x = 42 }")
     #expect(statements.count == 1)
