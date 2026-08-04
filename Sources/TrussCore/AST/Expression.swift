@@ -327,6 +327,7 @@ public extension AST {
 
     final class SelfExpression: Expression {
         public let token: Token
+        public var symbol: Symbol.Symbol? = nil
         public init(
             _ token: Token, sourceRange: SourceRange
         ) {
@@ -341,6 +342,7 @@ public extension AST {
 
     final class SuperExpression: Expression {
         public let token: Token
+        public var symbol: Symbol.Symbol? = nil
         public init(
             _ token: Token, sourceRange: SourceRange
         ) {
@@ -356,6 +358,8 @@ public extension AST {
     final class ImplicitMemberAccess: Expression {
         public let token: Token
         public let name: Token
+        public var symbol: Symbol.Symbol? = nil
+        public var overloads: [Symbol.FunctionSymbol]? = nil
         public init(_ token: Token, _ name: Token, sourceRange: SourceRange) {
             self.token = token
             self.name = name
@@ -400,6 +404,7 @@ public extension AST {
     final class Closure: Expression {
         public let signature: ClosureSignature?
         public let body: [Statement]
+        public var scope: Scope? = nil
         public init(
             _ signature: ClosureSignature?, _ body: [Statement], sourceRange: SourceRange
         ) {

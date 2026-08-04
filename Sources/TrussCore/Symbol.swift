@@ -28,9 +28,20 @@ public enum Symbol {
         }
     }
 
+    public enum TypeKind {
+        case structDecl
+        case classDecl
+        case enumDecl
+        case protocolDecl
+        case actorDecl
+    }
+
     public final class NominalTypeSymbol: Symbol {
+        public let kind: TypeKind
+        public var superclass: NominalTypeSymbol?
         public let scope: Scope = .init()
-        public init(id: Id.SymbolId, name: String) {
+        public init(id: Id.SymbolId, name: String, kind: TypeKind) {
+            self.kind = kind
             super.init(id, name)
         }
     }

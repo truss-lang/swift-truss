@@ -3,6 +3,7 @@ import TrussCore
 public final class NameResolver: AST.Visitor {
     private let context: Context
     private var scopeStack: [Scope] = []
+    private var typeStack: [Symbol.NominalTypeSymbol] = []
     public init(context: Context) {
         self.context = context
     }
@@ -36,6 +37,92 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
+    override public func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
+        guard let scope = closure.scope else {
+            return super.visitClosure(closure, additional: additional)
+        }
+        scopeStack.append(scope)
+        super.visitClosure(closure, additional: additional)
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
+    override public func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil)
+        -> Any?
+    {
+        guard let symbol = structDecl.symbol else { return nil }
+        scopeStack.append(symbol.scope)
+        typeStack.append(symbol)
+        super.visitStructDecl(structDecl, additional: additional)
+        typeStack.removeLast()
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
+    override public func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil)
+        -> Any?
+    {
+        resolveSuperclass(classDecl)
+        guard let symbol = classDecl.symbol else { return nil }
+        scopeStack.append(symbol.scope)
+        typeStack.append(symbol)
+        super.visitClassDecl(classDecl, additional: additional)
+        typeStack.removeLast()
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
+    override public func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil) -> Any? {
+        guard let symbol = enumDecl.symbol else { return nil }
+        scopeStack.append(symbol.scope)
+        typeStack.append(symbol)
+        super.visitEnumDecl(enumDecl, additional: additional)
+        typeStack.removeLast()
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
+    override public func visitProtocolDecl(
+        _ protocolDecl: AST.ProtocolDecl, additional: Any? = nil
+    ) -> Any? {
+        guard let symbol = protocolDecl.symbol else { return nil }
+        scopeStack.append(symbol.scope)
+        typeStack.append(symbol)
+        super.visitProtocolDecl(protocolDecl, additional: additional)
+        typeStack.removeLast()
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
+    override public func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil)
+        -> Any?
+    {
+        guard let symbol = actorDecl.symbol else { return nil }
+        scopeStack.append(symbol.scope)
+        typeStack.append(symbol)
+        super.visitActorDecl(actorDecl, additional: additional)
+        typeStack.removeLast()
+        scopeStack.removeLast()
+        return nil
+    }
+
+    private func resolveSuperclass(_ classDecl: AST.ClassDecl) {
+        guard let first = classDecl.inheritanceClauses.first else { return }
+        let nameExpression = (first as? AST.GenericApplication)?.base ?? first
+        guard let variable = nameExpression as? AST.Variable,
+              let (_, entries) = lookupScopeEntry(variable.name.value),
+              let symbol = entries.first as? Symbol.NominalTypeSymbol,
+              symbol.kind == .classDecl
+        else { return }
+        classDecl.symbol?.superclass = symbol
+    }
+
+    @discardableResult
     override public func visitVariable(_ variable: AST.Variable, additional _: Any? = nil) -> Any? {
         guard let (_, entries) = lookupScopeEntry(variable.name.value) else { return nil }
         if entries.allSatisfy({ $0 is Symbol.FunctionSymbol }) {
@@ -44,6 +131,22 @@ public final class NameResolver: AST.Visitor {
         } else {
             variable.symbol = entries[0]
         }
+        return nil
+    }
+
+    @discardableResult
+    override public func visitSelfExpression(
+        _ selfExpression: AST.SelfExpression, additional _: Any? = nil
+    ) -> Any? {
+        selfExpression.symbol = typeStack.last
+        return nil
+    }
+
+    @discardableResult
+    override public func visitSuperExpression(
+        _ superExpression: AST.SuperExpression, additional _: Any? = nil
+    ) -> Any? {
+        superExpression.symbol = typeStack.last?.superclass
         return nil
     }
 
@@ -61,20 +164,40 @@ public final class NameResolver: AST.Visitor {
         } else {
             return nil
         }
-        guard let scope = scope else { return nil }
-        let name = memberAccess.member.value
-        if let typeEntry = scope.types[name] {
-            memberAccess.symbol = typeEntry
-        } else if let entries = scope.values[name] {
-            if entries.allSatisfy({ $0 is Symbol.FunctionSymbol }) {
-                memberAccess.overloads = entries.map { $0 as! Symbol.FunctionSymbol }
-            } else {
-                memberAccess.symbol = entries[0]
-            }
-        } else if let moduleEntry = scope.modules[name] {
-            memberAccess.symbol = moduleEntry
-        }
+        guard let scope else { return nil }
+        let (symbol, overloads) = memberResolution(memberAccess.member.value, in: scope)
+        memberAccess.symbol = symbol
+        memberAccess.overloads = overloads
         return nil
+    }
+
+    @discardableResult
+    override public func visitImplicitMemberAccess(
+        _ implicitMemberAccess: AST.ImplicitMemberAccess, additional _: Any? = nil
+    ) -> Any? {
+        guard let type = typeStack.last else { return nil }
+        let (symbol, overloads) = memberResolution(implicitMemberAccess.name.value, in: type.scope)
+        implicitMemberAccess.symbol = symbol
+        implicitMemberAccess.overloads = overloads
+        return nil
+    }
+
+    private func memberResolution(_ name: String, in scope: Scope) -> (
+        Symbol.Symbol?, [Symbol.FunctionSymbol]?
+    ) {
+        if let typeEntry = scope.types[name] {
+            return (typeEntry, nil)
+        }
+        if let entries = scope.values[name] {
+            if entries.allSatisfy({ $0 is Symbol.FunctionSymbol }) {
+                return (nil, entries.map { $0 as! Symbol.FunctionSymbol })
+            }
+            return (entries[0], nil)
+        }
+        if let moduleEntry = scope.modules[name] {
+            return (moduleEntry, nil)
+        }
+        return (nil, nil)
     }
 
     private func resolvedSymbol(_ expression: AST.Expression) -> Symbol.Symbol? {
@@ -83,6 +206,12 @@ public final class NameResolver: AST.Visitor {
         }
         if let member = expression as? AST.MemberAccess {
             return member.symbol
+        }
+        if let selfExpression = expression as? AST.SelfExpression {
+            return selfExpression.symbol
+        }
+        if let superExpression = expression as? AST.SuperExpression {
+            return superExpression.symbol
         }
         return nil
     }

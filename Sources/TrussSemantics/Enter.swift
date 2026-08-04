@@ -13,7 +13,7 @@ public final class Enter: AST.Visitor {
     }
 
     private func registerGenericParams(_ genericDecl: AST.GenericDecl?, into scope: Scope) {
-        guard let genericDecl = genericDecl else { return }
+        guard let genericDecl else { return }
         for param in genericDecl.generics {
             let symbol = Symbol.GenericParamSymbol(
                 id: context.nextSymbolId, name: param.name.value
@@ -48,6 +48,14 @@ public final class Enter: AST.Visitor {
         return Symbol.FunctionSignature(
             labels: labels, hasDefaults: hasDefaults, isVararg: isVararg
         )
+    }
+
+    @discardableResult
+    private func registerLocal(_ name: Token) -> Symbol.VariableSymbol {
+        let symbol = Symbol.VariableSymbol(id: context.nextSymbolId, name: name.value)
+        context.register(symbol: symbol)
+        currentScope!.registerValue(symbol, at: name, context: context)
+        return symbol
     }
 
     @discardableResult
@@ -161,6 +169,9 @@ public final class Enter: AST.Visitor {
         currentScope = scope
 
         registerGenericParams(functionDecl.genericDecl, into: scope)
+        for parameter in functionDecl.parameters {
+            registerLocal(parameter.name)
+        }
         super.visitFunctionDecl(functionDecl, additional: additional)
 
         currentScope = lastScope
@@ -186,6 +197,9 @@ public final class Enter: AST.Visitor {
         currentScope = scope
 
         registerGenericParams(initDecl.genericDecl, into: scope)
+        for parameter in initDecl.parameters {
+            registerLocal(parameter.name)
+        }
         super.visitInitDecl(initDecl, additional: additional)
 
         currentScope = lastScope
@@ -210,6 +224,9 @@ public final class Enter: AST.Visitor {
         currentScope = scope
 
         registerGenericParams(subscriptDecl.genericDecl, into: scope)
+        for parameter in subscriptDecl.parameters {
+            registerLocal(parameter.name)
+        }
         super.visitSubscriptDecl(subscriptDecl, additional: additional)
 
         currentScope = lastScope
@@ -230,13 +247,48 @@ public final class Enter: AST.Visitor {
         -> Any?
     {
         super.visitVariableDecl(variableDecl, additional: additional)
-        let symbol = Symbol.VariableSymbol(
-            id: context.nextSymbolId, name: variableDecl.name.value
-        )
-        context.register(symbol: symbol)
-        variableDecl.symbol = symbol
-        currentScope!.registerValue(symbol, at: variableDecl.name, context: context)
+        variableDecl.symbol = registerLocal(variableDecl.name)
         return nil
+    }
+
+    @discardableResult
+    override public func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
+        let lastScope = currentScope
+        let scope = Scope()
+        currentScope = scope
+        closure.scope = scope
+        if let signature = closure.signature {
+            for parameter in signature.parameters {
+                registerLocal(parameter.name)
+            }
+        }
+        super.visitClosure(closure, additional: additional)
+        currentScope = lastScope
+        return nil
+    }
+
+    @discardableResult
+    override public func visitFor(_ forStmt: AST.For, additional: Any? = nil) -> Any? {
+        if let variable = forStmt.pattern as? AST.Variable {
+            registerLocal(variable.name)
+        }
+        return super.visitFor(forStmt, additional: additional)
+    }
+
+    @discardableResult
+    override public func visitOptionalBinding(
+        _ optionalBinding: AST.OptionalBinding, additional: Any? = nil
+    ) -> Any? {
+        registerLocal(optionalBinding.name)
+        return super.visitOptionalBinding(optionalBinding, additional: additional)
+    }
+
+    @discardableResult
+    override public func visitBindingPattern(
+        _ bindingPattern: AST.BindingPattern, additional: Any? = nil
+    ) -> Any? {
+        registerLocal(bindingPattern.name)
+        return super.visitBindingPattern(bindingPattern, additional: additional)
     }
 
     @discardableResult
@@ -258,13 +310,13 @@ public final class Enter: AST.Visitor {
     override public func visitTypeAliasDecl(_: AST.TypeAliasDecl, additional _: Any? = nil)
         -> Any?
     {
-        return nil
+        nil
     }
 
     @discardableResult
     override public func visitAssociatedTypeDecl(
         _: AST.AssociatedTypeDecl, additional _: Any? = nil
     ) -> Any? {
-        return nil
+        nil
     }
 }

@@ -1,25 +1,25 @@
 extension AST.ModifierKind {
     var sourceText: String {
         switch self {
-        case let .Open(setter): return setter ? "open(set)" : "open"
-        case let .Public(setter): return setter ? "public(set)" : "public"
-        case let .Protected(setter): return setter ? "protected(set)" : "protected"
-        case let .PackagePrivate(setter): return setter ? "packageprivate(set)" : "packageprivate"
-        case let .Internal(setter): return setter ? "internal(set)" : "internal"
-        case let .FilePrivate(setter): return setter ? "fileprivate(set)" : "fileprivate"
-        case let .Private(setter): return setter ? "private(set)" : "private"
-        case .Abstract: return "abstract"
-        case .Final: return "final"
-        case .Mutating: return "mutating"
-        case .Nonmutating: return "nonmutating"
-        case .Convenience: return "convenience"
-        case .Override: return "override"
-        case .Lazy: return "lazy"
-        case .Weak: return "weak"
-        case .Unowned: return "unowned"
-        case .Indirect: return "indirect"
-        case .Isolated: return "isolated"
-        case .Async: return "async"
+        case let .Open(setter): setter ? "open(set)" : "open"
+        case let .Public(setter): setter ? "public(set)" : "public"
+        case let .Protected(setter): setter ? "protected(set)" : "protected"
+        case let .PackagePrivate(setter): setter ? "packageprivate(set)" : "packageprivate"
+        case let .Internal(setter): setter ? "internal(set)" : "internal"
+        case let .FilePrivate(setter): setter ? "fileprivate(set)" : "fileprivate"
+        case let .Private(setter): setter ? "private(set)" : "private"
+        case .Abstract: "abstract"
+        case .Final: "final"
+        case .Mutating: "mutating"
+        case .Nonmutating: "nonmutating"
+        case .Convenience: "convenience"
+        case .Override: "override"
+        case .Lazy: "lazy"
+        case .Weak: "weak"
+        case .Unowned: "unowned"
+        case .Indirect: "indirect"
+        case .Isolated: "isolated"
+        case .Async: "async"
         }
     }
 }
@@ -60,7 +60,7 @@ public final class ASTDumper: AST.Visitor {
 
     private func modifiersText(_ modifiers: [AST.Modifier]) -> String {
         if modifiers.isEmpty { return "" }
-        return " [" + modifiers.map { $0.kind.sourceText }.joined(separator: ", ") + "]"
+        return " [" + modifiers.map(\.kind.sourceText).joined(separator: ", ") + "]"
     }
 
     private func attributesText(_ attributes: [AST.Attribute]) -> String {
@@ -232,7 +232,7 @@ public final class ASTDumper: AST.Visitor {
         var text = "Import "
         text += importStatement.path.components.map { component in
             switch component {
-            case let .identifier(token), let .self_(token): return token.value
+            case let .identifier(token), let .self_(token): token.value
             }
         }.joined(separator: ".")
         switch importStatement.selector {
@@ -242,9 +242,8 @@ public final class ASTDumper: AST.Visitor {
             text += ".*"
         case let .explicit(items):
             let rendered = items.map { item in
-                var itemText: String
-                switch item.kind {
-                case let .self_(token), let .name(token): itemText = token.value
+                var itemText: String = switch item.kind {
+                case let .self_(token), let .name(token): token.value
                 }
                 if let alias = item.alias { itemText += " as \(alias.value)" }
                 return itemText
@@ -300,11 +299,10 @@ public final class ASTDumper: AST.Visitor {
     override public func visitOperatorDecl(
         _ operatorDecl: AST.OperatorDecl, additional _: Any? = nil
     ) -> Any? {
-        let kindText: String
-        switch operatorDecl.kind {
-        case let .Infix(token): kindText = "infix \(token.value)"
-        case let .Prefix(token): kindText = "prefix \(token.value)"
-        case let .Postfix(token): kindText = "postfix \(token.value)"
+        let kindText = switch operatorDecl.kind {
+        case let .Infix(token): "infix \(token.value)"
+        case let .Prefix(token): "prefix \(token.value)"
+        case let .Postfix(token): "postfix \(token.value)"
         }
         dumpNode(declText("OperatorDecl \(kindText)", operatorDecl))
         return nil
@@ -640,12 +638,11 @@ public final class ASTDumper: AST.Visitor {
 
     @discardableResult
     override public func visitAccessor(_ accessor: AST.Accessor, additional _: Any? = nil) -> Any? {
-        var text: String
-        switch accessor.kind {
-        case .Get: text = "Accessor get"
-        case .Set: text = "Accessor set"
-        case .WillSet: text = "Accessor willSet"
-        case .DidSet: text = "Accessor didSet"
+        var text = switch accessor.kind {
+        case .Get: "Accessor get"
+        case .Set: "Accessor set"
+        case .WillSet: "Accessor willSet"
+        case .DidSet: "Accessor didSet"
         }
         if let parameterName = accessor.parameterName { text += " \(parameterName.value)" }
         text += modifiersText(accessor.modifiers) + attributesText(accessor.attributes)
@@ -898,7 +895,7 @@ public final class ASTDumper: AST.Visitor {
     override public func visitSelfExpression(
         _ selfExpression: AST.SelfExpression, additional _: Any? = nil
     ) -> Any? {
-        dumpNode("SelfExpression" + tyText(selfExpression.ty))
+        dumpNode("SelfExpression" + tyText(selfExpression.ty) + symText(selfExpression.symbol))
         return nil
     }
 
@@ -906,7 +903,7 @@ public final class ASTDumper: AST.Visitor {
     override public func visitSuperExpression(
         _ superExpression: AST.SuperExpression, additional _: Any? = nil
     ) -> Any? {
-        dumpNode("SuperExpression" + tyText(superExpression.ty))
+        dumpNode("SuperExpression" + tyText(superExpression.ty) + symText(superExpression.symbol))
         return nil
     }
 
@@ -914,7 +911,11 @@ public final class ASTDumper: AST.Visitor {
     override public func visitImplicitMemberAccess(
         _ implicitMemberAccess: AST.ImplicitMemberAccess, additional _: Any? = nil
     ) -> Any? {
-        dumpNode("ImplicitMemberAccess \(implicitMemberAccess.name.value)" + tyText(implicitMemberAccess.ty))
+        dumpNode(
+            "ImplicitMemberAccess \(implicitMemberAccess.name.value)"
+                + tyText(implicitMemberAccess.ty) + symText(implicitMemberAccess.symbol)
+                + overloadsText(implicitMemberAccess.overloads)
+        )
         return nil
     }
 
@@ -1110,12 +1111,11 @@ public final class ASTDumper: AST.Visitor {
     override public func visitCastExpression(
         _ castExpression: AST.CastExpression, additional _: Any? = nil
     ) -> Any? {
-        let kindText: String
-        switch castExpression.kind {
-        case .As: kindText = "as"
-        case .AsQuestion: kindText = "as?"
-        case .AsExclamation: kindText = "as!"
-        case .Is: kindText = "is"
+        let kindText = switch castExpression.kind {
+        case .As: "as"
+        case .AsQuestion: "as?"
+        case .AsExclamation: "as!"
+        case .Is: "is"
         }
         var children: [() -> Void] = [{ self.visit(castExpression.left) }]
         children.append { self.visit(castExpression.right) }
@@ -1127,11 +1127,10 @@ public final class ASTDumper: AST.Visitor {
     override public func visitTryExpression(
         _ tryExpression: AST.TryExpression, additional _: Any? = nil
     ) -> Any? {
-        let kindText: String
-        switch tryExpression.kind {
-        case .Try: kindText = "try"
-        case .TryQuestion: kindText = "try?"
-        case .TryExclamation: kindText = "try!"
+        let kindText = switch tryExpression.kind {
+        case .Try: "try"
+        case .TryQuestion: "try?"
+        case .TryExclamation: "try!"
         }
         dumpNode(
             "TryExpression \(kindText)" + tyText(tryExpression.ty),

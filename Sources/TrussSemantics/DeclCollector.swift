@@ -13,7 +13,7 @@ public final class DeclCollector: AST.Visitor {
     }
 
     private func registerGenericParams(_ genericDecl: AST.GenericDecl?, into scope: Scope) {
-        guard let genericDecl = genericDecl else { return }
+        guard let genericDecl else { return }
         for param in genericDecl.generics {
             let symbol = Symbol.GenericParamSymbol(
                 id: context.nextSymbolId, name: param.name.value
@@ -83,7 +83,7 @@ public final class DeclCollector: AST.Visitor {
         -> Any?
     {
         let symbol = Symbol.NominalTypeSymbol(
-            id: context.nextSymbolId, name: structDecl.name.value
+            id: context.nextSymbolId, name: structDecl.name.value, kind: Symbol.TypeKind.structDecl
         )
         registerTypeSymbol(symbol, at: structDecl.name)
         structDecl.symbol = symbol
@@ -102,7 +102,7 @@ public final class DeclCollector: AST.Visitor {
         -> Any?
     {
         let symbol = Symbol.NominalTypeSymbol(
-            id: context.nextSymbolId, name: classDecl.name.value
+            id: context.nextSymbolId, name: classDecl.name.value, kind: Symbol.TypeKind.classDecl
         )
         registerTypeSymbol(symbol, at: classDecl.name)
         classDecl.symbol = symbol
@@ -121,7 +121,7 @@ public final class DeclCollector: AST.Visitor {
         -> Any?
     {
         let symbol = Symbol.NominalTypeSymbol(
-            id: context.nextSymbolId, name: enumDecl.name.value
+            id: context.nextSymbolId, name: enumDecl.name.value, kind: Symbol.TypeKind.enumDecl
         )
         registerTypeSymbol(symbol, at: enumDecl.name)
         enumDecl.symbol = symbol
@@ -140,7 +140,8 @@ public final class DeclCollector: AST.Visitor {
         -> Any?
     {
         let symbol = Symbol.NominalTypeSymbol(
-            id: context.nextSymbolId, name: protocolDecl.name.value
+            id: context.nextSymbolId, name: protocolDecl.name.value,
+            kind: Symbol.TypeKind.protocolDecl
         )
         registerTypeSymbol(symbol, at: protocolDecl.name)
         protocolDecl.symbol = symbol
@@ -159,7 +160,7 @@ public final class DeclCollector: AST.Visitor {
         -> Any?
     {
         let symbol = Symbol.NominalTypeSymbol(
-            id: context.nextSymbolId, name: actorDecl.name.value
+            id: context.nextSymbolId, name: actorDecl.name.value, kind: Symbol.TypeKind.actorDecl
         )
         registerTypeSymbol(symbol, at: actorDecl.name)
         actorDecl.symbol = symbol
@@ -190,7 +191,8 @@ public final class DeclCollector: AST.Visitor {
         _ associatedTypeDecl: AST.AssociatedTypeDecl, additional _: Any? = nil
     ) -> Any? {
         let symbol = Symbol.NominalTypeSymbol(
-            id: context.nextSymbolId, name: associatedTypeDecl.name.value
+            id: context.nextSymbolId, name: associatedTypeDecl.name.value,
+            kind: Symbol.TypeKind.protocolDecl
         )
         registerTypeSymbol(symbol, at: associatedTypeDecl.name)
         associatedTypeDecl.symbol = symbol
@@ -201,46 +203,46 @@ public final class DeclCollector: AST.Visitor {
     override public func visitFunctionDecl(_: AST.FunctionDecl, additional _: Any? = nil)
         -> Any?
     {
-        return nil
+        nil
     }
 
     @discardableResult
     override public func visitInitDecl(_: AST.InitDecl, additional _: Any? = nil) -> Any? {
-        return nil
+        nil
     }
 
     @discardableResult
     override public func visitSubscriptDecl(
         _: AST.SubscriptDecl, additional _: Any? = nil
     ) -> Any? {
-        return nil
+        nil
     }
 
     @discardableResult
     override public func visitDeinitDecl(_: AST.DeinitDecl, additional _: Any? = nil)
         -> Any?
     {
-        return nil
+        nil
     }
 
     @discardableResult
     override public func visitVariableDecl(_: AST.VariableDecl, additional _: Any? = nil)
         -> Any?
     {
-        return nil
+        nil
     }
 
     @discardableResult
     override public func visitEnumCaseDecl(_: AST.EnumCaseDecl, additional _: Any? = nil)
         -> Any?
     {
-        return nil
+        nil
     }
 
     @discardableResult
     override public func visitExternDecl(_: AST.ExternDecl, additional _: Any? = nil)
         -> Any?
     {
-        return nil
+        nil
     }
 }
