@@ -6629,3 +6629,13 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(structDecl!.body.count == 1)
     #expect(structDecl!.body[0] is AST.EnumDecl)
 }
+
+@Test func parseAllowsExtensionInModuleBody() {
+    let statements = parseStatements("module M { struct T {} extension T { func f() {} } }")
+    #expect(statements.count == 1)
+    let moduleDecl = statements[0] as? AST.ModuleDecl
+    #expect(moduleDecl != nil)
+    #expect(moduleDecl!.body.count == 2)
+    #expect(moduleDecl!.body[0] is AST.StructDecl)
+    #expect(moduleDecl!.body[1] is AST.ExtensionDecl)
+}

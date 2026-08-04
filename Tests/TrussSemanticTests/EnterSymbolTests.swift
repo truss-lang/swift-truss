@@ -169,6 +169,19 @@ import TrussCore
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
+@Test func extensionInsideModuleResolvesInModuleScope() {
+    let (context, program) = runEnter([
+        "module M { struct T {} extension T { func f() {} } }",
+    ])
+    let packageScope = program[0].packageSymbol!.scope
+    let m = packageScope.modules["M"] as? Symbol.ModuleSymbol
+    let t = m?.scope.types["T"] as? Symbol.NominalTypeSymbol
+    #expect(t != nil)
+    #expect(t!.scope.values["f"] != nil)
+    #expect(packageScope.values["f"] == nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
 @Test func overloadedFunctionsAcrossExtensions() {
     let (context, program) = runEnter([
         "struct A {} extension A { func f() {} } extension A { func f(x: Int) {} }",

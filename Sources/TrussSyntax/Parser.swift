@@ -217,6 +217,7 @@ public final class Parser {
             case .Enum: return parseEnumDecl(modifiers, attributes)
             case .ProtocolKw: return parseProtocolDecl(modifiers, attributes)
             case .Actor: return parseActorDecl(modifiers, attributes)
+            case .Extension: return parseExtensionDecl(modifiers, attributes)
             case .Func: return parseFunctionDecl(modifiers, attributes)
             case .Operator: return parseOperatorDecl(modifiers, attributes)
             case .Let: return parseVariableDecl(modifiers, attributes)
