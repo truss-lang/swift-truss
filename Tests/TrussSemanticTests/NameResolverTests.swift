@@ -278,8 +278,8 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     NameResolver(context: context).visitProgram(programs[0])
     let packageScope = programs[0].packageSymbol!.scope
     let a = packageScope.types["A"] as! Symbol.NominalTypeSymbol
-    let b = packageScope.types["B"] as! Symbol.NominalTypeSymbol
-    let c = packageScope.types["C"] as! Symbol.NominalTypeSymbol
+    let b = packageScope.types["B"] as! Symbol.ClassSymbol
+    let c = packageScope.types["C"] as! Symbol.ClassSymbol
     #expect(b.superclass === a)
     #expect(c.superclass === a)
     #expect(!context.diagnositicEngine.hasErrors)
@@ -289,7 +289,7 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     let (context, programs) = runEnter(["protocol P {} class D: P {}"])
     NameResolver(context: context).visitProgram(programs[0])
     let packageScope = programs[0].packageSymbol!.scope
-    let d = packageScope.types["D"] as! Symbol.NominalTypeSymbol
+    let d = packageScope.types["D"] as! Symbol.ClassSymbol
     #expect(d.superclass == nil)
     #expect(!context.diagnositicEngine.hasErrors)
 }

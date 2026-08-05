@@ -901,7 +901,7 @@ public extension AST {
         public let name: Token
         public let constraint: Expression?
         public let whereClause: [AST.WhereRequirement]?
-        public var symbol: Symbol.NominalTypeSymbol? = nil
+        public var symbol: Symbol.Symbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ constraint: Expression?,

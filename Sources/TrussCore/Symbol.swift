@@ -28,20 +28,49 @@ public enum Symbol {
         }
     }
 
-    public enum TypeKind {
-        case structDecl
-        case classDecl
-        case enumDecl
-        case protocolDecl
-        case actorDecl
+    @abstractClass
+    public class NominalTypeSymbol: Symbol {
+        public var conformances: [ProtocolSymbol] = []
+        public let scope: Scope = .init()
+        @abstractInit
+        public override init(_ id: Id.SymbolId, _ name: String) {
+            super.init(id, name)
+        }
     }
 
-    public final class NominalTypeSymbol: Symbol {
-        public let kind: TypeKind
-        public var superclass: NominalTypeSymbol?
-        public let scope: Scope = .init()
-        public init(id: Id.SymbolId, name: String, kind: TypeKind) {
-            self.kind = kind
+    public final class StructSymbol: NominalTypeSymbol {
+        public init(id: Id.SymbolId, name: String) {
+            super.init(id, name)
+        }
+    }
+
+    public final class ClassSymbol: NominalTypeSymbol {
+        public var superclass: ClassSymbol?
+        public init(id: Id.SymbolId, name: String) {
+            super.init(id, name)
+        }
+    }
+
+    public final class EnumSymbol: NominalTypeSymbol {
+        public init(id: Id.SymbolId, name: String) {
+            super.init(id, name)
+        }
+    }
+
+    public final class ProtocolSymbol: NominalTypeSymbol {
+        public init(id: Id.SymbolId, name: String) {
+            super.init(id, name)
+        }
+    }
+
+    public final class ActorSymbol: NominalTypeSymbol {
+        public init(id: Id.SymbolId, name: String) {
+            super.init(id, name)
+        }
+    }
+
+    public final class AssociatedTypeSymbol: Symbol {
+        public init(id: Id.SymbolId, name: String) {
             super.init(id, name)
         }
     }
@@ -134,7 +163,12 @@ public enum Symbol {
 
         private func symbolKind(_ symbol: Symbol) -> String {
             switch symbol {
-            case is NominalTypeSymbol: "nominal"
+            case is StructSymbol: "struct"
+            case is ClassSymbol: "class"
+            case is EnumSymbol: "enum"
+            case is ProtocolSymbol: "protocol"
+            case is ActorSymbol: "actor"
+            case is AssociatedTypeSymbol: "associated-type"
             case is TypeAliasSymbol: "typealias"
             case is GenericParamSymbol: "generic-param"
             case is CaseSymbol: "case"

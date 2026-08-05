@@ -82,9 +82,7 @@ public final class DeclCollector: AST.Visitor {
     public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil)
         -> Any?
     {
-        let symbol = Symbol.NominalTypeSymbol(
-            id: context.nextSymbolId, name: structDecl.name.value, kind: Symbol.TypeKind.structDecl
-        )
+        let symbol = Symbol.StructSymbol(id: context.nextSymbolId, name: structDecl.name.value)
         registerTypeSymbol(symbol, at: structDecl.name)
         structDecl.symbol = symbol
         registerGenericParams(structDecl.genericDecl, into: symbol.scope)
@@ -101,9 +99,7 @@ public final class DeclCollector: AST.Visitor {
     public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil)
         -> Any?
     {
-        let symbol = Symbol.NominalTypeSymbol(
-            id: context.nextSymbolId, name: classDecl.name.value, kind: Symbol.TypeKind.classDecl
-        )
+        let symbol = Symbol.ClassSymbol(id: context.nextSymbolId, name: classDecl.name.value)
         registerTypeSymbol(symbol, at: classDecl.name)
         classDecl.symbol = symbol
         registerGenericParams(classDecl.genericDecl, into: symbol.scope)
@@ -120,9 +116,7 @@ public final class DeclCollector: AST.Visitor {
     public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil)
         -> Any?
     {
-        let symbol = Symbol.NominalTypeSymbol(
-            id: context.nextSymbolId, name: enumDecl.name.value, kind: Symbol.TypeKind.enumDecl
-        )
+        let symbol = Symbol.EnumSymbol(id: context.nextSymbolId, name: enumDecl.name.value)
         registerTypeSymbol(symbol, at: enumDecl.name)
         enumDecl.symbol = symbol
         registerGenericParams(enumDecl.genericDecl, into: symbol.scope)
@@ -139,10 +133,7 @@ public final class DeclCollector: AST.Visitor {
     public override func visitProtocolDecl(_ protocolDecl: AST.ProtocolDecl, additional: Any? = nil)
         -> Any?
     {
-        let symbol = Symbol.NominalTypeSymbol(
-            id: context.nextSymbolId, name: protocolDecl.name.value,
-            kind: Symbol.TypeKind.protocolDecl
-        )
+        let symbol = Symbol.ProtocolSymbol(id: context.nextSymbolId, name: protocolDecl.name.value)
         registerTypeSymbol(symbol, at: protocolDecl.name)
         protocolDecl.symbol = symbol
         registerGenericParams(protocolDecl.genericDecl, into: symbol.scope)
@@ -159,9 +150,7 @@ public final class DeclCollector: AST.Visitor {
     public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil)
         -> Any?
     {
-        let symbol = Symbol.NominalTypeSymbol(
-            id: context.nextSymbolId, name: actorDecl.name.value, kind: Symbol.TypeKind.actorDecl
-        )
+        let symbol = Symbol.ActorSymbol(id: context.nextSymbolId, name: actorDecl.name.value)
         registerTypeSymbol(symbol, at: actorDecl.name)
         actorDecl.symbol = symbol
         registerGenericParams(actorDecl.genericDecl, into: symbol.scope)
@@ -190,9 +179,8 @@ public final class DeclCollector: AST.Visitor {
     public override func visitAssociatedTypeDecl(
         _ associatedTypeDecl: AST.AssociatedTypeDecl, additional: Any? = nil
     ) -> Any? {
-        let symbol = Symbol.NominalTypeSymbol(
-            id: context.nextSymbolId, name: associatedTypeDecl.name.value,
-            kind: Symbol.TypeKind.protocolDecl
+        let symbol = Symbol.AssociatedTypeSymbol(
+            id: context.nextSymbolId, name: associatedTypeDecl.name.value
         )
         registerTypeSymbol(symbol, at: associatedTypeDecl.name)
         associatedTypeDecl.symbol = symbol

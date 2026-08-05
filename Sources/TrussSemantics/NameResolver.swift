@@ -57,6 +57,7 @@ public final class NameResolver: AST.Visitor {
         super.visitStructDecl(structDecl, additional: additional)
         typeStack.removeLast()
         scopeStack.removeLast()
+        collectConformances(structDecl.conformances, into: symbol)
         return nil
     }
 
@@ -64,14 +65,31 @@ public final class NameResolver: AST.Visitor {
     public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil)
         -> Any?
     {
-        resolveSuperclass(classDecl)
         guard let symbol = classDecl.symbol else { return nil }
+        if let classSymbol = symbol as? Symbol.ClassSymbol {
+            resolveSuperclass(classDecl.inheritanceClauses, into: classSymbol)
+        }
         scopeStack.append(symbol.scope)
         typeStack.append(symbol)
         super.visitClassDecl(classDecl, additional: additional)
         typeStack.removeLast()
         scopeStack.removeLast()
+        collectConformances(classDecl.inheritanceClauses, into: symbol)
         return nil
+    }
+
+    private func resolveSuperclass(
+        _ clauses: [AST.Expression], into symbol: Symbol.ClassSymbol
+    ) {
+        for expression in clauses {
+            let base = (expression as? AST.GenericApplication)?.base ?? expression
+            guard let variable = base as? AST.Variable,
+                  let (_, entries) = lookupScopeEntry(variable.name.value),
+                  let classSymbol = entries.first as? Symbol.ClassSymbol
+            else { continue }
+            symbol.superclass = classSymbol
+            return
+        }
     }
 
     @discardableResult
@@ -82,6 +100,7 @@ public final class NameResolver: AST.Visitor {
         super.visitEnumDecl(enumDecl, additional: additional)
         typeStack.removeLast()
         scopeStack.removeLast()
+        collectConformances(enumDecl.conformances, into: symbol)
         return nil
     }
 
@@ -95,6 +114,7 @@ public final class NameResolver: AST.Visitor {
         super.visitProtocolDecl(protocolDecl, additional: additional)
         typeStack.removeLast()
         scopeStack.removeLast()
+        collectConformances(protocolDecl.conformances, into: symbol)
         return nil
     }
 
@@ -108,18 +128,39 @@ public final class NameResolver: AST.Visitor {
         super.visitActorDecl(actorDecl, additional: additional)
         typeStack.removeLast()
         scopeStack.removeLast()
+        collectConformances(actorDecl.conformances, into: symbol)
         return nil
     }
 
-    private func resolveSuperclass(_ classDecl: AST.ClassDecl) {
-        guard let first = classDecl.inheritanceClauses.first else { return }
-        let nameExpression = (first as? AST.GenericApplication)?.base ?? first
-        guard let variable = nameExpression as? AST.Variable,
-              let (_, entries) = lookupScopeEntry(variable.name.value),
-              let symbol = entries.first as? Symbol.NominalTypeSymbol,
-              symbol.kind == .classDecl
-        else { return }
-        classDecl.symbol?.superclass = symbol
+    private func collectConformances(
+        _ expressions: [AST.Expression], into symbol: Symbol.NominalTypeSymbol
+    ) {
+        for expression in expressions {
+            if let composition = expression as? AST.ProtocolCompositionType {
+                for type in composition.types {
+                    collectConformances([type], into: symbol)
+                }
+                continue
+            }
+            if let sequential = expression as? AST.SequentialExpression,
+               sequential.ops.allSatisfy({ $0.value == "&" })
+            {
+                for operand in sequential.operands {
+                    collectConformances([operand], into: symbol)
+                }
+                continue
+            }
+            let base = (expression as? AST.GenericApplication)?.base ?? expression
+            guard let resolved = resolvedSymbol(base) else { continue }
+            if let classSymbol = symbol as? Symbol.ClassSymbol,
+               let baseClass = resolved as? Symbol.ClassSymbol,
+               classSymbol.superclass == nil
+            {
+                classSymbol.superclass = baseClass
+            } else if let protocolSymbol = resolved as? Symbol.ProtocolSymbol {
+                symbol.conformances.append(protocolSymbol)
+            }
+        }
     }
 
     @discardableResult
@@ -146,7 +187,7 @@ public final class NameResolver: AST.Visitor {
     public override func visitSuperExpression(
         _ superExpression: AST.SuperExpression, additional: Any? = nil
     ) -> Any? {
-        superExpression.symbol = typeStack.last?.superclass
+        superExpression.symbol = (typeStack.last as? Symbol.ClassSymbol)?.superclass
         return nil
     }
 
@@ -222,7 +263,7 @@ public final class NameResolver: AST.Visitor {
             if result.0 != nil || result.1 != nil {
                 return result
             }
-            current = currentType.superclass
+            current = (currentType as? Symbol.ClassSymbol)?.superclass
         }
         return (nil, nil)
     }

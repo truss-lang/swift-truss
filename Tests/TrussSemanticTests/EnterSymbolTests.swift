@@ -146,7 +146,7 @@ import TrussCore
     let (context, program) = runEnter(["protocol P { associatedtype T }"])
     let packageScope = program[0].packageSymbol!.scope
     let p = packageScope.types["P"] as! Symbol.NominalTypeSymbol
-    #expect(p.scope.types["T"] is Symbol.NominalTypeSymbol)
+    #expect(p.scope.types["T"] is Symbol.AssociatedTypeSymbol)
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
