@@ -110,6 +110,11 @@ public final class MergePass: AST.Visitor {
             }
             return
         }
+        if let binary = expression as? AST.Binary, binary.operatorToken.value == "&" {
+            collectConformances(binary.left, chain: chain, into: &protocols)
+            collectConformances(binary.right, chain: chain, into: &protocols)
+            return
+        }
         if let protocolSymbol = resolveProtocol(expression, chain: chain) {
             protocols.append(protocolSymbol)
         }

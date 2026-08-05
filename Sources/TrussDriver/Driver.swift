@@ -1,6 +1,7 @@
 import Foundation
 import SwiftBetterDiagnostic
 import TrussCore
+import TrussOperator
 import TrussSemantics
 import TrussSyntax
 
@@ -69,6 +70,9 @@ public final class Driver {
             runPass(DeclCollector(context: context), context: context, programs: programs)
         }
         if !context.diagnositicEngine.hasErrors {
+            runOperatorPasses(&programs, context: context)
+        }
+        if !context.diagnositicEngine.hasErrors {
             runPass(Enter(context: context), context: context, programs: programs)
         }
         if !context.diagnositicEngine.hasErrors {
@@ -115,6 +119,19 @@ public final class Driver {
                 return
             }
         }
+    }
+
+    private func runOperatorPasses(_ programs: inout [AST.Program], context: Context) {
+        let table = OperatorTable()
+        runPass(
+            TrussOperator.DeclCollector(table: table, context: context),
+            context: context, programs: programs
+        )
+        if context.diagnositicEngine.hasErrors { return }
+        PrecedenceResolver(table: table, context: context).resolve()
+        if context.diagnositicEngine.hasErrors { return }
+        let folder = ExpressionFolder(context: context, table: table)
+        programs = programs.map { folder.rewrite($0) }
     }
 
     private static func emitReadError(_ file: String, context: Context) {
