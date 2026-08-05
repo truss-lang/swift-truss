@@ -114,3 +114,21 @@ private func packageScope(_ programs: [AST.Program]) -> Scope {
     #expect(scope.types["A"] is Symbol.ActorSymbol)
     #expect(!context.diagnositicEngine.hasErrors)
 }
+
+@Test func extensionWithModulePrefixConformanceMerged() {
+    let (context, programs) = runEnter([
+        "protocol P {} module M { struct T {} } extension M.T: P {}",
+    ])
+    let t = packageScope(programs).modules["M"]!.scope.types["T"] as! Symbol.StructSymbol
+    #expect(t.conformances.map(\.name) == ["P"])
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func extensionWithModulePrefixProtocolResolved() {
+    let (context, programs) = runEnter([
+        "module X { protocol Q {} } module M { struct T {} } extension M.T: X.Q {}",
+    ])
+    let t = packageScope(programs).modules["M"]!.scope.types["T"] as! Symbol.StructSymbol
+    #expect(t.conformances.map(\.name) == ["Q"])
+    #expect(!context.diagnositicEngine.hasErrors)
+}

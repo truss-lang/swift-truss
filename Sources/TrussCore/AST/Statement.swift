@@ -492,6 +492,7 @@ public extension AST {
     final class DeinitDecl: Decl {
         public let token: Token
         public let body: [Statement]
+        public var scope: Scope? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ body: [Statement], sourceRange: SourceRange
@@ -850,6 +851,7 @@ public extension AST {
         public let parameterName: Token?
         public let body: FunctionDecl.Body
         public let kind: Kind
+        public var scope: Scope? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token?,
             _ parameterName: Token?, _ body: FunctionDecl.Body, kind: Kind, sourceRange: SourceRange

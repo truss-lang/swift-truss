@@ -193,3 +193,48 @@ import TrussCore
     #expect(symbols?.allSatisfy { $0 is Symbol.FunctionSymbol } == true)
     #expect(!context.diagnositicEngine.hasErrors)
 }
+
+@Test func deinitLocalsIsolatedFromTypeScope() {
+    let (context, program) = runEnter(["class C { deinit { let x = 1 } }"])
+    let packageScope = program[0].packageSymbol!.scope
+    let c = packageScope.types["C"] as! Symbol.NominalTypeSymbol
+    #expect(c.scope.values["x"] == nil)
+    let classDecl = program[0].statements[0] as! AST.ClassDecl
+    let deinitDecl = classDecl.body[0] as! AST.DeinitDecl
+    #expect(deinitDecl.scope?.values["x"] != nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func deinitLocalDoesNotConflictWithMember() {
+    let (context, _) = runEnter(["class C { var x: Int deinit { let x = 1 } }"])
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func accessorLocalsAndImplicitParameterScoped() {
+    let (context, program) = runEnter([
+        "struct S { var x: Int { get { let t = 1; return t } set { x = newValue } } }",
+    ])
+    let packageScope = program[0].packageSymbol!.scope
+    let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
+    #expect(s.scope.values["t"] == nil)
+    #expect(s.scope.values["newValue"] == nil)
+    let structDecl = program[0].statements[0] as! AST.StructDecl
+    let varDecl = structDecl.body[0] as! AST.VariableDecl
+    let setter = varDecl.accessors[1]
+    #expect(setter.scope?.values["newValue"] != nil)
+    let getter = varDecl.accessors[0]
+    #expect(getter.scope?.values["t"] != nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func extensionWithModulePrefixBaseMerged() {
+    let (context, program) = runEnter([
+        "module M { struct T {} } extension M.T { func f() {} }",
+    ])
+    let packageScope = program[0].packageSymbol!.scope
+    let t = packageScope.modules["M"]?.scope.types["T"] as? Symbol.NominalTypeSymbol
+    #expect(t != nil)
+    #expect(t!.scope.values["f"] != nil)
+    #expect(packageScope.values["f"] == nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
