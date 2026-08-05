@@ -177,13 +177,15 @@ public extension AST {
         public let token: Token
         public let name: Token
         public let kind: Kind
+        public let group: Expression?
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ kind: Kind, sourceRange: SourceRange
+            _ name: Token, _ kind: Kind, _ group: Expression?, sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
             self.kind = kind
+            self.group = group
             super.init(modifiers, attributes, sourceRange)
         }
 

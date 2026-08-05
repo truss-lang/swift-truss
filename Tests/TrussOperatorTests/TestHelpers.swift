@@ -35,3 +35,11 @@ func runBuilt(_ sources: [String]) -> (Context, UnweightedGraph<PrecedenceGroupI
     let graph = PrecedenceGraphBuilder(table: table, context: context).build()
     return (context, graph)
 }
+
+func runFolded(_ sources: [String]) -> (Context, OperatorTable, [AST.Program]) {
+    let (context, table, programs) = runDeclCollector(sources)
+    PrecedenceResolver(table: table, context: context).resolve()
+    let folder = ExpressionFolder(context: context, table: table)
+    let folded = programs.map { folder.rewrite($0) }
+    return (context, table, folded)
+}

@@ -1,0 +1,306 @@
+import Testing
+import TrussCore
+import TrussOperator
+
+func firstBodyExpression(_ program: AST.Program) -> AST.Expression {
+    var statements = program.statements
+    if let moduleDecl = statements[0] as? AST.ModuleDecl {
+        statements = moduleDecl.body
+    }
+    let funcDecl = statements.first(where: { $0 is AST.FunctionDecl }) as! AST.FunctionDecl
+    let body = if case let .Block(stmts) = funcDecl.body { stmts } else { [] }
+    let exprStmt = body[0] as! AST.ExpressionStatement
+    return exprStmt.expression
+}
+
+func bodyExpression(
+    _ program: AST.Program, at index: Int
+) -> AST.Expression {
+    let funcDecl = program.statements.first(where: { $0 is AST.FunctionDecl }) as! AST.FunctionDecl
+    let body = if case let .Block(stmts) = funcDecl.body { stmts } else { [] }
+    let exprStmt = body[index] as! AST.ExpressionStatement
+    return exprStmt.expression
+}
+
+func binary(_ expr: AST.Expression?, op: String) -> AST.Binary? {
+    guard let expr, let binary = expr as? AST.Binary, binary.operatorToken.value == op else {
+        return nil
+    }
+    return binary
+}
+
+func integer(_ expr: AST.Expression?, _ value: String) -> Bool {
+    (expr as? AST.IntegerLiteral)?.token.value == value
+}
+
+func variable(_ expr: AST.Expression?, _ name: String) -> Bool {
+    (expr as? AST.Variable)?.name.value == name
+}
+
+@Test func foldByPrecedenceRank() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup A {} precedencegroup B { higherThan: A } "
+            + "precedencegroup C { higherThan: B } operator + infix: B operator * infix: C "
+            + "func main() { 1 + 2 * 3 }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let root = binary(firstBodyExpression(programs[0]), op: "+")
+    #expect(integer(root?.left, "1"))
+    let right = binary(root?.right, op: "*")
+    #expect(integer(right?.left, "2"))
+    #expect(integer(right?.right, "3"))
+}
+
+@Test func foldThreeLevelChain() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup A {} precedencegroup B { higherThan: A associativity: left } "
+            + "precedencegroup C { higherThan: B } operator + infix: B operator - infix: B "
+            + "operator * infix: C func main() { 1 + 2 * 3 - 4 }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let root = binary(firstBodyExpression(programs[0]), op: "-")
+    let left = binary(root?.left, op: "+")
+    #expect(integer(left?.left, "1"))
+    let middle = binary(left?.right, op: "*")
+    #expect(integer(middle?.left, "2"))
+    #expect(integer(middle?.right, "3"))
+    #expect(integer(root?.right, "4"))
+}
+
+@Test func foldLeftAssociative() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup P { associativity: left } operator - infix: P "
+            + "func main() { 1 - 2 - 3 }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let root = binary(firstBodyExpression(programs[0]), op: "-")
+    let left = binary(root?.left, op: "-")
+    #expect(integer(left?.left, "1"))
+    #expect(integer(left?.right, "2"))
+    #expect(integer(root?.right, "3"))
+}
+
+@Test func foldRightAssociative() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup P { associativity: right } operator >> infix: P "
+            + "func main() { 1 >> 2 >> 3 }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let root = binary(firstBodyExpression(programs[0]), op: ">>")
+    let right = binary(root?.right, op: ">>")
+    #expect(integer(root?.left, "1"))
+    #expect(integer(right?.left, "2"))
+    #expect(integer(right?.right, "3"))
+}
+
+@Test func assignmentGroupForcesRightFold() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup P { assignment: true } operator = infix: P "
+            + "func main() { a = b = c }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let root = binary(firstBodyExpression(programs[0]), op: "=")
+    let right = binary(root?.right, op: "=")
+    #expect(variable(root?.left, "a"))
+    #expect(variable(right?.left, "b"))
+    #expect(variable(right?.right, "c"))
+}
+
+@Test func nonAssociativeChainReportsError() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup P {} operator < infix: P func main() { 1 < 2 < 3 }",
+    ])
+    #expect(context.diagnositicEngine.hasErrors)
+    #expect(messages(context).contains("operator '<' is non-associative"))
+    let root = binary(firstBodyExpression(programs[0]), op: "<")
+    #expect(binary(root?.left, op: "<") != nil)
+}
+
+@Test func unrelatedGroupsReportError() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup A {} precedencegroup B {} operator && infix: A operator * infix: B "
+            + "func main() { 1 && 2 * 3 }",
+    ])
+    #expect(context.diagnositicEngine.hasErrors)
+    #expect(
+        messages(context).contains(
+            "adjacent operators are in unrelated precedence groups 'A' and 'B'"
+        )
+    )
+    #expect(binary(firstBodyExpression(programs[0]), op: "*") != nil)
+    let root = binary(firstBodyExpression(programs[0]), op: "*")
+    #expect(binary(root?.left, op: "&&") != nil)
+}
+
+@Test func unknownOperatorReportsError() {
+    let (context, _, programs) = runFolded(["func main() { 1 + 2 }"])
+    #expect(context.diagnositicEngine.hasErrors)
+    #expect(messages(context).contains("unknown operator '+'"))
+    #expect(binary(firstBodyExpression(programs[0]), op: "+") != nil)
+}
+
+@Test func ungroupedOperatorReportsError() {
+    let (context, _, programs) = runFolded([
+        "operator + infix func main() { 1 + 2 }",
+    ])
+    #expect(context.diagnositicEngine.hasErrors)
+    #expect(messages(context).contains("infix operator '+' has no precedence group"))
+    #expect(binary(firstBodyExpression(programs[0]), op: "+") != nil)
+}
+
+@Test func notInfixOperatorReportsError() {
+    let (context, _, _) = runFolded([
+        "operator - prefix func main() { 1 - 2 }",
+    ])
+    #expect(context.diagnositicEngine.hasErrors)
+    #expect(messages(context).contains("operator '-' is not infix"))
+}
+
+@Test func notPrefixOperatorReportsError() {
+    let (context, _, programs) = runFolded([
+        "operator * infix func main() { *1 }",
+    ])
+    #expect(context.diagnositicEngine.hasErrors)
+    #expect(messages(context).contains("operator '*' is not prefix"))
+    let expr = firstBodyExpression(programs[0]) as? AST.Prefix
+    #expect(expr?.operatorToken.value == "*")
+    #expect(integer(expr?.expression, "1"))
+}
+
+@Test func prefixInfixMixFolds() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup P { associativity: left } operator - prefix operator - infix: P "
+            + "operator * infix: P func main() { -a * b }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let root = binary(firstBodyExpression(programs[0]), op: "*")
+    let left = root?.left as? AST.Prefix
+    #expect(left?.operatorToken.value == "-")
+    #expect(variable(left?.expression, "a"))
+    #expect(variable(root?.right, "b"))
+}
+
+@Test func postfixInfixMixFolds() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup P { associativity: left } operator ! postfix operator * infix: P "
+            + "func main() { a! * b }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let root = binary(firstBodyExpression(programs[0]), op: "*")
+    let left = root?.left as? AST.Postfix
+    #expect(left?.operatorToken.value == "!")
+    #expect(variable(left?.expression, "a"))
+    #expect(variable(root?.right, "b"))
+}
+
+@Test func prefixRunWrapsRightToLeft() {
+    let (context, _, programs) = runFolded([
+        "operator - prefix func main() { - -a }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let outer = firstBodyExpression(programs[0]) as? AST.Prefix
+    let inner = outer?.expression as? AST.Prefix
+    #expect(outer?.operatorToken.value == "-")
+    #expect(inner?.operatorToken.value == "-")
+    #expect(variable(inner?.expression, "a"))
+}
+
+@Test func postfixWrapsOperand() {
+    let (context, _, programs) = runFolded([
+        "operator ! postfix func main() { a! }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let outer = firstBodyExpression(programs[0]) as? AST.Postfix
+    #expect(outer?.operatorToken.value == "!")
+    #expect(variable(outer?.expression, "a"))
+}
+
+@Test func infixWithPrefixOnRight() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup P { associativity: left } operator - prefix operator - infix: P "
+            + "func main() { a - -b }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let root = binary(firstBodyExpression(programs[0]), op: "-")
+    #expect(variable(root?.left, "a"))
+    let right = root?.right as? AST.Prefix
+    #expect(right?.operatorToken.value == "-")
+    #expect(variable(right?.expression, "b"))
+}
+
+@Test func parentheticalInnerFolds() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup A {} precedencegroup B { higherThan: A } operator + infix: A "
+            + "operator * infix: B func main() { (1 + 2) * 3 }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let root = binary(firstBodyExpression(programs[0]), op: "*")
+    let paren = root?.left as? AST.ParentheticalExpression
+    let inner = binary(paren?.inner, op: "+")
+    #expect(integer(inner?.left, "1"))
+    #expect(integer(inner?.right, "2"))
+    #expect(integer(root?.right, "3"))
+}
+
+@Test func ifConditionFolds() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup A {} precedencegroup B { higherThan: A } operator + infix: A "
+            + "operator * infix: B func main() { if 1 + 2 * 3 { 4 + 5 } }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let funcDecl = programs[0].statements.first(where: { $0 is AST.FunctionDecl }) as! AST.FunctionDecl
+    let body = if case let .Block(stmts) = funcDecl.body { stmts } else { [] }
+    let ifStmt = (body[0] as! AST.ExpressionStatement).expression as! AST.If
+    let condition = binary(ifStmt.condition, op: "+")
+    #expect(integer(condition?.left, "1"))
+    #expect(binary(condition?.right, op: "*") != nil)
+    let thenExpr = (ifStmt.then[0] as! AST.ExpressionStatement).expression
+    #expect(binary(thenExpr, op: "+") != nil)
+}
+
+@Test func callArgumentsFold() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup A {} precedencegroup B { higherThan: A } operator + infix: A "
+            + "operator * infix: B func main() { f(1 + 2 * 3) }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let call = firstBodyExpression(programs[0]) as? AST.Call
+    let arg = binary(call?.arguments[0].value, op: "+")
+    #expect(integer(arg?.left, "1"))
+    #expect(binary(arg?.right, op: "*") != nil)
+}
+
+@Test func moduleScopedOperatorFolds() {
+    let (context, _, programs) = runFolded([
+        "module M { operator + infix: P precedencegroup P { associativity: left } "
+            + "func f() { 1 + 2 } }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(binary(firstBodyExpression(programs[0]), op: "+") != nil)
+}
+
+@Test func moduleIsolationReportsUnknownOperator() {
+    let (context, _, _) = runFolded([
+        "module M { operator + infix: P precedencegroup P {} } func main() { 1 + 2 }",
+    ])
+    #expect(context.diagnositicEngine.hasErrors)
+    #expect(messages(context).contains("unknown operator '+'"))
+}
+
+@Test func cycleSkipsFolding() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup A { higherThan: B } precedencegroup B { higherThan: A } "
+            + "operator + infix: A func main() { 1 + 2 }",
+    ])
+    #expect(context.diagnositicEngine.hasErrors)
+    #expect(firstBodyExpression(programs[0]) is AST.SequentialExpression)
+}
+
+@Test func genericApplicationSequenceLeftUnfolded() {
+    let (context, _, programs) = runFolded([
+        "operator < infix: P operator > infix: P precedencegroup P {} "
+            + "func main() { Array<Int32> }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(firstBodyExpression(programs[0]) is AST.SequentialExpression)
+}

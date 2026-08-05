@@ -332,7 +332,12 @@ public extension AST {
                 case let .Prefix(token): "prefix \(token.value)"
                 case let .Postfix(token): "postfix \(token.value)"
                 }
-            dumpNode(declText("OperatorDecl \(kindText)", operatorDecl))
+            let text = declText("OperatorDecl \(kindText)", operatorDecl)
+            if let group = operatorDecl.group {
+                dumpNode(text, children: [{ self.visit(group) }])
+            } else {
+                dumpNode(text)
+            }
             return nil
         }
 

@@ -301,6 +301,10 @@ public final class SourcePrinter: AST.Visitor {
         case let .Infix(token), let .Prefix(token), let .Postfix(token):
             state.write(token.value)
         }
+        if let group = operatorDecl.group {
+            state.write(": ")
+            visit(group)
+        }
         return nil
     }
 

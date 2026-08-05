@@ -46,9 +46,13 @@ public final class DeclCollector: AST.Visitor {
                 return nil
             }
             info.kinds.append(operatorDecl.kind)
+            if case .Infix = operatorDecl.kind {
+                info.group = operatorDecl.group
+            }
         } else {
             namespace.operators[name] = OperatorInfo(
-                name: operatorDecl.name, kinds: [operatorDecl.kind]
+                name: operatorDecl.name, kinds: [operatorDecl.kind],
+                group: operatorDecl.group
             )
         }
         return nil

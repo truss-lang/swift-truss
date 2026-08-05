@@ -460,7 +460,15 @@ extension AST {
         open override func visitOperatorDecl(
             _ operatorDecl: AST.OperatorDecl, additional: Any? = nil
         ) -> Any? {
-            operatorDecl
+            let group = operatorDecl.group.map { rewrite($0) }
+            if unchanged([operatorDecl.group].compactMap { $0 }, [group].compactMap { $0 }) {
+                return operatorDecl
+            }
+            return AST.OperatorDecl(
+                operatorDecl.modifiers, operatorDecl.attributes,
+                operatorDecl.token, operatorDecl.name, operatorDecl.kind, group,
+                sourceRange: operatorDecl.sourceRange
+            )
         }
 
         @discardableResult
