@@ -150,6 +150,10 @@ public final class NameResolver: AST.Visitor {
                 }
                 continue
             }
+            if let binary = expression as? AST.Binary, binary.operatorToken.value == "&" {
+                collectConformances([binary.left, binary.right], into: symbol)
+                continue
+            }
             let base = (expression as? AST.GenericApplication)?.base ?? expression
             guard let resolved = resolvedSymbol(base) else { continue }
             if let classSymbol = symbol as? Symbol.ClassSymbol,

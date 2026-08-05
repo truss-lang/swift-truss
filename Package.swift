@@ -41,7 +41,7 @@ let package = Package(
         .target(
             name: "TrussDriver",
             dependencies: [
-                "TrussSyntax", "TrussSemantics",
+                "TrussSyntax", "TrussSemantics", "TrussOperator",
                 .product(name: "SwiftBetterDiagnostic", package: "swift-better-diagnostic"),
             ]
         ),
