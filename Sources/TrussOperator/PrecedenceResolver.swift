@@ -12,18 +12,19 @@ public final class PrecedenceResolver {
     public func resolve() {
         resolveNamespace(table.root, modulePath: [])
         for name in table.modules.keys.sorted() {
-            resolveNamespace(table.modules[name]!, modulePath: name.split(separator: ".").map(String.init))
+            resolveNamespace(
+                table.modules[name]!, modulePath: name.split(separator: ".").map(String.init))
         }
     }
 
-    private func resolveNamespace(_ namespace: OperatorTable.Namespace, modulePath: [String]) {
+    private func resolveNamespace(_ namespace: Namespace, modulePath: [String]) {
         for group in namespace.precedenceGroups.values {
             resolveGroup(group, modulePath: modulePath)
         }
     }
 
     private func resolveGroup(
-        _ group: OperatorTable.PrecedenceGroupInfo, modulePath: [String]
+        _ group: PrecedenceGroupInfo, modulePath: [String]
     ) {
         group.resolvedHigherThan = resolveReferences(
             group.higherThan, group: group, modulePath: modulePath, relation: "higher"
@@ -46,9 +47,9 @@ public final class PrecedenceResolver {
     }
 
     private func resolveReferences(
-        _ references: [AST.Expression], group: OperatorTable.PrecedenceGroupInfo,
+        _ references: [AST.Expression], group: PrecedenceGroupInfo,
         modulePath: [String], relation: String
-    ) -> [OperatorTable.PrecedenceGroupInfo?] {
+    ) -> [PrecedenceGroupInfo?] {
         references.map { expression in
             guard let (path, location) = referencePath(expression) else {
                 context.emitError(
@@ -70,7 +71,7 @@ public final class PrecedenceResolver {
 
     private func lookup(
         _ path: [String], modulePath: [String], at location: Token
-    ) -> OperatorTable.PrecedenceGroupInfo? {
+    ) -> PrecedenceGroupInfo? {
         if path.count == 1 {
             let name = path[0]
             var chain = modulePath
@@ -88,7 +89,7 @@ public final class PrecedenceResolver {
         }
         let moduleComponents = Array(path.dropLast())
         let groupName = path.last!
-        var current: OperatorTable.Namespace? =
+        var current: Namespace? =
             modulePath.isEmpty ? table.root : table.modules[modulePath.joined(separator: ".")]
         var moduleFound = false
         while let namespace = current {
@@ -113,8 +114,8 @@ public final class PrecedenceResolver {
     }
 
     private func descend(
-        _ namespace: OperatorTable.Namespace, _ path: [String]
-    ) -> OperatorTable.Namespace? {
+        _ namespace: Namespace, _ path: [String]
+    ) -> Namespace? {
         var current = namespace
         for component in path {
             guard let child = current.children[component] else { return nil }

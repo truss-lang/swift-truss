@@ -3,7 +3,7 @@ import TrussCore
 public final class DeclCollector: AST.Visitor {
     private let table: OperatorTable
     private let context: Context
-    private var namespaceStack: [OperatorTable.Namespace] = []
+    private var namespaceStack: [Namespace] = []
     private var modulePath: [String] = []
 
     public init(table: OperatorTable, context: Context) {
@@ -47,7 +47,7 @@ public final class DeclCollector: AST.Visitor {
             }
             info.kinds.append(operatorDecl.kind)
         } else {
-            namespace.operators[name] = OperatorTable.OperatorInfo(
+            namespace.operators[name] = OperatorInfo(
                 name: operatorDecl.name, kinds: [operatorDecl.kind]
             )
         }
@@ -67,7 +67,7 @@ public final class DeclCollector: AST.Visitor {
             )
             return nil
         }
-        namespace.precedenceGroups[name] = OperatorTable.PrecedenceGroupInfo(
+        namespace.precedenceGroups[name] = PrecedenceGroupInfo(
             name: precedenceGroupDecl.name,
             associativity: precedenceGroupDecl.associativity,
             assignment: precedenceGroupDecl.assignment,
