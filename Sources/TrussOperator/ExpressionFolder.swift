@@ -143,69 +143,73 @@ public final class ExpressionFolder: AST.Rewriter {
     private func foldChain(
         _ operands: [AST.Expression], _ ops: [Token], in sequence: AST.SequentialExpression
     ) -> AST.Expression {
-        var ops = ops
-        var operands = operands
-        var groups = ops.map { group(of: $0) }
-        var index = 0
-        while ops.count > 1 {
-            if index > ops.count - 2 {
-                index = 0
-            }
-            let lhs = ops[index]
-            let rhs = ops[index + 1]
-            let lhsGroup = groups[index]
-            let rhsGroup = groups[index + 1]
-            let foldRight: Bool
-            if let lhsGroup, let rhsGroup {
-                if lhsGroup === rhsGroup {
-                    if lhsGroup.assignment {
-                        foldRight = true
-                    } else {
-                        switch lhsGroup.associativity {
-                        case .Left:
-                            foldRight = false
-                        case .Right:
-                            foldRight = true
-                        case .None:
-                            context.emitError(
-                                "operator '\(lhs.value)' is non-associative", at: lhs
-                            )
-                            foldRight = false
-                        }
-                    }
-                } else if reachable(lhsGroup, rhsGroup) {
-                    foldRight = false
-                } else if reachable(rhsGroup, lhsGroup) {
-                    foldRight = true
-                } else {
-                    context.emitError(
-                        "adjacent operators are in unrelated precedence groups "
-                            + "'\(lhsGroup.name.value)' and '\(rhsGroup.name.value)'",
-                        at: lhs
-                    )
-                    foldRight = false
+        var operandStack: [AST.Expression] = [operands[0]]
+        var opStack: [Token] = []
+        var groupStack: [PrecedenceGroupInfo?] = []
+        var operandIndex = 1
+        for op in ops {
+            let opGroup = group(of: op)
+            while !opStack.isEmpty {
+                let top = opStack.last!
+                let topGroup = groupStack.last!
+                if let topGroup, let opGroup,
+                   !shouldReduce(top, topGroup, against: op, opGroup)
+                {
+                    break
                 }
-            } else {
-                foldRight = false
+                let rhs = operandStack.removeLast()
+                let lhs = operandStack.removeLast()
+                opStack.removeLast()
+                groupStack.removeLast()
+                operandStack.append(makeBinary(lhs, top, rhs, in: sequence))
             }
-            if foldRight {
-                operands[index + 1] = makeBinary(
-                    operands[index + 1], rhs, operands[index + 2], in: sequence
-                )
-                ops.remove(at: index + 1)
-                operands.remove(at: index + 2)
-                groups.remove(at: index + 1)
-            } else {
-                operands[index] = makeBinary(
-                    operands[index], lhs, operands[index + 1], in: sequence
-                )
-                ops.remove(at: index)
-                operands.remove(at: index + 1)
-                groups.remove(at: index)
-                index = max(0, index - 1)
+            opStack.append(op)
+            groupStack.append(opGroup)
+            if operandIndex < operands.count {
+                operandStack.append(operands[operandIndex])
+                operandIndex += 1
             }
         }
-        return makeBinary(operands[0], ops[0], operands[1], in: sequence)
+        while !opStack.isEmpty {
+            let rhs = operandStack.removeLast()
+            let lhs = operandStack.removeLast()
+            let top = opStack.removeLast()
+            groupStack.removeLast()
+            operandStack.append(makeBinary(lhs, top, rhs, in: sequence))
+        }
+        return operandStack[0]
+    }
+
+    private func shouldReduce(
+        _ top: Token, _ topGroup: PrecedenceGroupInfo,
+        against op: Token, _ opGroup: PrecedenceGroupInfo
+    ) -> Bool {
+        if topGroup === opGroup {
+            if topGroup.assignment {
+                return false
+            }
+            switch topGroup.associativity {
+            case .Left:
+                return true
+            case .Right:
+                return false
+            case .None:
+                context.emitError("operator '\(top.value)' is non-associative", at: top)
+                return true
+            }
+        }
+        if reachable(topGroup, opGroup) {
+            return true
+        }
+        if reachable(opGroup, topGroup) {
+            return false
+        }
+        context.emitError(
+            "adjacent operators are in unrelated precedence groups "
+                + "'\(topGroup.name.value)' and '\(opGroup.name.value)'",
+            at: top
+        )
+        return true
     }
 
     private func group(of op: Token) -> PrecedenceGroupInfo? {
