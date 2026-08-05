@@ -10,13 +10,13 @@ struct truss {
         precedencegroup Comparison { higherThan: LogicalAnd }
         precedencegroup Addition { higherThan: Comparison associativity: left }
         precedencegroup Multiplication { higherThan: Addition associativity: left }
-        operator = infix: Assignment
-        operator && infix: LogicalAnd
-        operator >= infix: Comparison
-        operator + infix: Addition
-        operator - infix: Addition
-        operator * infix: Multiplication
-        operator / infix: Multiplication
+        infix operator =: Assignment
+        infix operator &&: LogicalAnd
+        infix operator >=: Comparison
+        infix operator +: Addition
+        infix operator -: Addition
+        infix operator *: Multiplication
+        infix operator /: Multiplication
         func f() {
             f2()
             M.f3()

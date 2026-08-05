@@ -24,7 +24,7 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     )
     let b = try writeTemp(
         "b.truss",
-        "precedencegroup Additive {}\noperator + infix: Additive\n"
+        "precedencegroup Additive {}\ninfix operator +: Additive\n"
             + "extension Point {\n    func sum() -> Int32 {\n        self.x + self.y\n    }\n}\n"
     )
     let config = DriverConfig(dumpSymbols: true)
@@ -145,7 +145,7 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     let file = try writeTemp(
         "fold.truss",
         "precedencegroup Additive {} precedencegroup Multiplicative { higherThan: Additive }\n"
-            + "operator + infix: Additive operator * infix: Multiplicative\n"
+            + "infix operator +: Additive infix operator *: Multiplicative\n"
             + "func main() { 1 + 2 * 3 }\n"
     )
     let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
@@ -157,8 +157,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
 @Test func driverFoldsUnaryOperators() throws {
     let file = try writeTemp(
         "unary.truss",
-        "precedencegroup Multiplicative {}\noperator - prefix operator - infix: Multiplicative\n"
-            + "operator * infix: Multiplicative\nfunc main() { -a * b }\n"
+        "precedencegroup Multiplicative {}\nprefix operator - infix operator -: Multiplicative\n"
+            + "infix operator *: Multiplicative\nfunc main() { -a * b }\n"
     )
     let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
     #expect(!result.hasErrors)

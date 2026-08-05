@@ -19,7 +19,7 @@ func messages(_ context: Context) -> [String] {
 
 @Test func collectOperatorKinds() {
     let (_, table, _) = runDeclCollector([
-        "operator + infix operator - prefix operator ++ postfix",
+        "infix operator + prefix operator - postfix operator ++",
     ])
     #expect(kindNames(table.root.operators["+"]) == ["infix"])
     #expect(kindNames(table.root.operators["-"]) == ["prefix"])
@@ -27,25 +27,25 @@ func messages(_ context: Context) -> [String] {
 }
 
 @Test func collectOperatorGroupReference() {
-    let (_, table, _) = runDeclCollector(["operator + infix: P"])
+    let (_, table, _) = runDeclCollector(["infix operator +: P"])
     let group = table.root.operators["+"]?.group as? AST.Variable
     #expect(group?.name.value == "P")
 }
 
 @Test func infixDeclarationUpdatesGroup() {
-    let (_, table, _) = runDeclCollector(["operator - prefix operator - infix: P"])
+    let (_, table, _) = runDeclCollector(["prefix operator - infix operator -: P"])
     let group = table.root.operators["-"]?.group as? AST.Variable
     #expect(group?.name.value == "P")
 }
 
 @Test func operatorAllowsMultipleKinds() {
-    let (context, table, _) = runDeclCollector(["operator - prefix operator - infix"])
+    let (context, table, _) = runDeclCollector(["prefix operator - infix operator -"])
     #expect(!context.diagnositicEngine.hasErrors)
     #expect(kindNames(table.root.operators["-"]) == ["prefix", "infix"])
 }
 
 @Test func duplicateOperatorKindReportsError() {
-    let (context, table, _) = runDeclCollector(["operator + infix operator + infix"])
+    let (context, table, _) = runDeclCollector(["infix operator + infix operator +"])
     #expect(context.diagnositicEngine.hasErrors)
     #expect(kindNames(table.root.operators["+"]) == ["infix"])
     #expect(messages(context).contains("invalid redeclaration of operator '+' (infix)"))
@@ -82,7 +82,7 @@ func messages(_ context: Context) -> [String] {
 
 @Test func moduleNamespaceIsolation() {
     let (context, table, _) = runDeclCollector([
-        "operator + infix module M { operator + infix }",
+        "infix operator + module M { infix operator + }",
     ])
     #expect(!context.diagnositicEngine.hasErrors)
     #expect(kindNames(table.root.operators["+"]) == ["infix"])
@@ -91,7 +91,7 @@ func messages(_ context: Context) -> [String] {
 
 @Test func sameModuleNameSharesNamespace() {
     let (context, table, _) = runDeclCollector([
-        "module M { operator + infix } module M { operator - infix }",
+        "module M { infix operator + } module M { infix operator - }",
     ])
     #expect(!context.diagnositicEngine.hasErrors)
     #expect(kindNames(table.modules["M"]?.operators["+"]) == ["infix"])
@@ -100,7 +100,7 @@ func messages(_ context: Context) -> [String] {
 
 @Test func duplicateAcrossModulesAllowed() {
     let (context, table, _) = runDeclCollector([
-        "module A { operator + infix } module B { operator + infix }",
+        "module A { infix operator + } module B { infix operator + }",
     ])
     #expect(!context.diagnositicEngine.hasErrors)
     #expect(kindNames(table.modules["A"]?.operators["+"]) == ["infix"])
@@ -123,6 +123,6 @@ func messages(_ context: Context) -> [String] {
 }
 
 @Test func nestedModuleNamespace() {
-    let (_, table, _) = runDeclCollector(["module A { module B { operator + infix } }"])
+    let (_, table, _) = runDeclCollector(["module A { module B { infix operator + } }"])
     #expect(kindNames(table.modules["A.B"]?.operators["+"]) == ["infix"])
 }
