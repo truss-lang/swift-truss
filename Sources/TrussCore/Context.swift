@@ -36,12 +36,16 @@ public final class Context {
 
 public extension Context {
     func emitError(_ message: String, at token: Token) {
+        emitError(message, at: token, notes: [])
+    }
+
+    func emitError(_ message: String, at token: Token, notes: [Diagnostic]) {
         guard let source = sourceTable[token.id] else { return }
         diagnositicEngine.emit(
             Diagnostic(
                 severity: .error, message: message,
                 range: token.sourceRange(in: source.stringSourceBuffer),
-                notes: token.expansionNotes(in: self)
+                notes: notes + token.expansionNotes(in: self)
             ))
     }
 }

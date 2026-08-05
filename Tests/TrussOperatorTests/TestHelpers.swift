@@ -1,3 +1,4 @@
+import SwiftGraph
 import TrussCore
 import TrussOperator
 import TrussSyntax
@@ -26,4 +27,11 @@ func runResolved(_ sources: [String]) -> (Context, OperatorTable, [AST.Program])
     let (context, table, programs) = runDeclCollector(sources)
     PrecedenceResolver(table: table, context: context).resolve()
     return (context, table, programs)
+}
+
+func runBuilt(_ sources: [String]) -> (Context, UnweightedGraph<PrecedenceGroupInfo>) {
+    let (context, table, _) = runDeclCollector(sources)
+    PrecedenceResolver(table: table, context: context).resolve()
+    let graph = PrecedenceGraphBuilder(table: table, context: context).build()
+    return (context, graph)
 }

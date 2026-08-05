@@ -29,7 +29,11 @@ let package = Package(
         ),
         .target(
             name: "TrussOperator",
-            dependencies: ["TrussCore", .product(name: "SwiftGraph", package: "SwiftGraph")]
+            dependencies: [
+                "TrussCore",
+                .product(name: "SwiftGraph", package: "SwiftGraph"),
+                .product(name: "SwiftBetterDiagnostic", package: "swift-better-diagnostic"),
+            ]
         ),
         .target(
             name: "TrussPackageManager"
