@@ -6,7 +6,7 @@ import TrussCore
     let outer = program.statements[0] as! AST.ModuleDecl
     let a = outer.symbol
     #expect(a != nil)
-    let b = a!.scope.modules["B"] as? Symbol.ModuleSymbol
+    let b = a!.scope.modules["B"]
     #expect(b != nil)
 }
 
@@ -17,7 +17,7 @@ import TrussCore
     #expect(first.symbol === second.symbol)
     let a = first.symbol!
     #expect(a.scope.values["g"] != nil)
-    let b = a.scope.modules["B"] as? Symbol.ModuleSymbol
+    let b = a.scope.modules["B"]
     #expect(b != nil)
     #expect(b!.scope.values["f"] != nil)
 }

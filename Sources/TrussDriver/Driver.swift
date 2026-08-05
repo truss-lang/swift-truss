@@ -55,8 +55,8 @@ public final class Driver {
             let preprocessed = Preprocessor(context: context).process(
                 lexerResult,
                 config: PreprocessorConfig(
-                    defines: self.config.defines,
-                    target: self.config.target,
+                    defines: config.defines,
+                    target: config.target,
                     workingDirectory: (file as NSString).deletingLastPathComponent
                 )
             )
@@ -84,7 +84,7 @@ public final class Driver {
         var stdout = ""
         if !context.diagnositicEngine.hasErrors {
             if config.dumpAST, !programs.isEmpty {
-                let dumper = ASTDumper()
+                let dumper = AST.Dumper()
                 stdout += programs.map { dumper.dump($0) }.joined(separator: "\n") + "\n"
             }
             if config.dumpSymbols, let first = programs.first {

@@ -50,6 +50,7 @@ struct truss {
             DEFER1(A)()
             DEFER2(A)()
             EXPAND(DEFER2(A)())
+            a = 1 + 2 && 3 * 4 - 5 / 6 >= 7
         }
         """
         let context = Context()
@@ -69,7 +70,7 @@ struct truss {
         merger.resolvePending()
         NameResolver(context: context).visitProgram(program)
         print("=== AST Dump ===")
-        print(ASTDumper().dump(program))
+        print(AST.Dumper().dump(program))
         print("=== Symbol Dump ===")
         print(SymbolDumper().dump(program))
         print("=== Source Print ===")

@@ -25,7 +25,7 @@ func parseProgram(_ source: String, semantic: Bool = false) -> AST.Program {
 }
 
 func dumpProgram(_ source: String, semantic: Bool = false) -> String {
-    ASTDumper().dump(parseProgram(source, semantic: semantic))
+    AST.Dumper().dump(parseProgram(source, semantic: semantic))
 }
 
 func printProgram(_ source: String) -> String {
