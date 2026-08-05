@@ -72,6 +72,68 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(q.resolvedHigherThan[0] === p)
 }
 
+@Test func nestedModuleLexicalChain() {
+    let (_, table, _) = runResolved([
+        "module A { precedencegroup X {} module B { precedencegroup Y { higherThan: X } } }",
+    ])
+    let x = table.modules["A"]!.precedenceGroups["X"]!
+    let y = table.modules["A.B"]!.precedenceGroups["Y"]!
+    #expect(y.resolvedHigherThan[0] === x)
+}
+
+@Test func nestedModuleRelativeReference() {
+    let (_, table, _) = runResolved([
+        "module A { module B { precedencegroup C {} } precedencegroup D { higherThan: B.C } }",
+    ])
+    let c = table.modules["A.B"]!.precedenceGroups["C"]!
+    let d = table.modules["A"]!.precedenceGroups["D"]!
+    #expect(d.resolvedHigherThan[0] === c)
+}
+
+@Test func nestedModuleAbsoluteReference() {
+    let (_, table, _) = runResolved([
+        "module A { module B { precedencegroup C {} } precedencegroup D { higherThan: A.B.C } }",
+    ])
+    let c = table.modules["A.B"]!.precedenceGroups["C"]!
+    let d = table.modules["A"]!.precedenceGroups["D"]!
+    #expect(d.resolvedHigherThan[0] === c)
+}
+
+@Test func nestedModuleFallsBackToOuterModule() {
+    let (_, table, _) = runResolved([
+        "module A { precedencegroup D { higherThan: B.X } } module B { precedencegroup X {} }",
+    ])
+    let x = table.modules["B"]!.precedenceGroups["X"]!
+    let d = table.modules["A"]!.precedenceGroups["D"]!
+    #expect(d.resolvedHigherThan[0] === x)
+}
+
+@Test func nestedModuleUnknownGroupMessage() {
+    let (context, _, _) = runResolved([
+        "module A { module B {} precedencegroup D { higherThan: B.Nope } }",
+    ])
+    #expect(context.diagnositicEngine.hasErrors)
+    #expect(resolvedMessages(context).contains("unknown precedence group 'B.Nope'"))
+}
+
+@Test func deepNestedLexicalChain() {
+    let (_, table, _) = runResolved([
+        "module A { precedencegroup X {} module B { module C { precedencegroup Y { higherThan: X } } } }",
+    ])
+    let x = table.modules["A"]!.precedenceGroups["X"]!
+    let y = table.modules["A.B.C"]!.precedenceGroups["Y"]!
+    #expect(y.resolvedHigherThan[0] === x)
+}
+
+@Test func nestedModuleInnerShadowedByRoot() {
+    let (_, table, _) = runResolved([
+        "precedencegroup X {} module A { precedencegroup X {} module B { precedencegroup Y { higherThan: X } } }",
+    ])
+    let innerX = table.modules["A"]!.precedenceGroups["X"]!
+    let y = table.modules["A.B"]!.precedenceGroups["Y"]!
+    #expect(y.resolvedHigherThan[0] === innerX)
+}
+
 @Test func unknownModuleReportsError() {
     let (context, table, _) = runResolved([
         "precedencegroup B { higherThan: Nope.P }",

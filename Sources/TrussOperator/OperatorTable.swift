@@ -4,6 +4,8 @@ public final class OperatorTable {
     public final class Namespace {
         public internal(set) var precedenceGroups: [String: PrecedenceGroupInfo] = [:]
         public internal(set) var operators: [String: OperatorInfo] = [:]
+        public internal(set) var children: [String: Namespace] = [:]
+        public internal(set) weak var parent: Namespace? = nil
 
         public init() {}
     }
@@ -50,8 +52,23 @@ public final class OperatorTable {
         if let namespace = modules[name] {
             return namespace
         }
-        let namespace = Namespace()
-        modules[name] = namespace
-        return namespace
+        let components = name.split(separator: ".").map(String.init)
+        var current = root
+        var path = ""
+        for component in components {
+            path = path.isEmpty ? component : path + "." + component
+            if let existing = current.children[component] {
+                current = existing
+            } else {
+                let child = Namespace()
+                child.parent = current
+                current.children[component] = child
+                current = child
+            }
+            if modules[path] == nil {
+                modules[path] = current
+            }
+        }
+        return current
     }
 }

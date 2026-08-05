@@ -10,29 +10,26 @@ public final class PrecedenceResolver {
     }
 
     public func resolve() {
-        resolveNamespace(table.root, modulePath: nil)
+        resolveNamespace(table.root, modulePath: [])
         for name in table.modules.keys.sorted() {
-            resolveNamespace(table.modules[name]!, modulePath: name)
+            resolveNamespace(table.modules[name]!, modulePath: name.split(separator: ".").map(String.init))
         }
     }
 
-    private func resolveNamespace(_ namespace: OperatorTable.Namespace, modulePath: String?) {
+    private func resolveNamespace(_ namespace: OperatorTable.Namespace, modulePath: [String]) {
         for group in namespace.precedenceGroups.values {
-            resolveGroup(group, namespace: namespace, modulePath: modulePath)
+            resolveGroup(group, modulePath: modulePath)
         }
     }
 
     private func resolveGroup(
-        _ group: OperatorTable.PrecedenceGroupInfo, namespace: OperatorTable.Namespace,
-        modulePath: String?
+        _ group: OperatorTable.PrecedenceGroupInfo, modulePath: [String]
     ) {
         group.resolvedHigherThan = resolveReferences(
-            group.higherThan, group: group, namespace: namespace, modulePath: modulePath,
-            relation: "higher"
+            group.higherThan, group: group, modulePath: modulePath, relation: "higher"
         )
         group.resolvedLowerThan = resolveReferences(
-            group.lowerThan, group: group, namespace: namespace, modulePath: modulePath,
-            relation: "lower"
+            group.lowerThan, group: group, modulePath: modulePath, relation: "lower"
         )
         var reported: [ObjectIdentifier] = []
         for (index, target) in group.resolvedHigherThan.enumerated() {
@@ -50,7 +47,7 @@ public final class PrecedenceResolver {
 
     private func resolveReferences(
         _ references: [AST.Expression], group: OperatorTable.PrecedenceGroupInfo,
-        namespace: OperatorTable.Namespace, modulePath: String?, relation: String
+        modulePath: [String], relation: String
     ) -> [OperatorTable.PrecedenceGroupInfo?] {
         references.map { expression in
             guard let (path, location) = referencePath(expression) else {
@@ -59,7 +56,7 @@ public final class PrecedenceResolver {
                 )
                 return nil
             }
-            guard let target = lookup(path, namespace: namespace, modulePath: modulePath, at: location)
+            guard let target = lookup(path, modulePath: modulePath, at: location)
             else { return nil }
             if target === group {
                 context.emitError(
@@ -72,12 +69,16 @@ public final class PrecedenceResolver {
     }
 
     private func lookup(
-        _ path: [String], namespace: OperatorTable.Namespace, modulePath: String?, at location: Token
+        _ path: [String], modulePath: [String], at location: Token
     ) -> OperatorTable.PrecedenceGroupInfo? {
         if path.count == 1 {
             let name = path[0]
-            if let group = namespace.precedenceGroups[name] {
-                return group
+            var chain = modulePath
+            while !chain.isEmpty {
+                if let group = table.modules[chain.joined(separator: ".")]?.precedenceGroups[name] {
+                    return group
+                }
+                chain.removeLast()
             }
             if let group = table.root.precedenceGroups[name] {
                 return group
@@ -85,17 +86,41 @@ public final class PrecedenceResolver {
             context.emitError("unknown precedence group '\(name)'", at: location)
             return nil
         }
-        let moduleName = path.dropLast().joined(separator: ".")
+        let moduleComponents = Array(path.dropLast())
         let groupName = path.last!
-        guard let moduleNamespace = table.modules[moduleName] else {
-            context.emitError("unknown module '\(moduleName)'", at: location)
-            return nil
+        var current: OperatorTable.Namespace? =
+            modulePath.isEmpty ? table.root : table.modules[modulePath.joined(separator: ".")]
+        var moduleFound = false
+        while let namespace = current {
+            if let moduleNamespace = descend(namespace, moduleComponents) {
+                moduleFound = true
+                if let group = moduleNamespace.precedenceGroups[groupName] {
+                    return group
+                }
+            }
+            current = namespace.parent
         }
-        guard let group = moduleNamespace.precedenceGroups[groupName] else {
-            context.emitError("unknown precedence group '\(moduleName).\(groupName)'", at: location)
-            return nil
+        if moduleFound {
+            context.emitError(
+                "unknown precedence group '\(path.joined(separator: "."))'", at: location
+            )
+        } else {
+            context.emitError(
+                "unknown module '\(moduleComponents.joined(separator: "."))'", at: location
+            )
         }
-        return group
+        return nil
+    }
+
+    private func descend(
+        _ namespace: OperatorTable.Namespace, _ path: [String]
+    ) -> OperatorTable.Namespace? {
+        var current = namespace
+        for component in path {
+            guard let child = current.children[component] else { return nil }
+            current = child
+        }
+        return current
     }
 
     private func referencePath(_ expression: AST.Expression) -> ([String], Token)? {
