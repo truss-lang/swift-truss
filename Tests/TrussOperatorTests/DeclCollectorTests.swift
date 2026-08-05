@@ -1,6 +1,6 @@
 import Testing
 import TrussCore
-import TrussOperators
+import TrussOperator
 
 func kindNames(_ info: OperatorTable.OperatorInfo?) -> [String] {
     guard let info else { return [] }

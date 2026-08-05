@@ -1,5 +1,5 @@
 import TrussCore
-import TrussOperators
+import TrussOperator
 import TrussSyntax
 
 func runDeclCollector(_ sources: [String]) -> (Context, OperatorTable, [AST.Program]) {

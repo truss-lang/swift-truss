@@ -119,7 +119,7 @@ extension AST {
 
         /* This method does nothing, because we don't want to visit
          * this node most of the time. It will be individually processed
-         * by the `TrussOperators` module.
+         * by the `TrussOperator` module.
          */
         @discardableResult
         open func visitPrecedenceGroupDecl(

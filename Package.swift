@@ -28,7 +28,7 @@ let package = Package(
             dependencies: ["TrussCore"]
         ),
         .target(
-            name: "TrussOperators",
+            name: "TrussOperator",
             dependencies: ["TrussCore", .product(name: "SwiftGraph", package: "SwiftGraph")]
         ),
         .target(
@@ -78,7 +78,7 @@ let package = Package(
         .testTarget(
             name: "TrussOperatorTests",
             dependencies: [
-                "TrussOperators", "TrussSyntax", "TrussCore",
+                "TrussOperator", "TrussSyntax", "TrussCore",
                 .product(name: "SwiftBetterDiagnostic", package: "swift-better-diagnostic"),
             ]
         ),
