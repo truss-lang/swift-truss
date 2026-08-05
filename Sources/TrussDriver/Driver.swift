@@ -13,19 +13,22 @@ public struct DriverConfig {
     public var dumpAST: Bool
     public var dumpSymbols: Bool
     public var dumpSource: Bool
+    public var dumpOnError: Bool
 
     public init(
         target: String = DriverConfig.hostTarget,
         defines: [String: String] = [:],
         dumpAST: Bool = false,
         dumpSymbols: Bool = false,
-        dumpSource: Bool = false
+        dumpSource: Bool = false,
+        dumpOnError: Bool = false
     ) {
         self.target = target
         self.defines = defines
         self.dumpAST = dumpAST
         self.dumpSymbols = dumpSymbols
         self.dumpSource = dumpSource
+        self.dumpOnError = dumpOnError
     }
 }
 
@@ -50,22 +53,48 @@ public final class Driver {
                 Self.emitReadError(file, context: context)
                 break
             }
-            let src = Source(id: context.nextSourceId, filepath: file, content: content)
-            context.register(source: src)
-            let lexerResult = Lexer(input: CharStream(content: content, id: src.id)).parse()
-            let preprocessed = Preprocessor(context: context).process(
-                lexerResult,
-                config: PreprocessorConfig(
-                    defines: config.defines,
-                    target: config.target,
-                    workingDirectory: (file as NSString).deletingLastPathComponent
-                )
+            parseSource(
+                content, filepath: file,
+                workingDirectory: (file as NSString).deletingLastPathComponent,
+                context: context, programs: &programs
             )
-            programs.append(Parser(context: context, packageName: "main", preprocessed).parse())
             if context.diagnositicEngine.hasErrors {
                 break
             }
         }
+        return runPasses(programs: programs, context: context)
+    }
+
+    public func runString(_ source: String, filename: String = "<main>") -> DriverResult {
+        let context = Context()
+        var programs: [AST.Program] = []
+        parseSource(
+            source, filepath: filename, workingDirectory: "",
+            context: context, programs: &programs
+        )
+        return runPasses(programs: programs, context: context)
+    }
+
+    private func parseSource(
+        _ content: String, filepath: String, workingDirectory: String,
+        context: Context, programs: inout [AST.Program]
+    ) {
+        let src = Source(id: context.nextSourceId, filepath: filepath, content: content)
+        context.register(source: src)
+        let lexerResult = Lexer(input: CharStream(content: content, id: src.id)).parse()
+        let preprocessed = Preprocessor(context: context).process(
+            lexerResult,
+            config: PreprocessorConfig(
+                defines: config.defines,
+                target: config.target,
+                workingDirectory: workingDirectory
+            )
+        )
+        programs.append(Parser(context: context, packageName: "main", preprocessed).parse())
+    }
+
+    private func runPasses(programs: [AST.Program], context: Context) -> DriverResult {
+        var programs = programs
         if !context.diagnositicEngine.hasErrors {
             runPass(DeclCollector(context: context), context: context, programs: programs)
         }
@@ -86,7 +115,7 @@ public final class Driver {
             runPass(NameResolver(context: context), context: context, programs: programs)
         }
         var stdout = ""
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnositicEngine.hasErrors || config.dumpOnError {
             if config.dumpAST, !programs.isEmpty {
                 let dumper = AST.Dumper()
                 stdout += programs.map { dumper.dump($0) }.joined(separator: "\n") + "\n"

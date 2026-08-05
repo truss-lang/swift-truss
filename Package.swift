@@ -47,9 +47,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "truss",
-            dependencies: [
-                "TrussSyntax", "TrussSemantics",
-            ]
+            dependencies: ["TrussDriver"]
         ),
         .executableTarget(
             name: "trussc",

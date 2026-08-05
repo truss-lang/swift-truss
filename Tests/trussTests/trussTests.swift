@@ -125,6 +125,22 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.isEmpty)
 }
 
+@Test func driverDumpsOnErrorWhenEnabled() throws {
+    let file = try writeTemp("bad3.truss", "struct S {\n")
+    let on = Driver(config: DriverConfig(dumpAST: true, dumpOnError: true)).run(files: [file])
+    #expect(on.hasErrors)
+    #expect(on.stdout.contains("Program"))
+    let off = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
+    #expect(off.hasErrors)
+    #expect(off.stdout.isEmpty)
+}
+
+@Test func driverRunStringParsesInMemorySource() throws {
+    let result = Driver(config: DriverConfig(dumpAST: true)).runString("func f() {}\n")
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("FunctionDecl"))
+}
+
 @Test func driverFoldsExpressionsByPrecedence() throws {
     let file = try writeTemp(
         "fold.truss",
