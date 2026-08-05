@@ -2,7 +2,7 @@ import Testing
 import TrussCore
 import TrussOperator
 
-func kindNames(_ info: OperatorTable.OperatorInfo?) -> [String] {
+func kindNames(_ info: OperatorInfo?) -> [String] {
     guard let info else { return [] }
     return info.kinds.map { kind in
         switch kind {

@@ -42,7 +42,7 @@ public final class Namespace {
     public init() {}
 }
 
-public final class PrecedenceGroupInfo {
+public final class PrecedenceGroupInfo: Equatable, Codable {
     public let name: Token
     public let associativity: AST.PrecedenceGroupDecl.Associativity
     public let assignment: Bool
@@ -60,6 +60,53 @@ public final class PrecedenceGroupInfo {
         self.assignment = assignment
         self.higherThan = higherThan
         self.lowerThan = lowerThan
+    }
+
+    public static func == (lhs: PrecedenceGroupInfo, rhs: PrecedenceGroupInfo) -> Bool {
+        lhs === rhs
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case associativity
+        case assignment
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(name.value, forKey: .name)
+        try container.encode(associativity.code, forKey: .associativity)
+        try container.encode(assignment, forKey: .assignment)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let nameValue = try container.decode(String.self, forKey: .name)
+        let code = try container.decode(String.self, forKey: .associativity)
+        name = Token(
+            value: nameValue, kind: .Identifier,
+            pos: Position(pos: 0, line: 0, col: 0, len: 0), id: Id.SourceId(id: 0)
+        )
+        associativity = switch code {
+        case "left": .Left
+        case "right": .Right
+        default: .None
+        }
+        assignment = try container.decode(Bool.self, forKey: .assignment)
+        higherThan = []
+        lowerThan = []
+        resolvedHigherThan = []
+        resolvedLowerThan = []
+    }
+}
+
+private extension AST.PrecedenceGroupDecl.Associativity {
+    var code: String {
+        switch self {
+        case .Left: "left"
+        case .Right: "right"
+        case .None: "none"
+        }
     }
 }
 
