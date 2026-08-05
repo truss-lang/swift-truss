@@ -296,11 +296,11 @@ public final class SourcePrinter: AST.Visitor {
         _ operatorDecl: AST.OperatorDecl, additional: Any? = nil
     ) -> Any? {
         state.write(annotations(operatorDecl.modifiers, operatorDecl.attributes))
-        state.write("operator " + operatorDecl.name.value + " ")
         switch operatorDecl.kind {
         case let .Infix(token), let .Prefix(token), let .Postfix(token):
             state.write(token.value)
         }
+        state.write(" operator " + operatorDecl.name.value)
         if let group = operatorDecl.group {
             state.write(": ")
             visit(group)

@@ -1207,13 +1207,13 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseModuleDottedPathTrailingDotError() {
     let errors = parseWithDiagnostics("module A.").1
-    #expect(errors.count == 1)
+    #expect(errors.count == 2)
     #expect(errors[0].message.contains("expected module name after '.'"))
 }
 
 @Test func parseModuleDottedPathInvalidComponentError() {
     let errors = parseWithDiagnostics("module A.3 {}").1
-    #expect(errors.count == 1)
+    #expect(errors.count == 5)
     #expect(errors[0].message.contains("expected module name after '.', but got '3'"))
 }
 
@@ -1243,7 +1243,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseOperatorInfix() {
-    let statements = parseStatements("operator + infix")
+    let statements = parseStatements("infix operator +")
     #expect(statements.count == 1)
     let op = statements[0] as? AST.OperatorDecl
     #expect(op != nil)
@@ -1256,7 +1256,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseOperatorPrefix() {
-    let statements = parseStatements("operator - prefix")
+    let statements = parseStatements("prefix operator -")
     #expect(statements.count == 1)
     let op = statements[0] as? AST.OperatorDecl
     #expect(op != nil)
@@ -1269,7 +1269,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseOperatorPostfix() {
-    let statements = parseStatements("operator ++ postfix")
+    let statements = parseStatements("postfix operator ++")
     #expect(statements.count == 1)
     let op = statements[0] as? AST.OperatorDecl
     #expect(op != nil)
@@ -1282,7 +1282,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseOperatorWithGroup() {
-    let statements = parseStatements("operator + infix: P")
+    let statements = parseStatements("infix operator +: P")
     #expect(statements.count == 1)
     let op = statements[0] as? AST.OperatorDecl
     #expect(op != nil)
@@ -1290,7 +1290,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseOperatorWithQualifiedGroup() {
-    let statements = parseStatements("operator + infix: M.P")
+    let statements = parseStatements("infix operator +: M.P")
     #expect(statements.count == 1)
     let op = statements[0] as? AST.OperatorDecl
     let member = op!.group as? AST.MemberAccess
@@ -1299,20 +1299,46 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseOperatorWithoutGroup() {
-    let statements = parseStatements("operator + infix")
+    let statements = parseStatements("infix operator +")
     let op = statements[0] as? AST.OperatorDecl
     #expect(op!.group == nil)
 }
 
 @Test func prefixOperatorWithGroupReportsError() {
-    let statements = parseStatements("operator - prefix: P")
+    let statements = parseStatements("prefix operator -: P")
     let op = statements[0] as? AST.OperatorDecl
     #expect(op != nil)
     #expect(op!.group == nil)
     #expect(
-        parseWithDiagnostics("operator - prefix: P").1.map(\.message)
+        parseWithDiagnostics("prefix operator -: P").1.map(\.message)
             .contains("prefix operator '-' cannot have a precedence group")
     )
+}
+
+@Test func legacyOperatorKindSuffixReportsError() {
+    let (program, diagnostics) = parseWithDiagnostics("operator + infix\nfunc f() {}")
+    #expect(
+        diagnostics.map(\.message)
+            .contains("expected 'infix', 'prefix', or 'postfix', but got 'operator'")
+    )
+    #expect(program.statements.count == 2)
+    #expect(program.statements[1] is AST.FunctionDecl)
+}
+
+@Test func parseUnknownTokenReportsErrorAndContinues() {
+    let (program, diagnostics) = parseWithDiagnostics("foo\nfunc f() {}")
+    #expect(diagnostics.count == 1)
+    #expect(diagnostics[0].message == "expected statement, but got 'foo'")
+    #expect(program.statements.count == 2)
+    #expect(program.statements[1] is AST.FunctionDecl)
+}
+
+@Test func parseUnknownKeywordAndSeparatorReportErrors() {
+    let (program, diagnostics) = parseWithDiagnostics("init\n}\nfunc f() {}")
+    #expect(diagnostics.count == 2)
+    #expect(diagnostics.map(\.message) == ["expected statement, but got 'init'", "expected statement, but got '}'"])
+    #expect(program.statements.count == 3)
+    #expect(program.statements[2] is AST.FunctionDecl)
 }
 
 @Test func parseEmptyPrecedenceGroup() {
@@ -2752,7 +2778,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseStructNonIdentifierNameReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("struct 42 {}")
     let errors = diagnostics.filter { $0.severity == .error }
-    try #require(errors.count == 1)
+    try #require(errors.count == 3)
     #expect(errors[0].message == "expected identifier after 'struct', but got '42'")
 }
 
@@ -5766,7 +5792,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseActorNonIdentifierNameReportsError() throws {
     let (_, errors) = parseWithDiagnostics("actor 123 {}")
-    try #require(errors.count == 1)
+    try #require(errors.count == 3)
     #expect(errors[0].message.contains("expected identifier after 'actor', but got '123'"))
 }
 
