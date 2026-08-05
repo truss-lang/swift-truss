@@ -27,11 +27,78 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitExtensionDecl(
+        _ extensionDecl: AST.ExtensionDecl, additional: Any? = nil
+    ) -> Any? {
+        guard let base = resolveBase(extensionDecl.base) as? Symbol.NominalTypeSymbol else {
+            return super.visitExtensionDecl(extensionDecl, additional: additional)
+        }
+        scopeStack.append(base.scope)
+        typeStack.append(base)
+        super.visitExtensionDecl(extensionDecl, additional: additional)
+        typeStack.removeLast()
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
     public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil)
         -> Any?
     {
         scopeStack.append(functionDecl.symbol!.scope)
         super.visitFunctionDecl(functionDecl, additional: additional)
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
+    public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil)
+        -> Any?
+    {
+        guard let symbol = initDecl.symbol else {
+            return super.visitInitDecl(initDecl, additional: additional)
+        }
+        scopeStack.append(symbol.scope)
+        super.visitInitDecl(initDecl, additional: additional)
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
+    public override func visitSubscriptDecl(
+        _ subscriptDecl: AST.SubscriptDecl, additional: Any? = nil
+    ) -> Any? {
+        guard let symbol = subscriptDecl.symbol else {
+            return super.visitSubscriptDecl(subscriptDecl, additional: additional)
+        }
+        scopeStack.append(symbol.scope)
+        super.visitSubscriptDecl(subscriptDecl, additional: additional)
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
+    public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil)
+        -> Any?
+    {
+        guard let scope = deinitDecl.scope else {
+            return super.visitDeinitDecl(deinitDecl, additional: additional)
+        }
+        scopeStack.append(scope)
+        super.visitDeinitDecl(deinitDecl, additional: additional)
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
+    public override func visitAccessor(_ accessor: AST.Accessor, additional: Any? = nil)
+        -> Any?
+    {
+        guard let scope = accessor.scope else {
+            return super.visitAccessor(accessor, additional: additional)
+        }
+        scopeStack.append(scope)
+        super.visitAccessor(accessor, additional: additional)
         scopeStack.removeLast()
         return nil
     }
@@ -82,12 +149,8 @@ public final class NameResolver: AST.Visitor {
         _ clauses: [AST.Expression], into symbol: Symbol.ClassSymbol
     ) {
         for expression in clauses {
-            let base = (expression as? AST.GenericApplication)?.base ?? expression
-            guard let variable = base as? AST.Variable,
-                  let (_, entries) = lookupScopeEntry(variable.name.value),
-                  let classSymbol = entries.first as? Symbol.ClassSymbol
-            else { continue }
-            symbol.superclass = classSymbol
+            guard let base = resolveBase(expression) as? Symbol.ClassSymbol else { continue }
+            symbol.superclass = base
             return
         }
     }
@@ -304,6 +367,22 @@ public final class NameResolver: AST.Visitor {
             return superExpression.symbol
         }
         return nil
+    }
+
+    private func resolveBase(_ expression: AST.Expression) -> Symbol.Symbol? {
+        switch expression {
+        case let variable as AST.Variable:
+            return lookupScopeEntry(variable.name.value)?.1.first
+        case let memberAccess as AST.MemberAccess:
+            guard let object = resolveBase(memberAccess.object) else { return nil }
+            let scope = (object as? Symbol.NominalTypeSymbol)?.scope
+                ?? (object as? Symbol.ModuleSymbol)?.scope
+            return scope?.types[memberAccess.member.value]
+        case let genericApplication as AST.GenericApplication:
+            return resolveBase(genericApplication.base)
+        default:
+            return nil
+        }
     }
 
     private func lookupScopeEntry(_ name: String) -> (Scope, [Symbol.Symbol])? {

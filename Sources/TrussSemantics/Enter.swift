@@ -252,6 +252,41 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitAccessor(_ accessor: AST.Accessor, additional: Any? = nil)
+        -> Any?
+    {
+        let lastScope = currentScope
+        let scope = Scope()
+        currentScope = scope
+        if accessor.kind != .Get {
+            let name = accessor.parameterName?.value
+                ?? (accessor.kind == .DidSet ? "oldValue" : "newValue")
+            if let token = accessor.parameterName ?? accessor.token {
+                let symbol = Symbol.VariableSymbol(id: context.nextSymbolId, name: name)
+                context.register(symbol: symbol)
+                currentScope!.registerValue(symbol, at: token, context: context)
+            }
+        }
+        super.visitAccessor(accessor, additional: additional)
+        currentScope = lastScope
+        accessor.scope = scope
+        return nil
+    }
+
+    @discardableResult
+    public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil)
+        -> Any?
+    {
+        let lastScope = currentScope
+        let scope = Scope()
+        currentScope = scope
+        super.visitDeinitDecl(deinitDecl, additional: additional)
+        currentScope = lastScope
+        deinitDecl.scope = scope
+        return nil
+    }
+
+    @discardableResult
     public override func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
         let lastScope = currentScope
         let scope = Scope()

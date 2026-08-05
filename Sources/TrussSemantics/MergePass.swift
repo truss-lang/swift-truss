@@ -33,7 +33,9 @@ public final class MergePass: AST.Visitor {
         -> Any?
     {
         guard let virtualScope = extensionDecl.virtualScope else { return nil }
-        if let base = resolveBase(extensionDecl.base, chain: scopeStack) {
+        if let base = resolveBase(extensionDecl.base, chain: scopeStack)
+            as? Symbol.NominalTypeSymbol
+        {
             merge(virtualScope, into: base, chain: scopeStack, extensionDecl: extensionDecl)
         } else {
             pending.append((extensionDecl, scopeStack))
@@ -49,6 +51,7 @@ public final class MergePass: AST.Visitor {
             for (extensionDecl, chain) in pending {
                 if let virtualScope = extensionDecl.virtualScope,
                    let base = resolveBase(extensionDecl.base, chain: chain)
+                       as? Symbol.NominalTypeSymbol
                 {
                     merge(virtualScope, into: base, chain: chain, extensionDecl: extensionDecl)
                     progressed = true
@@ -128,7 +131,9 @@ public final class MergePass: AST.Visitor {
             return lookupType(variable.name.value, chain: chain) as? Symbol.ProtocolSymbol
         case let memberAccess as AST.MemberAccess:
             guard let object = resolveBase(memberAccess.object, chain: chain) else { return nil }
-            return object.scope.types[memberAccess.member.value] as? Symbol.ProtocolSymbol
+            let scope = (object as? Symbol.NominalTypeSymbol)?.scope
+                ?? (object as? Symbol.ModuleSymbol)?.scope
+            return scope?.types[memberAccess.member.value] as? Symbol.ProtocolSymbol
         case let genericApplication as AST.GenericApplication:
             return resolveProtocol(genericApplication.base, chain: chain)
         default:
@@ -136,16 +141,17 @@ public final class MergePass: AST.Visitor {
         }
     }
 
-    private func resolveBase(_ expression: AST.Expression, chain: [Scope]) -> Symbol.NominalTypeSymbol? {
+    private func resolveBase(_ expression: AST.Expression, chain: [Scope]) -> Symbol.Symbol? {
         switch expression {
         case let variable as AST.Variable:
-            return lookupType(variable.name.value, chain: chain) as? Symbol.NominalTypeSymbol
+            return lookupType(variable.name.value, chain: chain)
         case let memberAccess as AST.MemberAccess:
             guard let object = resolveBase(memberAccess.object, chain: chain) else {
                 return nil
             }
-            return object.scope.types[memberAccess.member.value]
-                as? Symbol.NominalTypeSymbol
+            let scope = (object as? Symbol.NominalTypeSymbol)?.scope
+                ?? (object as? Symbol.ModuleSymbol)?.scope
+            return scope?.types[memberAccess.member.value]
         case let genericApplication as AST.GenericApplication:
             return resolveBase(genericApplication.base, chain: chain)
         default:
@@ -156,6 +162,9 @@ public final class MergePass: AST.Visitor {
     private func lookupType(_ name: String, chain: [Scope]) -> Symbol.Symbol? {
         for scope in chain.reversed() {
             if let symbol = scope.types[name] {
+                return symbol
+            }
+            if let symbol = scope.modules[name] {
                 return symbol
             }
         }

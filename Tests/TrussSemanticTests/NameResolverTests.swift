@@ -430,3 +430,98 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(keyPath.components[0].symbol == nil)
     #expect(!context.diagnositicEngine.hasErrors)
 }
+
+@Test func extensionSelfResolved() {
+    let (context, probe) = probe("struct S { var x: Int } extension S { func m() { self } }")
+    #expect(probe.selfExpressions.count == 1)
+    #expect(probe.selfExpressions[0].symbol?.name == "S")
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func extensionSelfMemberAccessResolved() {
+    let (context, probe) = probe("struct S { var x: Int } extension S { func m() { self.x } }")
+    let member = probe.memberAccesses.first { $0.member.value == "x" }
+    #expect(member?.symbol is Symbol.VariableSymbol)
+    #expect(member?.symbol?.name == "x")
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func extensionImplicitMemberResolved() {
+    let (context, probe) = probe("struct S { var f: Int } extension S { func m() { .f } }")
+    #expect(probe.implicitMembers.count == 1)
+    #expect(probe.implicitMembers[0].symbol is Symbol.VariableSymbol)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func extensionMemberFunctionReferenceResolved() {
+    let (context, probe) = probe(
+        "struct S {} extension S { func a() {} func b() { a() } }")
+    let variable = probe.variables.first { $0.name.value == "a" }
+    #expect(variable?.overloads?.count == 1)
+    #expect(variable?.symbol == nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func extensionSuperResolved() {
+    let (context, probe) = probe(
+        "class A {} class B: A {} extension B { func m() { super } }")
+    #expect(probe.superExpressions.count == 1)
+    #expect(probe.superExpressions[0].symbol?.name == "A")
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func extensionOfModuleTypeSelfResolved() {
+    let (context, probe) = probe(
+        "module M { struct T { var v: Int } } extension M.T { func m() { self.v } }")
+    let member = probe.memberAccesses.first { $0.member.value == "v" }
+    #expect(member?.symbol is Symbol.VariableSymbol)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func extensionUnresolvedBaseFallsBackSilently() {
+    let (context, probe) = probe("extension NotFound { func m() { self } }")
+    #expect(probe.selfExpressions[0].symbol == nil)
+}
+
+@Test func initParameterResolvedInBody() {
+    let (context, probe) = probe(
+        "struct S { var x: Int init(x: Int) { self.x = x } }")
+    let variable = probe.variables.first {
+        $0.name.value == "x" && $0.symbol is Symbol.VariableSymbol
+    }
+    #expect(variable != nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func subscriptParameterResolvedInBody() {
+    let (context, probe) = probe("struct S { subscript(i: Int) -> Int { i } }")
+    let variable = probe.variables.first { $0.name.value == "i" }
+    #expect(variable?.symbol is Symbol.VariableSymbol)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func setterImplicitParameterResolved() {
+    let (context, probe) = probe(
+        "struct S { var x: Int { get { return 0 } set { x = newValue } } }")
+    let variable = probe.variables.first { $0.name.value == "newValue" }
+    #expect(variable?.symbol is Symbol.VariableSymbol)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func setterNamedParameterResolved() {
+    let (context, probe) = probe(
+        "struct S { var x: Int { get { return 0 } set(value) { x = value } } }")
+    let variable = probe.variables.first { $0.name.value == "value" }
+    #expect(variable?.symbol is Symbol.VariableSymbol)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func modulePrefixSuperclassResolved() {
+    let (context, programs) = runEnter(["module M { class C {} } class D: M.C {}"])
+    NameResolver(context: context).visitProgram(programs[0])
+    let packageScope = programs[0].packageSymbol!.scope
+    let d = packageScope.types["D"] as! Symbol.ClassSymbol
+    let c = packageScope.modules["M"]!.scope.types["C"] as! Symbol.ClassSymbol
+    #expect(d.superclass === c)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
