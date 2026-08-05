@@ -43,10 +43,11 @@ public final class Driver {
 
     public func run(files: [String]) -> DriverResult {
         let context = Context()
-        let programs = files.compactMap { file -> AST.Program? in
+        var programs: [AST.Program] = []
+        for file in files {
             guard let content = try? String(contentsOfFile: file, encoding: .utf8) else {
                 Self.emitReadError(file, context: context)
-                return nil
+                break
             }
             let src = Source(id: context.nextSourceId, filepath: file, content: content)
             context.register(source: src)
@@ -59,28 +60,40 @@ public final class Driver {
                     workingDirectory: (file as NSString).deletingLastPathComponent
                 )
             )
-            return Parser(context: context, packageName: "main", preprocessed).parse()
+            programs.append(Parser(context: context, packageName: "main", preprocessed).parse())
+            if context.diagnositicEngine.hasErrors {
+                break
+            }
         }
-        let declCollector = DeclCollector(context: context)
-        programs.forEach { declCollector.visitProgram($0) }
-        let enter = Enter(context: context)
-        programs.forEach { enter.visitProgram($0) }
-        let merger = MergePass(context: context)
-        programs.forEach { merger.visitProgram($0) }
-        merger.resolvePending()
-        let nameResolver = NameResolver(context: context)
-        programs.forEach { nameResolver.visitProgram($0) }
+        if !context.diagnositicEngine.hasErrors {
+            runPass(DeclCollector(context: context), context: context, programs: programs)
+        }
+        if !context.diagnositicEngine.hasErrors {
+            runPass(Enter(context: context), context: context, programs: programs)
+        }
+        if !context.diagnositicEngine.hasErrors {
+            let merger = MergePass(context: context)
+            runPass(merger, context: context, programs: programs)
+            if !context.diagnositicEngine.hasErrors {
+                merger.resolvePending()
+            }
+        }
+        if !context.diagnositicEngine.hasErrors {
+            runPass(NameResolver(context: context), context: context, programs: programs)
+        }
         var stdout = ""
-        if config.dumpAST, !programs.isEmpty {
-            let dumper = ASTDumper()
-            stdout += programs.map { dumper.dump($0) }.joined(separator: "\n") + "\n"
-        }
-        if config.dumpSymbols, let first = programs.first {
-            stdout += SymbolDumper().dump(first) + "\n"
-        }
-        if config.dumpSource, !programs.isEmpty {
-            let printer = SourcePrinter()
-            stdout += programs.map { printer.print($0) }.joined(separator: "\n") + "\n"
+        if !context.diagnositicEngine.hasErrors {
+            if config.dumpAST, !programs.isEmpty {
+                let dumper = ASTDumper()
+                stdout += programs.map { dumper.dump($0) }.joined(separator: "\n") + "\n"
+            }
+            if config.dumpSymbols, let first = programs.first {
+                stdout += SymbolDumper().dump(first) + "\n"
+            }
+            if config.dumpSource, !programs.isEmpty {
+                let printer = SourcePrinter()
+                stdout += programs.map { printer.print($0) }.joined(separator: "\n") + "\n"
+            }
         }
         let hasErrors = context.diagnositicEngine.hasErrors
         var stderr = ""
@@ -89,6 +102,19 @@ public final class Driver {
                 .render(context.diagnositicEngine.diagnostics)
         }
         return DriverResult(stdout: stdout, stderr: stderr, hasErrors: hasErrors)
+    }
+
+    private func runPass(
+        _ visitor: AST.Visitor,
+        context: Context,
+        programs: [AST.Program]
+    ) {
+        for program in programs {
+            visitor.visitProgram(program)
+            if context.diagnositicEngine.hasErrors {
+                return
+            }
+        }
     }
 
     private static func emitReadError(_ file: String, context: Context) {

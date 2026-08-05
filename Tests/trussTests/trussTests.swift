@@ -92,3 +92,31 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(!result.hasErrors)
     #expect(result.stdout.contains("42"))
 }
+
+@Test func driverStopsAfterFrontendError() throws {
+    let a = try writeTemp("bad.truss", "struct S {\n")
+    let b = try writeTemp("ext.truss", "extension Missing {}\n")
+    let result = Driver(config: DriverConfig()).run(files: [a, b])
+    #expect(result.hasErrors)
+    #expect(result.stderr.contains("expected '}' after struct body"))
+    #expect(!result.stderr.contains("has no matching declaration"))
+}
+
+@Test func driverStopsAfterCollectorError() throws {
+    let file = try writeTemp(
+        "dup.truss", "struct S {}\nstruct S {}\nextension Missing {}\n"
+    )
+    let result = Driver(config: DriverConfig()).run(files: [file])
+    #expect(result.hasErrors)
+    #expect(result.stderr.contains("invalid redeclaration of type 'S'"))
+    #expect(!result.stderr.contains("has no matching declaration"))
+}
+
+@Test func driverSkipsDumpOnError() throws {
+    let file = try writeTemp("bad2.truss", "struct S {\n")
+    let result = Driver(
+        config: DriverConfig(dumpAST: true, dumpSymbols: true, dumpSource: true)
+    ).run(files: [file])
+    #expect(result.hasErrors)
+    #expect(result.stdout.isEmpty)
+}
