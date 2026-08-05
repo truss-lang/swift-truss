@@ -9,7 +9,7 @@ public final class MergePass: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
+    public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         guard let packageSymbol = program.packageSymbol else { return nil }
         scopeStack.append(packageSymbol.scope)
         super.visitProgram(program, additional: additional)
@@ -18,7 +18,7 @@ public final class MergePass: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
+    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
         -> Any?
     {
         guard let moduleSymbol = moduleDecl.symbol else { return nil }
@@ -29,7 +29,7 @@ public final class MergePass: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitExtensionDecl(_ extensionDecl: AST.ExtensionDecl, additional _: Any? = nil)
+    public override func visitExtensionDecl(_ extensionDecl: AST.ExtensionDecl, additional: Any? = nil)
         -> Any?
     {
         guard let virtualScope = extensionDecl.virtualScope else { return nil }

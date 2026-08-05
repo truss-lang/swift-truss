@@ -2,7 +2,7 @@ import TrussCore
 
 public final class TypeResolver: AST.Visitor {
     @discardableResult
-    override public func visitVariable(_ variable: AST.Variable, additional _: Any? = nil) -> Any? {
+    public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
         let name = variable.name.value
         if name == "Void" {
             variable.ty = TrussType.VoidType.INSTANCE

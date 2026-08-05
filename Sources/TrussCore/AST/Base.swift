@@ -29,7 +29,7 @@ public enum AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitProgram(self, additional: additional)
         }
     }
@@ -97,7 +97,7 @@ public enum AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitGenericDecl(self, additional: additional)
         }
     }
@@ -116,7 +116,7 @@ public enum AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitGenericParameter(self, additional: additional)
         }
     }

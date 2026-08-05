@@ -188,7 +188,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitProgram(_ program: Program, additional _: Any? = nil) -> Any? {
+        public override func visitProgram(_ program: Program, additional: Any? = nil) -> Any? {
             dumpNode(
                 "Program \"\(program.packageName)\"", children: statementNodes(program.statements)
             )
@@ -196,7 +196,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitGenericDecl(
+        public override func visitGenericDecl(
             _ genericDecl: GenericDecl, additional: Any? = nil
         )
             -> Any?
@@ -211,8 +211,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitGenericParameter(
-            _ genericParameter: GenericParameter, additional _: Any? = nil
+        public override func visitGenericParameter(
+            _ genericParameter: GenericParameter, additional: Any? = nil
         ) -> Any? {
             var text = "GenericParameter "
             if genericParameter.eachToken != nil { text += "each " }
@@ -226,23 +226,23 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitEmptyStatement(
-            _: EmptyStatement, additional _: Any? = nil
+        public override func visitEmptyStatement(
+            _ emptyStatement: EmptyStatement, additional: Any? = nil
         ) -> Any? {
             dumpNode("EmptyStatement")
             return nil
         }
 
         @discardableResult
-        override public func visitErrorStatement(
-            _: ErrorStatement, additional _: Any? = nil
+        public override func visitErrorStatement(
+            _ errorStatement: ErrorStatement, additional: Any? = nil
         ) -> Any? {
             dumpNode("ErrorStatement")
             return nil
         }
 
         @discardableResult
-        override public func visitImport(_ importStatement: Import, additional _: Any? = nil)
+        public override func visitImport(_ importStatement: Import, additional: Any? = nil)
             -> Any?
         {
             var text = "Import "
@@ -272,7 +272,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitExternDecl(_ externDecl: ExternDecl, additional _: Any? = nil)
+        public override func visitExternDecl(_ externDecl: ExternDecl, additional: Any? = nil)
             -> Any?
         {
             var children: [() -> Void] = []
@@ -290,8 +290,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitExpressionStatement(
-            _ expressionStatement: ExpressionStatement, additional _: Any? = nil
+        public override func visitExpressionStatement(
+            _ expressionStatement: ExpressionStatement, additional: Any? = nil
         ) -> Any? {
             dumpNode(
                 "ExpressionStatement", children: [{ self.visit(expressionStatement.expression) }]
@@ -300,8 +300,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitTypeAliasDecl(
-            _ typeAliasDecl: TypeAliasDecl, additional _: Any? = nil
+        public override func visitTypeAliasDecl(
+            _ typeAliasDecl: TypeAliasDecl, additional: Any? = nil
         ) -> Any? {
             dumpNode(
                 declText("TypeAliasDecl \(typeAliasDecl.name.value)", typeAliasDecl),
@@ -311,7 +311,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitModuleDecl(_ moduleDecl: ModuleDecl, additional _: Any? = nil)
+        public override func visitModuleDecl(_ moduleDecl: ModuleDecl, additional: Any? = nil)
             -> Any?
         {
             dumpNode(
@@ -323,8 +323,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitOperatorDecl(
-            _ operatorDecl: OperatorDecl, additional _: Any? = nil
+        public override func visitOperatorDecl(
+            _ operatorDecl: OperatorDecl, additional: Any? = nil
         ) -> Any? {
             let kindText =
                 switch operatorDecl.kind {
@@ -337,8 +337,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitPrecedenceGroupDecl(
-            _ precedenceGroupDecl: PrecedenceGroupDecl, additional _: Any? = nil
+        public override func visitPrecedenceGroupDecl(
+            _ precedenceGroupDecl: PrecedenceGroupDecl, additional: Any? = nil
         ) -> Any? {
             var text = declText(
                 "PrecedenceGroupDecl \(precedenceGroupDecl.name.value)", precedenceGroupDecl
@@ -391,7 +391,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitStructDecl(_ structDecl: StructDecl, additional _: Any? = nil)
+        public override func visitStructDecl(_ structDecl: StructDecl, additional: Any? = nil)
             -> Any?
         {
             dumpNode(
@@ -405,7 +405,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitClassDecl(_ classDecl: ClassDecl, additional _: Any? = nil)
+        public override func visitClassDecl(_ classDecl: ClassDecl, additional: Any? = nil)
             -> Any?
         {
             dumpNode(
@@ -419,7 +419,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitActorDecl(_ actorDecl: ActorDecl, additional _: Any? = nil)
+        public override func visitActorDecl(_ actorDecl: ActorDecl, additional: Any? = nil)
             -> Any?
         {
             dumpNode(
@@ -433,8 +433,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitProtocolDecl(
-            _ protocolDecl: ProtocolDecl, additional _: Any? = nil
+        public override func visitProtocolDecl(
+            _ protocolDecl: ProtocolDecl, additional: Any? = nil
         ) -> Any? {
             dumpNode(
                 declText("ProtocolDecl \(protocolDecl.name.value)", protocolDecl),
@@ -447,8 +447,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitExtensionDecl(
-            _ extensionDecl: ExtensionDecl, additional _: Any? = nil
+        public override func visitExtensionDecl(
+            _ extensionDecl: ExtensionDecl, additional: Any? = nil
         ) -> Any? {
             var children: [() -> Void] = [{ self.visit(extensionDecl.base) }]
             for conformance in extensionDecl.conformances {
@@ -462,7 +462,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitEnumDecl(_ enumDecl: EnumDecl, additional _: Any? = nil)
+        public override func visitEnumDecl(_ enumDecl: EnumDecl, additional: Any? = nil)
             -> Any?
         {
             dumpNode(
@@ -475,8 +475,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitEnumCaseDecl(
-            _ enumCaseDecl: EnumCaseDecl, additional _: Any? = nil
+        public override func visitEnumCaseDecl(
+            _ enumCaseDecl: EnumCaseDecl, additional: Any? = nil
         ) -> Any? {
             var children: [() -> Void] = []
             for element in enumCaseDecl.elements {
@@ -504,7 +504,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitInitDecl(_ initDecl: InitDecl, additional _: Any? = nil)
+        public override func visitInitDecl(_ initDecl: InitDecl, additional: Any? = nil)
             -> Any?
         {
             var text = declText("InitDecl", initDecl)
@@ -524,7 +524,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitDeinitDecl(_ deinitDecl: DeinitDecl, additional _: Any? = nil)
+        public override func visitDeinitDecl(_ deinitDecl: DeinitDecl, additional: Any? = nil)
             -> Any?
         {
             dumpNode(declText("DeinitDecl", deinitDecl), children: statementNodes(deinitDecl.body))
@@ -532,8 +532,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitFunctionDecl(
-            _ functionDecl: FunctionDecl, additional _: Any? = nil
+        public override func visitFunctionDecl(
+            _ functionDecl: FunctionDecl, additional: Any? = nil
         ) -> Any? {
             var text = declText("FunctionDecl \(functionDecl.name.value)", functionDecl)
             if functionDecl.varargToken != nil { text += " [vararg]" }
@@ -565,7 +565,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitVariableDecl(
+        public override func visitVariableDecl(
             _ variableDecl: VariableDecl, additional: Any? = nil
         ) -> Any? {
             var text = declText("VariableDecl \(variableDecl.name.value)", variableDecl)
@@ -590,7 +590,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitReturn(_ ret: Return, additional _: Any? = nil) -> Any? {
+        public override func visitReturn(_ ret: Return, additional: Any? = nil) -> Any? {
             var children: [() -> Void] = []
             if let value = ret.value { children.append { self.visit(value) } }
             dumpNode("Return", children: children)
@@ -598,7 +598,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitThrow(_ throwStatement: Throw, additional _: Any? = nil)
+        public override func visitThrow(_ throwStatement: Throw, additional: Any? = nil)
             -> Any?
         {
             dumpNode("Throw", children: [{ self.visit(throwStatement.expression) }])
@@ -606,7 +606,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitWhile(_ whileStatement: While, additional _: Any? = nil)
+        public override func visitWhile(_ whileStatement: While, additional: Any? = nil)
             -> Any?
         {
             var children: [() -> Void] = [{ self.visit(whileStatement.condition) }]
@@ -616,8 +616,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitRepeatWhile(
-            _ repeatWhile: RepeatWhile, additional _: Any? = nil
+        public override func visitRepeatWhile(
+            _ repeatWhile: RepeatWhile, additional: Any? = nil
         )
             -> Any?
         {
@@ -629,7 +629,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitGuard(_ guardStatement: Guard, additional _: Any? = nil)
+        public override func visitGuard(_ guardStatement: Guard, additional: Any? = nil)
             -> Any?
         {
             var children: [() -> Void] = [{ self.visit(guardStatement.condition) }]
@@ -639,7 +639,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitFor(_ forStatement: For, additional _: Any? = nil) -> Any? {
+        public override func visitFor(_ forStatement: For, additional: Any? = nil) -> Any? {
             var text = "For"
             if forStatement.asyncToken != nil { text += " async" }
             var children: [() -> Void] = [
@@ -652,7 +652,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitDefer(_ deferStatement: Defer, additional _: Any? = nil)
+        public override func visitDefer(_ deferStatement: Defer, additional: Any? = nil)
             -> Any?
         {
             dumpNode("Defer", children: statementNodes(deferStatement.body))
@@ -660,7 +660,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitAsm(_ asmStatement: Asm, additional _: Any? = nil) -> Any? {
+        public override func visitAsm(_ asmStatement: Asm, additional: Any? = nil) -> Any? {
             var children: [() -> Void] = []
             for template in asmStatement.templates {
                 children.append { self.visit(template) }
@@ -684,7 +684,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitBreak(_ breakStatement: Break, additional _: Any? = nil)
+        public override func visitBreak(_ breakStatement: Break, additional: Any? = nil)
             -> Any?
         {
             var text = "Break"
@@ -694,8 +694,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitContinue(
-            _ continueStatement: Continue, additional _: Any? = nil
+        public override func visitContinue(
+            _ continueStatement: Continue, additional: Any? = nil
         )
             -> Any?
         {
@@ -706,14 +706,14 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitGoto(_ gotoStatement: Goto, additional _: Any? = nil) -> Any? {
+        public override func visitGoto(_ gotoStatement: Goto, additional: Any? = nil) -> Any? {
             dumpNode("Goto \(gotoStatement.label.value)")
             return nil
         }
 
         @discardableResult
-        override public func visitLabeledStatement(
-            _ labeledStatement: LabeledStatement, additional _: Any? = nil
+        public override func visitLabeledStatement(
+            _ labeledStatement: LabeledStatement, additional: Any? = nil
         ) -> Any? {
             dumpNode(
                 "LabeledStatement \(labeledStatement.label.value)",
@@ -723,7 +723,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitAccessor(_ accessor: Accessor, additional _: Any? = nil)
+        public override func visitAccessor(_ accessor: Accessor, additional: Any? = nil)
             -> Any?
         {
             var text =
@@ -749,8 +749,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitSubscriptDecl(
-            _ subscriptDecl: SubscriptDecl, additional _: Any? = nil
+        public override func visitSubscriptDecl(
+            _ subscriptDecl: SubscriptDecl, additional: Any? = nil
         ) -> Any? {
             var text = declText("SubscriptDecl", subscriptDecl)
             if let throwsClause = subscriptDecl.throwsClause { text += throwsText(throwsClause) }
@@ -771,8 +771,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitAssociatedTypeDecl(
-            _ associatedTypeDecl: AssociatedTypeDecl, additional _: Any? = nil
+        public override func visitAssociatedTypeDecl(
+            _ associatedTypeDecl: AssociatedTypeDecl, additional: Any? = nil
         ) -> Any? {
             var children: [() -> Void] = []
             if let constraint = associatedTypeDecl.constraint {
@@ -791,16 +791,16 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitErrorExpression(
-            _ errorExpression: ErrorExpression, additional _: Any? = nil
+        public override func visitErrorExpression(
+            _ errorExpression: ErrorExpression, additional: Any? = nil
         ) -> Any? {
             dumpNode("ErrorExpression" + tyText(errorExpression.ty))
             return nil
         }
 
         @discardableResult
-        override public func visitParentheticalExpression(
-            _ parentheticalExpression: ParentheticalExpression, additional _: Any? = nil
+        public override func visitParentheticalExpression(
+            _ parentheticalExpression: ParentheticalExpression, additional: Any? = nil
         ) -> Any? {
             dumpNode(
                 "ParentheticalExpression" + tyText(parentheticalExpression.ty),
@@ -810,7 +810,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitVariable(_ variable: Variable, additional _: Any? = nil)
+        public override func visitVariable(_ variable: Variable, additional: Any? = nil)
             -> Any?
         {
             dumpNode(
@@ -820,8 +820,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitGenericApplication(
-            _ genericApplication: GenericApplication, additional _: Any? = nil
+        public override func visitGenericApplication(
+            _ genericApplication: GenericApplication, additional: Any? = nil
         ) -> Any? {
             var children: [() -> Void] = [{ self.visit(genericApplication.base) }]
             for argument in genericApplication.genericArguments {
@@ -832,24 +832,24 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitIntegerLiteral(
-            _ integerLiteral: IntegerLiteral, additional _: Any? = nil
+        public override func visitIntegerLiteral(
+            _ integerLiteral: IntegerLiteral, additional: Any? = nil
         ) -> Any? {
             dumpNode("IntegerLiteral \(integerLiteral.token.value)" + tyText(integerLiteral.ty))
             return nil
         }
 
         @discardableResult
-        override public func visitFloatLiteral(
-            _ floatLiteral: FloatLiteral, additional _: Any? = nil
+        public override func visitFloatLiteral(
+            _ floatLiteral: FloatLiteral, additional: Any? = nil
         ) -> Any? {
             dumpNode("FloatLiteral \(floatLiteral.token.value)" + tyText(floatLiteral.ty))
             return nil
         }
 
         @discardableResult
-        override public func visitStringLiteral(
-            _ stringLiteral: StringLiteral, additional _: Any? = nil
+        public override func visitStringLiteral(
+            _ stringLiteral: StringLiteral, additional: Any? = nil
         ) -> Any? {
             let rawMarker = stringLiteral.token.isRaw ? " [raw]" : ""
             dumpNode(
@@ -859,39 +859,39 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitCharLiteral(
-            _ charLiteral: CharLiteral, additional _: Any? = nil
+        public override func visitCharLiteral(
+            _ charLiteral: CharLiteral, additional: Any? = nil
         ) -> Any? {
             dumpNode("CharLiteral \(charLiteral.token.value)" + tyText(charLiteral.ty))
             return nil
         }
 
         @discardableResult
-        override public func visitBoolLiteral(
-            _ boolLiteral: BoolLiteral, additional _: Any? = nil
+        public override func visitBoolLiteral(
+            _ boolLiteral: BoolLiteral, additional: Any? = nil
         ) -> Any? {
             dumpNode("BoolLiteral \(boolLiteral.token.value)" + tyText(boolLiteral.ty))
             return nil
         }
 
         @discardableResult
-        override public func visitNullLiteral(
-            _ nullLiteral: NullLiteral, additional _: Any? = nil
+        public override func visitNullLiteral(
+            _ nullLiteral: NullLiteral, additional: Any? = nil
         ) -> Any? {
             dumpNode("NullLiteral" + tyText(nullLiteral.ty))
             return nil
         }
 
         @discardableResult
-        override public func visitVoidLiteral(
-            _ voidLiteral: VoidLiteral, additional _: Any? = nil
+        public override func visitVoidLiteral(
+            _ voidLiteral: VoidLiteral, additional: Any? = nil
         ) -> Any? {
             dumpNode("VoidLiteral" + tyText(voidLiteral.ty))
             return nil
         }
 
         @discardableResult
-        override public func visitIf(_ ifExpression: If, additional _: Any? = nil) -> Any? {
+        public override func visitIf(_ ifExpression: If, additional: Any? = nil) -> Any? {
             var children: [() -> Void] = [
                 { self.dumpNode("Condition", children: [{ self.visit(ifExpression.condition) }]) },
             ]
@@ -913,7 +913,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitMatch(_ matchExpression: Match, additional _: Any? = nil)
+        public override func visitMatch(_ matchExpression: Match, additional: Any? = nil)
             -> Any?
         {
             var children: [() -> Void] = [
@@ -936,7 +936,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitDo(_ doExpression: Do, additional _: Any? = nil) -> Any? {
+        public override func visitDo(_ doExpression: Do, additional: Any? = nil) -> Any? {
             var children: [() -> Void] = []
             children.append(contentsOf: statementNodes(doExpression.body))
             for catchClause in doExpression.catches {
@@ -966,7 +966,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitCall(_ call: Call, additional _: Any? = nil) -> Any? {
+        public override func visitCall(_ call: Call, additional: Any? = nil) -> Any? {
             var children: [() -> Void] = [{ self.visit(call.callee) }]
             for argument in call.arguments {
                 children.append {
@@ -987,8 +987,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitMemberAccess(
-            _ memberAccess: MemberAccess, additional _: Any? = nil
+        public override func visitMemberAccess(
+            _ memberAccess: MemberAccess, additional: Any? = nil
         ) -> Any? {
             var text = "MemberAccess \(memberAccess.member.value)"
             if memberAccess.isOptional { text += " ?" }
@@ -1001,24 +1001,24 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitSelfTypeExpression(
-            _ selfTypeExpression: SelfTypeExpression, additional _: Any? = nil
+        public override func visitSelfTypeExpression(
+            _ selfTypeExpression: SelfTypeExpression, additional: Any? = nil
         ) -> Any? {
             dumpNode("SelfTypeExpression" + tyText(selfTypeExpression.ty))
             return nil
         }
 
         @discardableResult
-        override public func visitSelfExpression(
-            _ selfExpression: SelfExpression, additional _: Any? = nil
+        public override func visitSelfExpression(
+            _ selfExpression: SelfExpression, additional: Any? = nil
         ) -> Any? {
             dumpNode("SelfExpression" + tyText(selfExpression.ty) + symText(selfExpression.symbol))
             return nil
         }
 
         @discardableResult
-        override public func visitSuperExpression(
-            _ superExpression: SuperExpression, additional _: Any? = nil
+        public override func visitSuperExpression(
+            _ superExpression: SuperExpression, additional: Any? = nil
         ) -> Any? {
             dumpNode(
                 "SuperExpression" + tyText(superExpression.ty) + symText(superExpression.symbol))
@@ -1026,8 +1026,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitImplicitMemberAccess(
-            _ implicitMemberAccess: ImplicitMemberAccess, additional _: Any? = nil
+        public override func visitImplicitMemberAccess(
+            _ implicitMemberAccess: ImplicitMemberAccess, additional: Any? = nil
         ) -> Any? {
             dumpNode(
                 "ImplicitMemberAccess \(implicitMemberAccess.name.value)"
@@ -1038,7 +1038,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitClosure(_ closure: Closure, additional _: Any? = nil) -> Any? {
+        public override func visitClosure(_ closure: Closure, additional: Any? = nil) -> Any? {
             var children: [() -> Void] = []
             if let signature = closure.signature {
                 children.append {
@@ -1074,8 +1074,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitClosureType(
-            _ closureType: ClosureType, additional _: Any? = nil
+        public override func visitClosureType(
+            _ closureType: ClosureType, additional: Any? = nil
         ) -> Any? {
             var text = "ClosureType"
             if let throwsClause = closureType.throwsClause { text += throwsText(throwsClause) }
@@ -1089,8 +1089,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitOptionalType(
-            _ optionalType: OptionalType, additional _: Any? = nil
+        public override func visitOptionalType(
+            _ optionalType: OptionalType, additional: Any? = nil
         ) -> Any? {
             dumpNode(
                 "OptionalType ?" + tyText(optionalType.ty),
@@ -1100,8 +1100,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitVariadicType(
-            _ variadicType: VariadicType, additional _: Any? = nil
+        public override func visitVariadicType(
+            _ variadicType: VariadicType, additional: Any? = nil
         ) -> Any? {
             dumpNode(
                 "VariadicType ..." + tyText(variadicType.ty),
@@ -1111,7 +1111,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitSomeType(_ someType: SomeType, additional _: Any? = nil)
+        public override func visitSomeType(_ someType: SomeType, additional: Any? = nil)
             -> Any?
         {
             dumpNode(
@@ -1122,7 +1122,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitAnyType(_ anyType: AnyType, additional _: Any? = nil) -> Any? {
+        public override func visitAnyType(_ anyType: AnyType, additional: Any? = nil) -> Any? {
             dumpNode(
                 "AnyType any" + tyText(anyType.ty), children: [{ self.visit(anyType.wrappedType) }]
             )
@@ -1130,8 +1130,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitProtocolCompositionType(
-            _ protocolCompositionType: ProtocolCompositionType, additional _: Any? = nil
+        public override func visitProtocolCompositionType(
+            _ protocolCompositionType: ProtocolCompositionType, additional: Any? = nil
         ) -> Any? {
             dumpNode(
                 "ProtocolCompositionType &" + tyText(protocolCompositionType.ty),
@@ -1143,8 +1143,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitTupleExpression(
-            _ tupleExpression: TupleExpression, additional _: Any? = nil
+        public override func visitTupleExpression(
+            _ tupleExpression: TupleExpression, additional: Any? = nil
         ) -> Any? {
             var children: [() -> Void] = []
             for element in tupleExpression.elements {
@@ -1159,7 +1159,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitIsPattern(_ isPattern: IsPattern, additional _: Any? = nil)
+        public override func visitIsPattern(_ isPattern: IsPattern, additional: Any? = nil)
             -> Any?
         {
             dumpNode("IsPattern is", children: [{ self.visit(isPattern.typeExpression) }])
@@ -1167,7 +1167,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitAsPattern(_ asPattern: AsPattern, additional _: Any? = nil)
+        public override func visitAsPattern(_ asPattern: AsPattern, additional: Any? = nil)
             -> Any?
         {
             var children: [() -> Void] = [{ self.visit(asPattern.pattern) }]
@@ -1177,8 +1177,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitSequentialExpression(
-            _ sequentialExpression: SequentialExpression, additional _: Any? = nil
+        public override func visitSequentialExpression(
+            _ sequentialExpression: SequentialExpression, additional: Any? = nil
         ) -> Any? {
             var text = "SequentialExpression "
             if sequentialExpression.ops.isEmpty {
@@ -1196,7 +1196,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitBinary(_ binary: Binary, additional _: Any? = nil) -> Any? {
+        public override func visitBinary(_ binary: Binary, additional: Any? = nil) -> Any? {
             var children: [() -> Void] = [{ self.visit(binary.left) }]
             children.append { self.visit(binary.right) }
             dumpNode("Binary \(binary.operatorToken.value)" + tyText(binary.ty), children: children)
@@ -1204,7 +1204,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitPrefix(_ prefixExpression: Prefix, additional _: Any? = nil)
+        public override func visitPrefix(_ prefixExpression: Prefix, additional: Any? = nil)
             -> Any?
         {
             dumpNode(
@@ -1215,8 +1215,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitPostfix(
-            _ postfixExpression: Postfix, additional _: Any? = nil
+        public override func visitPostfix(
+            _ postfixExpression: Postfix, additional: Any? = nil
         )
             -> Any?
         {
@@ -1228,8 +1228,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitArrayLiteral(
-            _ arrayLiteral: ArrayLiteral, additional _: Any? = nil
+        public override func visitArrayLiteral(
+            _ arrayLiteral: ArrayLiteral, additional: Any? = nil
         ) -> Any? {
             dumpNode(
                 "ArrayLiteral" + tyText(arrayLiteral.ty),
@@ -1241,8 +1241,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitDictionaryLiteral(
-            _ dictionaryLiteral: DictionaryLiteral, additional _: Any? = nil
+        public override func visitDictionaryLiteral(
+            _ dictionaryLiteral: DictionaryLiteral, additional: Any? = nil
         ) -> Any? {
             var children: [() -> Void] = []
             for entry in dictionaryLiteral.entries {
@@ -1259,8 +1259,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitCastExpression(
-            _ castExpression: CastExpression, additional _: Any? = nil
+        public override func visitCastExpression(
+            _ castExpression: CastExpression, additional: Any? = nil
         ) -> Any? {
             let kindText =
                 switch castExpression.kind {
@@ -1276,8 +1276,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitTryExpression(
-            _ tryExpression: TryExpression, additional _: Any? = nil
+        public override func visitTryExpression(
+            _ tryExpression: TryExpression, additional: Any? = nil
         ) -> Any? {
             let kindText =
                 switch tryExpression.kind {
@@ -1293,8 +1293,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitAwaitExpression(
-            _ awaitExpression: AwaitExpression, additional _: Any? = nil
+        public override func visitAwaitExpression(
+            _ awaitExpression: AwaitExpression, additional: Any? = nil
         ) -> Any? {
             dumpNode(
                 "AwaitExpression await" + tyText(awaitExpression.ty),
@@ -1304,8 +1304,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitSubscript(
-            _ subscriptExpr: Subscript, additional _: Any? = nil
+        public override func visitSubscript(
+            _ subscriptExpr: Subscript, additional: Any? = nil
         )
             -> Any?
         {
@@ -1322,8 +1322,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitOptionalBinding(
-            _ optionalBinding: OptionalBinding, additional _: Any? = nil
+        public override func visitOptionalBinding(
+            _ optionalBinding: OptionalBinding, additional: Any? = nil
         ) -> Any? {
             var children: [() -> Void] = []
             if let typeExpression = optionalBinding.typeExpression {
@@ -1338,7 +1338,7 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitCaseMatch(_ caseMatch: CaseMatch, additional _: Any? = nil)
+        public override func visitCaseMatch(_ caseMatch: CaseMatch, additional: Any? = nil)
             -> Any?
         {
             var children: [() -> Void] = [
@@ -1350,8 +1350,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitBindingPattern(
-            _ bindingPattern: BindingPattern, additional _: Any? = nil
+        public override func visitBindingPattern(
+            _ bindingPattern: BindingPattern, additional: Any? = nil
         ) -> Any? {
             var children: [() -> Void] = []
             if let typeExpression = bindingPattern.typeExpression {
@@ -1368,24 +1368,24 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitWildcardPattern(
-            _ wildcardPattern: WildcardPattern, additional _: Any? = nil
+        public override func visitWildcardPattern(
+            _ wildcardPattern: WildcardPattern, additional: Any? = nil
         ) -> Any? {
             dumpNode("WildcardPattern _" + tyText(wildcardPattern.ty))
             return nil
         }
 
         @discardableResult
-        override public func visitShorthandArgument(
-            _ shorthandArgument: ShorthandArgument, additional _: Any? = nil
+        public override func visitShorthandArgument(
+            _ shorthandArgument: ShorthandArgument, additional: Any? = nil
         ) -> Any? {
             dumpNode("ShorthandArgument $\(shorthandArgument.index)" + tyText(shorthandArgument.ty))
             return nil
         }
 
         @discardableResult
-        override public func visitKeyPathExpression(
-            _ keyPathExpression: KeyPathExpression, additional _: Any? = nil
+        public override func visitKeyPathExpression(
+            _ keyPathExpression: KeyPathExpression, additional: Any? = nil
         ) -> Any? {
             var children: [() -> Void] = []
             if let root = keyPathExpression.root {
@@ -1409,8 +1409,8 @@ public extension AST {
         }
 
         @discardableResult
-        override public func visitStringInterpolation(
-            _ interpolation: StringInterpolation, additional _: Any? = nil
+        public override func visitStringInterpolation(
+            _ interpolation: StringInterpolation, additional: Any? = nil
         ) -> Any? {
             var children: [() -> Void] = []
             for segment in interpolation.segments {

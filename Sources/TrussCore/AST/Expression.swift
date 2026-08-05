@@ -6,7 +6,7 @@ public extension AST {
     class Expression: AstNode {
         public var ty: TrussType.TrussType? = nil
         @abstractInit
-        override public init(_ sourceRange: SourceRange) {
+        public override init(_ sourceRange: SourceRange) {
             super.init(sourceRange)
         }
     }
@@ -14,13 +14,13 @@ public extension AST {
     @abstractClass
     class Literal: Expression {
         @abstractInit
-        override public init(_ sourceRange: SourceRange) {
+        public override init(_ sourceRange: SourceRange) {
             super.init(sourceRange)
         }
     }
 
     final class ErrorExpression: Expression {
-        override public init(_ sourceRange: SourceRange) {
+        public override init(_ sourceRange: SourceRange) {
             super.init(sourceRange)
         }
     }
@@ -32,7 +32,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitParentheticalExpression(self, additional: additional)
         }
     }
@@ -46,7 +46,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitVariable(self, additional: additional)
         }
     }
@@ -63,7 +63,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitGenericApplication(self, additional: additional)
         }
     }
@@ -77,7 +77,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitIntegerLiteral(self, additional: additional)
         }
     }
@@ -91,7 +91,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitFloatLiteral(self, additional: additional)
         }
     }
@@ -103,7 +103,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitStringLiteral(self, additional: additional)
         }
     }
@@ -117,7 +117,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitCharLiteral(self, additional: additional)
         }
     }
@@ -131,7 +131,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitBoolLiteral(self, additional: additional)
         }
     }
@@ -143,7 +143,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitNullLiteral(self, additional: additional)
         }
     }
@@ -157,7 +157,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitVoidLiteral(self, additional: additional)
         }
     }
@@ -178,7 +178,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitIf(self, additional: additional)
         }
 
@@ -201,7 +201,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitMatch(self, additional: additional)
         }
 
@@ -233,7 +233,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitDo(self, additional: additional)
         }
 
@@ -283,7 +283,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitCall(self, additional: additional)
         }
     }
@@ -306,7 +306,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitMemberAccess(self, additional: additional)
         }
     }
@@ -320,7 +320,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitSelfTypeExpression(self, additional: additional)
         }
     }
@@ -335,7 +335,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitSelfExpression(self, additional: additional)
         }
     }
@@ -350,7 +350,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitSuperExpression(self, additional: additional)
         }
     }
@@ -366,7 +366,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitImplicitMemberAccess(self, additional: additional)
         }
     }
@@ -413,7 +413,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitClosure(self, additional: additional)
         }
     }
@@ -432,7 +432,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitClosureType(self, additional: additional)
         }
     }
@@ -446,7 +446,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitOptionalType(self, additional: additional)
         }
     }
@@ -460,7 +460,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitVariadicType(self, additional: additional)
         }
     }
@@ -474,7 +474,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitSomeType(self, additional: additional)
         }
     }
@@ -488,7 +488,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitAnyType(self, additional: additional)
         }
     }
@@ -500,7 +500,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitProtocolCompositionType(self, additional: additional)
         }
     }
@@ -512,7 +512,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitTupleExpression(self, additional: additional)
         }
     }
@@ -526,7 +526,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitIsPattern(self, additional: additional)
         }
     }
@@ -545,7 +545,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitAsPattern(self, additional: additional)
         }
     }
@@ -559,7 +559,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitSequentialExpression(self, additional: additional)
         }
     }
@@ -578,7 +578,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitBinary(self, additional: additional)
         }
     }
@@ -594,7 +594,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitPrefix(self, additional: additional)
         }
     }
@@ -610,7 +610,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitPostfix(self, additional: additional)
         }
     }
@@ -622,7 +622,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitArrayLiteral(self, additional: additional)
         }
     }
@@ -634,7 +634,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitDictionaryLiteral(self, additional: additional)
         }
 
@@ -666,7 +666,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitCastExpression(self, additional: additional)
         }
 
@@ -692,7 +692,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitTryExpression(self, additional: additional)
         }
 
@@ -714,7 +714,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitAwaitExpression(self, additional: additional)
         }
     }
@@ -728,7 +728,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitSubscript(self, additional: additional)
         }
     }
@@ -749,7 +749,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitOptionalBinding(self, additional: additional)
         }
     }
@@ -768,7 +768,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitCaseMatch(self, additional: additional)
         }
     }
@@ -789,7 +789,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitBindingPattern(self, additional: additional)
         }
     }
@@ -801,7 +801,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitWildcardPattern(self, additional: additional)
         }
     }
@@ -815,7 +815,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitShorthandArgument(self, additional: additional)
         }
     }
@@ -849,7 +849,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitKeyPathExpression(self, additional: additional)
         }
     }
@@ -866,7 +866,7 @@ public extension AST {
             super.init(sourceRange)
         }
 
-        override public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitStringInterpolation(self, additional: additional)
         }
     }

@@ -5,7 +5,7 @@ public final class TypeBuilder: AST.Visitor {
      * have any custom types yet. All types are built-in types.
      */
     @discardableResult
-    override public func visitProgram(_: AST.Program, additional _: Any? = nil) -> Any? {
+    public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         nil
     }
 }

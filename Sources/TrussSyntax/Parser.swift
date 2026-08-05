@@ -1677,7 +1677,7 @@ public final class Parser {
         )
     }
 
-    private func parseTypeBodyStatement(isProtocolContext _: Bool = false) -> AST.Statement? {
+    private func parseTypeBodyStatement(isProtocolContext: Bool = false) -> AST.Statement? {
         let startToken = peek
         let (modifiers, attributes) = parseAnnotations()
         guard let token = peek else {

@@ -173,7 +173,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitProgram(_ program: AST.Program, additional _: Any? = nil) -> Any? {
+    public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         for (index, statement) in program.statements.enumerated() {
             if index > 0 { state.write("\n") }
             beginLine()
@@ -183,7 +183,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitGenericDecl(_ genericDecl: AST.GenericDecl, additional _: Any? = nil)
+    public override func visitGenericDecl(_ genericDecl: AST.GenericDecl, additional: Any? = nil)
         -> Any?
     {
         state.write(genericDeclText(genericDecl))
@@ -191,8 +191,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitGenericParameter(
-        _ genericParameter: AST.GenericParameter, additional _: Any? = nil
+    public override func visitGenericParameter(
+        _ genericParameter: AST.GenericParameter, additional: Any? = nil
     ) -> Any? {
         if genericParameter.eachToken != nil { state.write("each ") }
         state.write(genericParameter.name.value)
@@ -204,23 +204,23 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitEmptyStatement(
-        _ emptyStatement: AST.EmptyStatement, additional _: Any? = nil
+    public override func visitEmptyStatement(
+        _ emptyStatement: AST.EmptyStatement, additional: Any? = nil
     ) -> Any? {
         state.write(emptyStatement.token.value)
         return nil
     }
 
     @discardableResult
-    override public func visitErrorStatement(
-        _: AST.ErrorStatement, additional _: Any? = nil
+    public override func visitErrorStatement(
+        _ errorStatement: AST.ErrorStatement, additional: Any? = nil
     ) -> Any? {
         state.write("<error>")
         return nil
     }
 
     @discardableResult
-    override public func visitImport(_ importStatement: AST.Import, additional _: Any? = nil) -> Any? {
+    public override func visitImport(_ importStatement: AST.Import, additional: Any? = nil) -> Any? {
         state.write("import ")
         for (index, component) in importStatement.path.components.enumerated() {
             if index > 0 { state.write(".") }
@@ -248,7 +248,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitExternDecl(_ externDecl: AST.ExternDecl, additional _: Any? = nil)
+    public override func visitExternDecl(_ externDecl: AST.ExternDecl, additional: Any? = nil)
         -> Any?
     {
         state.write(annotations(externDecl.modifiers, externDecl.attributes))
@@ -264,16 +264,16 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitExpressionStatement(
-        _ expressionStatement: AST.ExpressionStatement, additional _: Any? = nil
+    public override func visitExpressionStatement(
+        _ expressionStatement: AST.ExpressionStatement, additional: Any? = nil
     ) -> Any? {
         visit(expressionStatement.expression)
         return nil
     }
 
     @discardableResult
-    override public func visitTypeAliasDecl(
-        _ typeAliasDecl: AST.TypeAliasDecl, additional _: Any? = nil
+    public override func visitTypeAliasDecl(
+        _ typeAliasDecl: AST.TypeAliasDecl, additional: Any? = nil
     ) -> Any? {
         state.write(annotations(typeAliasDecl.modifiers, typeAliasDecl.attributes))
         state.write("typealias " + typeAliasDecl.name.value + " = ")
@@ -282,7 +282,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional _: Any? = nil)
+    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
         -> Any?
     {
         state.write(annotations(moduleDecl.modifiers, moduleDecl.attributes))
@@ -292,8 +292,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitOperatorDecl(
-        _ operatorDecl: AST.OperatorDecl, additional _: Any? = nil
+    public override func visitOperatorDecl(
+        _ operatorDecl: AST.OperatorDecl, additional: Any? = nil
     ) -> Any? {
         state.write(annotations(operatorDecl.modifiers, operatorDecl.attributes))
         state.write("operator " + operatorDecl.name.value + " ")
@@ -305,8 +305,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitPrecedenceGroupDecl(
-        _ precedenceGroupDecl: AST.PrecedenceGroupDecl, additional _: Any? = nil
+    public override func visitPrecedenceGroupDecl(
+        _ precedenceGroupDecl: AST.PrecedenceGroupDecl, additional: Any? = nil
     ) -> Any? {
         state.write(annotations(precedenceGroupDecl.modifiers, precedenceGroupDecl.attributes))
         state.write("precedencegroup " + precedenceGroupDecl.name.value + " {")
@@ -351,7 +351,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitStructDecl(_ structDecl: AST.StructDecl, additional _: Any? = nil)
+    public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil)
         -> Any?
     {
         state.write(annotations(structDecl.modifiers, structDecl.attributes))
@@ -364,7 +364,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitClassDecl(_ classDecl: AST.ClassDecl, additional _: Any? = nil) -> Any? {
+    public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil) -> Any? {
         state.write(annotations(classDecl.modifiers, classDecl.attributes))
         typeDeclHeader(
             "class", classDecl.name, classDecl.genericDecl, classDecl.inheritanceClauses,
@@ -375,7 +375,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitActorDecl(_ actorDecl: AST.ActorDecl, additional _: Any? = nil) -> Any? {
+    public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil) -> Any? {
         state.write(annotations(actorDecl.modifiers, actorDecl.attributes))
         typeDeclHeader(
             "actor", actorDecl.name, actorDecl.genericDecl, actorDecl.conformances,
@@ -386,7 +386,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitProtocolDecl(_ protocolDecl: AST.ProtocolDecl, additional _: Any? = nil)
+    public override func visitProtocolDecl(_ protocolDecl: AST.ProtocolDecl, additional: Any? = nil)
         -> Any?
     {
         state.write(annotations(protocolDecl.modifiers, protocolDecl.attributes))
@@ -399,8 +399,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitExtensionDecl(
-        _ extensionDecl: AST.ExtensionDecl, additional _: Any? = nil
+    public override func visitExtensionDecl(
+        _ extensionDecl: AST.ExtensionDecl, additional: Any? = nil
     ) -> Any? {
         state.write(annotations(extensionDecl.modifiers, extensionDecl.attributes))
         state.write("extension ")
@@ -414,7 +414,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional _: Any? = nil) -> Any? {
+    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil) -> Any? {
         state.write(annotations(enumDecl.modifiers, enumDecl.attributes))
         typeDeclHeader(
             "enum", enumDecl.name, enumDecl.genericDecl, enumDecl.conformances, enumDecl.whereClause
@@ -424,8 +424,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitEnumCaseDecl(
-        _ enumCaseDecl: AST.EnumCaseDecl, additional _: Any? = nil
+    public override func visitEnumCaseDecl(
+        _ enumCaseDecl: AST.EnumCaseDecl, additional: Any? = nil
     ) -> Any? {
         state.write(annotations(enumCaseDecl.modifiers, enumCaseDecl.attributes))
         state.write("case ")
@@ -450,7 +450,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitInitDecl(_ initDecl: AST.InitDecl, additional _: Any? = nil) -> Any? {
+    public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil) -> Any? {
         state.write(annotations(initDecl.modifiers, initDecl.attributes))
         state.write("init")
         if initDecl.optionalToken != nil { state.write("?") }
@@ -462,7 +462,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional _: Any? = nil)
+    public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil)
         -> Any?
     {
         state.write(annotations(deinitDecl.modifiers, deinitDecl.attributes))
@@ -472,8 +472,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitFunctionDecl(
-        _ functionDecl: AST.FunctionDecl, additional _: Any? = nil
+    public override func visitFunctionDecl(
+        _ functionDecl: AST.FunctionDecl, additional: Any? = nil
     ) -> Any? {
         state.write(annotations(functionDecl.modifiers, functionDecl.attributes))
         state.write("func " + functionDecl.name.value)
@@ -500,7 +500,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitVariableDecl(
+    public override func visitVariableDecl(
         _ variableDecl: AST.VariableDecl, additional: Any? = nil
     ) -> Any? {
         state.write(annotations(variableDecl.modifiers, variableDecl.attributes))
@@ -532,7 +532,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitReturn(_ ret: AST.Return, additional _: Any? = nil) -> Any? {
+    public override func visitReturn(_ ret: AST.Return, additional: Any? = nil) -> Any? {
         state.write("return")
         if let value = ret.value {
             state.write(" ")
@@ -542,14 +542,14 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitThrow(_ throwStatement: AST.Throw, additional _: Any? = nil) -> Any? {
+    public override func visitThrow(_ throwStatement: AST.Throw, additional: Any? = nil) -> Any? {
         state.write("throw ")
         visit(throwStatement.expression)
         return nil
     }
 
     @discardableResult
-    override public func visitWhile(_ whileStatement: AST.While, additional _: Any? = nil) -> Any? {
+    public override func visitWhile(_ whileStatement: AST.While, additional: Any? = nil) -> Any? {
         state.write("while ")
         visit(whileStatement.condition)
         appendBlock(whileStatement.body)
@@ -557,7 +557,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitRepeatWhile(_ repeatWhile: AST.RepeatWhile, additional _: Any? = nil)
+    public override func visitRepeatWhile(_ repeatWhile: AST.RepeatWhile, additional: Any? = nil)
         -> Any?
     {
         state.write("repeat")
@@ -568,7 +568,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitGuard(_ guardStatement: AST.Guard, additional _: Any? = nil) -> Any? {
+    public override func visitGuard(_ guardStatement: AST.Guard, additional: Any? = nil) -> Any? {
         state.write("guard ")
         visit(guardStatement.condition)
         state.write(" else")
@@ -577,7 +577,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitFor(_ forStatement: AST.For, additional _: Any? = nil) -> Any? {
+    public override func visitFor(_ forStatement: AST.For, additional: Any? = nil) -> Any? {
         state.write("for")
         if forStatement.asyncToken != nil { state.write(" await") }
         state.write(" ")
@@ -589,14 +589,14 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitDefer(_ deferStatement: AST.Defer, additional _: Any? = nil) -> Any? {
+    public override func visitDefer(_ deferStatement: AST.Defer, additional: Any? = nil) -> Any? {
         state.write("defer")
         appendBlock(deferStatement.body)
         return nil
     }
 
     @discardableResult
-    override public func visitAsm(_ asmStatement: AST.Asm, additional _: Any? = nil) -> Any? {
+    public override func visitAsm(_ asmStatement: AST.Asm, additional: Any? = nil) -> Any? {
         state.write("asm { ")
         for (index, template) in asmStatement.templates.enumerated() {
             if index > 0 { state.write(" ") }
@@ -619,14 +619,14 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitBreak(_ breakStatement: AST.Break, additional _: Any? = nil) -> Any? {
+    public override func visitBreak(_ breakStatement: AST.Break, additional: Any? = nil) -> Any? {
         state.write("break")
         if let label = breakStatement.label { state.write(" " + label.value) }
         return nil
     }
 
     @discardableResult
-    override public func visitContinue(_ continueStatement: AST.Continue, additional _: Any? = nil)
+    public override func visitContinue(_ continueStatement: AST.Continue, additional: Any? = nil)
         -> Any?
     {
         state.write("continue")
@@ -635,14 +635,14 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitGoto(_ gotoStatement: AST.Goto, additional _: Any? = nil) -> Any? {
+    public override func visitGoto(_ gotoStatement: AST.Goto, additional: Any? = nil) -> Any? {
         state.write("goto " + gotoStatement.label.value)
         return nil
     }
 
     @discardableResult
-    override public func visitLabeledStatement(
-        _ labeledStatement: AST.LabeledStatement, additional _: Any? = nil
+    public override func visitLabeledStatement(
+        _ labeledStatement: AST.LabeledStatement, additional: Any? = nil
     ) -> Any? {
         state.write(labeledStatement.label.value + ": ")
         visit(labeledStatement.body)
@@ -650,7 +650,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitAccessor(_ accessor: AST.Accessor, additional _: Any? = nil) -> Any? {
+    public override func visitAccessor(_ accessor: AST.Accessor, additional: Any? = nil) -> Any? {
         var text = annotations(accessor.modifiers, accessor.attributes)
         switch accessor.kind {
         case .Get: text += "get"
@@ -670,8 +670,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitSubscriptDecl(
-        _ subscriptDecl: AST.SubscriptDecl, additional _: Any? = nil
+    public override func visitSubscriptDecl(
+        _ subscriptDecl: AST.SubscriptDecl, additional: Any? = nil
     ) -> Any? {
         state.write(annotations(subscriptDecl.modifiers, subscriptDecl.attributes))
         state.write("subscript")
@@ -687,8 +687,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitAssociatedTypeDecl(
-        _ associatedTypeDecl: AST.AssociatedTypeDecl, additional _: Any? = nil
+    public override func visitAssociatedTypeDecl(
+        _ associatedTypeDecl: AST.AssociatedTypeDecl, additional: Any? = nil
     ) -> Any? {
         state.write(annotations(associatedTypeDecl.modifiers, associatedTypeDecl.attributes))
         state.write("associatedtype " + associatedTypeDecl.name.value)
@@ -703,16 +703,16 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitErrorExpression(
-        _: AST.ErrorExpression, additional _: Any? = nil
+    public override func visitErrorExpression(
+        _ errorExpression: AST.ErrorExpression, additional: Any? = nil
     ) -> Any? {
         state.write("<error>")
         return nil
     }
 
     @discardableResult
-    override public func visitParentheticalExpression(
-        _ parentheticalExpression: AST.ParentheticalExpression, additional _: Any? = nil
+    public override func visitParentheticalExpression(
+        _ parentheticalExpression: AST.ParentheticalExpression, additional: Any? = nil
     ) -> Any? {
         state.write("(")
         visit(parentheticalExpression.inner)
@@ -721,14 +721,14 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitVariable(_ variable: AST.Variable, additional _: Any? = nil) -> Any? {
+    public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
         state.write(variable.name.value)
         return nil
     }
 
     @discardableResult
-    override public func visitGenericApplication(
-        _ genericApplication: AST.GenericApplication, additional _: Any? = nil
+    public override func visitGenericApplication(
+        _ genericApplication: AST.GenericApplication, additional: Any? = nil
     ) -> Any? {
         visit(genericApplication.base)
         state.write("<")
@@ -741,24 +741,24 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitIntegerLiteral(
-        _ integerLiteral: AST.IntegerLiteral, additional _: Any? = nil
+    public override func visitIntegerLiteral(
+        _ integerLiteral: AST.IntegerLiteral, additional: Any? = nil
     ) -> Any? {
         state.write(integerLiteral.token.value)
         return nil
     }
 
     @discardableResult
-    override public func visitFloatLiteral(
-        _ floatLiteral: AST.FloatLiteral, additional _: Any? = nil
+    public override func visitFloatLiteral(
+        _ floatLiteral: AST.FloatLiteral, additional: Any? = nil
     ) -> Any? {
         state.write(floatLiteral.token.value)
         return nil
     }
 
     @discardableResult
-    override public func visitStringLiteral(
-        _ stringLiteral: AST.StringLiteral, additional _: Any? = nil
+    public override func visitStringLiteral(
+        _ stringLiteral: AST.StringLiteral, additional: Any? = nil
     ) -> Any? {
         if stringLiteral.token.isRaw {
             state.write("#\"" + stringLiteral.token.value + "\"#")
@@ -769,39 +769,39 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitCharLiteral(
-        _ charLiteral: AST.CharLiteral, additional _: Any? = nil
+    public override func visitCharLiteral(
+        _ charLiteral: AST.CharLiteral, additional: Any? = nil
     ) -> Any? {
         state.write(charLiteral.token.value)
         return nil
     }
 
     @discardableResult
-    override public func visitBoolLiteral(
-        _ boolLiteral: AST.BoolLiteral, additional _: Any? = nil
+    public override func visitBoolLiteral(
+        _ boolLiteral: AST.BoolLiteral, additional: Any? = nil
     ) -> Any? {
         state.write(boolLiteral.token.value)
         return nil
     }
 
     @discardableResult
-    override public func visitNullLiteral(
-        _ nullLiteral: AST.NullLiteral, additional _: Any? = nil
+    public override func visitNullLiteral(
+        _ nullLiteral: AST.NullLiteral, additional: Any? = nil
     ) -> Any? {
         state.write(nullLiteral.token.value)
         return nil
     }
 
     @discardableResult
-    override public func visitVoidLiteral(
-        _: AST.VoidLiteral, additional _: Any? = nil
+    public override func visitVoidLiteral(
+        _ voidLiteral: AST.VoidLiteral, additional: Any? = nil
     ) -> Any? {
         state.write("()")
         return nil
     }
 
     @discardableResult
-    override public func visitIf(_ ifExpression: AST.If, additional: Any? = nil) -> Any? {
+    public override func visitIf(_ ifExpression: AST.If, additional: Any? = nil) -> Any? {
         state.write("if ")
         visit(ifExpression.condition)
         appendBlock(ifExpression.then)
@@ -819,7 +819,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitMatch(_ matchExpression: AST.Match, additional _: Any? = nil) -> Any? {
+    public override func visitMatch(_ matchExpression: AST.Match, additional: Any? = nil) -> Any? {
         state.write("match ")
         visit(matchExpression.subject)
         state.write(" {")
@@ -840,7 +840,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitDo(_ doExpression: AST.Do, additional _: Any? = nil) -> Any? {
+    public override func visitDo(_ doExpression: AST.Do, additional: Any? = nil) -> Any? {
         state.write("do")
         appendBlock(doExpression.body)
         for catchClause in doExpression.catches {
@@ -863,7 +863,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitCall(_ call: AST.Call, additional: Any? = nil) -> Any? {
+    public override func visitCall(_ call: AST.Call, additional: Any? = nil) -> Any? {
         visit(call.callee)
         state.write("(")
         for (index, argument) in call.arguments.enumerated() {
@@ -883,8 +883,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitMemberAccess(
-        _ memberAccess: AST.MemberAccess, additional _: Any? = nil
+    public override func visitMemberAccess(
+        _ memberAccess: AST.MemberAccess, additional: Any? = nil
     ) -> Any? {
         visit(memberAccess.object)
         state.write(memberAccess.token.value)
@@ -893,39 +893,39 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitSelfTypeExpression(
-        _: AST.SelfTypeExpression, additional _: Any? = nil
+    public override func visitSelfTypeExpression(
+        _ selfTypeExpression: AST.SelfTypeExpression, additional: Any? = nil
     ) -> Any? {
         state.write("Self")
         return nil
     }
 
     @discardableResult
-    override public func visitSelfExpression(
-        _: AST.SelfExpression, additional _: Any? = nil
+    public override func visitSelfExpression(
+        _ selfExpression: AST.SelfExpression, additional: Any? = nil
     ) -> Any? {
         state.write("self")
         return nil
     }
 
     @discardableResult
-    override public func visitSuperExpression(
-        _: AST.SuperExpression, additional _: Any? = nil
+    public override func visitSuperExpression(
+        _ superExpression: AST.SuperExpression, additional: Any? = nil
     ) -> Any? {
         state.write("super")
         return nil
     }
 
     @discardableResult
-    override public func visitImplicitMemberAccess(
-        _ implicitMemberAccess: AST.ImplicitMemberAccess, additional _: Any? = nil
+    public override func visitImplicitMemberAccess(
+        _ implicitMemberAccess: AST.ImplicitMemberAccess, additional: Any? = nil
     ) -> Any? {
         state.write("." + implicitMemberAccess.name.value)
         return nil
     }
 
     @discardableResult
-    override public func visitClosure(_ closure: AST.Closure, additional _: Any? = nil) -> Any? {
+    public override func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
         state.write("{")
         if let signature = closure.signature {
             state.write(" ")
@@ -962,8 +962,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitClosureType(
-        _ closureType: AST.ClosureType, additional _: Any? = nil
+    public override func visitClosureType(
+        _ closureType: AST.ClosureType, additional: Any? = nil
     ) -> Any? {
         visit(closureType.parameterTypes)
         if let throwsClause = closureType.throwsClause {
@@ -975,7 +975,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitOptionalType(_ optionalType: AST.OptionalType, additional _: Any? = nil)
+    public override func visitOptionalType(_ optionalType: AST.OptionalType, additional: Any? = nil)
         -> Any?
     {
         visit(optionalType.wrappedType)
@@ -984,7 +984,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitVariadicType(_ variadicType: AST.VariadicType, additional _: Any? = nil)
+    public override func visitVariadicType(_ variadicType: AST.VariadicType, additional: Any? = nil)
         -> Any?
     {
         visit(variadicType.base)
@@ -993,22 +993,22 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitSomeType(_ someType: AST.SomeType, additional _: Any? = nil) -> Any? {
+    public override func visitSomeType(_ someType: AST.SomeType, additional: Any? = nil) -> Any? {
         state.write("some ")
         visit(someType.wrappedType)
         return nil
     }
 
     @discardableResult
-    override public func visitAnyType(_ anyType: AST.AnyType, additional _: Any? = nil) -> Any? {
+    public override func visitAnyType(_ anyType: AST.AnyType, additional: Any? = nil) -> Any? {
         state.write("any ")
         visit(anyType.wrappedType)
         return nil
     }
 
     @discardableResult
-    override public func visitProtocolCompositionType(
-        _ protocolCompositionType: AST.ProtocolCompositionType, additional _: Any? = nil
+    public override func visitProtocolCompositionType(
+        _ protocolCompositionType: AST.ProtocolCompositionType, additional: Any? = nil
     ) -> Any? {
         for (index, type) in protocolCompositionType.types.enumerated() {
             if index > 0 { state.write(" & ") }
@@ -1018,8 +1018,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitTupleExpression(
-        _ tupleExpression: AST.TupleExpression, additional _: Any? = nil
+    public override func visitTupleExpression(
+        _ tupleExpression: AST.TupleExpression, additional: Any? = nil
     ) -> Any? {
         state.write("(")
         for (index, element) in tupleExpression.elements.enumerated() {
@@ -1034,14 +1034,14 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitIsPattern(_ isPattern: AST.IsPattern, additional _: Any? = nil) -> Any? {
+    public override func visitIsPattern(_ isPattern: AST.IsPattern, additional: Any? = nil) -> Any? {
         state.write("is ")
         visit(isPattern.typeExpression)
         return nil
     }
 
     @discardableResult
-    override public func visitAsPattern(_ asPattern: AST.AsPattern, additional _: Any? = nil) -> Any? {
+    public override func visitAsPattern(_ asPattern: AST.AsPattern, additional: Any? = nil) -> Any? {
         visit(asPattern.pattern)
         state.write(" as ")
         visit(asPattern.typeExpression)
@@ -1049,8 +1049,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitSequentialExpression(
-        _ sequentialExpression: AST.SequentialExpression, additional _: Any? = nil
+    public override func visitSequentialExpression(
+        _ sequentialExpression: AST.SequentialExpression, additional: Any? = nil
     ) -> Any? {
         let ops = sequentialExpression.ops
         let operands = sequentialExpression.operands
@@ -1098,7 +1098,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitBinary(_ binary: AST.Binary, additional _: Any? = nil) -> Any? {
+    public override func visitBinary(_ binary: AST.Binary, additional: Any? = nil) -> Any? {
         visit(binary.left)
         state.write(" " + binary.operatorToken.value + " ")
         visit(binary.right)
@@ -1106,14 +1106,14 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitPrefix(_ prefixExpression: AST.Prefix, additional _: Any? = nil) -> Any? {
+    public override func visitPrefix(_ prefixExpression: AST.Prefix, additional: Any? = nil) -> Any? {
         state.write(prefixExpression.operatorToken.value)
         visit(prefixExpression.expression)
         return nil
     }
 
     @discardableResult
-    override public func visitPostfix(_ postfixExpression: AST.Postfix, additional _: Any? = nil)
+    public override func visitPostfix(_ postfixExpression: AST.Postfix, additional: Any? = nil)
         -> Any?
     {
         visit(postfixExpression.expression)
@@ -1122,8 +1122,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitArrayLiteral(
-        _ arrayLiteral: AST.ArrayLiteral, additional _: Any? = nil
+    public override func visitArrayLiteral(
+        _ arrayLiteral: AST.ArrayLiteral, additional: Any? = nil
     ) -> Any? {
         state.write("[")
         for (index, element) in arrayLiteral.elements.enumerated() {
@@ -1135,8 +1135,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitDictionaryLiteral(
-        _ dictionaryLiteral: AST.DictionaryLiteral, additional _: Any? = nil
+    public override func visitDictionaryLiteral(
+        _ dictionaryLiteral: AST.DictionaryLiteral, additional: Any? = nil
     ) -> Any? {
         if dictionaryLiteral.entries.isEmpty {
             state.write("[:]")
@@ -1154,8 +1154,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitCastExpression(
-        _ castExpression: AST.CastExpression, additional _: Any? = nil
+    public override func visitCastExpression(
+        _ castExpression: AST.CastExpression, additional: Any? = nil
     ) -> Any? {
         visit(castExpression.left)
         switch castExpression.kind {
@@ -1169,8 +1169,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitTryExpression(
-        _ tryExpression: AST.TryExpression, additional _: Any? = nil
+    public override func visitTryExpression(
+        _ tryExpression: AST.TryExpression, additional: Any? = nil
     ) -> Any? {
         switch tryExpression.kind {
         case .Try: state.write("try ")
@@ -1182,8 +1182,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitAwaitExpression(
-        _ awaitExpression: AST.AwaitExpression, additional _: Any? = nil
+    public override func visitAwaitExpression(
+        _ awaitExpression: AST.AwaitExpression, additional: Any? = nil
     ) -> Any? {
         state.write("await ")
         visit(awaitExpression.expression)
@@ -1191,7 +1191,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitSubscript(_ subscriptExpr: AST.Subscript, additional _: Any? = nil)
+    public override func visitSubscript(_ subscriptExpr: AST.Subscript, additional: Any? = nil)
         -> Any?
     {
         visit(subscriptExpr.base)
@@ -1208,8 +1208,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitOptionalBinding(
-        _ optionalBinding: AST.OptionalBinding, additional _: Any? = nil
+    public override func visitOptionalBinding(
+        _ optionalBinding: AST.OptionalBinding, additional: Any? = nil
     ) -> Any? {
         state.write(optionalBinding.token.value + " " + optionalBinding.name.value)
         if let typeExpression = optionalBinding.typeExpression {
@@ -1222,7 +1222,7 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitCaseMatch(_ caseMatch: AST.CaseMatch, additional _: Any? = nil) -> Any? {
+    public override func visitCaseMatch(_ caseMatch: AST.CaseMatch, additional: Any? = nil) -> Any? {
         state.write("case ")
         visit(caseMatch.pattern)
         state.write(" = ")
@@ -1231,8 +1231,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitBindingPattern(
-        _ bindingPattern: AST.BindingPattern, additional _: Any? = nil
+    public override func visitBindingPattern(
+        _ bindingPattern: AST.BindingPattern, additional: Any? = nil
     ) -> Any? {
         state.write(bindingPattern.token.value + " " + bindingPattern.name.value)
         if let typeExpression = bindingPattern.typeExpression {
@@ -1247,24 +1247,24 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitWildcardPattern(
-        _: AST.WildcardPattern, additional _: Any? = nil
+    public override func visitWildcardPattern(
+        _ wildcardPattern: AST.WildcardPattern, additional: Any? = nil
     ) -> Any? {
         state.write("_")
         return nil
     }
 
     @discardableResult
-    override public func visitShorthandArgument(
-        _ shorthandArgument: AST.ShorthandArgument, additional _: Any? = nil
+    public override func visitShorthandArgument(
+        _ shorthandArgument: AST.ShorthandArgument, additional: Any? = nil
     ) -> Any? {
         state.write("$\(shorthandArgument.index)")
         return nil
     }
 
     @discardableResult
-    override public func visitKeyPathExpression(
-        _ keyPathExpression: AST.KeyPathExpression, additional _: Any? = nil
+    public override func visitKeyPathExpression(
+        _ keyPathExpression: AST.KeyPathExpression, additional: Any? = nil
     ) -> Any? {
         state.write("\\")
         if let root = keyPathExpression.root {
@@ -1284,8 +1284,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitStringInterpolation(
-        _ interpolation: AST.StringInterpolation, additional _: Any? = nil
+    public override func visitStringInterpolation(
+        _ interpolation: AST.StringInterpolation, additional: Any? = nil
     ) -> Any? {
         let isRaw = interpolation.segments.contains {
             if case let .literal(token) = $0 {

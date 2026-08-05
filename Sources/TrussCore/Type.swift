@@ -9,12 +9,12 @@ public enum TrussType {
 
     public final class VoidType: TrussType, @unchecked Sendable {
         public static let INSTANCE = VoidType()
-        override private init() {}
+        private override init() {}
     }
 
     public final class NeverType: TrussType, @unchecked Sendable {
         public static let INSTANCE = NeverType()
-        override private init() {}
+        private override init() {}
     }
 
     public final class NamedType: TrussType {

@@ -9,7 +9,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
+    public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         scopeStack.append(program.packageSymbol!.scope)
         super.visitProgram(program, additional: additional)
         scopeStack.removeLast()
@@ -17,7 +17,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
+    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
         -> Any?
     {
         scopeStack.append(moduleDecl.symbol!.scope)
@@ -27,7 +27,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil)
+    public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil)
         -> Any?
     {
         scopeStack.append(functionDecl.symbol!.scope)
@@ -37,7 +37,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
+    public override func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
         guard let scope = closure.scope else {
             return super.visitClosure(closure, additional: additional)
         }
@@ -48,7 +48,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil)
+    public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil)
         -> Any?
     {
         guard let symbol = structDecl.symbol else { return nil }
@@ -61,7 +61,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil)
+    public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil)
         -> Any?
     {
         resolveSuperclass(classDecl)
@@ -75,7 +75,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil) -> Any? {
+    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil) -> Any? {
         guard let symbol = enumDecl.symbol else { return nil }
         scopeStack.append(symbol.scope)
         typeStack.append(symbol)
@@ -86,7 +86,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitProtocolDecl(
+    public override func visitProtocolDecl(
         _ protocolDecl: AST.ProtocolDecl, additional: Any? = nil
     ) -> Any? {
         guard let symbol = protocolDecl.symbol else { return nil }
@@ -99,7 +99,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil)
+    public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil)
         -> Any?
     {
         guard let symbol = actorDecl.symbol else { return nil }
@@ -123,7 +123,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitVariable(_ variable: AST.Variable, additional _: Any? = nil) -> Any? {
+    public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
         guard let (_, entries) = lookupScopeEntry(variable.name.value) else { return nil }
         if entries.allSatisfy({ $0 is Symbol.FunctionSymbol }) {
             variable.overloads = entries.map { $0 as! Symbol.FunctionSymbol }
@@ -135,23 +135,23 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitSelfExpression(
-        _ selfExpression: AST.SelfExpression, additional _: Any? = nil
+    public override func visitSelfExpression(
+        _ selfExpression: AST.SelfExpression, additional: Any? = nil
     ) -> Any? {
         selfExpression.symbol = typeStack.last
         return nil
     }
 
     @discardableResult
-    override public func visitSuperExpression(
-        _ superExpression: AST.SuperExpression, additional _: Any? = nil
+    public override func visitSuperExpression(
+        _ superExpression: AST.SuperExpression, additional: Any? = nil
     ) -> Any? {
         superExpression.symbol = typeStack.last?.superclass
         return nil
     }
 
     @discardableResult
-    override public func visitMemberAccess(
+    public override func visitMemberAccess(
         _ memberAccess: AST.MemberAccess, additional: Any? = nil
     ) -> Any? {
         visit(memberAccess.object, additional: additional)
@@ -170,8 +170,8 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitImplicitMemberAccess(
-        _ implicitMemberAccess: AST.ImplicitMemberAccess, additional _: Any? = nil
+    public override func visitImplicitMemberAccess(
+        _ implicitMemberAccess: AST.ImplicitMemberAccess, additional: Any? = nil
     ) -> Any? {
         guard let type = typeStack.last else { return nil }
         let (symbol, overloads) = memberResolution(implicitMemberAccess.name.value, in: type)
@@ -181,7 +181,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitKeyPathExpression(
+    public override func visitKeyPathExpression(
         _ keyPathExpression: AST.KeyPathExpression, additional: Any? = nil
     ) -> Any? {
         if let root = keyPathExpression.root {

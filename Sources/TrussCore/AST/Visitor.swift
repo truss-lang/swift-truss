@@ -52,21 +52,21 @@ extension AST {
 
         @discardableResult
         open func visitEmptyStatement(
-            _: AST.EmptyStatement, additional _: Any? = nil
+            _ emptyStatement: AST.EmptyStatement, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitErrorStatement(
-            _: AST.ErrorStatement, additional _: Any? = nil
+            _ errorStatement: AST.ErrorStatement, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitImport(
-            _: AST.Import, additional _: Any? = nil
+            _ importStatement: AST.Import, additional: Any? = nil
         ) -> Any? {
             nil
         }
@@ -112,7 +112,7 @@ extension AST {
 
         @discardableResult
         open func visitOperatorDecl(
-            _: AST.OperatorDecl, additional _: Any? = nil
+            _ operatorDecl: AST.OperatorDecl, additional: Any? = nil
         ) -> Any? {
             nil
         }
@@ -123,7 +123,7 @@ extension AST {
          */
         @discardableResult
         open func visitPrecedenceGroupDecl(
-            _: AST.PrecedenceGroupDecl, additional _: Any? = nil
+            _ precedenceGroupDecl: AST.PrecedenceGroupDecl, additional: Any? = nil
         ) -> Any? {
             nil
         }
@@ -404,22 +404,22 @@ extension AST {
         }
 
         @discardableResult
-        open func visitAsm(_: AST.Asm, additional _: Any? = nil) -> Any? {
+        open func visitAsm(_ asmStatement: AST.Asm, additional: Any? = nil) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitBreak(_: AST.Break, additional _: Any? = nil) -> Any? {
+        open func visitBreak(_ breakStatement: AST.Break, additional: Any? = nil) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitContinue(_: AST.Continue, additional _: Any? = nil) -> Any? {
+        open func visitContinue(_ continueStatement: AST.Continue, additional: Any? = nil) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitGoto(_: AST.Goto, additional _: Any? = nil) -> Any? {
+        open func visitGoto(_ gotoStatement: AST.Goto, additional: Any? = nil) -> Any? {
             nil
         }
 
@@ -446,7 +446,7 @@ extension AST {
 
         @discardableResult
         open func visitErrorExpression(
-            _: AST.ErrorExpression, additional _: Any? = nil
+            _ errorExpression: AST.ErrorExpression, additional: Any? = nil
         ) -> Any? {
             nil
         }
@@ -459,7 +459,7 @@ extension AST {
         }
 
         @discardableResult
-        open func visitVariable(_: AST.Variable, additional _: Any? = nil) -> Any? {
+        open func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
             nil
         }
 
@@ -476,49 +476,49 @@ extension AST {
 
         @discardableResult
         open func visitIntegerLiteral(
-            _: AST.IntegerLiteral, additional _: Any? = nil
+            _ integerLiteral: AST.IntegerLiteral, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitFloatLiteral(
-            _: AST.FloatLiteral, additional _: Any? = nil
+            _ floatLiteral: AST.FloatLiteral, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitStringLiteral(
-            _: AST.StringLiteral, additional _: Any? = nil
+            _ stringLiteral: AST.StringLiteral, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitCharLiteral(
-            _: AST.CharLiteral, additional _: Any? = nil
+            _ charLiteral: AST.CharLiteral, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitBoolLiteral(
-            _: AST.BoolLiteral, additional _: Any? = nil
+            _ boolLiteral: AST.BoolLiteral, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitNullLiteral(
-            _: AST.NullLiteral, additional _: Any? = nil
+            _ nullLiteral: AST.NullLiteral, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitVoidLiteral(
-            _: AST.VoidLiteral, additional _: Any? = nil
+            _ voidLiteral: AST.VoidLiteral, additional: Any? = nil
         ) -> Any? {
             nil
         }
@@ -605,28 +605,28 @@ extension AST {
 
         @discardableResult
         open func visitSelfTypeExpression(
-            _: AST.SelfTypeExpression, additional _: Any? = nil
+            _ selfTypeExpression: AST.SelfTypeExpression, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitSelfExpression(
-            _: AST.SelfExpression, additional _: Any? = nil
+            _ selfExpression: AST.SelfExpression, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitSuperExpression(
-            _: AST.SuperExpression, additional _: Any? = nil
+            _ superExpression: AST.SuperExpression, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitImplicitMemberAccess(
-            _: AST.ImplicitMemberAccess, additional _: Any? = nil
+            _ implicitMemberAccess: AST.ImplicitMemberAccess, additional: Any? = nil
         ) -> Any? {
             nil
         }
@@ -842,14 +842,14 @@ extension AST {
 
         @discardableResult
         open func visitWildcardPattern(
-            _: AST.WildcardPattern, additional _: Any? = nil
+            _ wildcardPattern: AST.WildcardPattern, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitShorthandArgument(
-            _: AST.ShorthandArgument, additional _: Any? = nil
+            _ shorthandArgument: AST.ShorthandArgument, additional: Any? = nil
         ) -> Any? {
             nil
         }

@@ -59,7 +59,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
+    public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         guard let packageSymbol = program.packageSymbol else { return nil }
         let lastScope = currentScope
         currentScope = packageSymbol.scope
@@ -69,7 +69,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
+    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
         -> Any?
     {
         guard let moduleSymbol = moduleDecl.symbol else { return nil }
@@ -81,7 +81,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitExtensionDecl(_ extensionDecl: AST.ExtensionDecl, additional: Any? = nil)
+    public override func visitExtensionDecl(_ extensionDecl: AST.ExtensionDecl, additional: Any? = nil)
         -> Any?
     {
         guard let virtualScope = extensionDecl.virtualScope else { return nil }
@@ -101,7 +101,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil)
+    public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil)
         -> Any?
     {
         guard let symbol = structDecl.symbol else { return nil }
@@ -113,7 +113,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil)
+    public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil)
         -> Any?
     {
         guard let symbol = classDecl.symbol else { return nil }
@@ -125,7 +125,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil)
+    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil)
         -> Any?
     {
         guard let symbol = enumDecl.symbol else { return nil }
@@ -137,7 +137,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitProtocolDecl(_ protocolDecl: AST.ProtocolDecl, additional: Any? = nil)
+    public override func visitProtocolDecl(_ protocolDecl: AST.ProtocolDecl, additional: Any? = nil)
         -> Any?
     {
         guard let symbol = protocolDecl.symbol else { return nil }
@@ -149,7 +149,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil)
+    public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil)
         -> Any?
     {
         guard let symbol = actorDecl.symbol else { return nil }
@@ -161,7 +161,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil)
+    public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil)
         -> Any?
     {
         let lastScope = currentScope
@@ -191,7 +191,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil) -> Any? {
+    public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil) -> Any? {
         let lastScope = currentScope
         let scope = Scope()
         currentScope = scope
@@ -216,7 +216,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitSubscriptDecl(
+    public override func visitSubscriptDecl(
         _ subscriptDecl: AST.SubscriptDecl, additional: Any? = nil
     ) -> Any? {
         let lastScope = currentScope
@@ -243,7 +243,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitVariableDecl(_ variableDecl: AST.VariableDecl, additional: Any? = nil)
+    public override func visitVariableDecl(_ variableDecl: AST.VariableDecl, additional: Any? = nil)
         -> Any?
     {
         super.visitVariableDecl(variableDecl, additional: additional)
@@ -252,7 +252,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
+    public override func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
         let lastScope = currentScope
         let scope = Scope()
         currentScope = scope
@@ -268,7 +268,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitFor(_ forStmt: AST.For, additional: Any? = nil) -> Any? {
+    public override func visitFor(_ forStmt: AST.For, additional: Any? = nil) -> Any? {
         if let variable = forStmt.pattern as? AST.Variable {
             registerLocal(variable.name)
         }
@@ -276,7 +276,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitOptionalBinding(
+    public override func visitOptionalBinding(
         _ optionalBinding: AST.OptionalBinding, additional: Any? = nil
     ) -> Any? {
         registerLocal(optionalBinding.name)
@@ -284,7 +284,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitBindingPattern(
+    public override func visitBindingPattern(
         _ bindingPattern: AST.BindingPattern, additional: Any? = nil
     ) -> Any? {
         registerLocal(bindingPattern.name)
@@ -292,7 +292,7 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitEnumCaseDecl(_ enumCaseDecl: AST.EnumCaseDecl, additional _: Any? = nil)
+    public override func visitEnumCaseDecl(_ enumCaseDecl: AST.EnumCaseDecl, additional: Any? = nil)
         -> Any?
     {
         for element in enumCaseDecl.elements {
@@ -307,15 +307,15 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
-    override public func visitTypeAliasDecl(_: AST.TypeAliasDecl, additional _: Any? = nil)
+    public override func visitTypeAliasDecl(_ typeAliasDecl: AST.TypeAliasDecl, additional: Any? = nil)
         -> Any?
     {
         nil
     }
 
     @discardableResult
-    override public func visitAssociatedTypeDecl(
-        _: AST.AssociatedTypeDecl, additional _: Any? = nil
+    public override func visitAssociatedTypeDecl(
+        _ associatedTypeDecl: AST.AssociatedTypeDecl, additional: Any? = nil
     ) -> Any? {
         nil
     }
