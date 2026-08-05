@@ -76,6 +76,13 @@ let package = Package(
             ]
         ),
         .testTarget(
+            name: "TrussOperatorTests",
+            dependencies: [
+                "TrussOperators", "TrussSyntax", "TrussCore",
+                .product(name: "SwiftBetterDiagnostic", package: "swift-better-diagnostic"),
+            ]
+        ),
+        .testTarget(
             name: "trussTests",
             dependencies: ["truss", "TrussDriver"]
         ),
