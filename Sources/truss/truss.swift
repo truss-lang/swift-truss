@@ -72,7 +72,7 @@ struct truss {
         print("=== AST Dump ===")
         print(AST.Dumper().dump(program))
         print("=== Symbol Dump ===")
-        print(SymbolDumper().dump(program))
+        print(Symbol.Dumper().dump(program))
         print("=== Source Print ===")
         print(SourcePrinter().print(program))
         if context.diagnositicEngine.hasErrors {
