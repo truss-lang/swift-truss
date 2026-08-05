@@ -80,6 +80,34 @@ func variable(_ expr: AST.Expression?, _ name: String) -> Bool {
     #expect(integer(root?.right, "3"))
 }
 
+@Test func mixedChainKeepsHigherPrecedencePairs() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup Assignment { assignment: true } "
+            + "precedencegroup LogicalAnd { higherThan: Assignment } "
+            + "precedencegroup Comparison { higherThan: LogicalAnd } "
+            + "precedencegroup Addition { higherThan: Comparison associativity: left } "
+            + "precedencegroup Multiplication { higherThan: Addition associativity: left } "
+            + "operator && infix: LogicalAnd operator >= infix: Comparison "
+            + "operator + infix: Addition operator - infix: Addition "
+            + "operator * infix: Multiplication operator / infix: Multiplication "
+            + "func main() { 1 + 2 && 3 * 4 - 5 / 6 >= 7 }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let root = binary(firstBodyExpression(programs[0]), op: "&&")
+    let lhs = binary(root?.left, op: "+")
+    #expect(integer(lhs?.left, "1"))
+    #expect(integer(lhs?.right, "2"))
+    let cmp = binary(root?.right, op: ">=")
+    #expect(integer(cmp?.right, "7"))
+    let sub = binary(cmp?.left, op: "-")
+    let mul = binary(sub?.left, op: "*")
+    #expect(integer(mul?.left, "3"))
+    #expect(integer(mul?.right, "4"))
+    let div = binary(sub?.right, op: "/")
+    #expect(integer(div?.left, "5"))
+    #expect(integer(div?.right, "6"))
+}
+
 @Test func foldRightAssociative() {
     let (context, _, programs) = runFolded([
         "precedencegroup P { associativity: right } operator >> infix: P "
