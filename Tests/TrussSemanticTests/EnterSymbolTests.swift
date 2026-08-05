@@ -14,20 +14,20 @@ import TrussCore
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func pendingNestedExtensionConvergence() {
+@Test func pendingNestedExtensionConvergence() throws {
     let (context, program) = runEnter([
         "struct A {} extension A.B { class C {} } extension A { class B {} }",
     ])
     let packageScope = program[0].packageSymbol!.scope
     let a = packageScope.types["A"] as! Symbol.NominalTypeSymbol
     let b = a.scope.types["B"] as? Symbol.NominalTypeSymbol
-    #expect(b != nil)
+    try #require(b != nil)
     let c = b!.scope.types["C"] as? Symbol.NominalTypeSymbol
     #expect(c != nil)
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func deepNestingAcrossFiles() {
+@Test func deepNestingAcrossFiles() throws {
     let (context, programs) = runEnter([
         "class A {}",
         "extension A { class B { let c: C } }",
@@ -36,7 +36,7 @@ import TrussCore
     let packageScope = programs[0].packageSymbol!.scope
     let a = packageScope.types["A"] as! Symbol.NominalTypeSymbol
     let b = a.scope.types["B"] as? Symbol.NominalTypeSymbol
-    #expect(b != nil)
+    try #require(b != nil)
     #expect(b!.scope.values["c"] != nil)
     let c = b!.scope.types["C"] as? Symbol.NominalTypeSymbol
     #expect(c != nil)
@@ -52,12 +52,12 @@ import TrussCore
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func memberFunctionAndLocals() {
+@Test func memberFunctionAndLocals() throws {
     let (context, program) = runEnter(["struct S { func m() { var x = 1 } }"])
     let packageScope = program[0].packageSymbol!.scope
     let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
     let m = s.scope.values["m"]?.first as? Symbol.FunctionSymbol
-    #expect(m != nil)
+    try #require(m != nil)
     #expect(m!.scope.values["x"] != nil)
     #expect(packageScope.values["m"] == nil)
     #expect(!context.diagnositicEngine.hasErrors)
@@ -157,26 +157,26 @@ import TrussCore
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func nestedTypeInExtension() {
+@Test func nestedTypeInExtension() throws {
     let (context, program) = runEnter([
         "struct A {} extension A { class B { class D {} } }",
     ])
     let packageScope = program[0].packageSymbol!.scope
     let a = packageScope.types["A"] as! Symbol.NominalTypeSymbol
     let b = a.scope.types["B"] as? Symbol.NominalTypeSymbol
-    #expect(b != nil)
+    try #require(b != nil)
     #expect(b!.scope.types["D"] is Symbol.NominalTypeSymbol)
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func extensionInsideModuleResolvesInModuleScope() {
+@Test func extensionInsideModuleResolvesInModuleScope() throws {
     let (context, program) = runEnter([
         "module M { struct T {} extension T { func f() {} } }",
     ])
     let packageScope = program[0].packageSymbol!.scope
     let m = packageScope.modules["M"]
     let t = m?.scope.types["T"] as? Symbol.NominalTypeSymbol
-    #expect(t != nil)
+    try #require(t != nil)
     #expect(t!.scope.values["f"] != nil)
     #expect(packageScope.values["f"] == nil)
     #expect(!context.diagnositicEngine.hasErrors)
@@ -227,13 +227,13 @@ import TrussCore
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func extensionWithModulePrefixBaseMerged() {
+@Test func extensionWithModulePrefixBaseMerged() throws {
     let (context, program) = runEnter([
         "module M { struct T {} } extension M.T { func f() {} }",
     ])
     let packageScope = program[0].packageSymbol!.scope
     let t = packageScope.modules["M"]?.scope.types["T"] as? Symbol.NominalTypeSymbol
-    #expect(t != nil)
+    try #require(t != nil)
     #expect(t!.scope.values["f"] != nil)
     #expect(packageScope.values["f"] == nil)
     #expect(!context.diagnositicEngine.hasErrors)

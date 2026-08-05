@@ -51,16 +51,16 @@ func messages(_ context: Context) -> [String] {
     #expect(messages(context).contains("invalid redeclaration of operator '+' (infix)"))
 }
 
-@Test func collectPrecedenceGroup() {
+@Test func collectPrecedenceGroup() throws {
     let (_, table, _) = runDeclCollector([
         "precedencegroup P { associativity: left assignment: true higherThan: Bar, Baz lowerThan: Qux }",
     ])
     let info = table.root.precedenceGroups["P"]
-    #expect(info != nil)
+    try #require(info != nil)
     #expect(info!.name.value == "P")
     #expect(info!.associativity == .Left)
     #expect(info!.assignment)
-    #expect(info!.higherThan.count == 2)
+    try #require(info!.higherThan.count == 2)
     #expect((info!.higherThan[0] as? AST.Variable)?.name.value == "Bar")
     #expect((info!.higherThan[1] as? AST.Variable)?.name.value == "Baz")
     #expect((info!.lowerThan[0] as? AST.Variable)?.name.value == "Qux")

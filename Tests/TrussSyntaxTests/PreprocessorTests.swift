@@ -580,29 +580,29 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     #expect(tokenValues(tokens) == ["1", "x"])
 }
 
-@Test func ppExpansionChainSingle() {
+@Test func ppExpansionChainSingle() throws {
     let (tokens, _) = preprocessWithDiagnostics("#define MAX 100\nMAX")
     let chain = tokens[0].expansion
-    #expect(chain?.count == 1)
+    try #require(chain?.count == 1)
     #expect(chain?[0].name == "MAX")
     #expect(chain?[0].definitionPosition.line == 1)
     #expect(chain?[0].definitionPosition.pos == 8)
 }
 
-@Test func ppExpansionChainNested() {
+@Test func ppExpansionChainNested() throws {
     let (tokens, _) = preprocessWithDiagnostics("#define A B\n#define B 1\nA")
     let chain = tokens[0].expansion
-    #expect(chain?.count == 2)
+    try #require(chain?.count == 2)
     #expect(chain?[0].name == "B")
     #expect(chain?[0].definitionPosition.line == 2)
     #expect(chain?[1].name == "A")
     #expect(chain?[1].definitionPosition.line == 1)
 }
 
-@Test func ppExpansionChainFunctionMacro() {
+@Test func ppExpansionChainFunctionMacro() throws {
     let (tokens, _) = preprocessWithDiagnostics("#define F(x) x + 1\nF(2)")
     let chain = tokens[0].expansion
-    #expect(chain?.count == 1)
+    try #require(chain?.count == 1)
     #expect(chain?[0].name == "F")
     #expect(tokens[0].pos.line == 2)
 }
@@ -612,7 +612,7 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     #expect(tokens[0].expansion == nil)
 }
 
-@Test func ppExpansionNotesHelper() {
+@Test func ppExpansionNotesHelper() throws {
     let context = Context()
     let src = Source(
         id: Id.SourceId(id: 0), filepath: "<test>",
@@ -630,7 +630,7 @@ func tokenValues(_ tokens: [Token]) -> [String] {
         id: Id.SourceId(id: 0), expansion: [site]
     )
     let notes = token.expansionNotes(in: context)
-    #expect(notes.count == 1)
+    try #require(notes.count == 1)
     #expect(notes[0].message == "in expansion of macro 'MAX'")
     #expect(notes[0].range.start.offset == 8)
     #expect(notes[0].range.start.line == 1)

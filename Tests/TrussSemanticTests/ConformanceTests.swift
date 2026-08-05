@@ -6,11 +6,11 @@ private func packageScope(_ programs: [AST.Program]) -> Scope {
     programs[0].packageSymbol!.scope
 }
 
-@Test func structConformsProtocol() {
+@Test func structConformsProtocol() throws {
     let (context, programs) = runEnter(["protocol P {} struct S: P {}"])
     NameResolver(context: context).visitProgram(programs[0])
     let s = packageScope(programs).types["S"] as! Symbol.StructSymbol
-    #expect(s.conformances.count == 1)
+    try #require(s.conformances.count == 1)
     #expect(s.conformances[0].name == "P")
     #expect(!context.diagnositicEngine.hasErrors)
 }
