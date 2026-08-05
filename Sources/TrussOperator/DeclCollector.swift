@@ -4,6 +4,7 @@ public final class DeclCollector: AST.Visitor {
     private let table: OperatorTable
     private let context: Context
     private var namespaceStack: [OperatorTable.Namespace] = []
+    private var modulePath: [String] = []
 
     public init(table: OperatorTable, context: Context) {
         self.table = table
@@ -22,9 +23,11 @@ public final class DeclCollector: AST.Visitor {
     public override func visitModuleDecl(
         _ moduleDecl: AST.ModuleDecl, additional: Any? = nil
     ) -> Any? {
-        namespaceStack.append(table.namespace(forModule: moduleDecl.name.value))
+        modulePath.append(moduleDecl.name.value)
+        namespaceStack.append(table.namespace(forModule: modulePath.joined(separator: ".")))
         let result = super.visitModuleDecl(moduleDecl, additional: additional)
         namespaceStack.removeLast()
+        modulePath.removeLast()
         return result
     }
 

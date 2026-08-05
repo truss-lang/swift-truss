@@ -112,5 +112,5 @@ func messages(_ context: Context) -> [String] {
 
 @Test func nestedModuleNamespace() {
     let (_, table, _) = runDeclCollector(["module A { module B { operator + infix } }"])
-    #expect(kindNames(table.modules["B"]?.operators["+"]) == ["infix"])
+    #expect(kindNames(table.modules["A.B"]?.operators["+"]) == ["infix"])
 }

@@ -21,3 +21,9 @@ func runDeclCollector(_ sources: [String]) -> (Context, OperatorTable, [AST.Prog
     }
     return (context, table, programs)
 }
+
+func runResolved(_ sources: [String]) -> (Context, OperatorTable, [AST.Program]) {
+    let (context, table, programs) = runDeclCollector(sources)
+    PrecedenceResolver(table: table, context: context).resolve()
+    return (context, table, programs)
+}

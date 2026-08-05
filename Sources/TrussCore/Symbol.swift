@@ -100,50 +100,48 @@ public enum Symbol {
         }
     }
 
-
     public final class Dumper {
-    public init() {}
+        public init() {}
 
-    public func dump(_ program: AST.Program) -> String {
-        guard let packageSymbol = program.packageSymbol else { return "" }
-        var out = "\(packageSymbol.name) (package)\n"
-        dumpScope(packageSymbol.scope, into: &out, indent: 2)
-        return out
-    }
-
-    private func dumpScope(_ scope: Scope, into out: inout String, indent: Int) {
-        let pad = String(repeating: " ", count: indent)
-        for (name, symbol) in scope.modules.sorted(by: { $0.key < $1.key }) {
-            out += "\(pad)module \(name)\n"
-            dumpScope(symbol.scope, into: &out, indent: indent + 2)
+        public func dump(_ program: AST.Program) -> String {
+            guard let packageSymbol = program.packageSymbol else { return "" }
+            var out = "\(packageSymbol.name) (package)\n"
+            dumpScope(packageSymbol.scope, into: &out, indent: 2)
+            return out
         }
-        for (name, symbol) in scope.types.sorted(by: { $0.key < $1.key }) {
-            out += "\(pad)type \(name) (\(symbolKind(symbol)))\n"
-            if let nominal = symbol as? NominalTypeSymbol {
-                dumpScope(nominal.scope, into: &out, indent: indent + 2)
+
+        private func dumpScope(_ scope: Scope, into out: inout String, indent: Int) {
+            let pad = String(repeating: " ", count: indent)
+            for (name, symbol) in scope.modules.sorted(by: { $0.key < $1.key }) {
+                out += "\(pad)module \(name)\n"
+                dumpScope(symbol.scope, into: &out, indent: indent + 2)
             }
-        }
-        for (name, symbols) in scope.values.sorted(by: { $0.key < $1.key }) {
-            for symbol in symbols {
-                out += "\(pad)value \(name) (\(symbolKind(symbol)))\n"
-                if let function = symbol as? FunctionSymbol {
-                    dumpScope(function.scope, into: &out, indent: indent + 2)
+            for (name, symbol) in scope.types.sorted(by: { $0.key < $1.key }) {
+                out += "\(pad)type \(name) (\(symbolKind(symbol)))\n"
+                if let nominal = symbol as? NominalTypeSymbol {
+                    dumpScope(nominal.scope, into: &out, indent: indent + 2)
+                }
+            }
+            for (name, symbols) in scope.values.sorted(by: { $0.key < $1.key }) {
+                for symbol in symbols {
+                    out += "\(pad)value \(name) (\(symbolKind(symbol)))\n"
+                    if let function = symbol as? FunctionSymbol {
+                        dumpScope(function.scope, into: &out, indent: indent + 2)
+                    }
                 }
             }
         }
-    }
 
-    private func symbolKind(_ symbol: Symbol) -> String {
-        switch symbol {
-        case is NominalTypeSymbol: "nominal"
-        case is TypeAliasSymbol: "typealias"
-        case is GenericParamSymbol: "generic-param"
-        case is CaseSymbol: "case"
-        case is FunctionSymbol: "function"
-        case is VariableSymbol: "variable"
-        default: "unknown"
+        private func symbolKind(_ symbol: Symbol) -> String {
+            switch symbol {
+            case is NominalTypeSymbol: "nominal"
+            case is TypeAliasSymbol: "typealias"
+            case is GenericParamSymbol: "generic-param"
+            case is CaseSymbol: "case"
+            case is FunctionSymbol: "function"
+            case is VariableSymbol: "variable"
+            default: "unknown"
+            }
         }
     }
-}
-
 }

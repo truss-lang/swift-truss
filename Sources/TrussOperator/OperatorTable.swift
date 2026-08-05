@@ -14,6 +14,8 @@ public final class OperatorTable {
         public let assignment: Bool
         public let higherThan: [AST.Expression]
         public let lowerThan: [AST.Expression]
+        public internal(set) var resolvedHigherThan: [PrecedenceGroupInfo?] = []
+        public internal(set) var resolvedLowerThan: [PrecedenceGroupInfo?] = []
 
         public init(
             name: Token, associativity: AST.PrecedenceGroupDecl.Associativity,
