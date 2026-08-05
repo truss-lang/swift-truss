@@ -242,6 +242,23 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
+@Test func forInVariableResolvedWithWhereClause() {
+    let (context, probe) = probe("func h(xs: [Int]) { for i in xs where i > 0 { i } }")
+    let iVariables = probe.variables.filter { $0.name.value == "i" }
+    #expect(iVariables.count == 3)
+    #expect(iVariables.allSatisfy { $0.symbol is Symbol.VariableSymbol })
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func forCasePatternBindingResolvedWithWhereClause() {
+    let (context, probe) = probe(
+        "enum E { case foo(Int) } func h(xs: [E]) { for case .foo(let x) in xs where x > 0 { x } }")
+    let xs = probe.variables.filter { $0.name.value == "x" }
+    #expect(xs.count == 2)
+    #expect(xs.allSatisfy { $0.symbol is Symbol.VariableSymbol })
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
 @Test func typeMemberResolvedFromTypeBody() {
     let (context, probe) = probe("struct S { func f() {} func g() { f() } }")
     let variable = probe.variables.first { $0.name.value == "f" }

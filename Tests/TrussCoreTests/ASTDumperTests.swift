@@ -24,6 +24,41 @@ import TrussCore
     )
 }
 
+@Test func dumpForWithWhereClause() {
+    #expect(
+        dumpProgram(
+            """
+            func f(xs: [Int]) {
+                for i in xs where i > 0 {
+                    g(i)
+                }
+            }
+            """
+        )
+            == """
+            Program "main"
+            `-FunctionDecl f
+              |-Parameter xs label:xs
+              | `-ArrayLiteral
+              |   `-Variable Int
+              `-For
+                |-Pattern
+                | `-Variable i
+                |-Sequence
+                | `-Variable xs
+                |-Where
+                | `-SequentialExpression >
+                |   |-Variable i
+                |   `-IntegerLiteral 0
+                `-ExpressionStatement
+                  `-Call
+                    |-Variable g
+                    `-Argument
+                      `-Variable i
+            """
+    )
+}
+
 @Test func dumpFunctionDeclSemantics() {
     #expect(
         dumpProgram("func f() {}", semantic: true)

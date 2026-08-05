@@ -642,10 +642,16 @@ public extension AST {
         public override func visitFor(_ forStatement: For, additional: Any? = nil) -> Any? {
             var text = "For"
             if forStatement.asyncToken != nil { text += " async" }
+            if forStatement.caseToken != nil { text += " case" }
             var children: [() -> Void] = [
                 { self.dumpNode("Pattern", children: [{ self.visit(forStatement.pattern) }]) },
                 { self.dumpNode("Sequence", children: [{ self.visit(forStatement.sequence) }]) },
             ]
+            if let whereClause = forStatement.whereClause {
+                children.append {
+                    self.dumpNode("Where", children: [{ self.visit(whereClause) }])
+                }
+            }
             children.append(contentsOf: statementNodes(forStatement.body))
             dumpNode(text, children: children)
             return nil

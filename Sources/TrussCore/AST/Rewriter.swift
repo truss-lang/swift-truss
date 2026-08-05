@@ -900,16 +900,18 @@ extension AST {
         ) -> Any? {
             let pattern = rewrite(forStatement.pattern)
             let sequence = rewrite(forStatement.sequence)
+            let whereClause = forStatement.whereClause.map { rewrite($0) }
             let body = rewriteAll(forStatement.body)
             if pattern === forStatement.pattern, sequence === forStatement.sequence,
+               whereClause === forStatement.whereClause,
                unchanged(forStatement.body, body)
             {
                 return forStatement
             }
             return AST.For(
-                forStatement.token, forStatement.asyncToken, pattern, forStatement.inToken,
-                sequence, forStatement.beginToken, body, forStatement.endToken,
-                sourceRange: forStatement.sourceRange
+                forStatement.token, forStatement.asyncToken, forStatement.caseToken, pattern,
+                forStatement.inToken, sequence, whereClause, forStatement.beginToken, body,
+                forStatement.endToken, sourceRange: forStatement.sourceRange
             )
         }
 

@@ -2236,6 +2236,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(forStmt!.body.isEmpty)
     #expect(forStmt!.beginToken.kind == .Separator(.OpenBrace))
     #expect(forStmt!.endToken.kind == .Separator(.CloseBrace))
+    #expect(forStmt!.whereClause == nil)
+    #expect(forStmt!.caseToken == nil)
 }
 
 @Test func parseForLetBinding() {
@@ -2269,6 +2271,57 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let vd = forStmt!.body[0] as? AST.VariableDecl
     #expect(vd != nil)
     #expect(vd!.name.value == "y")
+}
+
+@Test func parseForWithWhereClause() {
+    let body = parseBlockStatements("func main() { for i in items where i > 0 {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    let whereClause = forStmt!.whereClause as? AST.SequentialExpression
+    #expect(whereClause != nil)
+    #expect(whereClause!.ops.count == 1)
+    #expect(forStmt!.body.isEmpty)
+}
+
+@Test func parseForAwaitWithWhereClause() {
+    let body = parseBlockStatements("func main() { for await x in items where x > 0 {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    #expect(forStmt!.asyncToken != nil)
+    #expect(forStmt!.whereClause != nil)
+}
+
+@Test func parseForCaseWithWhereClause() {
+    let body = parseBlockStatements("func main() { for case .foo(let x) in arr where x > 0 {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    let call = forStmt!.pattern as? AST.Call
+    #expect(call != nil)
+    let binding = call!.arguments[0].value as? AST.BindingPattern
+    #expect(binding != nil)
+    #expect(binding!.name.value == "x")
+    #expect(forStmt!.caseToken != nil)
+    #expect(forStmt!.whereClause != nil)
+}
+
+@Test func parseForWhereClauseComplexCondition() {
+    let body = parseBlockStatements("func main() { for i in items where i > 0 && i < 10 {} }")
+    #expect(body.count == 1)
+    let forStmt = body[0] as? AST.For
+    #expect(forStmt != nil)
+    let whereClause = forStmt!.whereClause as? AST.SequentialExpression
+    #expect(whereClause != nil)
+    #expect(whereClause!.ops.count == 3)
+    #expect(whereClause!.operands.count == 4)
+}
+
+@Test func parseForWhereClauseMissingExpressionReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { for i in items where }")
+    try #require(!errors.isEmpty)
+    #expect(errors.contains { $0.message.contains("expected '{' after for-in sequence") })
 }
 
 // MARK: - Accessor Success Paths
