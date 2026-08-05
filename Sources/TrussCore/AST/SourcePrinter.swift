@@ -580,10 +580,15 @@ public final class SourcePrinter: AST.Visitor {
     public override func visitFor(_ forStatement: AST.For, additional: Any? = nil) -> Any? {
         state.write("for")
         if forStatement.asyncToken != nil { state.write(" await") }
+        if forStatement.caseToken != nil { state.write(" case") }
         state.write(" ")
         visit(forStatement.pattern)
         state.write(" in ")
         visit(forStatement.sequence)
+        if let whereClause = forStatement.whereClause {
+            state.write(" where ")
+            visit(whereClause)
+        }
         appendBlock(forStatement.body)
         return nil
     }

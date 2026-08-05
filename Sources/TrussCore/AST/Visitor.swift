@@ -389,6 +389,9 @@ extension AST {
         open func visitFor(_ forStatement: AST.For, additional: Any? = nil) -> Any? {
             visit(forStatement.pattern, additional: additional)
             visit(forStatement.sequence, additional: additional)
+            if let whereClause = forStatement.whereClause {
+                visit(whereClause, additional: additional)
+            }
             for statement in forStatement.body {
                 visit(statement, additional: additional)
             }

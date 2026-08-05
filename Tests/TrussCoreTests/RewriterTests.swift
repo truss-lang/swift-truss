@@ -118,6 +118,25 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     #expect(rewritten === program)
 }
 
+@Test func forWithWhereClauseKeepsIdentity() {
+    let program = parseProgram("func f(xs: [Int]) { for i in xs where i > 0 { g(i) } }")
+    let rewritten = IdentityRewriter().rewrite(program)
+    #expect(rewritten === program)
+}
+
+@Test func replaceWhereClauseRebuildsFor() {
+    let program = parseProgram("func f(xs: [Int]) { for i in xs where i > 0 { g(i) } }")
+    let functionDecl = program.statements[0] as! AST.FunctionDecl
+    let originalFor = blockBody(functionDecl)[0] as! AST.For
+    let rewritten = IncrementLiteralRewriter().rewrite(program)
+    let newFunctionDecl = rewritten.statements[0] as! AST.FunctionDecl
+    let forStmt = blockBody(newFunctionDecl)[0] as! AST.For
+    #expect(forStmt !== originalFor)
+    let whereClause = forStmt.whereClause as! AST.SequentialExpression
+    let literal = whereClause.operands[1] as! AST.IntegerLiteral
+    #expect(literal.value == 1)
+}
+
 @Test func replaceLiteralRebuildsCallArguments() {
     let program = parseProgram("func g() { f(1, 2) }")
     let functionDecl = program.statements[0] as! AST.FunctionDecl

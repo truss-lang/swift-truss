@@ -43,6 +43,56 @@ import TrussCore
     )
 }
 
+@Test func printForWithWhereClause() {
+    #expect(
+        printProgram(
+            """
+            func f(xs: [Int]) {
+                for i in xs where i > 0 {
+                    g(i)
+                }
+            }
+            """
+        )
+            == """
+            func f(xs: [Int]) {
+                for i in xs where i > 0 {
+                    g(i)
+                }
+            }
+            """
+    )
+}
+
+@Test func printForCaseWithWhereClause() {
+    #expect(
+        printProgram(
+            """
+            enum E {
+                case foo(Int)
+            }
+
+            func f(xs: [E]) {
+                for case .foo(let x) in xs where x > 0 {
+                    g(x)
+                }
+            }
+            """
+        )
+            == """
+            enum E {
+                case foo(Int)
+            }
+
+            func f(xs: [E]) {
+                for case .foo(let x) in xs where x > 0 {
+                    g(x)
+                }
+            }
+            """
+    )
+}
+
 @Test func printNestedStruct() {
     #expect(
         printProgram(

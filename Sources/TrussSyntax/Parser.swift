@@ -2687,6 +2687,13 @@ public final class Parser {
             parseExpression()
                 ?? AST.ErrorExpression(SourceRange(location: locationAfter(inToken)))
         suppressTrailingClosures = false
+        var whereClause: AST.Expression? = nil
+        if let whereToken = peek, case .Keyword(.Where) = whereToken.kind {
+            index += 1
+            suppressTrailingClosures = true
+            whereClause = parseExpression() ?? errorExpression(from: whereToken, to: whereToken)
+            suppressTrailingClosures = false
+        }
         guard let openToken = next else {
             emitError("expected '{' after for-in sequence", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -2722,7 +2729,8 @@ public final class Parser {
             )
         }
         return AST.For(
-            token, asyncToken, pattern, inToken, sequence, openToken, body, closeToken,
+            token, asyncToken, caseToken, pattern, inToken, sequence, whereClause, openToken,
+            body, closeToken,
             sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
         )
     }
