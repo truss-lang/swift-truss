@@ -26,6 +26,77 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(c.resolvedLowerThan[0] === a)
 }
 
+@Test func resolveOperatorGroup() {
+    let (_, table, _) = runResolved([
+        "operator + infix: P precedencegroup P {}",
+    ])
+    let p = table.root.precedenceGroups["P"]!
+    #expect(table.root.operators["+"]?.resolvedGroup === p)
+}
+
+@Test func resolveQualifiedOperatorGroup() {
+    let (_, table, _) = runResolved([
+        "module M { precedencegroup P {} } operator + infix: M.P",
+    ])
+    let mP = table.modules["M"]!.precedenceGroups["P"]!
+    #expect(table.root.operators["+"]?.resolvedGroup === mP)
+}
+
+@Test func unknownOperatorGroupReportsError() {
+    let (context, table, _) = runResolved(["operator + infix: Nope"])
+    #expect(context.diagnositicEngine.hasErrors)
+    #expect(resolvedMessages(context).contains("unknown precedence group 'Nope'"))
+    #expect(table.root.operators["+"]?.resolvedGroup == nil)
+}
+
+@Test func operatorGroupFallsBackAlongLexicalChain() {
+    let (_, table, _) = runResolved([
+        "precedencegroup P {} module M { operator + infix: P }",
+    ])
+    let rootP = table.root.precedenceGroups["P"]!
+    #expect(table.modules["M"]!.operators["+"]?.resolvedGroup === rootP)
+}
+
+@Test func defaultPrecedenceHookFindsUserGroup() {
+    let (context, table, _) = runResolved([
+        "precedencegroup DefaultPrecedence {} operator + infix",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let def = table.root.precedenceGroups["DefaultPrecedence"]!
+    #expect(table.root.operators["+"]?.defaultGroup === def)
+}
+
+@Test func defaultPrecedenceHookMissesSilently() {
+    let (context, table, _) = runResolved(["operator + infix"])
+    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(table.root.operators["+"]?.defaultGroup == nil)
+}
+
+@Test func defaultPrecedenceHookSearchesLexicalChain() {
+    let (_, table, _) = runResolved([
+        "precedencegroup DefaultPrecedence {} module M { operator + infix }",
+    ])
+    let def = table.root.precedenceGroups["DefaultPrecedence"]!
+    #expect(table.modules["M"]!.operators["+"]?.defaultGroup === def)
+}
+
+@Test func defaultPrecedenceHookSkipsNonInfix() {
+    let (_, table, _) = runResolved([
+        "precedencegroup DefaultPrecedence {} operator - prefix",
+    ])
+    #expect(table.root.operators["-"]?.defaultGroup == nil)
+}
+
+@Test func explicitGroupBeatsDefaultHook() {
+    let (_, table, _) = runResolved([
+        "precedencegroup P {} precedencegroup DefaultPrecedence {} operator + infix: P",
+    ])
+    let p = table.root.precedenceGroups["P"]!
+    let info = table.root.operators["+"]!
+    #expect(info.resolvedGroup === p)
+    #expect(info.defaultGroup == nil)
+}
+
 @Test func unknownReferenceReportsError() {
     let (context, table, _) = runResolved(["precedencegroup A { higherThan: Nope }"])
     #expect(context.diagnositicEngine.hasErrors)

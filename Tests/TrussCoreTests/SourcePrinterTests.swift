@@ -270,6 +270,8 @@ import TrussCore
         "import Foo.*",
         "import Foo.{a, b}",
         "operator + infix",
+        "operator + infix: P",
+        "operator + infix: M.P",
         "precedencegroup P {\n    associativity: left\n}",
         "precedencegroup P {\n    higherThan: A\n    lowerThan: B\n    assignment: true\n}",
         "class C<T> where T: P {\n}",

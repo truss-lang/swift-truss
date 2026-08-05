@@ -113,9 +113,13 @@ private extension AST.PrecedenceGroupDecl.Associativity {
 public final class OperatorInfo {
     public let name: Token
     public internal(set) var kinds: [AST.OperatorDecl.Kind]
+    public internal(set) var group: AST.Expression?
+    public internal(set) var resolvedGroup: PrecedenceGroupInfo?
+    public internal(set) var defaultGroup: PrecedenceGroupInfo?
 
-    public init(name: Token, kinds: [AST.OperatorDecl.Kind]) {
+    public init(name: Token, kinds: [AST.OperatorDecl.Kind], group: AST.Expression?) {
         self.name = name
         self.kinds = kinds
+        self.group = group
     }
 }

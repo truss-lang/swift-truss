@@ -1281,6 +1281,40 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     }
 }
 
+@Test func parseOperatorWithGroup() {
+    let statements = parseStatements("operator + infix: P")
+    #expect(statements.count == 1)
+    let op = statements[0] as? AST.OperatorDecl
+    #expect(op != nil)
+    #expect((op!.group as? AST.Variable)?.name.value == "P")
+}
+
+@Test func parseOperatorWithQualifiedGroup() {
+    let statements = parseStatements("operator + infix: M.P")
+    #expect(statements.count == 1)
+    let op = statements[0] as? AST.OperatorDecl
+    let member = op!.group as? AST.MemberAccess
+    #expect((member?.object as? AST.Variable)?.name.value == "M")
+    #expect(member?.member.value == "P")
+}
+
+@Test func parseOperatorWithoutGroup() {
+    let statements = parseStatements("operator + infix")
+    let op = statements[0] as? AST.OperatorDecl
+    #expect(op!.group == nil)
+}
+
+@Test func prefixOperatorWithGroupReportsError() {
+    let statements = parseStatements("operator - prefix: P")
+    let op = statements[0] as? AST.OperatorDecl
+    #expect(op != nil)
+    #expect(op!.group == nil)
+    #expect(
+        parseWithDiagnostics("operator - prefix: P").1.map(\.message)
+            .contains("prefix operator '-' cannot have a precedence group")
+    )
+}
+
 @Test func parseEmptyPrecedenceGroup() {
     let statements = parseStatements("precedencegroup Foo {}")
     #expect(statements.count == 1)

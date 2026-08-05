@@ -657,10 +657,66 @@ public final class Parser {
             )
             return errorStatement(from: token, to: kindToken)
         }
+        var group: AST.Expression? = nil
+        var endLocation: SourceLocation? = nil
+        if let colon = peek, case .Separator(.Colon) = colon.kind {
+            index += 1
+            if case .Infix = kind {
+                group = parseGroupReference()
+                if let group {
+                    endLocation = group.sourceRange.end
+                }
+            } else {
+                emitError(
+                    "\(kindName(kind)) operator '\(name.value)' cannot have a precedence group",
+                    at: colon
+                )
+                _ = parseGroupReference()
+            }
+        }
+        let sourceRange = if let endLocation {
+            SourceRange(start: token.sourceRange(in: buffer).start, end: endLocation)
+        } else {
+            SourceRange(from: token, to: kindToken, in: buffer)
+        }
         return AST.OperatorDecl(
-            modifiers, attributes, token, name, kind,
-            sourceRange: SourceRange(from: token, to: kindToken, in: buffer)
+            modifiers, attributes, token, name, kind, group,
+            sourceRange: sourceRange
         )
+    }
+
+    private func kindName(_ kind: AST.OperatorDecl.Kind) -> String {
+        switch kind {
+        case .Infix: "infix"
+        case .Prefix: "prefix"
+        case .Postfix: "postfix"
+        }
+    }
+
+    private func parseGroupReference() -> AST.Expression? {
+        guard let ident = next else { return nil }
+        guard case .Identifier = ident.kind else {
+            emitError(
+                "expected precedence group name after ':', but got '\(ident.value)'", at: ident
+            )
+            return nil
+        }
+        var expression: AST.Expression = AST.Variable(
+            name: ident, sourceRange: ident.sourceRange(in: buffer)
+        )
+        while let dot = peek, case .Operator(.Dot) = dot.kind,
+              let member = peek2, case .Identifier = member.kind
+        {
+            index += 2
+            expression = AST.MemberAccess(
+                expression, dot, member, isOptional: false,
+                sourceRange: SourceRange(
+                    start: expression.sourceRange.start,
+                    end: member.sourceRange(in: buffer).end
+                )
+            )
+        }
+        return expression
     }
 
     private func parsePrecedenceGroupDecl(

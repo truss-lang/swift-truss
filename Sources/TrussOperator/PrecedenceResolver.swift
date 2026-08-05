@@ -13,13 +13,32 @@ public final class PrecedenceResolver {
         resolveNamespace(table.root, modulePath: [])
         for name in table.modules.keys.sorted() {
             resolveNamespace(
-                table.modules[name]!, modulePath: name.split(separator: ".").map(String.init))
+                table.modules[name]!, modulePath: name.split(separator: ".").map(String.init)
+            )
         }
     }
 
     private func resolveNamespace(_ namespace: Namespace, modulePath: [String]) {
         for group in namespace.precedenceGroups.values {
             resolveGroup(group, modulePath: modulePath)
+        }
+        for op in namespace.operators.values {
+            resolveOperator(op, modulePath: modulePath)
+        }
+    }
+
+    private func resolveOperator(_ op: OperatorInfo, modulePath: [String]) {
+        guard op.kinds.contains(where: { if case .Infix = $0 { true } else { false } }) else {
+            return
+        }
+        if let groupReference = op.group {
+            guard let (path, location) = referencePath(groupReference) else {
+                context.emitError("expected a precedence group reference", at: op.name)
+                return
+            }
+            op.resolvedGroup = lookup(path, modulePath: modulePath, at: location)
+        } else {
+            op.defaultGroup = findSingle("DefaultPrecedence", modulePath: modulePath)
         }
     }
 
@@ -74,14 +93,7 @@ public final class PrecedenceResolver {
     ) -> PrecedenceGroupInfo? {
         if path.count == 1 {
             let name = path[0]
-            var chain = modulePath
-            while !chain.isEmpty {
-                if let group = table.modules[chain.joined(separator: ".")]?.precedenceGroups[name] {
-                    return group
-                }
-                chain.removeLast()
-            }
-            if let group = table.root.precedenceGroups[name] {
+            if let group = findSingle(name, modulePath: modulePath) {
                 return group
             }
             context.emitError("unknown precedence group '\(name)'", at: location)
@@ -111,6 +123,17 @@ public final class PrecedenceResolver {
             )
         }
         return nil
+    }
+
+    private func findSingle(_ name: String, modulePath: [String]) -> PrecedenceGroupInfo? {
+        var chain = modulePath
+        while !chain.isEmpty {
+            if let group = table.modules[chain.joined(separator: ".")]?.precedenceGroups[name] {
+                return group
+            }
+            chain.removeLast()
+        }
+        return table.root.precedenceGroups[name]
     }
 
     private func descend(

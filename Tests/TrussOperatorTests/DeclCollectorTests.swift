@@ -26,6 +26,18 @@ func messages(_ context: Context) -> [String] {
     #expect(kindNames(table.root.operators["++"]) == ["postfix"])
 }
 
+@Test func collectOperatorGroupReference() {
+    let (_, table, _) = runDeclCollector(["operator + infix: P"])
+    let group = table.root.operators["+"]?.group as? AST.Variable
+    #expect(group?.name.value == "P")
+}
+
+@Test func infixDeclarationUpdatesGroup() {
+    let (_, table, _) = runDeclCollector(["operator - prefix operator - infix: P"])
+    let group = table.root.operators["-"]?.group as? AST.Variable
+    #expect(group?.name.value == "P")
+}
+
 @Test func operatorAllowsMultipleKinds() {
     let (context, table, _) = runDeclCollector(["operator - prefix operator - infix"])
     #expect(!context.diagnositicEngine.hasErrors)
