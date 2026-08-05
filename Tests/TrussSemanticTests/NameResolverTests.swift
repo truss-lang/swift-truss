@@ -210,11 +210,11 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func closureLocalsIsolated() {
+@Test func closureLocalsIsolated() throws {
     let (context, probe) = probe(
         "func makeClosures() { let c1 = { var x = 1 x } let c2 = { var x = 2 x } }")
     let xs = probe.variables.filter { $0.name.value == "x" }
-    #expect(xs.count == 2)
+    try #require(xs.count == 2)
     #expect(xs.allSatisfy { $0.symbol is Symbol.VariableSymbol })
     #expect(xs[0].symbol !== xs[1].symbol)
     #expect(!context.diagnositicEngine.hasErrors)
@@ -267,9 +267,9 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func selfResolvedToCurrentType() {
+@Test func selfResolvedToCurrentType() throws {
     let (context, probe) = probe("struct S { var x: Int func m() { self } }")
-    #expect(probe.selfExpressions.count == 1)
+    try #require(probe.selfExpressions.count == 1)
     #expect(probe.selfExpressions[0].symbol?.name == "S")
     #expect(!context.diagnositicEngine.hasErrors)
 }
@@ -282,10 +282,10 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func superResolvedToSuperclass() {
+@Test func superResolvedToSuperclass() throws {
     let (context, probe) = probe(
         "class A { func f() {} } class B: A { func g() { super } }")
-    #expect(probe.superExpressions.count == 1)
+    try #require(probe.superExpressions.count == 1)
     #expect(probe.superExpressions[0].symbol?.name == "A")
     #expect(!context.diagnositicEngine.hasErrors)
 }
@@ -311,16 +311,16 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func implicitMemberAccessResolvedInTypeBody() {
+@Test func implicitMemberAccessResolvedInTypeBody() throws {
     let (context, probe) = probe("struct S { var f: Int func m() { .f } }")
-    #expect(probe.implicitMembers.count == 1)
+    try #require(probe.implicitMembers.count == 1)
     #expect(probe.implicitMembers[0].symbol is Symbol.VariableSymbol)
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func staticModifierParsedInTypeBody() {
+@Test func staticModifierParsedInTypeBody() throws {
     let (context, probe) = probe("struct S { static func f() {} func m() { .f } }")
-    #expect(probe.implicitMembers.count == 1)
+    try #require(probe.implicitMembers.count == 1)
     #expect(probe.implicitMembers[0].overloads?.count == 1)
     #expect(!context.diagnositicEngine.hasErrors)
 }
@@ -341,21 +341,21 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func inheritedMemberResolvedThroughImplicitMember() {
+@Test func inheritedMemberResolvedThroughImplicitMember() throws {
     let (context, probe) = probe(
         "class A { func base() {} } class B: A { func m() { .base } }")
-    #expect(probe.implicitMembers.count == 1)
+    try #require(probe.implicitMembers.count == 1)
     #expect(probe.implicitMembers[0].overloads?.count == 1)
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func keyPathRootResolvedToType() {
+@Test func keyPathRootResolvedToType() throws {
     let (context, probe) = probe("struct Person { var name: Int } func f() { let k = \\Person.name }")
     let keyPath = probe.keyPaths[0]
     let root = keyPath.root as? AST.Variable
     #expect(root?.symbol is Symbol.NominalTypeSymbol)
     #expect((root?.symbol as? Symbol.NominalTypeSymbol)?.name == "Person")
-    #expect(keyPath.components.count == 1)
+    try #require(keyPath.components.count == 1)
     #expect(keyPath.components[0].symbol is Symbol.VariableSymbol)
     #expect(!context.diagnositicEngine.hasErrors)
 }
@@ -431,9 +431,9 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func extensionSelfResolved() {
+@Test func extensionSelfResolved() throws {
     let (context, probe) = probe("struct S { var x: Int } extension S { func m() { self } }")
-    #expect(probe.selfExpressions.count == 1)
+    try #require(probe.selfExpressions.count == 1)
     #expect(probe.selfExpressions[0].symbol?.name == "S")
     #expect(!context.diagnositicEngine.hasErrors)
 }
@@ -446,9 +446,9 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func extensionImplicitMemberResolved() {
+@Test func extensionImplicitMemberResolved() throws {
     let (context, probe) = probe("struct S { var f: Int } extension S { func m() { .f } }")
-    #expect(probe.implicitMembers.count == 1)
+    try #require(probe.implicitMembers.count == 1)
     #expect(probe.implicitMembers[0].symbol is Symbol.VariableSymbol)
     #expect(!context.diagnositicEngine.hasErrors)
 }
@@ -462,10 +462,10 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func extensionSuperResolved() {
+@Test func extensionSuperResolved() throws {
     let (context, probe) = probe(
         "class A {} class B: A {} extension B { func m() { super } }")
-    #expect(probe.superExpressions.count == 1)
+    try #require(probe.superExpressions.count == 1)
     #expect(probe.superExpressions[0].symbol?.name == "A")
     #expect(!context.diagnositicEngine.hasErrors)
 }

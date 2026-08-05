@@ -6,23 +6,23 @@ func resolvedMessages(_ context: Context) -> [String] {
     context.diagnositicEngine.diagnostics.map(\.message)
 }
 
-@Test func resolveHigherThan() {
+@Test func resolveHigherThan() throws {
     let (_, table, _) = runResolved([
         "precedencegroup A {} precedencegroup B {} precedencegroup C { higherThan: B }",
     ])
     let b = table.root.precedenceGroups["B"]!
     let c = table.root.precedenceGroups["C"]!
-    #expect(c.resolvedHigherThan.count == 1)
+    try #require(c.resolvedHigherThan.count == 1)
     #expect(c.resolvedHigherThan[0] === b)
 }
 
-@Test func resolveLowerThan() {
+@Test func resolveLowerThan() throws {
     let (_, table, _) = runResolved([
         "precedencegroup A {} precedencegroup B {} precedencegroup C { lowerThan: A }",
     ])
     let a = table.root.precedenceGroups["A"]!
     let c = table.root.precedenceGroups["C"]!
-    #expect(c.resolvedLowerThan.count == 1)
+    try #require(c.resolvedLowerThan.count == 1)
     #expect(c.resolvedLowerThan[0] === a)
 }
 
@@ -97,12 +97,12 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(info.defaultGroup == nil)
 }
 
-@Test func unknownReferenceReportsError() {
+@Test func unknownReferenceReportsError() throws {
     let (context, table, _) = runResolved(["precedencegroup A { higherThan: Nope }"])
     #expect(context.diagnositicEngine.hasErrors)
     #expect(resolvedMessages(context).contains("unknown precedence group 'Nope'"))
     let a = table.root.precedenceGroups["A"]!
-    #expect(a.resolvedHigherThan.count == 1)
+    try #require(a.resolvedHigherThan.count == 1)
     #expect(a.resolvedHigherThan[0] == nil)
 }
 
@@ -253,12 +253,12 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(b.resolvedLowerThan[0] === a)
 }
 
-@Test func nonReferenceFormReportsError() {
+@Test func nonReferenceFormReportsError() throws {
     let (context, table, _) = runResolved(["precedencegroup A { higherThan: 42 }"])
     #expect(context.diagnositicEngine.hasErrors)
     #expect(resolvedMessages(context).contains("expected a precedence group reference"))
     let a = table.root.precedenceGroups["A"]!
-    #expect(a.resolvedHigherThan.count == 1)
+    try #require(a.resolvedHigherThan.count == 1)
     #expect(a.resolvedHigherThan[0] == nil)
 }
 
