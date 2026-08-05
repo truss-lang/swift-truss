@@ -16,7 +16,7 @@ import TrussCore
 
 @Test func pendingNestedExtensionConvergence() {
     let (context, program) = runEnter([
-        "struct A {} extension A.B { class C {} } extension A { class B {} }",
+        "struct A {} extension A.B { class C {} } extension A { class B {} }"
     ])
     let packageScope = program[0].packageSymbol!.scope
     let a = packageScope.types["A"] as! Symbol.NominalTypeSymbol
@@ -79,7 +79,7 @@ import TrussCore
 
 @Test func extensionMemberKindConflictAtMerge() {
     let (context, _) = runEnter([
-        "struct A {} extension A { var v: Int } extension A { var v: Int }",
+        "struct A {} extension A { var v: Int } extension A { var v: Int }"
     ])
     #expect(context.diagnositicEngine.hasErrors)
     let messages = context.diagnositicEngine.diagnostics.map(\.message)
@@ -120,7 +120,7 @@ import TrussCore
 
 @Test func genericParamsOnTypeAndFunction() {
     let (context, program) = runEnter([
-        "struct S3<E, each T> {} func f<G>() {}",
+        "struct S3<E, each T> {} func f<G>() {}"
     ])
     let packageScope = program[0].packageSymbol!.scope
     let s3 = packageScope.types["S3"] as! Symbol.NominalTypeSymbol
@@ -133,7 +133,7 @@ import TrussCore
 
 @Test func initAndSubscriptSymbols() {
     let (context, program) = runEnter([
-        "struct S { init() {} subscript(i: Int) -> Int { 0 } }",
+        "struct S { init() {} subscript(i: Int) -> Int { 0 } }"
     ])
     let packageScope = program[0].packageSymbol!.scope
     let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
@@ -159,7 +159,7 @@ import TrussCore
 
 @Test func nestedTypeInExtension() {
     let (context, program) = runEnter([
-        "struct A {} extension A { class B { class D {} } }",
+        "struct A {} extension A { class B { class D {} } }"
     ])
     let packageScope = program[0].packageSymbol!.scope
     let a = packageScope.types["A"] as! Symbol.NominalTypeSymbol
@@ -171,10 +171,10 @@ import TrussCore
 
 @Test func extensionInsideModuleResolvesInModuleScope() {
     let (context, program) = runEnter([
-        "module M { struct T {} extension T { func f() {} } }",
+        "module M { struct T {} extension T { func f() {} } }"
     ])
     let packageScope = program[0].packageSymbol!.scope
-    let m = packageScope.modules["M"] as? Symbol.ModuleSymbol
+    let m = packageScope.modules["M"]
     let t = m?.scope.types["T"] as? Symbol.NominalTypeSymbol
     #expect(t != nil)
     #expect(t!.scope.values["f"] != nil)
@@ -184,7 +184,7 @@ import TrussCore
 
 @Test func overloadedFunctionsAcrossExtensions() {
     let (context, program) = runEnter([
-        "struct A {} extension A { func f() {} } extension A { func f(x: Int) {} }",
+        "struct A {} extension A { func f() {} } extension A { func f(x: Int) {} }"
     ])
     let packageScope = program[0].packageSymbol!.scope
     let a = packageScope.types["A"] as! Symbol.NominalTypeSymbol

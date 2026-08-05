@@ -157,6 +157,7 @@ public final class Parser {
                 case .TypeAlias: statement = parseTypeAliasDecl(modifiers, attributes)
                 case .Module: statement = parseModuleDecl(modifiers, attributes)
                 case .PrecedenceGroup: statement = parsePrecedenceGroupDecl(modifiers, attributes)
+                case .Operator: statement = parseOperatorDecl(modifiers, attributes)
                 case .Struct: statement = parseStructDecl(modifiers, attributes)
                 case .Class: statement = parseClassDecl(modifiers, attributes)
                 case .Enum: statement = parseEnumDecl(modifiers, attributes)
@@ -164,7 +165,6 @@ public final class Parser {
                 case .Extension: statement = parseExtensionDecl(modifiers, attributes)
                 case .Actor: statement = parseActorDecl(modifiers, attributes)
                 case .Func: statement = parseFunctionDecl(modifiers, attributes)
-                case .Operator: statement = parseOperatorDecl(modifiers, attributes)
                 case .Let: statement = parseVariableDecl(modifiers, attributes)
                 case .Var: statement = parseVariableDecl(modifiers, attributes)
                 default: statement = nil
@@ -212,6 +212,7 @@ public final class Parser {
             case .TypeAlias: return parseTypeAliasDecl(modifiers, attributes)
             case .Module: return parseModuleDecl(modifiers, attributes)
             case .PrecedenceGroup: return parsePrecedenceGroupDecl(modifiers, attributes)
+            case .Operator: return parseOperatorDecl(modifiers, attributes)
             case .Struct: return parseStructDecl(modifiers, attributes)
             case .Class: return parseClassDecl(modifiers, attributes)
             case .Enum: return parseEnumDecl(modifiers, attributes)
@@ -219,7 +220,6 @@ public final class Parser {
             case .Actor: return parseActorDecl(modifiers, attributes)
             case .Extension: return parseExtensionDecl(modifiers, attributes)
             case .Func: return parseFunctionDecl(modifiers, attributes)
-            case .Operator: return parseOperatorDecl(modifiers, attributes)
             case .Let: return parseVariableDecl(modifiers, attributes)
             case .Var: return parseVariableDecl(modifiers, attributes)
             default: return nil
@@ -1692,7 +1692,6 @@ public final class Parser {
         case let .Keyword(kind):
             switch kind {
             case .TypeAlias: return parseTypeAliasDecl(modifiers, attributes)
-            case .PrecedenceGroup: return parsePrecedenceGroupDecl(modifiers, attributes)
             case .Struct: return parseStructDecl(modifiers, attributes)
             case .Class: return parseClassDecl(modifiers, attributes)
             case .Enum: return parseEnumDecl(modifiers, attributes)
@@ -1895,7 +1894,6 @@ public final class Parser {
         case let .Keyword(kind):
             switch kind {
             case .Func: return parseFunctionDecl(modifiers, attributes)
-            case .Operator: return parseOperatorDecl(modifiers, attributes)
             case .Let: return parseVariableDecl(modifiers, attributes, inFunctionContext: true)
             case .Var: return parseVariableDecl(modifiers, attributes, inFunctionContext: true)
             case .Return: return parseReturn()
