@@ -95,8 +95,20 @@ public extension AST {
             switch ty {
             case is TrussType.VoidType: return " ty:VoidType"
             case is TrussType.NeverType: return " ty:NeverType"
-            case let named as TrussType.NamedType: return " ty:NamedType(\(named.name))"
+            case let nominal as TrussType.NominalType:
+                return " ty:\(nominalKind(nominal))(\(nominal.name))"
             default: return " ty:?"
+            }
+        }
+
+        private func nominalKind(_ type: TrussType.NominalType) -> String {
+            switch type {
+            case is TrussType.StructType: "StructType"
+            case is TrussType.ClassType: "ClassType"
+            case is TrussType.EnumType: "EnumType"
+            case is TrussType.ProtocolType: "ProtocolType"
+            case is TrussType.ActorType: "ActorType"
+            default: "NominalType"
             }
         }
 
