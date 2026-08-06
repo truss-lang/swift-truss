@@ -1,6 +1,7 @@
 import SwiftBetterDiagnostic
 import Testing
 import TrussCore
+import TrussOperator
 import TrussSemantics
 import TrussSyntax
 
@@ -13,7 +14,7 @@ func parseProgram(
     let preprocessed = Preprocessor(context: context).process(
         lexerResult, config: PreprocessorConfig()
     )
-    let program = Parser(context: context, packageName: "main", preprocessed).parse()
+    var program = Parser(context: context, packageName: "main", preprocessed).parse()
     if semantic {
         DeclCollector(context: context).visitProgram(program)
         Enter(context: context).visitProgram(program)
@@ -21,7 +22,12 @@ func parseProgram(
         merger.visitProgram(program)
         merger.resolvePending()
         NameResolver(context: context).visitProgram(program)
+        let table = OperatorTable()
+        TrussOperator.DeclCollector(table: table, context: context).visitProgram(program)
+        PrecedenceResolver(table: table, context: context).resolve()
+        program = ExpressionFolder(context: context, table: table).rewrite(program)
         TypeBuilder(context: context).visitProgram(program)
+        TypeResolver(context: context).visitProgram(program)
     }
     return program
 }

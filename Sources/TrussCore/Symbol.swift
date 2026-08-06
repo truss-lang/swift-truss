@@ -77,6 +77,7 @@ public enum Symbol {
     }
 
     public final class TypeAliasSymbol: Symbol {
+        public var targetType: TrussType.TrussType? = nil
         public init(id: Id.SymbolId, name: String) {
             super.init(id, name)
         }
@@ -109,6 +110,7 @@ public enum Symbol {
         public let scope: Scope
         public var locals: [VariableSymbol]
         public let signature: FunctionSignature
+        public var functionType: TrussType.FunctionType? = nil
         public init(
             id: Id.SymbolId, name: String, locals: [VariableSymbol],
             scope: Scope, signature: FunctionSignature
@@ -125,6 +127,7 @@ public enum Symbol {
     }
 
     public final class VariableSymbol: Symbol {
+        public var type: TrussType.TrussType? = nil
         public init(id: Id.SymbolId, name: String) {
             super.init(id, name)
         }

@@ -67,6 +67,29 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.contains("func f()"))
 }
 
+@Test func driverTypeResolverStructuralAnnotations() throws {
+    let file = try writeTemp(
+        "types.truss",
+        """
+        struct S {}
+        struct Box<T> {}
+        typealias A = S
+        let b: S?
+        let g: Box<S>
+        let f: (S) -> S
+        let p: P & Q
+        protocol P {}
+        protocol Q {}
+        """
+    )
+    let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("ty:Optional(StructType(S)#0)"))
+    #expect(result.stdout.contains("ty:Generic(StructType(Box)#1<StructType(S)#0>)"))
+    #expect(result.stdout.contains("ty:Function((StructType(S)#0) -> StructType(S)#0)"))
+    #expect(result.stdout.contains("ty:Composition(ProtocolType(P)#2 & ProtocolType(Q)#3)"))
+}
+
 @Test func driverMissingFileReportsError() {
     let missing = "/nonexistent/truss-\(UUID().uuidString).truss"
     let result = Driver(config: DriverConfig()).run(files: [missing])

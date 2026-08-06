@@ -91,12 +91,47 @@ public extension AST {
 
         private func tyText(_ ty: TrussType.TrussType?) -> String {
             guard let ty else { return "" }
+            return " ty:" + typeText(ty)
+        }
+
+        private func typeText(_ ty: TrussType.TrussType) -> String {
             switch ty {
-            case is TrussType.VoidType: return " ty:VoidType"
-            case is TrussType.NeverType: return " ty:NeverType"
+            case is TrussType.VoidType: return "VoidType"
+            case is TrussType.NeverType: return "NeverType"
             case let nominal as TrussType.NominalType:
-                return " ty:\(nominalKind(nominal))(\(nominal.name))#\(nominal.id.id)"
-            default: return " ty:?"
+                return "\(nominalKind(nominal))(\(nominal.name))#\(nominal.id.id)"
+            case let optional as TrussType.OptionalType:
+                return "Optional(\(typeText(optional.wrapped)))"
+            case let tuple as TrussType.TupleType:
+                return "Tuple([" + tuple.elements.map { element in
+                    if let label = element.label {
+                        return "\(label):\(typeText(element.type))"
+                    }
+                    return typeText(element.type)
+                }.joined(separator: ", ") + "])"
+            case let function as TrussType.FunctionType:
+                var text = "Function(("
+                text += function.parameters.map { parameter in
+                    let type = parameter.type.map(typeText) ?? "?"
+                    if let label = parameter.label {
+                        return "\(label):\(type)"
+                    }
+                    return type
+                }.joined(separator: ", ")
+                text += ")"
+                if function.isAsync { text += " async" }
+                if function.isThrowing { text += " throws" }
+                text += " -> " + (function.returnType.map(typeText) ?? "?") + ")"
+                return text
+            case let composition as TrussType.CompositionType:
+                return "Composition("
+                    + composition.members.map(typeText).joined(separator: " & ") + ")"
+            case let variadic as TrussType.VariadicType:
+                return "Variadic(\(typeText(variadic.base)))"
+            case let generic as TrussType.GenericInstantiation:
+                return "Generic(\(typeText(generic.base))<"
+                    + generic.arguments.map(typeText).joined(separator: ", ") + ">)"
+            default: return "?"
             }
         }
 
