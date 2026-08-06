@@ -871,3 +871,82 @@ public extension AST {
         }
     }
 }
+
+public extension OperatorKind {
+    var genericCloseLevels: Int? {
+        switch self {
+        case .Greater: 1
+        case .RightShift: 2
+        case .RightShiftLogical: 3
+        case .GreaterEqual: 1
+        case .RightShiftAssign: 2
+        case .RightShiftLogicalAssign: 3
+        default: nil
+        }
+    }
+}
+
+public extension AST.SequentialExpression {
+    func genericApplicationGroupCloseIndex() -> Int? {
+        guard let first = ops.first, case .Operator(.Less) = first.kind else { return nil }
+        var depth = 0
+        for (index, op) in ops.enumerated() {
+            switch op.kind {
+            case let .Operator(kind?):
+                if kind == .Less {
+                    depth += 1
+                } else if let levels = kind.genericCloseLevels {
+                    depth -= levels
+                } else {
+                    return nil
+                }
+            case .Separator(.Comma) where depth > 0:
+                continue
+            default:
+                return nil
+            }
+            if depth <= 0 {
+                return index
+            }
+        }
+        return nil
+    }
+
+    func compositionMemberBaseOperands() -> [AST.Expression]? {
+        guard !ops.isEmpty else { return nil }
+        guard case let .Operator(first?) = ops[0].kind, first == .Less || first == .BitAnd
+        else {
+            return nil
+        }
+        guard let firstOperand = operands.first else { return nil }
+        var depth = 0
+        var members: [AST.Expression] = [firstOperand]
+        for op in ops {
+            switch op.kind {
+            case let .Operator(kind?):
+                if kind == .Less {
+                    depth += 1
+                } else if let levels = kind.genericCloseLevels {
+                    depth -= levels
+                } else if kind == .BitAnd, depth == 0 {
+                    guard
+                        let next = operands.first(where: {
+                            $0.sourceRange.start.offset > op.pos.pos + op.pos.len
+                        })
+                    else {
+                        return nil
+                    }
+                    members.append(next)
+                } else {
+                    return nil
+                }
+            case .Separator(.Comma) where depth > 0:
+                continue
+            default:
+                return nil
+            }
+        }
+        guard depth == 0 else { return nil }
+        return members
+    }
+}

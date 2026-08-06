@@ -41,21 +41,42 @@ public final class ExpressionFolder: AST.Rewriter {
             super.visitSequentialExpression(sequentialExpression, additional: additional)
                 as? AST.SequentialExpression ?? sequentialExpression
         guard !rewritten.ops.isEmpty, ranks != nil else { return rewritten }
-        guard let folded = fold(rewritten) else { return rewritten }
+        guard let folded = foldGeneric(rewritten) ?? fold(rewritten) else { return rewritten }
         copySemanticFields(from: rewritten, to: folded)
         return folded
     }
 
+    private func foldGeneric(_ sequence: AST.SequentialExpression) -> AST.Expression? {
+        guard let extraction = extractGenericApplication(sequence) else { return nil }
+        let (application, restOps, restOperands) = extraction
+        if restOps.isEmpty, restOperands.isEmpty {
+            return application
+        }
+        guard
+            let folded = foldRest(
+                sequence, head: application, ops: restOps, operands: restOperands
+            )
+        else {
+            return sequence
+        }
+        return folded
+    }
+
     private func fold(_ sequence: AST.SequentialExpression) -> AST.Expression? {
-        let ops = sequence.ops
-        let operands = sequence.operands
+        foldRest(sequence, head: nil, ops: sequence.ops, operands: sequence.operands)
+    }
+
+    private func foldRest(
+        _ sequence: AST.SequentialExpression, head initialHead: AST.Expression?,
+        ops: [Token], operands: [AST.Expression]
+    ) -> AST.Expression? {
         var opIndex = 0
         var operandIndex = 0
         var pendingPrefix: [Token] = []
-        var head: AST.Expression? = nil
+        var head: AST.Expression? = initialHead
         var chainOperands: [AST.Expression] = []
         var chainOps: [Token] = []
-        var awaitingOperand = true
+        var awaitingOperand = initialHead == nil
         while opIndex < ops.count || operandIndex < operands.count {
             let opPosition = opIndex < ops.count ? ops[opIndex].pos.pos : Int.max
             let operandPosition =
@@ -325,5 +346,155 @@ public final class ExpressionFolder: AST.Rewriter {
 
     private func reachable(_ from: PrecedenceGroupInfo, _ to: PrecedenceGroupInfo) -> Bool {
         reachability[ObjectIdentifier(from)]?.contains(ObjectIdentifier(to)) ?? false
+    }
+
+    private struct GenericLevel {
+        var base: AST.Expression
+        var args: [AST.Expression] = []
+        var current: AST.Expression? = nil
+    }
+
+    private func extractGenericApplication(
+        _ sequence: AST.SequentialExpression
+    ) -> (AST.GenericApplication, [Token], [AST.Expression])? {
+        guard let closeIndex = sequence.genericApplicationGroupCloseIndex() else { return nil }
+        let operands = sequence.operands
+        let ops = sequence.ops
+        guard operands.count >= 2 else { return nil }
+        guard isTypeSymbol(baseSymbol(operands[0])) else { return nil }
+
+        var stack: [GenericLevel] = [GenericLevel(base: operands[0])]
+        var operandIndex = 1
+        var opIndex = 1
+        var extraGtCount = 0
+        var assignRemainder = false
+        var lastApplication: AST.GenericApplication? = nil
+
+        while opIndex <= closeIndex {
+            let op = ops[opIndex]
+            switch op.kind {
+            case .Operator(.Less):
+                guard operandIndex < operands.count else { return nil }
+                stack.append(GenericLevel(base: operands[operandIndex]))
+                operandIndex += 1
+            case .Separator(.Comma):
+                if let current = stack[stack.count - 1].current {
+                    stack[stack.count - 1].args.append(current)
+                    stack[stack.count - 1].current = nil
+                } else {
+                    guard operandIndex < operands.count else { return nil }
+                    stack[stack.count - 1].args.append(operands[operandIndex])
+                    operandIndex += 1
+                }
+            case let .Operator(kind?):
+                guard let levels = kind.genericCloseLevels else { return nil }
+                if operandIndex < operands.count {
+                    stack[stack.count - 1].current = operands[operandIndex]
+                    operandIndex += 1
+                }
+                var closedCount = 0
+                while closedCount < levels {
+                    if stack.isEmpty {
+                        extraGtCount += 1
+                        closedCount += 1
+                        continue
+                    }
+                    if let current = stack[stack.count - 1].current {
+                        stack[stack.count - 1].args.append(current)
+                        stack[stack.count - 1].current = nil
+                    }
+                    let level = stack.removeLast()
+                    let application = AST.GenericApplication(
+                        level.base, level.args,
+                        sourceRange: SourceRange(
+                            start: level.base.sourceRange.start,
+                            end: closingEnd(of: op, in: sequence)
+                        )
+                    )
+                    if !stack.isEmpty {
+                        stack[stack.count - 1].current = application
+                    } else {
+                        lastApplication = application
+                    }
+                    closedCount += 1
+                }
+                if kind == .GreaterEqual || kind == .RightShiftAssign
+                    || kind == .RightShiftLogicalAssign
+                {
+                    assignRemainder = true
+                }
+            default:
+                return nil
+            }
+            opIndex += 1
+        }
+        guard let application = lastApplication else { return nil }
+
+        var remainderOps: [Token] = []
+        if extraGtCount > 0 || assignRemainder {
+            let closer = ops[closeIndex]
+            for _ in 0 ..< extraGtCount {
+                remainderOps.append(
+                    Token(
+                        value: ">", kind: .Operator(.Greater),
+                        pos: Position(
+                            pos: closer.pos.pos, line: closer.pos.line,
+                            col: closer.pos.col, len: 1
+                        ),
+                        id: closer.id
+                    )
+                )
+            }
+            if assignRemainder {
+                remainderOps.append(
+                    Token(
+                        value: "=", kind: .Operator(.Assign),
+                        pos: Position(
+                            pos: closer.pos.pos, line: closer.pos.line,
+                            col: closer.pos.col, len: 1
+                        ),
+                        id: closer.id
+                    )
+                )
+            }
+        }
+        remainderOps += ops[(closeIndex + 1)...]
+        let remainingOperands = Array(operands[operandIndex...])
+        return (application, remainderOps, remainingOperands)
+    }
+
+    private func closingEnd(
+        of token: Token, in sequence: AST.SequentialExpression
+    ) -> SourceLocation {
+        SourceLocation(
+            buffer: sequence.sourceRange.start.buffer,
+            offset: token.pos.pos + token.pos.len,
+            line: token.pos.line,
+            column: token.pos.col + token.pos.len
+        )
+    }
+
+    private func baseSymbol(_ expression: AST.Expression) -> Symbol.Symbol? {
+        if let variable = expression as? AST.Variable {
+            return variable.symbol
+        }
+        if let memberAccess = expression as? AST.MemberAccess {
+            return memberAccess.symbol
+        }
+        if let selfExpression = expression as? AST.SelfExpression {
+            return selfExpression.symbol
+        }
+        if let superExpression = expression as? AST.SuperExpression {
+            return superExpression.symbol
+        }
+        return nil
+    }
+
+    private func isTypeSymbol(_ symbol: Symbol.Symbol?) -> Bool {
+        guard let symbol else { return false }
+        return symbol is Symbol.NominalTypeSymbol
+            || symbol is Symbol.TypeAliasSymbol
+            || symbol is Symbol.GenericParamSymbol
+            || symbol is Symbol.AssociatedTypeSymbol
     }
 }

@@ -80,7 +80,7 @@ let package = Package(
         .testTarget(
             name: "TrussOperatorTests",
             dependencies: [
-                "TrussOperator", "TrussSyntax", "TrussCore",
+                "TrussOperator", "TrussSyntax", "TrussCore", "TrussSemantics",
                 .product(name: "SwiftBetterDiagnostic", package: "swift-better-diagnostic"),
             ]
         ),

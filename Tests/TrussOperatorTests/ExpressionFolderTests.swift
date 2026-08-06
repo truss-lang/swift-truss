@@ -332,3 +332,119 @@ func variable(_ expr: AST.Expression?, _ name: String) -> Bool {
     #expect(!context.diagnositicEngine.hasErrors)
     #expect(firstBodyExpression(programs[0]) is AST.SequentialExpression)
 }
+
+@Test func genericApplicationFoldsSingleArg() {
+    let (context, _, programs) = runFolded([
+        "struct Array {} func main() { Array<Int32> }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let app = firstBodyExpression(programs[0]) as? AST.GenericApplication
+    #expect(variable(app?.base, "Array"))
+    #expect(app?.genericArguments.count == 1)
+    #expect(variable(app?.genericArguments.first, "Int32"))
+}
+
+@Test func genericApplicationFoldsMultipleArgs() {
+    let (context, _, programs) = runFolded([
+        "struct Array {} func main() { Array<Int32, String> }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let app = firstBodyExpression(programs[0]) as? AST.GenericApplication
+    #expect(variable(app?.base, "Array"))
+    #expect(app?.genericArguments.count == 2)
+    #expect(variable(app?.genericArguments[0], "Int32"))
+    #expect(variable(app?.genericArguments[1], "String"))
+}
+
+@Test func genericApplicationFoldsNested() {
+    let (context, _, programs) = runFolded([
+        "struct Array {} func main() { Array<Array<Int32>> }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let app = firstBodyExpression(programs[0]) as? AST.GenericApplication
+    #expect(variable(app?.base, "Array"))
+    #expect(app?.genericArguments.count == 1)
+    let inner = app?.genericArguments[0] as? AST.GenericApplication
+    #expect(variable(inner?.base, "Array"))
+    #expect(variable(inner?.genericArguments.first, "Int32"))
+}
+
+@Test func genericApplicationThenInfixFolds() {
+    let (context, _, programs) = runFolded([
+        "struct Array {} precedencegroup P { associativity: left } infix operator +: P "
+            + "func main() { Array<Int32> + 1 }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let root = binary(firstBodyExpression(programs[0]), op: "+")
+    let left = root?.left as? AST.GenericApplication
+    #expect(variable(left?.base, "Array"))
+    #expect(variable(left?.genericArguments.first, "Int32"))
+    #expect(integer(root?.right, "1"))
+}
+
+@Test func genericApplicationCallAndMemberAccess() {
+    let (context, _, programs) = runFolded([
+        "struct Array {} func main() { Array<Int32>()\nArray<Int32>.f }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let call = bodyExpression(programs[0], at: 0) as? AST.Call
+    #expect((call?.callee as? AST.GenericApplication) != nil)
+    #expect(call?.arguments.isEmpty == true)
+    let member = bodyExpression(programs[0], at: 1) as? AST.MemberAccess
+    #expect((member?.object as? AST.GenericApplication) != nil)
+    #expect(member?.member.value == "f")
+}
+
+@Test func genericApplicationAssignRemainder() {
+    let (context, _, programs) = runFolded([
+        "struct X<T> {} precedencegroup P {} infix operator =: P func main() { X<Int32>=5 }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let root = binary(firstBodyExpression(programs[0]), op: "=")
+    let left = root?.left as? AST.GenericApplication
+    #expect(variable(left?.base, "X"))
+    #expect(variable(left?.genericArguments.first, "Int32"))
+    #expect(integer(root?.right, "5"))
+}
+
+@Test func genericApplicationMemberBase() {
+    let (context, _, programs) = runFolded([
+        "struct Outer { struct Inner {} } func main() { Outer.Inner<Int32> }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let app = firstBodyExpression(programs[0]) as? AST.GenericApplication
+    let base = app?.base as? AST.MemberAccess
+    #expect(base?.member.value == "Inner")
+    #expect(variable(app?.genericArguments.first, "Int32"))
+}
+
+@Test func genericApplicationGenericParamBase() {
+    let (context, _, programs) = runFolded([
+        "struct S<T> {} func main() { S<T> }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let app = firstBodyExpression(programs[0]) as? AST.GenericApplication
+    #expect(variable(app?.base, "S"))
+    #expect(variable(app?.genericArguments.first, "T"))
+}
+
+@Test func comparisonChainNotMisFolded() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup P { associativity: left } infix operator <: P infix operator >: P "
+            + "func main() { 1 < 2 > 3 }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let root = binary(firstBodyExpression(programs[0]), op: ">")
+    #expect(binary(root?.left, op: "<") != nil)
+    #expect(integer(root?.right, "3"))
+}
+
+@Test func singleComparisonNotMisFolded() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup P { associativity: left } infix operator <: P func main() { a < b }",
+    ])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let root = binary(firstBodyExpression(programs[0]), op: "<")
+    #expect(variable(root?.left, "a"))
+    #expect(variable(root?.right, "b"))
+}

@@ -55,6 +55,23 @@ private func packageScope(_ programs: [AST.Program]) -> Scope {
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
+@Test func genericProtocolConformanceResolved() {
+    let (context, programs) = runEnter(["protocol P {} struct S: P<Int32> {}"])
+    NameResolver(context: context).visitProgram(programs[0])
+    let s = packageScope(programs).types["S"] as! Symbol.StructSymbol
+    #expect(s.conformances.map(\.name) == ["P"])
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func genericProtocolCompositionResolved() {
+    let (context, programs) = runEnter(
+        ["protocol P {} protocol Q {} struct S: P<Int32> & Q {}"])
+    NameResolver(context: context).visitProgram(programs[0])
+    let s = packageScope(programs).types["S"] as! Symbol.StructSymbol
+    #expect(s.conformances.map(\.name) == ["P", "Q"])
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
 @Test func unknownConformanceSilentlyIgnored() {
     let (context, programs) = runEnter(["struct S: Unknown {}"])
     NameResolver(context: context).visitProgram(programs[0])
