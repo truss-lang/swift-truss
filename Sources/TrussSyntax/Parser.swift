@@ -171,6 +171,23 @@ public final class Parser {
                 case .Func: statement = parseFunctionDecl(modifiers, attributes)
                 case .Let: statement = parseVariableDecl(modifiers, attributes)
                 case .Var: statement = parseVariableDecl(modifiers, attributes)
+                case .Async:
+                    let asyncToken = next!
+                    if let t = peek, case let .Keyword(kind) = t.kind,
+                       kind == .Let || kind == .Var
+                    {
+                        statement = parseVariableDecl(modifiers, attributes, asyncToken: asyncToken)
+                    } else {
+                        if let t = peek {
+                            emitError(
+                                "expected 'let' or 'var' after 'async', but got '\(t.value)'",
+                                at: t
+                            )
+                        } else {
+                            emitError("expected 'let' or 'var' after 'async'", at: endOfFile)
+                        }
+                        statement = errorStatement(from: asyncToken, to: asyncToken)
+                    }
                 default:
                     emitError("expected statement, but got '\(token.value)'", at: token)
                     index += 1
@@ -244,6 +261,21 @@ public final class Parser {
             case .Func: return parseFunctionDecl(modifiers, attributes)
             case .Let: return parseVariableDecl(modifiers, attributes)
             case .Var: return parseVariableDecl(modifiers, attributes)
+            case .Async:
+                let asyncToken = next!
+                if let t = peek, case let .Keyword(kind) = t.kind,
+                   kind == .Let || kind == .Var
+                {
+                    return parseVariableDecl(modifiers, attributes, asyncToken: asyncToken)
+                }
+                if let t = peek {
+                    emitError(
+                        "expected 'let' or 'var' after 'async', but got '\(t.value)'", at: t
+                    )
+                } else {
+                    emitError("expected 'let' or 'var' after 'async'", at: endOfFile)
+                }
+                return errorStatement(from: asyncToken, to: asyncToken)
             default: return nil
             }
         case let .Separator(kind):
@@ -1525,7 +1557,7 @@ public final class Parser {
                 }
             }
         }
-        let throwsClause = parseThrowsClause()
+        let (asyncToken, throwsClause) = parseClosureEffects()
         guard peek?.kind == .Separator(.Arrow) else {
             if let tok = peek {
                 emitError("expected '->' after subscript parameters", at: tok)
@@ -1559,8 +1591,8 @@ public final class Parser {
             }
         }
         return AST.SubscriptDecl(
-            modifiers, attributes, token, genericDecl, parameters, throwsClause, returnType,
-            body,
+            modifiers, attributes, token, genericDecl, parameters, asyncToken, throwsClause,
+            returnType, body,
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
@@ -1813,6 +1845,21 @@ public final class Parser {
             case .AssociatedType: return parseAssociatedTypeDecl(modifiers, attributes)
             case .Let: return parseVariableDecl(modifiers, attributes)
             case .Var: return parseVariableDecl(modifiers, attributes)
+            case .Async:
+                let asyncToken = next!
+                if let t = peek, case let .Keyword(kind) = t.kind,
+                   kind == .Let || kind == .Var
+                {
+                    return parseVariableDecl(modifiers, attributes, asyncToken: asyncToken)
+                }
+                if let t = peek {
+                    emitError(
+                        "expected 'let' or 'var' after 'async', but got '\(t.value)'", at: t
+                    )
+                } else {
+                    emitError("expected 'let' or 'var' after 'async'", at: endOfFile)
+                }
+                return errorStatement(from: asyncToken, to: asyncToken)
             default:
                 index += 1
                 emitError("expected a statement, but got \(token.value)", at: token)
@@ -1890,7 +1937,7 @@ public final class Parser {
                 emitError("expected ')' after initializer parameters", at: endOfFile)
             }
         }
-        let throwsClause = parseThrowsClause()
+        let (asyncToken, throwsClause) = parseClosureEffects()
         guard let t3 = peek else {
             emitError("expected '{' after initializer parameters", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -1925,7 +1972,7 @@ public final class Parser {
         }
         return AST.InitDecl(
             modifiers, attributes, token, optionalToken, genericDecl, parameters,
-            throwsClause, body,
+            asyncToken, throwsClause, body,
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
@@ -2003,6 +2050,23 @@ public final class Parser {
             case .Func: return parseFunctionDecl(modifiers, attributes)
             case .Let: return parseVariableDecl(modifiers, attributes, inFunctionContext: true)
             case .Var: return parseVariableDecl(modifiers, attributes, inFunctionContext: true)
+            case .Async:
+                let asyncToken = next!
+                if let t = peek, case let .Keyword(kind) = t.kind,
+                   kind == .Let || kind == .Var
+                {
+                    return parseVariableDecl(
+                        modifiers, attributes, inFunctionContext: true, asyncToken: asyncToken
+                    )
+                }
+                if let t = peek {
+                    emitError(
+                        "expected 'let' or 'var' after 'async', but got '\(t.value)'", at: t
+                    )
+                } else {
+                    emitError("expected 'let' or 'var' after 'async'", at: endOfFile)
+                }
+                return errorStatement(from: asyncToken, to: asyncToken)
             case .Return: return parseReturn()
             case .Throw: return parseThrow()
             case .While: return parseWhile()
@@ -2117,7 +2181,7 @@ public final class Parser {
                 emitError("expected ')' after function parameters", at: endOfFile)
             }
         }
-        let throwsClause = parseThrowsClause()
+        let (asyncToken, throwsClause) = parseClosureEffects()
         let returnTypeExpression: AST.Expression?
         if let t = peek, case .Separator(.Arrow) = t.kind {
             index += 1
@@ -2169,7 +2233,7 @@ public final class Parser {
         }
         return AST.FunctionDecl(
             modifiers, attributes, token, name, genericDecl, parameters, varargToken,
-            throwsClause, returnTypeExpression, body,
+            asyncToken, throwsClause, returnTypeExpression, body,
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
@@ -2215,6 +2279,27 @@ public final class Parser {
             token, types,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
+    }
+
+    private func parseClosureEffects() -> (asyncToken: Token?, throwsClause: AST.ThrowsClause?) {
+        var asyncToken: Token?
+        var throwsClause: AST.ThrowsClause?
+        var sawAsync = false
+        var sawThrows = false
+        _loop: while let t = peek {
+            switch t.kind {
+            case .Keyword(.Async) where !sawAsync:
+                sawAsync = true
+                index += 1
+                asyncToken = t
+            case .Keyword(.Throws) where !sawThrows:
+                sawThrows = true
+                throwsClause = parseThrowsClause()
+            default:
+                break _loop
+            }
+        }
+        return (asyncToken, throwsClause)
     }
 
     private func parseFunctionParameter() -> AST.FunctionDecl.Parameter {
@@ -2267,7 +2352,8 @@ public final class Parser {
     }
 
     private func parseVariableDecl(
-        _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], inFunctionContext: Bool = false
+        _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute],
+        inFunctionContext: Bool = false, asyncToken: Token? = nil
     )
         -> AST.Statement
     {
@@ -2372,8 +2458,8 @@ public final class Parser {
             accessors = []
         }
         return AST.VariableDecl(
-            modifiers, attributes, token, internalToken, name, typeExpression, initializer,
-            accessors, sourceRange: SourceRange(from: token, to: last!, in: buffer)
+            modifiers, attributes, token, asyncToken, internalToken, name, typeExpression,
+            initializer, accessors, sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
 
@@ -4058,25 +4144,39 @@ public final class Parser {
                 switch kind {
                 case .Arrow:
                     if inPatternContext { break _loop }
-                    expression = parseClosureType(expression, nil, excepts)
+                    guard let parameters = closureTypeParameters(from: expression) else {
+                        break _loop
+                    }
+                    expression = parseClosureType(
+                        parameters, nil, nil, excepts, startRange: expression.sourceRange
+                    )
                 default: break _loop
                 }
-            case .Keyword(.Throws):
+            case .Keyword(.Throws), .Keyword(.Async):
                 switch expression {
-                case is AST.ParentheticalExpression, is AST.TupleExpression:
-                    let throwsClause = parseThrowsClause()
+                case is AST.ParentheticalExpression, is AST.TupleExpression, is AST.VoidLiteral:
+                    guard let parameters = closureTypeParameters(from: expression) else {
+                        break _loop
+                    }
+                    let (asyncToken, throwsClause) = parseClosureEffects()
                     guard let t = peek, case .Separator(.Arrow) = t.kind else {
                         if let tok = peek {
                             emitError(
-                                "expected '->' after 'throws' in closure type, but got '\(tok.value)'",
+                                "expected '->' after '\(asyncToken != nil ? "async" : "throws")' in closure type, but got '\(tok.value)'",
                                 at: tok
                             )
                         } else {
-                            emitError("expected '->' after 'throws' in closure type", at: endOfFile)
+                            emitError(
+                                "expected '->' after '\(asyncToken != nil ? "async" : "throws")' in closure type",
+                                at: endOfFile
+                            )
                         }
                         break _loop
                     }
-                    expression = parseClosureType(expression, throwsClause, excepts)
+                    expression = parseClosureType(
+                        parameters, asyncToken, throwsClause, excepts,
+                        startRange: expression.sourceRange
+                    )
                 default: break _loop
                 }
             default: break _loop
@@ -4598,8 +4698,6 @@ public final class Parser {
         let signature: AST.ClosureSignature?
         if peek?.kind == .Separator(.OpenParen) || peek?.kind == .Separator(.OpenBracket) {
             signature = parseClosureSignature()
-        } else if let t = peek, t.kind == .Keyword(.Async) {
-            signature = parseClosureSignature()
         } else if let t = peek, case .Identifier = t.kind,
                   let t2 = peek2, case .Identifier = t2.kind, t2.value == "in"
         {
@@ -4642,11 +4740,6 @@ public final class Parser {
         if peek?.kind == .Separator(.OpenBracket) {
             captureList = parseCaptureList()
         }
-        var asyncToken: Token? = nil
-        if let t = peek, t.kind == .Keyword(.Async) {
-            index += 1
-            asyncToken = t
-        }
         var parameters: [AST.FunctionDecl.Parameter] = []
         if peek?.kind == .Separator(.OpenParen) {
             index += 1
@@ -4669,7 +4762,7 @@ public final class Parser {
                 }
             }
         }
-        let throwsClause = parseThrowsClause()
+        let (asyncToken, throwsClause) = parseClosureEffects()
         var returnType: AST.Expression? = nil
         if peek?.kind == .Separator(.Arrow) {
             index += 1
@@ -4754,9 +4847,34 @@ public final class Parser {
         return items
     }
 
+    private func closureTypeParameters(from expression: AST.Expression)
+        -> [AST.ClosureType.Parameter]?
+    {
+        switch expression {
+        case is AST.VoidLiteral:
+            []
+        case let parenthetical as AST.ParentheticalExpression:
+            [
+                AST.ClosureType.Parameter(
+                    label: nil, type: parenthetical.inner,
+                    sourceRange: parenthetical.inner.sourceRange
+                ),
+            ]
+        case let tuple as AST.TupleExpression:
+            tuple.elements.map { element in
+                AST.ClosureType.Parameter(
+                    label: element.label, type: element.value, sourceRange: element.sourceRange
+                )
+            }
+        default:
+            nil
+        }
+    }
+
     private func parseClosureType(
-        _ parameterTypes: AST.Expression, _ throwsClause: AST.ThrowsClause?,
-        _ excepts: [OperatorKind]?
+        _ parameters: [AST.ClosureType.Parameter], _ asyncToken: Token?,
+        _ throwsClause: AST.ThrowsClause?, _ excepts: [OperatorKind]?,
+        startRange: SourceRange
     ) -> AST.ClosureType {
         let token = next!
         if token.kind != .Separator(.Arrow) {
@@ -4769,9 +4887,9 @@ public final class Parser {
             parseExpression(excepts: excepts, isTypeContext: true)
                 ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
         return AST.ClosureType(
-            parameterTypes, throwsClause, returnTypeExpression,
+            parameters, asyncToken, throwsClause, returnTypeExpression,
             sourceRange: SourceRange(
-                start: parameterTypes.sourceRange.start, end: returnTypeExpression.sourceRange.end
+                start: startRange.start, end: returnTypeExpression.sourceRange.end
             )
         )
     }
@@ -5245,15 +5363,6 @@ public final class Parser {
                         AST.Modifier(
                             token: token,
                             kind: .Isolated,
-                            sourceRange: token.sourceRange(in: buffer)
-                        )
-                    )
-                case .Async:
-                    index += 1
-                    modifiers.append(
-                        AST.Modifier(
-                            token: token,
-                            kind: .Async,
                             sourceRange: token.sourceRange(in: buffer)
                         )
                     )

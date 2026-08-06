@@ -20,7 +20,6 @@ extension AST.ModifierKind {
         case .Unowned: "unowned"
         case .Indirect: "indirect"
         case .Isolated: "isolated"
-        case .Async: "async"
         }
     }
 }
@@ -563,6 +562,7 @@ public extension AST {
         {
             var text = declText("InitDecl", initDecl) + symText(initDecl.symbol)
             if initDecl.optionalToken != nil { text += " ?" }
+            if initDecl.asyncToken != nil { text += " async" }
             var children: [() -> Void] = []
             if let genericDecl = initDecl.genericDecl {
                 children.append { self.visitGenericDecl(genericDecl) }
@@ -591,6 +591,7 @@ public extension AST {
         ) -> Any? {
             var text = declText("FunctionDecl \(functionDecl.name.value)", functionDecl)
             if functionDecl.varargToken != nil { text += " [vararg]" }
+            if functionDecl.asyncToken != nil { text += " async" }
             if let throwsClause = functionDecl.throwsClause { text += throwsText(throwsClause) }
             text += symText(functionDecl.symbol)
             var children: [() -> Void] = []
@@ -623,6 +624,7 @@ public extension AST {
             _ variableDecl: VariableDecl, additional: Any? = nil
         ) -> Any? {
             var text = declText("VariableDecl \(variableDecl.name.value)", variableDecl)
+            if variableDecl.asyncToken != nil { text += " async" }
             if variableDecl.internalToken != nil { text += " [internal]" }
             text += symText(variableDecl.symbol)
             var children: [() -> Void] = []
@@ -813,6 +815,7 @@ public extension AST {
             _ subscriptDecl: SubscriptDecl, additional: Any? = nil
         ) -> Any? {
             var text = declText("SubscriptDecl", subscriptDecl) + symText(subscriptDecl.symbol)
+            if subscriptDecl.asyncToken != nil { text += " async" }
             if let throwsClause = subscriptDecl.throwsClause { text += throwsText(throwsClause) }
             var children: [() -> Void] = []
             if let genericDecl = subscriptDecl.genericDecl {
@@ -1139,8 +1142,16 @@ public extension AST {
             _ closureType: ClosureType, additional: Any? = nil
         ) -> Any? {
             var text = "ClosureType"
+            if closureType.asyncToken != nil { text += " async" }
             if let throwsClause = closureType.throwsClause { text += throwsText(throwsClause) }
-            var children: [() -> Void] = [{ self.visit(closureType.parameterTypes) }]
+            var children: [() -> Void] = []
+            for parameter in closureType.parameters {
+                var parameterText = "Parameter"
+                if let label = parameter.label { parameterText += " label:\(label.value)" }
+                children.append {
+                    self.dumpNode(parameterText, children: [{ self.visit(parameter.type) }])
+                }
+            }
             if let throwsClause = closureType.throwsClause {
                 children.append(contentsOf: throwsClauseNodes(throwsClause))
             }

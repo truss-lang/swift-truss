@@ -50,8 +50,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     case (.Abstract, .Abstract), (.Final, .Final), (.Mutating, .Mutating),
          (.Nonmutating, .Nonmutating), (.Convenience, .Convenience),
          (.Override, .Override), (.Lazy, .Lazy), (.Weak, .Weak),
-         (.Unowned, .Unowned), (.Indirect, .Indirect), (.Isolated, .Isolated),
-         (.Async, .Async):
+         (.Unowned, .Unowned), (.Indirect, .Indirect), (.Isolated, .Isolated):
         true
     default: false
     }
@@ -861,6 +860,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(closureType != nil)
     try #require(closureType!.throwsClause != nil)
     #expect(closureType!.throwsClause!.types == nil)
+    #expect(closureType!.parameters.count == 1)
 }
 
 @Test func parseClosureTypeTypedThrows() throws {
@@ -871,6 +871,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let closureType = vd!.typeExpression as? AST.ClosureType
     try #require(closureType != nil)
     try #require(closureType!.throwsClause?.types?.count == 1)
+    #expect(closureType!.parameters.count == 2)
 }
 
 @Test func parseClosureSignatureThrows() throws {
@@ -6318,6 +6319,11 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(vd != nil)
     let closureType = vd!.typeExpression as? AST.ClosureType
     try #require(closureType != nil)
+    try #require(closureType!.parameters.count == 1)
+    #expect(closureType!.parameters[0].label == nil)
+    let parameterType = closureType!.parameters[0].type as? AST.Variable
+    try #require(parameterType != nil)
+    #expect(parameterType!.name.value == "Int32")
     let returnType = closureType!.returnType as? AST.Variable
     try #require(returnType != nil)
     #expect(returnType!.name.value == "Int32")
@@ -6330,6 +6336,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(decl != nil)
     let closureType = decl!.returnTypeExpression as? AST.ClosureType
     #expect(closureType != nil)
+    #expect(closureType!.parameters.count == 1)
 }
 
 @Test func parseClosureTypeInParameter() throws {
@@ -6340,6 +6347,159 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(decl!.parameters.count == 1)
     let closureType = decl!.parameters[0].type as? AST.ClosureType
     #expect(closureType != nil)
+    #expect(closureType!.parameters.count == 1)
+}
+
+@Test func parseClosureTypeEmptyParameters() throws {
+    let body = parseBlockStatements("func main() { let f: () -> Int32 = g }")
+    try #require(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    try #require(vd != nil)
+    let closureType = vd!.typeExpression as? AST.ClosureType
+    try #require(closureType != nil)
+    #expect(closureType!.parameters.isEmpty)
+}
+
+@Test func parseClosureTypeSingleVoidParameter() throws {
+    let body = parseBlockStatements("func main() { let f: (Void) -> Int32 = g }")
+    try #require(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    try #require(vd != nil)
+    let closureType = vd!.typeExpression as? AST.ClosureType
+    try #require(closureType != nil)
+    try #require(closureType!.parameters.count == 1)
+    let parameterType = closureType!.parameters[0].type as? AST.Variable
+    try #require(parameterType != nil)
+    #expect(parameterType!.name.value == "Void")
+}
+
+@Test func parseClosureTypeParameterLabels() throws {
+    let body = parseBlockStatements("func main() { let f: (a: Int32, b: String) -> Bool = g }")
+    try #require(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    try #require(vd != nil)
+    let closureType = vd!.typeExpression as? AST.ClosureType
+    try #require(closureType != nil)
+    try #require(closureType!.parameters.count == 2)
+    #expect(closureType!.parameters[0].label?.value == "a")
+    #expect(closureType!.parameters[1].label?.value == "b")
+}
+
+@Test func parseClosureTypeOptionalParameter() throws {
+    let body = parseBlockStatements("func main() { let f: (Int32?) -> Int32 = g }")
+    try #require(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    try #require(vd != nil)
+    let closureType = vd!.typeExpression as? AST.ClosureType
+    try #require(closureType != nil)
+    try #require(closureType!.parameters.count == 1)
+    #expect(closureType!.parameters[0].type is AST.OptionalType)
+}
+
+@Test func parseClosureTypeVariadicParameter() throws {
+    let body = parseBlockStatements("func main() { let f: (Int32...) -> Int32 = g }")
+    try #require(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    try #require(vd != nil)
+    let closureType = vd!.typeExpression as? AST.ClosureType
+    try #require(closureType != nil)
+    try #require(closureType!.parameters.count == 1)
+    #expect(closureType!.parameters[0].type is AST.VariadicType)
+}
+
+@Test func parseClosureTypeNestedReturn() throws {
+    let body = parseBlockStatements("func main() { let f: (Int32) -> (String) -> Bool = g }")
+    try #require(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    try #require(vd != nil)
+    let closureType = vd!.typeExpression as? AST.ClosureType
+    try #require(closureType != nil)
+    let nested = closureType!.returnType as? AST.ClosureType
+    try #require(nested != nil)
+    #expect(nested!.parameters.count == 1)
+}
+
+@Test func parseClosureTypeAsync() throws {
+    let body = parseBlockStatements("func main() { let f: (Int32) async -> Int32 = g }")
+    try #require(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    try #require(vd != nil)
+    let closureType = vd!.typeExpression as? AST.ClosureType
+    try #require(closureType != nil)
+    #expect(closureType!.asyncToken != nil)
+    try #require(closureType!.parameters.count == 1)
+}
+
+@Test func parseClosureTypeAsyncThrows() throws {
+    let body = parseBlockStatements("func main() { let f: (Int32) async throws -> Int32 = g }")
+    try #require(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    try #require(vd != nil)
+    let closureType = vd!.typeExpression as? AST.ClosureType
+    try #require(closureType != nil)
+    #expect(closureType!.asyncToken != nil)
+    #expect(closureType!.throwsClause != nil)
+}
+
+@Test func parseClosureTypeThrowsAsyncOrder() throws {
+    let body = parseBlockStatements("func main() { let f: (Int32) throws async -> Int32 = g }")
+    try #require(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    try #require(vd != nil)
+    let closureType = vd!.typeExpression as? AST.ClosureType
+    try #require(closureType != nil)
+    #expect(closureType!.asyncToken != nil)
+    #expect(closureType!.throwsClause != nil)
+}
+
+@Test func parseClosureTypeAsyncAsParameter() throws {
+    let statements = parseStatements("func apply(f: ((Int32) async -> Int32) -> Int32) {}")
+    try #require(statements.count == 1)
+    let decl = statements[0] as? AST.FunctionDecl
+    try #require(decl != nil)
+    try #require(decl!.parameters.count == 1)
+    let closureType = decl!.parameters[0].type as? AST.ClosureType
+    try #require(closureType != nil)
+    try #require(closureType!.parameters.count == 1)
+    let parameterClosure = closureType!.parameters[0].type as? AST.ClosureType
+    try #require(parameterClosure != nil)
+    #expect(parameterClosure!.asyncToken != nil)
+}
+
+@Test func parseClosureTypeEmptyParensThrows() throws {
+    let body = parseBlockStatements("func main() { let f: () throws -> Int32 = g }")
+    try #require(body.count == 1)
+    let vd = body[0] as? AST.VariableDecl
+    try #require(vd != nil)
+    let closureType = vd!.typeExpression as? AST.ClosureType
+    try #require(closureType != nil)
+    #expect(closureType!.parameters.isEmpty)
+    #expect(closureType!.throwsClause != nil)
+}
+
+@Test func parseClosureTypeBareParameterReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { let f: Int32 -> Int32 = g }")
+    try #require(!errors.isEmpty)
+}
+
+@Test func parseClosureTypeAsyncWithoutArrowReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { let f: (Int32) async = g }")
+    try #require(errors.contains { $0.message.contains("expected '->' after 'async'") })
+}
+
+@Test func parseAsyncPrefixBeforeFuncReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("async func foo() {}")
+    try #require(errors.contains { $0.message.contains("expected 'let' or 'var' after 'async'") })
+}
+
+@Test func parseAsyncPrefixWithoutBindingReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { async Int32 }")
+    try #require(errors.contains { $0.message.contains("expected 'let' or 'var' after 'async'") })
+}
+
+@Test func parseArrowInExpressionContextReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { let x = a -> b }")
+    try #require(!errors.isEmpty)
 }
 
 // MARK: - String Interpolation (error paths)
@@ -6769,30 +6929,28 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(errors[0].message == "expected expression after 'await'")
 }
 
-@Test func parseAsyncModifierOnFunction() throws {
-    let statements = parseStatements("async func foo() {}")
+@Test func parseAsyncFunction() throws {
+    let statements = parseStatements("func foo() async {}")
+    let decl = statements[0] as? AST.FunctionDecl
+    try #require(decl != nil)
+    #expect(decl!.asyncToken != nil)
+}
+
+@Test func parseAsyncFunctionWithModifiers() throws {
+    let statements = parseStatements("public func foo() async {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
     try #require(decl!.modifiers.count == 1)
-    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Async))
-}
-
-@Test func parseAsyncModifierCombined() throws {
-    let statements = parseStatements("public async func foo() {}")
-    let decl = statements[0] as? AST.FunctionDecl
-    try #require(decl != nil)
-    try #require(decl!.modifiers.count == 2)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Public(setter: false)))
-    #expect(modifierKind(decl!.modifiers[1].kind, equals: .Async))
+    #expect(decl!.asyncToken != nil)
 }
 
-@Test func parseAsyncModifierOnInit() throws {
-    let statements = parseStatements("struct S { async init() {} }")
+@Test func parseAsyncInit() throws {
+    let statements = parseStatements("struct S { init() async {} }")
     let structDecl = statements[0] as? AST.StructDecl
     let initDecl = structDecl!.body[0] as? AST.InitDecl
     try #require(initDecl != nil)
-    try #require(initDecl!.modifiers.count == 1)
-    #expect(modifierKind(initDecl!.modifiers[0].kind, equals: .Async))
+    #expect(initDecl!.asyncToken != nil)
 }
 
 @Test func parseAsyncLetBinding() throws {
@@ -6801,12 +6959,11 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let decl = body[0] as? AST.VariableDecl
     try #require(decl != nil)
     #expect(decl!.name.value == "x")
-    try #require(decl!.modifiers.count == 1)
-    #expect(modifierKind(decl!.modifiers[0].kind, equals: .Async))
+    #expect(decl!.asyncToken != nil)
 }
 
 @Test func parseAsyncClosure() throws {
-    let expr = firstExpression("{ async () in 1 }")
+    let expr = firstExpression("{ () async in 1 }")
     let closure = expr as? AST.Closure
     try #require(closure != nil)
     try #require(closure!.signature != nil)
@@ -6816,7 +6973,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseAsyncClosureWithParams() throws {
-    let expr = firstExpression("{ async (x: Int) in x }")
+    let expr = firstExpression("{ (x: Int) async in x }")
     let closure = expr as? AST.Closure
     try #require(closure != nil)
     let signature = closure!.signature
@@ -6827,7 +6984,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseAsyncClosureThrowsReturnType() throws {
-    let expr = firstExpression("{ async () throws -> Int in 1 }")
+    let expr = firstExpression("{ () async throws -> Int in 1 }")
     let closure = expr as? AST.Closure
     try #require(closure != nil)
     let signature = closure!.signature
@@ -6838,7 +6995,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseAsyncClosureCaptureList() throws {
-    let expr = firstExpression("{ [weak self] async () in 1 }")
+    let expr = firstExpression("{ [weak self] () async in 1 }")
     let closure = expr as? AST.Closure
     try #require(closure != nil)
     let signature = closure!.signature

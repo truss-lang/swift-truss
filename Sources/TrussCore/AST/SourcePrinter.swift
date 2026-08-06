@@ -460,7 +460,13 @@ public final class SourcePrinter: AST.Visitor {
         if initDecl.optionalToken != nil { state.write("?") }
         if let genericDecl = initDecl.genericDecl { state.write(genericDeclText(genericDecl)) }
         state.write(parametersText(initDecl.parameters))
-        if let throwsClause = initDecl.throwsClause { state.write(throwsClauseText(throwsClause)) }
+        if initDecl.asyncToken != nil {
+            state.write(" async")
+        }
+        if let throwsClause = initDecl.throwsClause {
+            state.write(" ")
+            state.write(throwsClauseText(throwsClause))
+        }
         appendBlock(initDecl.body)
         return nil
     }
@@ -484,7 +490,11 @@ public final class SourcePrinter: AST.Visitor {
         if let genericDecl = functionDecl.genericDecl { state.write(genericDeclText(genericDecl)) }
         state.write(
             parametersText(functionDecl.parameters, vararg: functionDecl.varargToken != nil))
+        if functionDecl.asyncToken != nil {
+            state.write(" async")
+        }
         if let throwsClause = functionDecl.throwsClause {
+            state.write(" ")
             state.write(throwsClauseText(throwsClause))
         }
         if let returnTypeExpression = functionDecl.returnTypeExpression {
@@ -508,6 +518,9 @@ public final class SourcePrinter: AST.Visitor {
         _ variableDecl: AST.VariableDecl, additional: Any? = nil
     ) -> Any? {
         state.write(annotations(variableDecl.modifiers, variableDecl.attributes))
+        if variableDecl.asyncToken != nil {
+            state.write("async ")
+        }
         state.write(variableDecl.token.value)
         if let internalToken = variableDecl.internalToken {
             state.write("(" + internalToken.value + ")")
@@ -686,7 +699,11 @@ public final class SourcePrinter: AST.Visitor {
         state.write("subscript")
         if let genericDecl = subscriptDecl.genericDecl { state.write(genericDeclText(genericDecl)) }
         state.write(parametersText(subscriptDecl.parameters))
+        if subscriptDecl.asyncToken != nil {
+            state.write(" async")
+        }
         if let throwsClause = subscriptDecl.throwsClause {
+            state.write(" ")
             state.write(throwsClauseText(throwsClause))
         }
         state.write(" -> ")
@@ -974,8 +991,21 @@ public final class SourcePrinter: AST.Visitor {
     public override func visitClosureType(
         _ closureType: AST.ClosureType, additional: Any? = nil
     ) -> Any? {
-        visit(closureType.parameterTypes)
+        state.write("(")
+        for (index, parameter) in closureType.parameters.enumerated() {
+            if index > 0 { state.write(", ") }
+            if let label = parameter.label {
+                state.write(label.value)
+                state.write(": ")
+            }
+            visit(parameter.type)
+        }
+        state.write(")")
+        if closureType.asyncToken != nil {
+            state.write(" async")
+        }
         if let throwsClause = closureType.throwsClause {
+            state.write(" ")
             state.write(throwsClauseText(throwsClause))
         }
         state.write(" -> ")

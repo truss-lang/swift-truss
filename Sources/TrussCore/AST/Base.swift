@@ -81,7 +81,6 @@ public enum AST {
         case Unowned
         case Indirect
         case Isolated
-        case Async
     }
 
     public final class GenericDecl: AstNode {
