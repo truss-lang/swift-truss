@@ -714,7 +714,8 @@ extension AST {
             }
             let newInitDecl = AST.InitDecl(
                 initDecl.modifiers, initDecl.attributes, initDecl.token, initDecl.optionalToken,
-                genericDecl, parameters, throwsClause, body, sourceRange: initDecl.sourceRange
+                genericDecl, parameters, initDecl.asyncToken, throwsClause, body,
+                sourceRange: initDecl.sourceRange
             )
             copySemanticFields(from: initDecl, to: newInitDecl)
             return newInitDecl
@@ -780,7 +781,8 @@ extension AST {
             let newFunctionDecl = AST.FunctionDecl(
                 functionDecl.modifiers, functionDecl.attributes, functionDecl.token,
                 functionDecl.name, genericDecl, parameters, functionDecl.varargToken,
-                throwsClause, returnTypeExpression, body, sourceRange: functionDecl.sourceRange
+                functionDecl.asyncToken, throwsClause, returnTypeExpression, body,
+                sourceRange: functionDecl.sourceRange
             )
             copySemanticFields(from: functionDecl, to: newFunctionDecl)
             return newFunctionDecl
@@ -831,8 +833,8 @@ extension AST {
             }
             let newVariableDecl = AST.VariableDecl(
                 variableDecl.modifiers, variableDecl.attributes, variableDecl.token,
-                variableDecl.internalToken, variableDecl.name, typeExpression, initializer,
-                accessors, sourceRange: variableDecl.sourceRange
+                variableDecl.asyncToken, variableDecl.internalToken, variableDecl.name,
+                typeExpression, initializer, accessors, sourceRange: variableDecl.sourceRange
             )
             copySemanticFields(from: variableDecl, to: newVariableDecl)
             return newVariableDecl
@@ -1305,17 +1307,26 @@ extension AST {
         open override func visitClosureType(
             _ closureType: AST.ClosureType, additional: Any? = nil
         ) -> Any? {
-            let parameterTypes = rewrite(closureType.parameterTypes)
+            var changed = false
+            let parameters = closureType.parameters.map { parameter -> AST.ClosureType.Parameter in
+                let newType = rewrite(parameter.type)
+                if newType === parameter.type { return parameter }
+                changed = true
+                return AST.ClosureType.Parameter(
+                    label: parameter.label, type: newType, sourceRange: parameter.sourceRange
+                )
+            }
             let throwsClause = rewriteThrowsClause(closureType.throwsClause)
             let returnType = rewrite(closureType.returnType)
-            if parameterTypes === closureType.parameterTypes,
+            if !changed,
                throwsClauseUnchanged(closureType.throwsClause, throwsClause),
                returnType === closureType.returnType
             {
                 return closureType
             }
             let newClosureType = AST.ClosureType(
-                parameterTypes, throwsClause, returnType, sourceRange: closureType.sourceRange
+                parameters, closureType.asyncToken, throwsClause, returnType,
+                sourceRange: closureType.sourceRange
             )
             copySemanticFields(from: closureType, to: newClosureType)
             return newClosureType
@@ -1724,8 +1735,8 @@ extension AST {
             }
             let newSubscriptDecl = AST.SubscriptDecl(
                 subscriptDecl.modifiers, subscriptDecl.attributes, subscriptDecl.token,
-                genericDecl, parameters, throwsClause, returnType, body,
-                sourceRange: subscriptDecl.sourceRange
+                genericDecl, parameters, subscriptDecl.asyncToken, throwsClause, returnType,
+                body, sourceRange: subscriptDecl.sourceRange
             )
             copySemanticFields(from: subscriptDecl, to: newSubscriptDecl)
             return newSubscriptDecl

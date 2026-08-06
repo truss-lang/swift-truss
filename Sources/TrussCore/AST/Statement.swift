@@ -466,19 +466,21 @@ public extension AST {
         public let optionalToken: Token?
         public let genericDecl: GenericDecl?
         public let parameters: [FunctionDecl.Parameter]
+        public let asyncToken: Token?
         public let throwsClause: ThrowsClause?
         public let body: [Statement]
         public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ optionalToken: Token?, _ genericDecl: GenericDecl?,
-            _ parameters: [FunctionDecl.Parameter], _ throwsClause: ThrowsClause?,
-            _ body: [Statement], sourceRange: SourceRange
+            _ parameters: [FunctionDecl.Parameter], _ asyncToken: Token?,
+            _ throwsClause: ThrowsClause?, _ body: [Statement], sourceRange: SourceRange
         ) {
             self.token = token
             self.optionalToken = optionalToken
             self.genericDecl = genericDecl
             self.parameters = parameters
+            self.asyncToken = asyncToken
             self.throwsClause = throwsClause
             self.body = body
             super.init(modifiers, attributes, sourceRange)
@@ -513,6 +515,7 @@ public extension AST {
         public let genericDecl: GenericDecl?
         public let parameters: [Parameter]
         public let varargToken: Token?
+        public let asyncToken: Token?
         public let throwsClause: ThrowsClause?
         public let returnTypeExpression: Expression?
         public let body: Body?
@@ -520,7 +523,7 @@ public extension AST {
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ genericDecl: GenericDecl?, _ parameters: [Parameter],
-            _ varargToken: Token?, _ throwsClause: ThrowsClause?,
+            _ varargToken: Token?, _ asyncToken: Token?, _ throwsClause: ThrowsClause?,
             _ returnTypeExpression: Expression?, _ body: Body?, sourceRange: SourceRange
         ) {
             self.token = token
@@ -528,6 +531,7 @@ public extension AST {
             self.genericDecl = genericDecl
             self.parameters = parameters
             self.varargToken = varargToken
+            self.asyncToken = asyncToken
             self.throwsClause = throwsClause
             self.returnTypeExpression = returnTypeExpression
             self.body = body
@@ -564,6 +568,7 @@ public extension AST {
 
     final class VariableDecl: Decl {
         public let token: Token
+        public let asyncToken: Token?
         public let internalToken: Token?
         public let name: Token
         public let typeExpression: Expression?
@@ -572,10 +577,12 @@ public extension AST {
         public var symbol: Symbol.VariableSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ internalToken: Token?, _ name: Token, _ typeExpression: Expression?,
-            _ initializer: Expression?, _ accessors: [Accessor], sourceRange: SourceRange
+            _ asyncToken: Token?, _ internalToken: Token?, _ name: Token,
+            _ typeExpression: Expression?, _ initializer: Expression?, _ accessors: [Accessor],
+            sourceRange: SourceRange
         ) {
             self.token = token
+            self.asyncToken = asyncToken
             self.internalToken = internalToken
             self.name = name
             self.typeExpression = typeExpression
@@ -881,6 +888,7 @@ public extension AST {
         public let token: Token
         public let genericDecl: GenericDecl?
         public let parameters: [FunctionDecl.Parameter]
+        public let asyncToken: Token?
         public let throwsClause: ThrowsClause?
         public let returnType: Expression
         public let body: [Statement]
@@ -888,12 +896,13 @@ public extension AST {
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ genericDecl: GenericDecl?, _ parameters: [FunctionDecl.Parameter],
-            _ throwsClause: ThrowsClause?, _ returnType: Expression, _ body: [Statement],
-            sourceRange: SourceRange
+            _ asyncToken: Token?, _ throwsClause: ThrowsClause?, _ returnType: Expression,
+            _ body: [Statement], sourceRange: SourceRange
         ) {
             self.token = token
             self.genericDecl = genericDecl
             self.parameters = parameters
+            self.asyncToken = asyncToken
             self.throwsClause = throwsClause
             self.returnType = returnType
             self.body = body

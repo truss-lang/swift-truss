@@ -656,7 +656,9 @@ extension AST {
         open func visitClosureType(
             _ closureType: AST.ClosureType, additional: Any? = nil
         ) -> Any? {
-            visit(closureType.parameterTypes, additional: additional)
+            for parameter in closureType.parameters {
+                visit(parameter.type, additional: additional)
+            }
             if let types = closureType.throwsClause?.types {
                 for type in types {
                     visit(type, additional: additional)

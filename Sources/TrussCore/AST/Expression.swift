@@ -419,14 +419,16 @@ public extension AST {
     }
 
     final class ClosureType: Expression {
-        public let parameterTypes: Expression
+        public let parameters: [Parameter]
+        public let asyncToken: Token?
         public let throwsClause: ThrowsClause?
         public let returnType: Expression
         public init(
-            _ parameterTypes: Expression, _ throwsClause: ThrowsClause?,
+            _ parameters: [Parameter], _ asyncToken: Token?, _ throwsClause: ThrowsClause?,
             _ returnType: Expression, sourceRange: SourceRange
         ) {
-            self.parameterTypes = parameterTypes
+            self.parameters = parameters
+            self.asyncToken = asyncToken
             self.throwsClause = throwsClause
             self.returnType = returnType
             super.init(sourceRange)
@@ -434,6 +436,17 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitClosureType(self, additional: additional)
+        }
+
+        public struct Parameter {
+            public let label: Token?
+            public let type: Expression
+            public let sourceRange: SourceRange
+            public init(label: Token?, type: Expression, sourceRange: SourceRange) {
+                self.label = label
+                self.type = type
+                self.sourceRange = sourceRange
+            }
         }
     }
 
