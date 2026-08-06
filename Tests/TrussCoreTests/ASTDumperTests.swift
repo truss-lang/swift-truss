@@ -407,7 +407,7 @@ import TrussCore
             |   `-Return
             |     `-Variable x sym:x#6
             |-TypeAliasDecl T sym:T#2
-            | `-Variable S sym:S#1
+            | `-Variable S ty:StructType(S)#0 sym:S#1
             |-ProtocolDecl Q sym:Q#3
             | `-AssociatedTypeDecl U sym:U#4
             `-EnumDecl E sym:E#5
@@ -416,6 +416,69 @@ import TrussCore
                 `-Element b sym:b#12
                   `-AssociatedValue x:
                     `-Variable Int
+            """
+    )
+}
+
+@Test func dumpTypeResolverStructuralAnnotations() {
+    #expect(
+        dumpProgram(
+            """
+            struct S {}
+            struct Box<T> {}
+            typealias A = S
+            let a: S
+            let b: S?
+            let g: Box<S>
+            let h: Box<S?>
+            let i: Box<A>
+            let p: P & Q
+            protocol P {}
+            protocol Q {}
+            """,
+            semantic: true
+        )
+            == """
+            Program "main"
+            |-StructDecl S sym:S#1
+            |-StructDecl Box sym:Box#2
+            | `-GenericDecl
+            |   `-GenericParameter T
+            |-TypeAliasDecl A sym:A#4
+            | `-Variable S ty:StructType(S)#0 sym:S#1
+            |-VariableDecl a sym:a#7
+            | `-Type
+            |   `-Variable S ty:StructType(S)#0 sym:S#1
+            |-VariableDecl b sym:b#8
+            | `-Type
+            |   `-OptionalType ? ty:Optional(StructType(S)#0)
+            |     `-Variable S ty:StructType(S)#0 sym:S#1
+            |-VariableDecl g sym:g#9
+            | `-Type
+            |   `-GenericApplication ty:Generic(StructType(Box)#1<StructType(S)#0>)
+            |     |-Variable Box ty:StructType(Box)#1 sym:Box#2
+            |     `-Argument
+            |       `-Variable S ty:StructType(S)#0 sym:S#1
+            |-VariableDecl h sym:h#10
+            | `-Type
+            |   `-GenericApplication ty:Generic(StructType(Box)#1<Optional(StructType(S)#0)>)
+            |     |-Variable Box ty:StructType(Box)#1 sym:Box#2
+            |     `-Argument
+            |       `-OptionalType ? ty:Optional(StructType(S)#0)
+            |         `-Variable S ty:StructType(S)#0 sym:S#1
+            |-VariableDecl i sym:i#11
+            | `-Type
+            |   `-GenericApplication ty:Generic(StructType(Box)#1<StructType(S)#0>)
+            |     |-Variable Box ty:StructType(Box)#1 sym:Box#2
+            |     `-Argument
+            |       `-Variable A ty:StructType(S)#0 sym:A#4
+            |-VariableDecl p sym:p#12
+            | `-Type
+            |   `-SequentialExpression & ty:Composition(ProtocolType(P)#2 & ProtocolType(Q)#3)
+            |     |-Variable P ty:ProtocolType(P)#2 sym:P#5
+            |     `-Variable Q ty:ProtocolType(Q)#3 sym:Q#6
+            |-ProtocolDecl P sym:P#5
+            `-ProtocolDecl Q sym:Q#6
             """
     )
 }

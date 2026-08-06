@@ -41,6 +41,12 @@ public final class ExpressionFolder: AST.Rewriter {
             super.visitSequentialExpression(sequentialExpression, additional: additional)
                 as? AST.SequentialExpression ?? sequentialExpression
         guard !rewritten.ops.isEmpty, ranks != nil else { return rewritten }
+        if rewritten.ops.allSatisfy({ op in
+            if case .Operator(.BitAnd) = op.kind { return true }
+            return false
+        }) {
+            return rewritten
+        }
         guard let folded = foldGeneric(rewritten) ?? fold(rewritten) else { return rewritten }
         copySemanticFields(from: rewritten, to: folded)
         return folded

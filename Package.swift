@@ -66,7 +66,7 @@ let package = Package(
         .testTarget(
             name: "TrussCoreTests",
             dependencies: [
-                "TrussCore", "TrussSyntax", "TrussSemantics",
+                "TrussCore", "TrussSyntax", "TrussSemantics", "TrussOperator",
                 .product(name: "SwiftBetterDiagnostic", package: "swift-better-diagnostic"),
             ]
         ),
