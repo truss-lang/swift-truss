@@ -36,3 +36,14 @@ func parseProgram(_ source: String) -> AST.Program {
     NameResolver(context: context).visitProgram(programs[0])
     return programs[0]
 }
+
+func runTypeBuilder(_ sources: [String]) -> (Context, [AST.Program]) {
+    let (context, programs) = runEnter(sources)
+    for program in programs {
+        NameResolver(context: context).visitProgram(program)
+    }
+    for program in programs {
+        TypeBuilder(context: context).visitProgram(program)
+    }
+    return (context, programs)
+}

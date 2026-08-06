@@ -5,6 +5,7 @@ public final class Context {
     public private(set) var sourceTable: [Id.SourceId: Source] = [:]
     public private(set) var id2Symbol: [Id.SymbolId: Symbol.Symbol] = [:]
     public private(set) var name2Package: [String: Symbol.PackageSymbol] = [:]
+    public private(set) var typeTable: [Id.TypeId: TrussType.TrussType] = [:]
     public init() {}
     @discardableResult
     public func register(source: Source) -> Context {
@@ -25,12 +26,22 @@ public final class Context {
         return self
     }
 
+    @discardableResult
+    public func register(type: TrussType.NominalType) -> Context {
+        typeTable[type.id] = type
+        return self
+    }
+
     public var nextSourceId: Id.SourceId {
         Id.SourceId(id: UInt64(sourceTable.count))
     }
 
     public var nextSymbolId: Id.SymbolId {
         Id.SymbolId(id: UInt64(id2Symbol.count))
+    }
+
+    public var nextTypeId: Id.TypeId {
+        Id.TypeId(id: UInt64(typeTable.count))
     }
 }
 

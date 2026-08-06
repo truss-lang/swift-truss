@@ -203,14 +203,14 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     let originalCall = (blockBody(functionDecl)[0] as! AST.ExpressionStatement).expression
         as! AST.Call
     let originalLiteral = originalCall.arguments[0].value as! AST.IntegerLiteral
-    originalLiteral.ty = TrussType.NamedType("Int")
+    originalLiteral.ty = TrussType.StructType(id: Id.TypeId(id: 0), name: "Int")
     let rewritten = IncrementLiteralRewriter().rewrite(program)
     let newFunctionDecl = rewritten.statements[0] as! AST.FunctionDecl
     let call = (blockBody(newFunctionDecl)[0] as! AST.ExpressionStatement).expression as! AST.Call
     let newLiteral = call.arguments[0].value as! AST.IntegerLiteral
     let ty = newLiteral.ty
-    #expect(ty is TrussType.NamedType)
-    #expect((ty as! TrussType.NamedType).name == "Int")
+    #expect(ty is TrussType.StructType)
+    #expect((ty as! TrussType.StructType).name == "Int")
 }
 
 @Test func rebuildNestedStructs() {

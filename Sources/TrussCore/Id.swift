@@ -12,4 +12,11 @@ public enum Id {
             self.id = id
         }
     }
+
+    public struct TypeId: Hashable, Sendable, Equatable {
+        public let id: UInt64
+        public init(id: UInt64) {
+            self.id = id
+        }
+    }
 }
