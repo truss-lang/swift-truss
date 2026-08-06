@@ -131,11 +131,14 @@ public enum Symbol {
     }
 
     public final class Dumper {
-        public init() {}
+        private let context: Context
+        public init(context: Context) {
+            self.context = context
+        }
 
         public func dump(_ program: AST.Program) -> String {
             guard let packageSymbol = program.packageSymbol else { return "" }
-            var out = "\(packageSymbol.name) (package)\n"
+            var out = "\(packageSymbol.name) (package) #\(packageSymbol.id.id)\n"
             dumpScope(packageSymbol.scope, into: &out, indent: 2)
             return out
         }
@@ -143,23 +146,90 @@ public enum Symbol {
         private func dumpScope(_ scope: Scope, into out: inout String, indent: Int) {
             let pad = String(repeating: " ", count: indent)
             for (name, symbol) in scope.modules.sorted(by: { $0.key < $1.key }) {
-                out += "\(pad)module \(name)\n"
+                out += "\(pad)module \(name) #\(symbol.id.id)\n"
                 dumpScope(symbol.scope, into: &out, indent: indent + 2)
             }
             for (name, symbol) in scope.types.sorted(by: { $0.key < $1.key }) {
-                out += "\(pad)type \(name) (\(symbolKind(symbol)))\n"
+                var line = "\(pad)type \(name) (\(symbolKind(symbol))) #\(symbol.id.id)"
+                if let nominal = symbol as? NominalTypeSymbol {
+                    line += tyText(nominal)
+                    line += conformsText(nominal)
+                    if let classSymbol = symbol as? ClassSymbol {
+                        line += superText(classSymbol)
+                    }
+                }
+                out += line + "\n"
                 if let nominal = symbol as? NominalTypeSymbol {
                     dumpScope(nominal.scope, into: &out, indent: indent + 2)
                 }
             }
             for (name, symbols) in scope.values.sorted(by: { $0.key < $1.key }) {
                 for symbol in symbols {
-                    out += "\(pad)value \(name) (\(symbolKind(symbol)))\n"
+                    var line = "\(pad)value \(name) (\(symbolKind(symbol))) #\(symbol.id.id)"
+                    if let function = symbol as? FunctionSymbol {
+                        line += signatureText(function)
+                    }
+                    out += line + "\n"
                     if let function = symbol as? FunctionSymbol {
                         dumpScope(function.scope, into: &out, indent: indent + 2)
                     }
                 }
             }
+        }
+
+        private func tyText(_ symbol: NominalTypeSymbol) -> String {
+            guard let typeId = symbol.typeId, let type = context.typeTable[typeId] else {
+                return ""
+            }
+            switch type {
+            case is TrussType.VoidType: return " ty:VoidType"
+            case is TrussType.NeverType: return " ty:NeverType"
+            case let nominal as TrussType.NominalType:
+                return " ty:\(nominalKind(nominal))(\(nominal.name))#\(nominal.id.id)"
+            default: return " ty:?"
+            }
+        }
+
+        private func nominalKind(_ type: TrussType.NominalType) -> String {
+            switch type {
+            case is TrussType.StructType: "StructType"
+            case is TrussType.ClassType: "ClassType"
+            case is TrussType.EnumType: "EnumType"
+            case is TrussType.ProtocolType: "ProtocolType"
+            case is TrussType.ActorType: "ActorType"
+            default: "NominalType"
+            }
+        }
+
+        private func conformsText(_ symbol: NominalTypeSymbol) -> String {
+            if symbol.conformances.isEmpty { return "" }
+            return " conforms:"
+                + symbol.conformances.map { "\($0.name)#\($0.id.id)" }.joined(separator: ", ")
+        }
+
+        private func superText(_ symbol: ClassSymbol) -> String {
+            guard let superclass = symbol.superclass else { return "" }
+            return " super:\(superclass.name)#\(superclass.id.id)"
+        }
+
+        private func signatureText(_ symbol: FunctionSymbol) -> String {
+            var text = " ("
+            let labels = symbol.signature.labels
+            let hasDefaults = symbol.signature.hasDefaults
+            let isVararg = symbol.signature.isVararg
+            for (index, label) in labels.enumerated() {
+                if index > 0 { text += ", " }
+                if let label {
+                    text += label
+                } else {
+                    text += "_"
+                }
+                text += ":"
+                if index < hasDefaults.count, hasDefaults[index] { text += " =" }
+                if index < isVararg.count, isVararg[index] { text += " ..." }
+            }
+            text += ")"
+            return text
         }
 
         private func symbolKind(_ symbol: Symbol) -> String {

@@ -4,8 +4,9 @@ import TrussCore
 import TrussSemantics
 import TrussSyntax
 
-func parseProgram(_ source: String, semantic: Bool = false) -> AST.Program {
-    let context = Context()
+func parseProgram(
+    _ source: String, semantic: Bool = false, context: Context = Context()
+) -> AST.Program {
     let src = Source(id: context.nextSourceId, filepath: "<test>", content: source)
     context.register(source: src)
     let lexerResult = Lexer(input: CharStream(content: source, id: src.id)).parse()
@@ -27,6 +28,12 @@ func parseProgram(_ source: String, semantic: Bool = false) -> AST.Program {
 
 func dumpProgram(_ source: String, semantic: Bool = false) -> String {
     AST.Dumper().dump(parseProgram(source, semantic: semantic))
+}
+
+func dumpSymbols(_ source: String) -> String {
+    let context = Context()
+    let program = parseProgram(source, semantic: true, context: context)
+    return Symbol.Dumper(context: context).dump(program)
 }
 
 func printProgram(_ source: String) -> String {
