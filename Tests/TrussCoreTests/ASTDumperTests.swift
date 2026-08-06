@@ -64,7 +64,7 @@ import TrussCore
         dumpProgram("func f() {}", semantic: true)
             == """
             Program "main"
-            `-FunctionDecl f sym:f
+            `-FunctionDecl f sym:f#1
             """
     )
 }
@@ -74,12 +74,12 @@ import TrussCore
         dumpProgram("func f() {\n    let a = 1\n    a\n}", semantic: true)
             == """
             Program "main"
-            `-FunctionDecl f sym:f
-              |-VariableDecl a sym:a
+            `-FunctionDecl f sym:f#2
+              |-VariableDecl a sym:a#1
               | `-Initializer
               |   `-IntegerLiteral 1
               `-ExpressionStatement
-                `-Variable a sym:a
+                `-Variable a sym:a#1
             """
     )
 }
@@ -296,6 +296,126 @@ import TrussCore
                 `-Initializer
                   `-SequentialExpression !
                     `-Variable a
+            """
+    )
+}
+
+@Test func dumpTypeDeclSemantics() {
+    #expect(
+        dumpProgram(
+            """
+            protocol P1 {}
+            class Base {}
+            struct S: P1 {}
+            class C: Base, P1 {}
+            enum E: P1 {}
+            actor A {}
+            """,
+            semantic: true
+        )
+            == """
+            Program "main"
+            |-ProtocolDecl P1 sym:P1#1
+            |-ClassDecl Base sym:Base#2
+            |-StructDecl S sym:S#3
+            | `-Conformance
+            |   `-Variable P1 sym:P1#1
+            |-ClassDecl C sym:C#4 super:Base#2
+            | |-Conformance
+            | | `-Variable Base sym:Base#2
+            | `-Conformance
+            |   `-Variable P1 sym:P1#1
+            |-EnumDecl E sym:E#5
+            | `-Conformance
+            |   `-Variable P1 sym:P1#1
+            `-ActorDecl A sym:A#6
+            """
+    )
+}
+
+@Test func dumpOverloadsSemantics() {
+    #expect(
+        dumpProgram(
+            """
+            func f(a: Int, b: Int = 0) {}
+            func f(xs: Int...) {}
+            func g() {
+                f(a: 1)
+            }
+            """,
+            semantic: true
+        )
+            == """
+            Program "main"
+            |-FunctionDecl f sym:f#3
+            | |-Parameter a label:a
+            | | `-Variable Int
+            | `-Parameter b label:b
+            |   |-Variable Int
+            |   `-Default
+            |     `-IntegerLiteral 0
+            |-FunctionDecl f sym:f#5
+            | `-Parameter xs label:xs
+            |   `-VariadicType ...
+            |     `-Variable Int
+            `-FunctionDecl g sym:g#6
+              `-ExpressionStatement
+                `-Call
+                  |-Variable f overloads:2 [f(a:, b: =), f(xs: ...)]
+                  `-Argument label:a
+                    `-IntegerLiteral 1
+            """
+    )
+}
+
+@Test func dumpTypeMemberSemantics() {
+    #expect(
+        dumpProgram(
+            """
+            struct S {
+                var x: Int
+                init(x: Int) {
+                }
+                subscript(i: Int) -> Int {
+                    return x
+                }
+            }
+            typealias T = S
+            protocol Q {
+                associatedtype U
+            }
+            enum E {
+                case a, b(x: Int)
+            }
+            """,
+            semantic: true
+        )
+            == """
+            Program "main"
+            |-StructDecl S sym:S#1
+            | |-VariableDecl x sym:x#6
+            | | `-Type
+            | |   `-Variable Int
+            | |-InitDecl sym:init#8
+            | | `-Parameter x label:x
+            | |   `-Variable Int
+            | `-SubscriptDecl sym:subscript#10
+            |   |-Parameter i label:i
+            |   | `-Variable Int
+            |   |-ReturnType
+            |   | `-Variable Int
+            |   `-Return
+            |     `-Variable x sym:x#6
+            |-TypeAliasDecl T sym:T#2
+            | `-Variable S sym:S#1
+            |-ProtocolDecl Q sym:Q#3
+            | `-AssociatedTypeDecl U sym:U#4
+            `-EnumDecl E sym:E#5
+              `-EnumCaseDecl
+                |-Element a sym:a#11
+                `-Element b sym:b#12
+                  `-AssociatedValue x:
+                    `-Variable Int
             """
     )
 }

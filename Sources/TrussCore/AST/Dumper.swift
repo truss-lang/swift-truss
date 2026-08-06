@@ -96,7 +96,7 @@ public extension AST {
             case is TrussType.VoidType: return " ty:VoidType"
             case is TrussType.NeverType: return " ty:NeverType"
             case let nominal as TrussType.NominalType:
-                return " ty:\(nominalKind(nominal))(\(nominal.name))"
+                return " ty:\(nominalKind(nominal))(\(nominal.name))#\(nominal.id.id)"
             default: return " ty:?"
             }
         }
@@ -114,12 +114,38 @@ public extension AST {
 
         private func symText(_ symbol: Symbol.Symbol?) -> String {
             guard let symbol else { return "" }
-            return " sym:\(symbol.name)"
+            return " sym:\(symbol.name)#\(symbol.id.id)"
+        }
+
+        private func superclassText(_ superclass: Symbol.ClassSymbol?) -> String {
+            guard let superclass else { return "" }
+            return " super:\(superclass.name)#\(superclass.id.id)"
         }
 
         private func overloadsText(_ overloads: [Symbol.FunctionSymbol]?) -> String {
             guard let overloads, !overloads.isEmpty else { return "" }
-            return " overloads:\(overloads.count)"
+            let rendered = overloads.map(signatureText).joined(separator: ", ")
+            return " overloads:\(overloads.count) [\(rendered)]"
+        }
+
+        private func signatureText(_ symbol: Symbol.FunctionSymbol) -> String {
+            var text = symbol.name + "("
+            let labels = symbol.signature.labels
+            let hasDefaults = symbol.signature.hasDefaults
+            let isVararg = symbol.signature.isVararg
+            for (index, label) in labels.enumerated() {
+                if index > 0 { text += ", " }
+                if let label {
+                    text += label
+                } else {
+                    text += "_"
+                }
+                text += ":"
+                if index < hasDefaults.count, hasDefaults[index] { text += " =" }
+                if index < isVararg.count, isVararg[index] { text += " ..." }
+            }
+            text += ")"
+            return text
         }
 
         private func escapeString(_ value: String) -> String {
@@ -316,7 +342,8 @@ public extension AST {
             _ typeAliasDecl: TypeAliasDecl, additional: Any? = nil
         ) -> Any? {
             dumpNode(
-                declText("TypeAliasDecl \(typeAliasDecl.name.value)", typeAliasDecl),
+                declText("TypeAliasDecl \(typeAliasDecl.name.value)", typeAliasDecl)
+                    + symText(typeAliasDecl.symbol),
                 children: [{ self.visit(typeAliasDecl.typeExpression) }]
             )
             return nil
@@ -412,7 +439,8 @@ public extension AST {
             -> Any?
         {
             dumpNode(
-                declText("StructDecl \(structDecl.name.value)", structDecl),
+                declText("StructDecl \(structDecl.name.value)", structDecl)
+                    + symText(structDecl.symbol),
                 children: typeDeclNodes(
                     structDecl.genericDecl, structDecl.conformances, structDecl.whereClause,
                     structDecl.body
@@ -426,7 +454,9 @@ public extension AST {
             -> Any?
         {
             dumpNode(
-                declText("ClassDecl \(classDecl.name.value)", classDecl),
+                declText("ClassDecl \(classDecl.name.value)", classDecl)
+                    + symText(classDecl.symbol)
+                    + superclassText((classDecl.symbol as? Symbol.ClassSymbol)?.superclass),
                 children: typeDeclNodes(
                     classDecl.genericDecl, classDecl.inheritanceClauses, classDecl.whereClause,
                     classDecl.body
@@ -440,7 +470,8 @@ public extension AST {
             -> Any?
         {
             dumpNode(
-                declText("ActorDecl \(actorDecl.name.value)", actorDecl),
+                declText("ActorDecl \(actorDecl.name.value)", actorDecl)
+                    + symText(actorDecl.symbol),
                 children: typeDeclNodes(
                     actorDecl.genericDecl, actorDecl.conformances, actorDecl.whereClause,
                     actorDecl.body
@@ -454,7 +485,8 @@ public extension AST {
             _ protocolDecl: ProtocolDecl, additional: Any? = nil
         ) -> Any? {
             dumpNode(
-                declText("ProtocolDecl \(protocolDecl.name.value)", protocolDecl),
+                declText("ProtocolDecl \(protocolDecl.name.value)", protocolDecl)
+                    + symText(protocolDecl.symbol),
                 children: typeDeclNodes(
                     protocolDecl.genericDecl, protocolDecl.conformances, protocolDecl.whereClause,
                     protocolDecl.body
@@ -483,7 +515,8 @@ public extension AST {
             -> Any?
         {
             dumpNode(
-                declText("EnumDecl \(enumDecl.name.value)", enumDecl),
+                declText("EnumDecl \(enumDecl.name.value)", enumDecl)
+                    + symText(enumDecl.symbol),
                 children: typeDeclNodes(
                     enumDecl.genericDecl, enumDecl.conformances, enumDecl.whereClause, enumDecl.body
                 )
@@ -496,7 +529,7 @@ public extension AST {
             _ enumCaseDecl: EnumCaseDecl, additional: Any? = nil
         ) -> Any? {
             var children: [() -> Void] = []
-            for element in enumCaseDecl.elements {
+            for (index, element) in enumCaseDecl.elements.enumerated() {
                 children.append {
                     var elementChildren: [() -> Void] = []
                     for associatedValue in element.associatedValues {
@@ -513,7 +546,11 @@ public extension AST {
                             self.dumpNode("RawValue", children: [{ self.visit(rawValue) }])
                         }
                     }
-                    self.dumpNode("Element \(element.name.value)", children: elementChildren)
+                    var elementText = "Element \(element.name.value)"
+                    if index < enumCaseDecl.symbols.count {
+                        elementText += self.symText(enumCaseDecl.symbols[index])
+                    }
+                    self.dumpNode(elementText, children: elementChildren)
                 }
             }
             dumpNode(declText("EnumCaseDecl", enumCaseDecl), children: children)
@@ -524,7 +561,7 @@ public extension AST {
         public override func visitInitDecl(_ initDecl: InitDecl, additional: Any? = nil)
             -> Any?
         {
-            var text = declText("InitDecl", initDecl)
+            var text = declText("InitDecl", initDecl) + symText(initDecl.symbol)
             if initDecl.optionalToken != nil { text += " ?" }
             var children: [() -> Void] = []
             if let genericDecl = initDecl.genericDecl {
@@ -775,7 +812,7 @@ public extension AST {
         public override func visitSubscriptDecl(
             _ subscriptDecl: SubscriptDecl, additional: Any? = nil
         ) -> Any? {
-            var text = declText("SubscriptDecl", subscriptDecl)
+            var text = declText("SubscriptDecl", subscriptDecl) + symText(subscriptDecl.symbol)
             if let throwsClause = subscriptDecl.throwsClause { text += throwsText(throwsClause) }
             var children: [() -> Void] = []
             if let genericDecl = subscriptDecl.genericDecl {
@@ -807,7 +844,8 @@ public extension AST {
                 children.append(contentsOf: whereClauseNodes(whereClause))
             }
             dumpNode(
-                declText("AssociatedTypeDecl \(associatedTypeDecl.name.value)", associatedTypeDecl),
+                declText("AssociatedTypeDecl \(associatedTypeDecl.name.value)", associatedTypeDecl)
+                    + symText(associatedTypeDecl.symbol),
                 children: children
             )
             return nil

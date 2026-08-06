@@ -20,6 +20,7 @@ func parseProgram(_ source: String, semantic: Bool = false) -> AST.Program {
         merger.visitProgram(program)
         merger.resolvePending()
         NameResolver(context: context).visitProgram(program)
+        TypeBuilder(context: context).visitProgram(program)
     }
     return program
 }
