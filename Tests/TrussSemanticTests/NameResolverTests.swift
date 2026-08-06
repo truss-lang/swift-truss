@@ -302,6 +302,16 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
+@Test func genericSuperclassResolved() {
+    let (context, programs) = runEnter(["class A {} class B: A<Int32> {}"])
+    NameResolver(context: context).visitProgram(programs[0])
+    let packageScope = programs[0].packageSymbol!.scope
+    let a = packageScope.types["A"] as! Symbol.NominalTypeSymbol
+    let b = packageScope.types["B"] as! Symbol.ClassSymbol
+    #expect(b.superclass === a)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
 @Test func protocolConformanceIsNotSuperclass() {
     let (context, programs) = runEnter(["protocol P {} class D: P {}"])
     NameResolver(context: context).visitProgram(programs[0])

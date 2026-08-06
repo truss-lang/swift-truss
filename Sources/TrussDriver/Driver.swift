@@ -99,9 +99,6 @@ public final class Driver {
             runPass(DeclCollector(context: context), context: context, programs: programs)
         }
         if !context.diagnositicEngine.hasErrors {
-            runOperatorPasses(&programs, context: context)
-        }
-        if !context.diagnositicEngine.hasErrors {
             runPass(Enter(context: context), context: context, programs: programs)
         }
         if !context.diagnositicEngine.hasErrors {
@@ -113,6 +110,9 @@ public final class Driver {
         }
         if !context.diagnositicEngine.hasErrors {
             runPass(NameResolver(context: context), context: context, programs: programs)
+        }
+        if !context.diagnositicEngine.hasErrors {
+            runOperatorPasses(&programs, context: context)
         }
         if !context.diagnositicEngine.hasErrors {
             runPass(TypeBuilder(context: context), context: context, programs: programs)

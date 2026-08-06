@@ -1,6 +1,7 @@
 import SwiftGraph
 import TrussCore
 import TrussOperator
+import TrussSemantics
 import TrussSyntax
 
 func runDeclCollector(_ sources: [String]) -> (Context, OperatorTable, [AST.Program]) {
@@ -18,7 +19,7 @@ func runDeclCollector(_ sources: [String]) -> (Context, OperatorTable, [AST.Prog
         programs.append(program)
     }
     for program in programs {
-        DeclCollector(table: table, context: context).visitProgram(program)
+        TrussOperator.DeclCollector(table: table, context: context).visitProgram(program)
     }
     return (context, table, programs)
 }
@@ -38,6 +39,20 @@ func runBuilt(_ sources: [String]) -> (Context, UnweightedGraph<PrecedenceGroupI
 
 func runFolded(_ sources: [String]) -> (Context, OperatorTable, [AST.Program]) {
     let (context, table, programs) = runDeclCollector(sources)
+    for program in programs {
+        TrussSemantics.DeclCollector(context: context).visitProgram(program)
+    }
+    for program in programs {
+        Enter(context: context).visitProgram(program)
+    }
+    let merger = MergePass(context: context)
+    for program in programs {
+        merger.visitProgram(program)
+    }
+    merger.resolvePending()
+    for program in programs {
+        NameResolver(context: context).visitProgram(program)
+    }
     PrecedenceResolver(table: table, context: context).resolve()
     let folder = ExpressionFolder(context: context, table: table)
     let folded = programs.map { folder.rewrite($0) }

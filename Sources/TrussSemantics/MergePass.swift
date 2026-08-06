@@ -51,7 +51,7 @@ public final class MergePass: AST.Visitor {
             for (extensionDecl, chain) in pending {
                 if let virtualScope = extensionDecl.virtualScope,
                    let base = resolveBase(extensionDecl.base, chain: chain)
-                       as? Symbol.NominalTypeSymbol
+                   as? Symbol.NominalTypeSymbol
                 {
                     merge(virtualScope, into: base, chain: chain, extensionDecl: extensionDecl)
                     progressed = true
@@ -106,10 +106,10 @@ public final class MergePass: AST.Visitor {
             return
         }
         if let sequential = expression as? AST.SequentialExpression,
-           sequential.ops.allSatisfy({ $0.value == "&" })
+           let members = sequential.compositionMemberBaseOperands()
         {
-            for operand in sequential.operands {
-                collectConformances(operand, chain: chain, into: &protocols)
+            for member in members {
+                collectConformances(member, chain: chain, into: &protocols)
             }
             return
         }
@@ -136,6 +136,14 @@ public final class MergePass: AST.Visitor {
             return scope?.types[memberAccess.member.value] as? Symbol.ProtocolSymbol
         case let genericApplication as AST.GenericApplication:
             return resolveProtocol(genericApplication.base, chain: chain)
+        case let sequential as AST.SequentialExpression:
+            guard
+                sequential.genericApplicationGroupCloseIndex() != nil,
+                let base = sequential.operands.first
+            else {
+                return nil
+            }
+            return resolveProtocol(base, chain: chain)
         default:
             return nil
         }
@@ -154,6 +162,14 @@ public final class MergePass: AST.Visitor {
             return scope?.types[memberAccess.member.value]
         case let genericApplication as AST.GenericApplication:
             return resolveBase(genericApplication.base, chain: chain)
+        case let sequential as AST.SequentialExpression:
+            guard
+                sequential.genericApplicationGroupCloseIndex() != nil,
+                let base = sequential.operands.first
+            else {
+                return nil
+            }
+            return resolveBase(base, chain: chain)
         default:
             return nil
         }
@@ -174,13 +190,21 @@ public final class MergePass: AST.Visitor {
     private func baseName(_ expression: AST.Expression) -> String {
         switch expression {
         case let variable as AST.Variable:
-            variable.name.value
+            return variable.name.value
         case let memberAccess as AST.MemberAccess:
-            baseName(memberAccess.object) + "." + memberAccess.member.value
+            return baseName(memberAccess.object) + "." + memberAccess.member.value
         case let genericApplication as AST.GenericApplication:
-            baseName(genericApplication.base)
+            return baseName(genericApplication.base)
+        case let sequential as AST.SequentialExpression:
+            guard
+                sequential.genericApplicationGroupCloseIndex() != nil,
+                let base = sequential.operands.first
+            else {
+                return "<unknown>"
+            }
+            return baseName(base)
         default:
-            "<unknown>"
+            return "<unknown>"
         }
     }
 }

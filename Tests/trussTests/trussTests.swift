@@ -166,6 +166,17 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.contains("Binary"))
 }
 
+@Test func driverFoldsGenericApplication() throws {
+    let file = try writeTemp(
+        "generic.truss",
+        "struct Box {}\nfunc main() { Box<Int32> }\n"
+    )
+    let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("GenericApplication"))
+    #expect(!result.stdout.contains("SequentialExpression"))
+}
+
 @Test func driverReportsUnknownOperator() throws {
     let file = try writeTemp("unknown-op.truss", "func main() { 1 + 2 }\n")
     let result = Driver(config: DriverConfig()).run(files: [file])
