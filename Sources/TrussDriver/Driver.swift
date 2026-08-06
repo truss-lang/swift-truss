@@ -124,7 +124,7 @@ public final class Driver {
                 stdout += programs.map { dumper.dump($0) }.joined(separator: "\n") + "\n"
             }
             if config.dumpSymbols, let first = programs.first {
-                stdout += Symbol.Dumper().dump(first) + "\n"
+                stdout += Symbol.Dumper(context: context).dump(first) + "\n"
             }
             if config.dumpSource, !programs.isEmpty {
                 let printer = SourcePrinter()
