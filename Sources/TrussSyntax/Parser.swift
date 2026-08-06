@@ -153,7 +153,13 @@ public final class Parser {
             switch token.kind {
             case let .Keyword(keywordKind):
                 switch keywordKind {
-                case .Import: statement = parseImport()
+                case .Import:
+                    if !modifiers.isEmpty || !attributes.isEmpty {
+                        emitAnnotationsNotAllowed(
+                            modifiers, attributes, on: "'import' declaration"
+                        )
+                    }
+                    statement = parseImport()
                 case .Extern: statement = parseExtern(modifiers, attributes)
                 case .TypeAlias: statement = parseTypeAliasDecl(modifiers, attributes)
                 case .Module: statement = parseModuleDecl(modifiers, attributes)
@@ -240,6 +246,24 @@ public final class Parser {
             } else {
                 emitError("expected statement", at: endOfFile)
                 return errorStatement(from: startToken!, to: endOfFile)
+            }
+        }
+        if !modifiers.isEmpty || !attributes.isEmpty {
+            let allowsAnnotations =
+                if case let .Keyword(kind) = t.kind {
+                    switch kind {
+                    case .TypeAlias, .Module, .PrecedenceGroup, .Infix, .Prefix, .Postfix,
+                         .Operator, .Struct, .Class, .Enum, .ProtocolKw, .Actor, .Extension,
+                         .Func, .Let, .Var, .Async:
+                        true
+                    default:
+                        false
+                    }
+                } else {
+                    false
+                }
+            if !allowsAnnotations {
+                emitAnnotationsNotAllowed(modifiers, attributes, on: "declarations")
             }
         }
         switch t.kind {
@@ -2042,6 +2066,24 @@ public final class Parser {
             } else {
                 emitError("expected statement", at: endOfFile)
                 return errorStatement(from: startToken!, to: endOfFile)
+            }
+        }
+        if !modifiers.isEmpty || !attributes.isEmpty {
+            switch token.kind {
+            case let .Keyword(kind):
+                switch kind {
+                case .Func, .Let, .Var, .Async:
+                    break
+                case .Return, .Throw, .While, .Repeat, .Guard, .For, .Defer, .Asm,
+                     .Break, .Continue, .Goto:
+                    emitAnnotationsNotAllowed(
+                        modifiers, attributes, on: "'\(token.value)' statement"
+                    )
+                default:
+                    emitAnnotationsNotAllowed(modifiers, attributes, on: "expressions")
+                }
+            default:
+                emitAnnotationsNotAllowed(modifiers, attributes, on: "expressions")
             }
         }
         switch token.kind {
@@ -4985,6 +5027,27 @@ public final class Parser {
                 base.sourceRange
             }
         return AST.Subscript(base: base, arguments: arguments, sourceRange: range)
+    }
+
+    private func emitAnnotationsNotAllowed(
+        _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], on kind: String
+    ) {
+        let what =
+            (modifiers.isEmpty ? [] : ["modifiers"]) + (attributes.isEmpty ? [] : ["attributes"])
+        let ranges = modifiers.map(\.sourceRange) + attributes.map(\.sourceRange)
+        guard let first = ranges.first else {
+            return
+        }
+        var start = first.start
+        var end = first.end
+        for range in ranges.dropFirst() {
+            if range.start.offset < start.offset { start = range.start }
+            if range.end.offset > end.offset { end = range.end }
+        }
+        emitError(
+            "\(what.joined(separator: " and ")) are not allowed on \(kind)",
+            at: SourceRange(start: start, end: end)
+        )
     }
 
     private func parseAnnotations() -> ([AST.Modifier], [AST.Attribute]) {

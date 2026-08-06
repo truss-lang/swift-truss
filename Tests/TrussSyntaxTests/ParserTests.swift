@@ -2660,6 +2660,67 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(labelToken!.value[1].value == "b")
 }
 
+@Test func parseModifierOnReturnStatementReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func f() { public return }")
+    #expect(
+        diagnostics.map(\.message)
+            .contains("modifiers are not allowed on 'return' statement")
+    )
+}
+
+@Test func parseModifierOnWhileStatementReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func f() { public while true {} }")
+    #expect(
+        diagnostics.map(\.message)
+            .contains("modifiers are not allowed on 'while' statement")
+    )
+}
+
+@Test func parseModifierOnExpressionStatementReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func f() { public x = 1 }")
+    #expect(
+        diagnostics.map(\.message)
+            .contains("modifiers are not allowed on expressions")
+    )
+}
+
+@Test func parseAttributeOnExpressionStatementReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func f() { #[attr] x + 1 }")
+    #expect(
+        diagnostics.map(\.message)
+            .contains("attributes are not allowed on expressions")
+    )
+}
+
+@Test func parseModifiersAndAttributesOnStatementReportsCombinedError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func f() { public #[attr] return }")
+    #expect(
+        diagnostics.map(\.message)
+            .contains("modifiers and attributes are not allowed on 'return' statement")
+    )
+}
+
+@Test func parseModifierOnNonDeclarationInModuleBodyReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("module M { public foo }")
+    #expect(
+        diagnostics.map(\.message)
+            .contains("modifiers are not allowed on declarations")
+    )
+}
+
+@Test func parseModifierOnImportReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("public import Foo")
+    #expect(
+        diagnostics.map(\.message)
+            .contains("modifiers are not allowed on 'import' declaration")
+    )
+}
+
+@Test func parseModifierOnVariableStatementIsAllowed() throws {
+    let (_, diagnostics) = parseWithDiagnostics("func f() { public static var x = 1 }")
+    #expect(diagnostics.isEmpty)
+}
+
 // MARK: - Self / SelfType / Super Expressions
 
 @Test func parseSelfExpression() {
