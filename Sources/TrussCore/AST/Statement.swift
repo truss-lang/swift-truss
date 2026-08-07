@@ -708,6 +708,7 @@ public extension AST {
         public let beginToken: Token
         public let body: [Statement]
         public let endToken: Token
+        public var scope: Scope? = nil
         public init(
             _ token: Token, _ condition: Expression, _ beginToken: Token, _ body: [Statement],
             _ endToken: Token, sourceRange: SourceRange
@@ -723,6 +724,12 @@ public extension AST {
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitWhile(self, additional: additional)
         }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherWhile = other as? AST.While {
+                scope = otherWhile.scope
+            }
+        }
     }
 
     final class RepeatWhile: Statement {
@@ -732,6 +739,7 @@ public extension AST {
         public let endToken: Token
         public let whileToken: Token
         public let condition: Expression
+        public var scope: Scope? = nil
         public init(
             _ token: Token, _ beginToken: Token, _ body: [Statement], _ endToken: Token,
             _ whileToken: Token, _ condition: Expression, sourceRange: SourceRange
@@ -747,6 +755,12 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitRepeatWhile(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherRepeatWhile = other as? AST.RepeatWhile {
+                scope = otherRepeatWhile.scope
+            }
         }
     }
 

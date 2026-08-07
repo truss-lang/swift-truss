@@ -180,6 +180,7 @@ public extension AST {
         public let condition: Expression
         public let then: [Statement]
         public let elseKind: ElseKind?
+        public var scope: Scope? = nil
         public init(
             _ token: Token, _ condition: Expression, _ then: [Statement], _ elseKind: ElseKind?,
             sourceRange: SourceRange
@@ -193,6 +194,12 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitIf(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            super.copySemantics(from: other)
+            guard let otherIf = other as? AST.If else { return }
+            scope = otherIf.scope
         }
 
         public enum ElseKind {

@@ -303,6 +303,41 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitIf(_ ifExpr: AST.If, additional: Any? = nil) -> Any? {
+        let scope = Scope()
+        ifExpr.scope = scope
+        let lastScope = currentScope
+        currentScope = scope
+        super.visitIf(ifExpr, additional: additional)
+        currentScope = lastScope
+        return nil
+    }
+
+    @discardableResult
+    public override func visitWhile(_ whileStmt: AST.While, additional: Any? = nil) -> Any? {
+        let scope = Scope()
+        whileStmt.scope = scope
+        let lastScope = currentScope
+        currentScope = scope
+        super.visitWhile(whileStmt, additional: additional)
+        currentScope = lastScope
+        return nil
+    }
+
+    @discardableResult
+    public override func visitRepeatWhile(
+        _ repeatWhile: AST.RepeatWhile, additional: Any? = nil
+    ) -> Any? {
+        let scope = Scope()
+        repeatWhile.scope = scope
+        let lastScope = currentScope
+        currentScope = scope
+        super.visitRepeatWhile(repeatWhile, additional: additional)
+        currentScope = lastScope
+        return nil
+    }
+
+    @discardableResult
     public override func visitFor(_ forStmt: AST.For, additional: Any? = nil) -> Any? {
         if let variable = forStmt.pattern as? AST.Variable {
             registerLocal(variable.name)

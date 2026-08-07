@@ -115,6 +115,63 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitIf(_ ifExpr: AST.If, additional: Any? = nil) -> Any? {
+        visit(ifExpr.condition, additional: additional)
+        if let scope = ifExpr.scope {
+            scopeStack.append(scope)
+        }
+        for statement in ifExpr.then {
+            visit(statement, additional: additional)
+        }
+        if let elseKind = ifExpr.elseKind {
+            switch elseKind {
+            case let .Block(statements):
+                for statement in statements {
+                    visit(statement, additional: additional)
+                }
+            case let .If(elseIf):
+                visitIf(elseIf, additional: additional)
+            }
+        }
+        if ifExpr.scope != nil {
+            scopeStack.removeLast()
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitWhile(_ whileStmt: AST.While, additional: Any? = nil) -> Any? {
+        visit(whileStmt.condition, additional: additional)
+        if let scope = whileStmt.scope {
+            scopeStack.append(scope)
+        }
+        for statement in whileStmt.body {
+            visit(statement, additional: additional)
+        }
+        if whileStmt.scope != nil {
+            scopeStack.removeLast()
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitRepeatWhile(
+        _ repeatWhile: AST.RepeatWhile, additional: Any? = nil
+    ) -> Any? {
+        if let scope = repeatWhile.scope {
+            scopeStack.append(scope)
+        }
+        for statement in repeatWhile.body {
+            visit(statement, additional: additional)
+        }
+        visit(repeatWhile.condition, additional: additional)
+        if repeatWhile.scope != nil {
+            scopeStack.removeLast()
+        }
+        return nil
+    }
+
+    @discardableResult
     public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil)
         -> Any?
     {
