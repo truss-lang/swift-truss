@@ -535,3 +535,43 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(d.superclass === c)
     #expect(!context.diagnositicEngine.hasErrors)
 }
+
+@Test func ifLetShorthandShadowResolved() {
+    let (context, program) = resolve("func f(x: Int?) { if let x { g(x) } }")
+    let functionDecl = program.statements[0] as! AST.FunctionDecl
+    guard case let .Block(statements) = functionDecl.body else { return }
+    let ifExpr = (statements[0] as! AST.ExpressionStatement).expression as! AST.If
+    let binding = ifExpr.condition as! AST.OptionalBinding
+    let value = binding.value as! AST.Variable
+    let paramSymbol = functionDecl.symbol!.scope.values["x"]![0]
+    #expect(value.symbol === paramSymbol)
+    let call = (ifExpr.then[0] as! AST.ExpressionStatement).expression as! AST.Call
+    let arg = call.arguments[0].value as! AST.Variable
+    #expect(arg.symbol is Symbol.VariableSymbol)
+    #expect(arg.symbol !== paramSymbol)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func ifLetExplicitShadowResolved() {
+    let (context, program) = resolve("func f(x: Int?) { if let x = x { g(x) } }")
+    let functionDecl = program.statements[0] as! AST.FunctionDecl
+    guard case let .Block(statements) = functionDecl.body else { return }
+    let ifExpr = (statements[0] as! AST.ExpressionStatement).expression as! AST.If
+    let binding = ifExpr.condition as! AST.OptionalBinding
+    let value = binding.value as! AST.Variable
+    let paramSymbol = functionDecl.symbol!.scope.values["x"]![0]
+    #expect(value.symbol === paramSymbol)
+    let call = (ifExpr.then[0] as! AST.ExpressionStatement).expression as! AST.Call
+    let arg = call.arguments[0].value as! AST.Variable
+    #expect(arg.symbol is Symbol.VariableSymbol)
+    #expect(arg.symbol !== paramSymbol)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func ifBodyLocalsIsolatedFromOuterScope() {
+    let (context, program) = resolve("func f(c: Bool) { if c { let x = 1 } }")
+    let functionDecl = program.statements[0] as! AST.FunctionDecl
+    let functionScope = functionDecl.symbol!.scope
+    #expect(functionScope.values["x"] == nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
