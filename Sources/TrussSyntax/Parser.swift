@@ -3393,11 +3393,11 @@ public final class Parser {
                     break _loop
                 }
                 switch member.kind {
-                case .Identifier, .IntegerLiteral:
+                case .Identifier, .IntegerLiteral, .Keyword:
                     index += 1
                 default:
                     emitError(
-                        "expected identifier or integer literal after '\(token.value)', but got '\(member.value)'",
+                        "expected identifier or keyword or integer literal after '\(token.value)', but got '\(member.value)'",
                         at: member
                     )
                 }
@@ -3433,11 +3433,11 @@ public final class Parser {
                     break _loop
                 }
                 switch member.kind {
-                case .Identifier, .IntegerLiteral:
+                case .Identifier, .IntegerLiteral, .Keyword:
                     index += 1
                 default:
                     emitError(
-                        "expected identifier or integer literal after '\(token.value)', but got '\(member.value)'",
+                        "expected identifier or keyword or integer literal after '\(token.value)', but got '\(member.value)'",
                         at: member
                     )
                 }

@@ -384,6 +384,157 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(obj!.name.value == "a")
 }
 
+@Test func parseInitMemberCall() throws {
+    let expr = firstExpression("Foo.init()")
+    let call = expr as? AST.Call
+    try #require(call != nil)
+    #expect(call!.arguments.isEmpty)
+    let callee = call!.callee as? AST.MemberAccess
+    try #require(callee != nil)
+    #expect(callee!.member.kind == .Keyword(.Init))
+    #expect(callee!.member.value == "init")
+    let obj = callee!.object as? AST.Variable
+    try #require(obj != nil)
+    #expect(obj!.name.value == "Foo")
+}
+
+@Test func parseInitMemberCallWithArguments() throws {
+    let expr = firstExpression("Foo.init(x: 1, y: 2)")
+    let call = expr as? AST.Call
+    try #require(call != nil)
+    #expect(call!.arguments.count == 2)
+    #expect(call!.arguments[0].label?.value == "x")
+    #expect(call!.arguments[1].label?.value == "y")
+    let callee = call!.callee as? AST.MemberAccess
+    try #require(callee != nil)
+    #expect(callee!.member.value == "init")
+}
+
+@Test func parseSelfInitDelegation() throws {
+    let expr = firstExpression("self.init(capacity: count)")
+    let call = expr as? AST.Call
+    try #require(call != nil)
+    #expect(call!.arguments.count == 1)
+    #expect(call!.arguments[0].label?.value == "capacity")
+    let callee = call!.callee as? AST.MemberAccess
+    try #require(callee != nil)
+    #expect(callee!.member.kind == .Keyword(.Init))
+    let obj = callee!.object as? AST.SelfExpression
+    #expect(obj != nil)
+}
+
+@Test func parseSuperInitCall() throws {
+    let expr = firstExpression("super.init()")
+    let call = expr as? AST.Call
+    try #require(call != nil)
+    let callee = call!.callee as? AST.MemberAccess
+    try #require(callee != nil)
+    #expect(callee!.member.value == "init")
+    let obj = callee!.object as? AST.SuperExpression
+    #expect(obj != nil)
+}
+
+@Test func parseDeinitMemberCallOnSubscript() throws {
+    let expr = firstExpression("data[i].deinit()")
+    let call = expr as? AST.Call
+    try #require(call != nil)
+    let callee = call!.callee as? AST.MemberAccess
+    try #require(callee != nil)
+    #expect(callee!.member.kind == .Keyword(.Deinit))
+    #expect(callee!.member.value == "deinit")
+    let sub = callee!.object as? AST.Subscript
+    try #require(sub != nil)
+    #expect(sub!.arguments.count == 1)
+}
+
+@Test func parseDeinitMemberCallOnParens() throws {
+    let expr = firstExpression("(*value).deinit()")
+    let call = expr as? AST.Call
+    try #require(call != nil)
+    let callee = call!.callee as? AST.MemberAccess
+    try #require(callee != nil)
+    #expect(callee!.member.value == "deinit")
+    let paren = callee!.object as? AST.ParentheticalExpression
+    try #require(paren != nil)
+}
+
+@Test func parseInitMemberCallAfterGeneric() throws {
+    let expr = firstExpression("Foo<Int32>.init()")
+    let call = expr as? AST.Call
+    try #require(call != nil)
+    let callee = call!.callee as? AST.MemberAccess
+    try #require(callee != nil)
+    #expect(callee!.member.kind == .Keyword(.Init))
+    let seq = callee!.object as? AST.SequentialExpression
+    try #require(seq != nil)
+    #expect(seq!.ops.count == 2)
+}
+
+@Test func parseBareInitMemberReference() throws {
+    let expr = firstExpression("Foo.init")
+    let member = expr as? AST.MemberAccess
+    try #require(member != nil)
+    #expect(member!.member.kind == .Keyword(.Init))
+    #expect(member!.member.value == "init")
+}
+
+@Test func parseBareDeinitMemberReference() throws {
+    let expr = firstExpression("foo.deinit")
+    let member = expr as? AST.MemberAccess
+    try #require(member != nil)
+    #expect(member!.member.kind == .Keyword(.Deinit))
+    #expect(member!.member.value == "deinit")
+}
+
+@Test func parseKeywordMemberName() throws {
+    let expr = firstExpression("foo.return")
+    let member = expr as? AST.MemberAccess
+    try #require(member != nil)
+    #expect(member!.member.kind == .Keyword(.Return))
+    #expect(member!.member.value == "return")
+}
+
+@Test func parseKeywordMemberNameIf() throws {
+    let expr = firstExpression("foo.if")
+    let member = expr as? AST.MemberAccess
+    try #require(member != nil)
+    #expect(member!.member.kind == .Keyword(.If))
+    #expect(member!.member.value == "if")
+}
+
+@Test func parseDeinitCallWithArgumentsAllowed() throws {
+    let expr = firstExpression("foo.deinit(1)")
+    let call = expr as? AST.Call
+    try #require(call != nil)
+    #expect(call!.arguments.count == 1)
+    let callee = call!.callee as? AST.MemberAccess
+    try #require(callee != nil)
+    #expect(callee!.member.value == "deinit")
+}
+
+@Test func parseInitMemberOptionalChain() throws {
+    let expr = firstExpression("foo?.init()")
+    let call = expr as? AST.Call
+    try #require(call != nil)
+    let callee = call!.callee as? AST.MemberAccess
+    try #require(callee != nil)
+    #expect(callee!.isOptional == true)
+    #expect(callee!.token.kind == .Operator(.QuestionMarkDot))
+    #expect(callee!.member.value == "init")
+}
+
+@Test func parseStringLiteralMemberReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { foo.\"str\" }")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected identifier or keyword or integer literal after") })
+}
+
+@Test func parseMemberAtEofReportsError() throws {
+    let (_, errors) = parseWithDiagnostics("func main() { foo.")
+    try #require(errors.count >= 1)
+    #expect(errors.contains { $0.message.contains("expected member name after '.'") })
+}
+
 @Test func parseCallOnCall() throws {
     let expr = firstExpression("foo()()")
     let outer = expr as? AST.Call
