@@ -8,73 +8,40 @@ extension AST {
 
         @discardableResult
         public func rewrite<T: AST.AstNode>(_ node: T) -> T {
-            (node.accept(self) as? T) ?? node
+            guard let result = node.accept(self, additional: nil) else { return node }
+            if result is AST.Deleted {
+                preconditionFailure("rewrite: cannot delete a single node")
+            }
+            guard let typed = result as? T else {
+                preconditionFailure(
+                    "rewrite: visit returned \(type(of: result)), expected \(T.self)"
+                )
+            }
+            if typed !== node {
+                typed.copySemantics(from: node)
+            }
+            return typed
         }
 
         @discardableResult
         public func rewriteAll<T: AST.AstNode>(_ nodes: [T]) -> [T] {
-            nodes.compactMap { $0.accept(self) as? T }
+            nodes.compactMap { node in
+                guard let result = node.accept(self, additional: nil) else { return node }
+                if result is AST.Deleted { return nil }
+                guard let typed = result as? T else {
+                    preconditionFailure(
+                        "rewriteAll: visit returned \(type(of: result)), expected \(T.self)"
+                    )
+                }
+                if typed !== node {
+                    typed.copySemantics(from: node)
+                }
+                return typed
+            }
         }
 
         private func unchanged<T: AnyObject>(_ old: [T], _ new: [T]) -> Bool {
             old.count == new.count && zip(old, new).allSatisfy { $0 === $1 }
-        }
-
-        public func copySemanticFields(from old: AST.AstNode, to new: AST.AstNode) {
-            if let oldExpression = old as? AST.Expression, let newExpression = new as? AST.Expression {
-                newExpression.ty = oldExpression.ty
-            }
-            switch (old, new) {
-            case let (oldProgram as AST.Program, newProgram as AST.Program):
-                newProgram.packageSymbol = oldProgram.packageSymbol
-            case let (oldModule as AST.ModuleDecl, newModule as AST.ModuleDecl):
-                newModule.symbol = oldModule.symbol
-            case let (oldAlias as AST.TypeAliasDecl, newAlias as AST.TypeAliasDecl):
-                newAlias.symbol = oldAlias.symbol
-            case let (oldStruct as AST.StructDecl, newStruct as AST.StructDecl):
-                newStruct.symbol = oldStruct.symbol
-            case let (oldClass as AST.ClassDecl, newClass as AST.ClassDecl):
-                newClass.symbol = oldClass.symbol
-            case let (oldActor as AST.ActorDecl, newActor as AST.ActorDecl):
-                newActor.symbol = oldActor.symbol
-            case let (oldProtocol as AST.ProtocolDecl, newProtocol as AST.ProtocolDecl):
-                newProtocol.symbol = oldProtocol.symbol
-            case let (oldEnum as AST.EnumDecl, newEnum as AST.EnumDecl):
-                newEnum.symbol = oldEnum.symbol
-            case let (oldExtension as AST.ExtensionDecl, newExtension as AST.ExtensionDecl):
-                newExtension.virtualScope = oldExtension.virtualScope
-            case let (oldCase as AST.EnumCaseDecl, newCase as AST.EnumCaseDecl):
-                newCase.symbols = oldCase.symbols
-            case let (oldInit as AST.InitDecl, newInit as AST.InitDecl):
-                newInit.symbol = oldInit.symbol
-            case let (oldSubscriptDecl as AST.SubscriptDecl, newSubscriptDecl as AST.SubscriptDecl):
-                newSubscriptDecl.symbol = oldSubscriptDecl.symbol
-            case let (oldFunction as AST.FunctionDecl, newFunction as AST.FunctionDecl):
-                newFunction.symbol = oldFunction.symbol
-            case let (oldVariableDecl as AST.VariableDecl, newVariableDecl as AST.VariableDecl):
-                newVariableDecl.symbol = oldVariableDecl.symbol
-            case let (oldAssociated as AST.AssociatedTypeDecl, newAssociated as AST.AssociatedTypeDecl):
-                newAssociated.symbol = oldAssociated.symbol
-            case let (oldVariable as AST.Variable, newVariable as AST.Variable):
-                newVariable.symbol = oldVariable.symbol
-                newVariable.overloads = oldVariable.overloads
-            case let (oldCall as AST.Call, newCall as AST.Call):
-                newCall.overloads = oldCall.overloads
-            case let (oldMember as AST.MemberAccess, newMember as AST.MemberAccess):
-                newMember.symbol = oldMember.symbol
-                newMember.overloads = oldMember.overloads
-            case let (oldSelf as AST.SelfExpression, newSelf as AST.SelfExpression):
-                newSelf.symbol = oldSelf.symbol
-            case let (oldSuper as AST.SuperExpression, newSuper as AST.SuperExpression):
-                newSuper.symbol = oldSuper.symbol
-            case let (oldImplicit as AST.ImplicitMemberAccess, newImplicit as AST.ImplicitMemberAccess):
-                newImplicit.symbol = oldImplicit.symbol
-                newImplicit.overloads = oldImplicit.overloads
-            case let (oldClosure as AST.Closure, newClosure as AST.Closure):
-                newClosure.scope = oldClosure.scope
-            default:
-                break
-            }
         }
 
         private func rewriteWhereRequirement(
@@ -343,7 +310,6 @@ extension AST {
             let newProgram = AST.Program(
                 program.id, program.packageName, statements, sourceRange: program.sourceRange
             )
-            copySemanticFields(from: program, to: newProgram)
             return newProgram
         }
 
@@ -404,7 +370,6 @@ extension AST {
                 externDecl.modifiers, externDecl.attributes, externDecl.token,
                 externDecl.convention, body, sourceRange: externDecl.sourceRange
             )
-            copySemanticFields(from: externDecl, to: newExternDecl)
             return newExternDecl
         }
 
@@ -438,7 +403,6 @@ extension AST {
                 typeAliasDecl.modifiers, typeAliasDecl.attributes, typeAliasDecl.token,
                 typeAliasDecl.name, typeExpression, sourceRange: typeAliasDecl.sourceRange
             )
-            copySemanticFields(from: typeAliasDecl, to: newTypeAliasDecl)
             return newTypeAliasDecl
         }
 
@@ -452,7 +416,6 @@ extension AST {
                 moduleDecl.modifiers, moduleDecl.attributes, moduleDecl.token, moduleDecl.name,
                 body, sourceRange: moduleDecl.sourceRange
             )
-            copySemanticFields(from: moduleDecl, to: newModuleDecl)
             return newModuleDecl
         }
 
@@ -512,7 +475,6 @@ extension AST {
                 structDecl.modifiers, structDecl.attributes, structDecl.token, structDecl.name,
                 genericDecl, conformances, whereClause, body, sourceRange: structDecl.sourceRange
             )
-            copySemanticFields(from: structDecl, to: newStructDecl)
             return newStructDecl
         }
 
@@ -563,7 +525,6 @@ extension AST {
                 genericDecl, inheritanceClauses, whereClause, body,
                 sourceRange: classDecl.sourceRange
             )
-            copySemanticFields(from: classDecl, to: newClassDecl)
             return newClassDecl
         }
 
@@ -586,7 +547,6 @@ extension AST {
                 actorDecl.modifiers, actorDecl.attributes, actorDecl.token, actorDecl.name,
                 genericDecl, conformances, whereClause, body, sourceRange: actorDecl.sourceRange
             )
-            copySemanticFields(from: actorDecl, to: newActorDecl)
             return newActorDecl
         }
 
@@ -610,7 +570,6 @@ extension AST {
                 protocolDecl.name, genericDecl, conformances, whereClause, body,
                 sourceRange: protocolDecl.sourceRange
             )
-            copySemanticFields(from: protocolDecl, to: newProtocolDecl)
             return newProtocolDecl
         }
 
@@ -631,7 +590,6 @@ extension AST {
                 extensionDecl.modifiers, extensionDecl.attributes, extensionDecl.token, base,
                 conformances, body, sourceRange: extensionDecl.sourceRange
             )
-            copySemanticFields(from: extensionDecl, to: newExtensionDecl)
             return newExtensionDecl
         }
 
@@ -654,7 +612,6 @@ extension AST {
                 enumDecl.modifiers, enumDecl.attributes, enumDecl.token, enumDecl.name,
                 genericDecl, conformances, whereClause, body, sourceRange: enumDecl.sourceRange
             )
-            copySemanticFields(from: enumDecl, to: newEnumDecl)
             return newEnumDecl
         }
 
@@ -674,7 +631,6 @@ extension AST {
                 enumCaseDecl.modifiers, enumCaseDecl.attributes, enumCaseDecl.token, elements,
                 sourceRange: enumCaseDecl.sourceRange
             )
-            copySemanticFields(from: enumCaseDecl, to: newEnumCaseDecl)
             return newEnumCaseDecl
         }
 
@@ -717,7 +673,6 @@ extension AST {
                 genericDecl, parameters, initDecl.asyncToken, throwsClause, body,
                 sourceRange: initDecl.sourceRange
             )
-            copySemanticFields(from: initDecl, to: newInitDecl)
             return newInitDecl
         }
 
@@ -784,7 +739,6 @@ extension AST {
                 functionDecl.asyncToken, throwsClause, returnTypeExpression, body,
                 sourceRange: functionDecl.sourceRange
             )
-            copySemanticFields(from: functionDecl, to: newFunctionDecl)
             return newFunctionDecl
         }
 
@@ -836,7 +790,6 @@ extension AST {
                 variableDecl.asyncToken, variableDecl.internalToken, variableDecl.name,
                 typeExpression, initializer, accessors, sourceRange: variableDecl.sourceRange
             )
-            copySemanticFields(from: variableDecl, to: newVariableDecl)
             return newVariableDecl
         }
 
@@ -1009,7 +962,6 @@ extension AST {
             let newParentheticalExpression = AST.ParentheticalExpression(
                 inner, sourceRange: parentheticalExpression.sourceRange
             )
-            copySemanticFields(from: parentheticalExpression, to: newParentheticalExpression)
             return newParentheticalExpression
         }
 
@@ -1034,7 +986,6 @@ extension AST {
             let newGenericApplication = AST.GenericApplication(
                 base, genericArguments, sourceRange: genericApplication.sourceRange
             )
-            copySemanticFields(from: genericApplication, to: newGenericApplication)
             return newGenericApplication
         }
 
@@ -1103,7 +1054,6 @@ extension AST {
                 ifExpression.token, condition, then, elseKind,
                 sourceRange: ifExpression.sourceRange
             )
-            copySemanticFields(from: ifExpression, to: newIf)
             return newIf
         }
 
@@ -1142,7 +1092,6 @@ extension AST {
             let newMatch = AST.Match(
                 matchExpression.token, subject, cases, sourceRange: matchExpression.sourceRange
             )
-            copySemanticFields(from: matchExpression, to: newMatch)
             return newMatch
         }
 
@@ -1180,7 +1129,6 @@ extension AST {
                 doExpression.token, body, catches, finallyBody,
                 sourceRange: doExpression.sourceRange
             )
-            copySemanticFields(from: doExpression, to: newDo)
             return newDo
         }
 
@@ -1232,7 +1180,6 @@ extension AST {
                 callee: callee, arguments: arguments, trailingClosures: trailingClosures,
                 sourceRange: call.sourceRange
             )
-            copySemanticFields(from: call, to: newCall)
             return newCall
         }
 
@@ -1246,7 +1193,6 @@ extension AST {
                 object, memberAccess.token, memberAccess.member,
                 isOptional: memberAccess.isOptional, sourceRange: memberAccess.sourceRange
             )
-            copySemanticFields(from: memberAccess, to: newMemberAccess)
             return newMemberAccess
         }
 
@@ -1288,7 +1234,6 @@ extension AST {
                 return closure
             }
             let newClosure = AST.Closure(signature, body, sourceRange: closure.sourceRange)
-            copySemanticFields(from: closure, to: newClosure)
             return newClosure
         }
 
@@ -1328,7 +1273,6 @@ extension AST {
                 parameters, closureType.asyncToken, throwsClause, returnType,
                 sourceRange: closureType.sourceRange
             )
-            copySemanticFields(from: closureType, to: newClosureType)
             return newClosureType
         }
 
@@ -1341,7 +1285,6 @@ extension AST {
             let newOptionalType = AST.OptionalType(
                 wrappedType, optionalType.token, sourceRange: optionalType.sourceRange
             )
-            copySemanticFields(from: optionalType, to: newOptionalType)
             return newOptionalType
         }
 
@@ -1354,7 +1297,6 @@ extension AST {
             let newVariadicType = AST.VariadicType(
                 base, variadicType.token, sourceRange: variadicType.sourceRange
             )
-            copySemanticFields(from: variadicType, to: newVariadicType)
             return newVariadicType
         }
 
@@ -1367,7 +1309,6 @@ extension AST {
             let newSomeType = AST.SomeType(
                 someType.token, wrappedType, sourceRange: someType.sourceRange
             )
-            copySemanticFields(from: someType, to: newSomeType)
             return newSomeType
         }
 
@@ -1380,7 +1321,6 @@ extension AST {
             let newAnyType = AST.AnyType(
                 anyType.token, wrappedType, sourceRange: anyType.sourceRange
             )
-            copySemanticFields(from: anyType, to: newAnyType)
             return newAnyType
         }
 
@@ -1393,7 +1333,6 @@ extension AST {
             let newProtocolCompositionType = AST.ProtocolCompositionType(
                 types, sourceRange: protocolCompositionType.sourceRange
             )
-            copySemanticFields(from: protocolCompositionType, to: newProtocolCompositionType)
             return newProtocolCompositionType
         }
 
@@ -1413,7 +1352,6 @@ extension AST {
             let newTupleExpression = AST.TupleExpression(
                 elements, sourceRange: tupleExpression.sourceRange
             )
-            copySemanticFields(from: tupleExpression, to: newTupleExpression)
             return newTupleExpression
         }
 
@@ -1426,7 +1364,6 @@ extension AST {
             let newIsPattern = AST.IsPattern(
                 isPattern.token, typeExpression, sourceRange: isPattern.sourceRange
             )
-            copySemanticFields(from: isPattern, to: newIsPattern)
             return newIsPattern
         }
 
@@ -1442,7 +1379,6 @@ extension AST {
             let newAsPattern = AST.AsPattern(
                 pattern, asPattern.token, typeExpression, sourceRange: asPattern.sourceRange
             )
-            copySemanticFields(from: asPattern, to: newAsPattern)
             return newAsPattern
         }
 
@@ -1457,7 +1393,6 @@ extension AST {
             let newSequentialExpression = AST.SequentialExpression(
                 sequentialExpression.ops, operands, sourceRange: sequentialExpression.sourceRange
             )
-            copySemanticFields(from: sequentialExpression, to: newSequentialExpression)
             return newSequentialExpression
         }
 
@@ -1471,7 +1406,6 @@ extension AST {
             let newBinary = AST.Binary(
                 left, right, binary.operatorToken, sourceRange: binary.sourceRange
             )
-            copySemanticFields(from: binary, to: newBinary)
             return newBinary
         }
 
@@ -1485,7 +1419,6 @@ extension AST {
                 prefixExpression.operatorToken, expression,
                 sourceRange: prefixExpression.sourceRange
             )
-            copySemanticFields(from: prefixExpression, to: newPrefix)
             return newPrefix
         }
 
@@ -1499,7 +1432,6 @@ extension AST {
                 expression, postfixExpression.operatorToken,
                 sourceRange: postfixExpression.sourceRange
             )
-            copySemanticFields(from: postfixExpression, to: newPostfix)
             return newPostfix
         }
 
@@ -1512,7 +1444,6 @@ extension AST {
             let newArrayLiteral = AST.ArrayLiteral(
                 elements, sourceRange: arrayLiteral.sourceRange
             )
-            copySemanticFields(from: arrayLiteral, to: newArrayLiteral)
             return newArrayLiteral
         }
 
@@ -1530,7 +1461,6 @@ extension AST {
             let newDictionaryLiteral = AST.DictionaryLiteral(
                 entries, sourceRange: dictionaryLiteral.sourceRange
             )
-            copySemanticFields(from: dictionaryLiteral, to: newDictionaryLiteral)
             return newDictionaryLiteral
         }
 
@@ -1553,7 +1483,6 @@ extension AST {
                 left, castExpression.token, right, castExpression.kind,
                 sourceRange: castExpression.sourceRange
             )
-            copySemanticFields(from: castExpression, to: newCastExpression)
             return newCastExpression
         }
 
@@ -1567,7 +1496,6 @@ extension AST {
                 tryExpression.token, tryExpression.kind, expression,
                 sourceRange: tryExpression.sourceRange
             )
-            copySemanticFields(from: tryExpression, to: newTryExpression)
             return newTryExpression
         }
 
@@ -1580,7 +1508,6 @@ extension AST {
             let newAwaitExpression = AST.AwaitExpression(
                 awaitExpression.token, expression, sourceRange: awaitExpression.sourceRange
             )
-            copySemanticFields(from: awaitExpression, to: newAwaitExpression)
             return newAwaitExpression
         }
 
@@ -1601,7 +1528,6 @@ extension AST {
             let newSubscript = AST.Subscript(
                 base: base, arguments: arguments, sourceRange: subscriptExpr.sourceRange
             )
-            copySemanticFields(from: subscriptExpr, to: newSubscript)
             return newSubscript
         }
 
@@ -1618,7 +1544,6 @@ extension AST {
                 optionalBinding.token, optionalBinding.name, typeExpression, value,
                 sourceRange: optionalBinding.sourceRange
             )
-            copySemanticFields(from: optionalBinding, to: newOptionalBinding)
             return newOptionalBinding
         }
 
@@ -1634,7 +1559,6 @@ extension AST {
             let newCaseMatch = AST.CaseMatch(
                 caseMatch.token, pattern, subject, sourceRange: caseMatch.sourceRange
             )
-            copySemanticFields(from: caseMatch, to: newCaseMatch)
             return newCaseMatch
         }
 
@@ -1653,7 +1577,6 @@ extension AST {
                 bindingPattern.token, bindingPattern.name, typeExpression, subpattern,
                 sourceRange: bindingPattern.sourceRange
             )
-            copySemanticFields(from: bindingPattern, to: newBindingPattern)
             return newBindingPattern
         }
 
@@ -1682,7 +1605,6 @@ extension AST {
                 keyPathExpression.backslashToken, newRoot, keyPathExpression.rootPostfix,
                 keyPathExpression.components, sourceRange: keyPathExpression.sourceRange
             )
-            copySemanticFields(from: keyPathExpression, to: newKeyPathExpression)
             return newKeyPathExpression
         }
 
@@ -1700,7 +1622,6 @@ extension AST {
             let newInterpolation = AST.StringInterpolation(
                 segments, sourceRange: interpolation.sourceRange
             )
-            copySemanticFields(from: interpolation, to: newInterpolation)
             return newInterpolation
         }
 
@@ -1738,7 +1659,6 @@ extension AST {
                 genericDecl, parameters, subscriptDecl.asyncToken, throwsClause, returnType,
                 body, sourceRange: subscriptDecl.sourceRange
             )
-            copySemanticFields(from: subscriptDecl, to: newSubscriptDecl)
             return newSubscriptDecl
         }
 
@@ -1758,7 +1678,6 @@ extension AST {
                 associatedTypeDecl.token, associatedTypeDecl.name, constraint, whereClause,
                 sourceRange: associatedTypeDecl.sourceRange
             )
-            copySemanticFields(from: associatedTypeDecl, to: newAssociatedTypeDecl)
             return newAssociatedTypeDecl
         }
     }

@@ -48,7 +48,6 @@ public final class ExpressionFolder: AST.Rewriter {
             return rewritten
         }
         guard let folded = foldGeneric(rewritten) ?? fold(rewritten) else { return rewritten }
-        copySemanticFields(from: rewritten, to: folded)
         return folded
     }
 

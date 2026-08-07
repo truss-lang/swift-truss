@@ -9,6 +9,12 @@ public extension AST {
         public override init(_ sourceRange: SourceRange) {
             super.init(sourceRange)
         }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherExpression = other as? AST.Expression {
+                ty = otherExpression.ty
+            }
+        }
     }
 
     @abstractClass
@@ -48,6 +54,13 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitVariable(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            super.copySemantics(from: other)
+            guard let otherVariable = other as? AST.Variable else { return }
+            symbol = otherVariable.symbol
+            overloads = otherVariable.overloads
         }
     }
 
@@ -286,6 +299,12 @@ public extension AST {
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitCall(self, additional: additional)
         }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            super.copySemantics(from: other)
+            guard let otherCall = other as? AST.Call else { return }
+            overloads = otherCall.overloads
+        }
     }
 
     final class MemberAccess: Expression {
@@ -308,6 +327,13 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitMemberAccess(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            super.copySemantics(from: other)
+            guard let otherMember = other as? AST.MemberAccess else { return }
+            symbol = otherMember.symbol
+            overloads = otherMember.overloads
         }
     }
 
@@ -338,6 +364,12 @@ public extension AST {
         public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitSelfExpression(self, additional: additional)
         }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            super.copySemantics(from: other)
+            guard let otherSelf = other as? AST.SelfExpression else { return }
+            symbol = otherSelf.symbol
+        }
     }
 
     final class SuperExpression: Expression {
@@ -352,6 +384,12 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitSuperExpression(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            super.copySemantics(from: other)
+            guard let otherSuper = other as? AST.SuperExpression else { return }
+            symbol = otherSuper.symbol
         }
     }
 
@@ -368,6 +406,13 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitImplicitMemberAccess(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            super.copySemantics(from: other)
+            guard let otherImplicit = other as? AST.ImplicitMemberAccess else { return }
+            symbol = otherImplicit.symbol
+            overloads = otherImplicit.overloads
         }
     }
 
@@ -415,6 +460,12 @@ public extension AST {
 
         public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitClosure(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            super.copySemantics(from: other)
+            guard let otherClosure = other as? AST.Closure else { return }
+            scope = otherClosure.scope
         }
     }
 
