@@ -4453,6 +4453,74 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(binding!.name.value == "x")
 }
 
+@Test func parseIfLetShorthand() throws {
+    let body = parseBlockStatements("func main() { if let x {} }")
+    try #require(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    try #require(exprStmt != nil)
+    let ifExpr = exprStmt!.expression as? AST.If
+    try #require(ifExpr != nil)
+    let binding = ifExpr!.condition as? AST.OptionalBinding
+    try #require(binding != nil)
+    #expect(binding!.token.kind == .Keyword(.Let))
+    #expect(binding!.name.value == "x")
+    #expect(binding!.typeExpression == nil)
+    let value = binding!.value as? AST.Variable
+    try #require(value != nil)
+    #expect(value!.name.value == "x")
+}
+
+@Test func parseIfVarShorthand() throws {
+    let body = parseBlockStatements("func main() { if var x {} }")
+    try #require(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let binding = ifExpr!.condition as? AST.OptionalBinding
+    try #require(binding != nil)
+    #expect(binding!.token.kind == .Keyword(.Var))
+    #expect(binding!.name.value == "x")
+}
+
+@Test func parseIfLetShorthandWithTypeAnnotation() throws {
+    let body = parseBlockStatements("func main() { if let x: Int32 {} }")
+    try #require(body.count == 1)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let ifExpr = exprStmt!.expression as? AST.If
+    let binding = ifExpr!.condition as? AST.OptionalBinding
+    try #require(binding != nil)
+    #expect(binding!.name.value == "x")
+    #expect(binding!.typeExpression != nil)
+    let value = binding!.value as? AST.Variable
+    try #require(value != nil)
+    #expect(value!.name.value == "x")
+}
+
+@Test func parseGuardLetShorthand() throws {
+    let body = parseBlockStatements("func main() { guard let x else {} }")
+    try #require(body.count == 1)
+    let guardStmt = body[0] as? AST.Guard
+    try #require(guardStmt != nil)
+    let binding = guardStmt!.condition as? AST.OptionalBinding
+    try #require(binding != nil)
+    #expect(binding!.name.value == "x")
+    let value = binding!.value as? AST.Variable
+    try #require(value != nil)
+    #expect(value!.name.value == "x")
+}
+
+@Test func parseWhileLetShorthand() throws {
+    let body = parseBlockStatements("func main() { while let x {} }")
+    try #require(body.count == 1)
+    let whileStmt = body[0] as? AST.While
+    try #require(whileStmt != nil)
+    let binding = whileStmt!.condition as? AST.OptionalBinding
+    try #require(binding != nil)
+    #expect(binding!.name.value == "x")
+    let value = binding!.value as? AST.Variable
+    try #require(value != nil)
+    #expect(value!.name.value == "x")
+}
+
 // MARK: - Case Match (if case)
 
 @Test func parseIfCaseDotName() throws {
@@ -6938,9 +7006,9 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 // MARK: - Optional Binding (error paths)
 
 @Test func parseOptionalBindingMissingEqualReportsError() throws {
-    let (_, errors) = parseWithDiagnostics("func main() { if let x {} }")
+    let (_, errors) = parseWithDiagnostics("func main() { if let x + 1 {} }")
     try #require(errors.count == 1)
-    #expect(errors[0].message.contains("expected '=' in optional binding"))
+    #expect(errors[0].message.contains("expected '=' or '{' after variable name in optional binding"))
 }
 
 @Test func parseOptionalBindingMissingNameReportsError() throws {

@@ -4247,8 +4247,22 @@ public final class Parser {
             suppressTrailingClosures = false
         }
         guard let eq = peek, case .Operator(.Assign) = eq.kind else {
+            if let t = peek {
+                switch t.kind {
+                case .Separator(.OpenBrace), .Keyword(.Else):
+                    let value = AST.Variable(
+                        name: name, sourceRange: name.sourceRange(in: buffer)
+                    )
+                    return AST.OptionalBinding(
+                        token, name, typeExpression, value,
+                        sourceRange: SourceRange(from: token, to: name, in: buffer)
+                    )
+                default:
+                    break
+                }
+            }
             emitError(
-                "expected '=' in optional binding",
+                "expected '=' or '{' after variable name in optional binding",
                 at: SourceRange(from: token, to: name, in: buffer)
             )
             return errorExpression(from: token, to: name)
