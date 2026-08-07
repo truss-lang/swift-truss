@@ -2,6 +2,10 @@ import SwiftAbstract
 import SwiftBetterDiagnostic
 
 public enum AST {
+    public struct Deleted {
+        public init() {}
+    }
+
     @abstractClass
     public class AstNode {
         public var sourceRange: SourceRange
@@ -12,6 +16,8 @@ public enum AST {
 
         @abstract
         public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any?
+
+        open func copySemantics(from other: AST.AstNode) {}
     }
 
     public final class Program: AstNode {
@@ -31,6 +37,12 @@ public enum AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitProgram(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherProgram = other as? AST.Program {
+                packageSymbol = otherProgram.packageSymbol
+            }
         }
     }
 

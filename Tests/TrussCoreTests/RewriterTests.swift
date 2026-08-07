@@ -14,12 +14,10 @@ final class IncrementLiteralRewriter: AST.Rewriter {
     override func visitIntegerLiteral(
         _ integerLiteral: AST.IntegerLiteral, additional: Any? = nil
     ) -> Any? {
-        let newLiteral = AST.IntegerLiteral(
+        AST.IntegerLiteral(
             integerLiteral.token, integerLiteral.value + 1,
             sourceRange: integerLiteral.sourceRange
         )
-        copySemanticFields(from: integerLiteral, to: newLiteral)
-        return newLiteral
     }
 }
 
@@ -27,17 +25,23 @@ final class LiteralToVariableRewriter: AST.Rewriter {
     override func visitIntegerLiteral(
         _ integerLiteral: AST.IntegerLiteral, additional: Any? = nil
     ) -> Any? {
-        let newVariable = AST.Variable(
+        AST.Variable(
             name: integerLiteral.token, sourceRange: integerLiteral.sourceRange
         )
-        copySemanticFields(from: integerLiteral, to: newVariable)
-        return newVariable
     }
 }
 
 final class DropExpressionStatementsRewriter: AST.Rewriter {
     override func visitExpressionStatement(
         _ expressionStatement: AST.ExpressionStatement, additional: Any? = nil
+    ) -> Any? {
+        AST.Deleted()
+    }
+}
+
+final class NilReturningRewriter: AST.Rewriter {
+    override func visitIntegerLiteral(
+        _ integerLiteral: AST.IntegerLiteral, additional: Any? = nil
     ) -> Any? {
         nil
     }
@@ -227,4 +231,40 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
         as! AST.DictionaryLiteral
     #expect((dictionary.entries[0].key as! AST.IntegerLiteral).value == 6)
     #expect((dictionary.entries[0].value as! AST.IntegerLiteral).value == 7)
+}
+
+@Test func nilReturnKeepsNode() {
+    let program = parseProgram("func f() { g(1) }")
+    let rewritten = NilReturningRewriter().rewrite(program)
+    #expect(rewritten === program)
+}
+
+@Test func deinitAndAccessorScopesSurviveRewrite() throws {
+    let program = parseProgram(
+        """
+        class C {
+            deinit { let x = 1 }
+            var p: Int {
+                get { 1 }
+                set { let y = 2 }
+            }
+        }
+        """,
+        semantic: true
+    )
+    let classDecl = program.statements[0] as! AST.ClassDecl
+    let deinitDecl = classDecl.body[0] as! AST.DeinitDecl
+    let deinitScope = try #require(deinitDecl.scope)
+    let variableDecl = classDecl.body[1] as! AST.VariableDecl
+    let getterScope = try #require(variableDecl.accessors[0].scope)
+    let setterScope = try #require(variableDecl.accessors[1].scope)
+    let rewritten = IncrementLiteralRewriter().rewrite(program)
+    let newClassDecl = rewritten.statements[0] as! AST.ClassDecl
+    let newDeinitDecl = newClassDecl.body[0] as! AST.DeinitDecl
+    #expect(newDeinitDecl !== deinitDecl)
+    #expect(newDeinitDecl.scope === deinitScope)
+    let newVariableDecl = newClassDecl.body[1] as! AST.VariableDecl
+    #expect(newVariableDecl.accessors[0] !== variableDecl.accessors[0])
+    #expect(newVariableDecl.accessors[0].scope === getterScope)
+    #expect(newVariableDecl.accessors[1].scope === setterScope)
 }

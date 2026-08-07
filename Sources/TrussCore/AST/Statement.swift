@@ -151,6 +151,12 @@ public extension AST {
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitTypeAliasDecl(self, additional: additional)
         }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherAlias = other as? AST.TypeAliasDecl {
+                symbol = otherAlias.symbol
+            }
+        }
     }
 
     final class ModuleDecl: Decl {
@@ -170,6 +176,12 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitModuleDecl(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherModule = other as? AST.ModuleDecl {
+                symbol = otherModule.symbol
+            }
         }
     }
 
@@ -268,6 +280,12 @@ public extension AST {
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitStructDecl(self, additional: additional)
         }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherStruct = other as? AST.StructDecl {
+                symbol = otherStruct.symbol
+            }
+        }
     }
 
     final class ClassDecl: Decl {
@@ -295,6 +313,12 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitClassDecl(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherClass = other as? AST.ClassDecl {
+                symbol = otherClass.symbol
+            }
         }
     }
 
@@ -324,6 +348,12 @@ public extension AST {
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitActorDecl(self, additional: additional)
         }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherActor = other as? AST.ActorDecl {
+                symbol = otherActor.symbol
+            }
+        }
     }
 
     final class ProtocolDecl: Decl {
@@ -352,6 +382,12 @@ public extension AST {
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitProtocolDecl(self, additional: additional)
         }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherProtocol = other as? AST.ProtocolDecl {
+                symbol = otherProtocol.symbol
+            }
+        }
     }
 
     final class ExtensionDecl: Decl {
@@ -374,6 +410,12 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitExtensionDecl(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherExtension = other as? AST.ExtensionDecl {
+                virtualScope = otherExtension.virtualScope
+            }
         }
     }
 
@@ -403,6 +445,12 @@ public extension AST {
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitEnumDecl(self, additional: additional)
         }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherEnum = other as? AST.EnumDecl {
+                symbol = otherEnum.symbol
+            }
+        }
     }
 
     final class EnumCaseDecl: Decl {
@@ -420,6 +468,12 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitEnumCaseDecl(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherCase = other as? AST.EnumCaseDecl {
+                symbols = otherCase.symbols
+            }
         }
 
         public struct Element {
@@ -489,6 +543,12 @@ public extension AST {
         public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitInitDecl(self, additional: additional)
         }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherInit = other as? AST.InitDecl {
+                symbol = otherInit.symbol
+            }
+        }
     }
 
     final class DeinitDecl: Decl {
@@ -506,6 +566,12 @@ public extension AST {
 
         public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitDeinitDecl(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherDeinit = other as? AST.DeinitDecl {
+                scope = otherDeinit.scope
+            }
         }
     }
 
@@ -540,6 +606,12 @@ public extension AST {
 
         public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitFunctionDecl(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherFunction = other as? AST.FunctionDecl {
+                symbol = otherFunction.symbol
+            }
         }
 
         public enum Body {
@@ -593,6 +665,12 @@ public extension AST {
 
         public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitVariableDecl(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherVariableDecl = other as? AST.VariableDecl {
+                symbol = otherVariableDecl.symbol
+            }
         }
     }
 
@@ -876,6 +954,12 @@ public extension AST {
             visitor.visitAccessor(self, additional: additional)
         }
 
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherAccessor = other as? AST.Accessor {
+                scope = otherAccessor.scope
+            }
+        }
+
         public enum Kind {
             case Get
             case Set
@@ -912,6 +996,12 @@ public extension AST {
         public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitSubscriptDecl(self, additional: additional)
         }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherSubscript = other as? AST.SubscriptDecl {
+                symbol = otherSubscript.symbol
+            }
+        }
     }
 
     final class AssociatedTypeDecl: Decl {
@@ -934,6 +1024,12 @@ public extension AST {
 
         public override func accept(_ visitor: AST.Visitor, additional: Any? = nil) -> Any? {
             visitor.visitAssociatedTypeDecl(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherAssociated = other as? AST.AssociatedTypeDecl {
+                symbol = otherAssociated.symbol
+            }
         }
     }
 }
