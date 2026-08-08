@@ -34,7 +34,11 @@ struct truss {
         }
         struct S3<E, each T> {
         }
-        typealias SS = (S) -> S
+        struct SS<T> {
+
+        }
+        typealias SSS = (SS<S>) -> S
+        typealias TA = (S)
         #define EMPTY()
         #define DEFER1(A) A
         #define DEFER2(A) A EMPTY()

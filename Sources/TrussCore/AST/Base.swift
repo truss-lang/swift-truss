@@ -17,7 +17,7 @@ public enum AST {
         @abstract
         public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any?
 
-        open func copySemantics(from other: AST.AstNode) {}
+        public func copySemantics(from other: AST.AstNode) {}
     }
 
     public final class Program: AstNode {

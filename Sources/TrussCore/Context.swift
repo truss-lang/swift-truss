@@ -57,7 +57,8 @@ public extension Context {
                 severity: .error, message: message,
                 range: token.sourceRange(in: source.stringSourceBuffer),
                 notes: notes + token.expansionNotes(in: self)
-            ))
+            )
+        )
     }
 }
 
