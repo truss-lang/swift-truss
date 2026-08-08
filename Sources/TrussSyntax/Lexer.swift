@@ -28,6 +28,7 @@ let operatorTable: [String: OperatorKind] = [
     "~": .BitNot,
     "!": .Not,
     "!=": .NotEqual,
+    "!==": .NotIdentical,
     "%": .Modulus,
     "%=": .ModulusAssign,
     "&": .BitAnd,
@@ -56,6 +57,7 @@ let operatorTable: [String: OperatorKind] = [
     ">=": .GreaterEqual,
     "=": .Assign,
     "==": .Equal,
+    "===": .Identical,
     "^": .BitXor,
     "^=": .BitXorAssign,
     "|": .BitOr,
@@ -587,9 +589,7 @@ public final class Lexer {
         var idx = line.startIndex
         while i < col - 1, idx < line.endIndex {
             let ch = line[idx]
-            if ch == " " { i += 1 }
-            else if ch == "\t" { i += 1 }
-            else { break }
+            if ch == " " { i += 1 } else if ch == "\t" { i += 1 } else { break }
             idx = line.index(after: idx)
         }
         return String(line[idx...])

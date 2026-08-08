@@ -225,6 +225,8 @@ public enum OperatorKind: Sendable {
     case GreaterEqual // >=
     case Less // <
     case LessEqual // <=
+    case Identical // ===
+    case NotIdentical // !==
 
     case QuestionMarkDot // ?.
     case Elvis // ?:
