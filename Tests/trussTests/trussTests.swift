@@ -169,6 +169,9 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
         "fold.truss",
         "precedencegroup Additive {} precedencegroup Multiplicative { higherThan: Additive }\n"
             + "infix operator +: Additive infix operator *: Multiplicative\n"
+            + "struct S {}\n"
+            + "func +(lhs: S, rhs: S) -> S { lhs }\n"
+            + "func *(lhs: S, rhs: S) -> S { lhs }\n"
             + "func main() { 1 + 2 * 3 }\n"
     )
     let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
@@ -181,7 +184,13 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     let file = try writeTemp(
         "unary.truss",
         "precedencegroup Multiplicative {}\nprefix operator - infix operator -: Multiplicative\n"
-            + "infix operator *: Multiplicative\nfunc main() { -a * b }\n"
+            + "infix operator *: Multiplicative\n"
+            + "struct S {}\n"
+            + "func -(x: S) -> S { x }\n"
+            + "func *(lhs: S, rhs: S) -> S { lhs }\n"
+            + "let a: S\n"
+            + "let b: S\n"
+            + "func main() { -a * b }\n"
     )
     let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
     #expect(!result.hasErrors)
@@ -205,4 +214,51 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     let result = Driver(config: DriverConfig()).run(files: [file])
     #expect(result.hasErrors)
     #expect(result.stderr.contains("unknown operator '+'"))
+}
+
+@Test func driverOperatorFunctionResolution() throws {
+    let file = try writeTemp(
+        "op-func.truss",
+        "precedencegroup Additive {}\ninfix operator +: Additive\n"
+            + "struct S {}\n"
+            + "func +(lhs: S, rhs: S) -> S { lhs }\n"
+            + "func main() {\nlet s: S\nlet a: S = s + s\n}\n"
+    )
+    let result = Driver(config: DriverConfig()).run(files: [file])
+    #expect(!result.hasErrors)
+}
+
+@Test func driverOperatorWithoutFunctionReportsError() throws {
+    let file = try writeTemp(
+        "op-noimpl.truss",
+        "precedencegroup Additive {}\ninfix operator +: Additive\n"
+            + "func main() { 1 + 2 }\n"
+    )
+    let result = Driver(config: DriverConfig()).run(files: [file])
+    #expect(result.hasErrors)
+    #expect(result.stderr.contains("operator '+' has no function declaration"))
+}
+
+@Test func driverGenericFunctionEndToEnd() throws {
+    let file = try writeTemp(
+        "generic-fn.truss",
+        "struct S {}\n"
+            + "func id<T>(x: T) -> T { x }\n"
+            + "func main() {\nlet s: S\nlet a = id(s)\n}\n"
+    )
+    let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("ty:StructType(S)"))
+}
+
+@Test func driverMismatchedTypeReportsError() throws {
+    let file = try writeTemp(
+        "mismatch.truss",
+        "struct S {}\nstruct T {}\n"
+            + "func makeT() -> T { }\n"
+            + "func main() {\nlet x: S = makeT()\n}\n"
+    )
+    let result = Driver(config: DriverConfig()).run(files: [file])
+    #expect(result.hasErrors)
+    #expect(result.stderr.contains("expected 'S', found 'T'"))
 }

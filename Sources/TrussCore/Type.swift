@@ -135,4 +135,32 @@ public enum TrussType {
             self.arguments = arguments
         }
     }
+
+    public final class TypeVariableType: TrussType {
+        public let id: Id.TypeVariableId
+        public let name: String?
+        public var binding: TrussType? = nil
+        public init(_ id: Id.TypeVariableId, _ name: String? = nil) {
+            self.id = id
+            self.name = name
+        }
+    }
+
+    public final class ForallType: TrussType {
+        public let parameters: [Symbol.GenericParamSymbol]
+        public let body: TrussType
+        public init(parameters: [Symbol.GenericParamSymbol], body: TrussType) {
+            self.parameters = parameters
+            self.body = body
+        }
+    }
+
+    public final class GenericParamType: TrussType {
+        public let name: String
+        public let symbol: Symbol.GenericParamSymbol?
+        public init(_ name: String, _ symbol: Symbol.GenericParamSymbol? = nil) {
+            self.name = name
+            self.symbol = symbol
+        }
+    }
 }

@@ -319,15 +319,15 @@ import TrussCore
             |-ClassDecl Base sym:Base#2
             |-StructDecl S sym:S#3
             | `-Conformance
-            |   `-Variable P1 sym:P1#1
+            |   `-Variable P1 ty:ProtocolType(P1)#0 sym:P1#1
             |-ClassDecl C sym:C#4 super:Base#2
             | |-Conformance
-            | | `-Variable Base sym:Base#2
+            | | `-Variable Base ty:ClassType(Base)#1 sym:Base#2
             | `-Conformance
-            |   `-Variable P1 sym:P1#1
+            |   `-Variable P1 ty:ProtocolType(P1)#0 sym:P1#1
             |-EnumDecl E sym:E#5
             | `-Conformance
-            |   `-Variable P1 sym:P1#1
+            |   `-Variable P1 ty:ProtocolType(P1)#0 sym:P1#1
             `-ActorDecl A sym:A#6
             """
     )

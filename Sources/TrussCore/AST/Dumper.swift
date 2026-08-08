@@ -131,6 +131,18 @@ public extension AST {
             case let generic as TrussType.GenericInstantiation:
                 return "Generic(\(typeText(generic.base))<"
                     + generic.arguments.map(typeText).joined(separator: ", ") + ">)"
+            case let variable as TrussType.TypeVariableType:
+                let name = variable.name ?? "\(variable.id.id)"
+                if let binding = variable.binding {
+                    return "Var(\(name))->\(typeText(binding))"
+                }
+                return "Var(\(name))"
+            case let forall as TrussType.ForallType:
+                return "forall "
+                    + forall.parameters.map { $0.name }.joined(separator: ", ") + ". "
+                    + typeText(forall.body)
+            case let genericParam as TrussType.GenericParamType:
+                return "GenericParam(\(genericParam.name))"
             default: return "?"
             }
         }

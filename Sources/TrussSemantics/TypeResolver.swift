@@ -1,3 +1,4 @@
+import SwiftBetterDiagnostic
 import TrussCore
 
 public final class TypeResolver: AST.Visitor {
@@ -5,6 +6,12 @@ public final class TypeResolver: AST.Visitor {
     private var collectingTypealiases = false
     private var typealiasDecls: [Id.SymbolId: AST.TypeAliasDecl] = [:]
     private var resolvingTypealiases: Set<Id.SymbolId> = []
+    private var scopeStack: [Scope] = []
+    private var typeStack: [Symbol.NominalTypeSymbol] = []
+    private var functionReturnTypes: [TrussType.TrussType] = []
+    private var constraintFrames: [[Id.TypeVariableId: [TrussType.ProtocolType]]] = []
+    private var nextTypeVariableId: UInt64 = 0
+
     public init(context: Context) {
         self.context = context
     }
@@ -12,9 +19,24 @@ public final class TypeResolver: AST.Visitor {
     @discardableResult
     public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         collectingTypealiases = true
-        super.visitProgram(program, additional: additional)
+        withScope(program.packageSymbol?.scope) {
+            super.visitProgram(program, additional: additional)
+        }
         collectingTypealiases = false
-        return super.visitProgram(program, additional: additional)
+        withScope(program.packageSymbol?.scope) {
+            super.visitProgram(program, additional: additional)
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
+        -> Any?
+    {
+        withScope(moduleDecl.symbol?.scope) {
+            super.visitModuleDecl(moduleDecl, additional: additional)
+        }
+        return nil
     }
 
     @discardableResult
@@ -31,82 +53,64 @@ public final class TypeResolver: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitVariableDecl(
-        _ variableDecl: AST.VariableDecl, additional: Any? = nil
-    ) -> Any? {
-        let type = evaluate(variableDecl.typeExpression)
-        variableDecl.symbol?.type = type
-        return super.visitVariableDecl(variableDecl, additional: additional)
-    }
-
-    @discardableResult
-    public override func visitFunctionDecl(
-        _ functionDecl: AST.FunctionDecl, additional: Any? = nil
-    ) -> Any? {
-        guard let symbol = functionDecl.symbol else {
-            return super.visitFunctionDecl(functionDecl, additional: additional)
-        }
-        fillParameterTypes(functionDecl.parameters, into: symbol)
-        symbol.functionType = functionType(
-            labels: functionDecl.parameters.map { $0.label?.value },
-            parameterTypes: functionDecl.parameters.map(\.type),
-            asyncToken: functionDecl.asyncToken,
-            throwsClause: functionDecl.throwsClause,
-            returnType: functionDecl.returnTypeExpression,
-            fallbackReturnType: TrussType.VoidType.INSTANCE
-        )
-        return super.visitFunctionDecl(functionDecl, additional: additional)
-    }
-
-    @discardableResult
-    public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil)
+    public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil)
         -> Any?
     {
-        guard let symbol = initDecl.symbol else {
-            return super.visitInitDecl(initDecl, additional: additional)
+        withTypeContext(structDecl.symbol) {
+            super.visitStructDecl(structDecl, additional: additional)
         }
-        fillParameterTypes(initDecl.parameters, into: symbol)
-        symbol.functionType = functionType(
-            labels: initDecl.parameters.map { $0.label?.value },
-            parameterTypes: initDecl.parameters.map(\.type),
-            asyncToken: initDecl.asyncToken,
-            throwsClause: initDecl.throwsClause,
-            returnType: nil,
-            fallbackReturnType: TrussType.VoidType.INSTANCE
-        )
-        return super.visitInitDecl(initDecl, additional: additional)
+        return nil
     }
 
     @discardableResult
-    public override func visitSubscriptDecl(
-        _ subscriptDecl: AST.SubscriptDecl, additional: Any? = nil
+    public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil)
+        -> Any?
+    {
+        withTypeContext(classDecl.symbol) {
+            super.visitClassDecl(classDecl, additional: additional)
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil)
+        -> Any?
+    {
+        withTypeContext(enumDecl.symbol) {
+            super.visitEnumDecl(enumDecl, additional: additional)
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitProtocolDecl(
+        _ protocolDecl: AST.ProtocolDecl, additional: Any? = nil
     ) -> Any? {
-        guard let symbol = subscriptDecl.symbol else {
-            return super.visitSubscriptDecl(subscriptDecl, additional: additional)
+        withTypeContext(protocolDecl.symbol) {
+            super.visitProtocolDecl(protocolDecl, additional: additional)
         }
-        fillParameterTypes(subscriptDecl.parameters, into: symbol)
-        symbol.functionType = functionType(
-            labels: subscriptDecl.parameters.map { $0.label?.value },
-            parameterTypes: subscriptDecl.parameters.map(\.type),
-            asyncToken: subscriptDecl.asyncToken,
-            throwsClause: subscriptDecl.throwsClause,
-            returnType: subscriptDecl.returnType
-        )
-        return super.visitSubscriptDecl(subscriptDecl, additional: additional)
+        return nil
     }
 
     @discardableResult
-    public override func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
-        if let signature = closure.signature {
-            closure.ty = functionType(
-                labels: signature.parameters.map { $0.label?.value },
-                parameterTypes: signature.parameters.map(\.type),
-                asyncToken: signature.asyncToken,
-                throwsClause: signature.throwsClause,
-                returnType: signature.returnType
-            )
+    public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil)
+        -> Any?
+    {
+        withTypeContext(actorDecl.symbol) {
+            super.visitActorDecl(actorDecl, additional: additional)
         }
-        return super.visitClosure(closure, additional: additional)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitExtensionDecl(
+        _ extensionDecl: AST.ExtensionDecl, additional: Any? = nil
+    ) -> Any? {
+        let base = resolvedSymbol(extensionDecl.base) as? Symbol.NominalTypeSymbol
+        withTypeContext(base) {
+            super.visitExtensionDecl(extensionDecl, additional: additional)
+        }
+        return nil
     }
 
     @discardableResult
@@ -122,80 +126,314 @@ public final class TypeResolver: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitCastExpression(
-        _ castExpression: AST.CastExpression, additional: Any? = nil
+    public override func visitFunctionDecl(
+        _ functionDecl: AST.FunctionDecl, additional: Any? = nil
     ) -> Any? {
-        _ = evaluate(castExpression.right)
-        return super.visitCastExpression(castExpression, additional: additional)
-    }
-
-    @discardableResult
-    public override func visitIsPattern(_ isPattern: AST.IsPattern, additional: Any? = nil)
-        -> Any?
-    {
-        _ = evaluate(isPattern.typeExpression)
-        return super.visitIsPattern(isPattern, additional: additional)
-    }
-
-    @discardableResult
-    public override func visitAsPattern(_ asPattern: AST.AsPattern, additional: Any? = nil)
-        -> Any?
-    {
-        _ = evaluate(asPattern.typeExpression)
-        return super.visitAsPattern(asPattern, additional: additional)
-    }
-
-    @discardableResult
-    public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
-        let name = variable.name.value
-        if name == "Void" {
-            variable.ty = TrussType.VoidType.INSTANCE
-        } else if name == "Never" {
-            variable.ty = TrussType.NeverType.INSTANCE
+        guard let symbol = functionDecl.symbol else { return nil }
+        withScope(symbol.scope) {
+            let parameterTypes = fillParameterTypes(functionDecl.parameters, into: symbol)
+            let returnType: TrussType.TrussType? =
+                if let typeExpression = functionDecl.returnTypeExpression {
+                    evaluate(typeExpression)
+                } else {
+                    TrussType.VoidType.INSTANCE
+                }
+            let functionType = functionType(
+                labels: functionDecl.parameters.map { $0.label?.value },
+                parameterTypes: parameterTypes,
+                asyncToken: functionDecl.asyncToken,
+                throwsClause: functionDecl.throwsClause,
+                returnType: returnType
+            )
+            if let genericDecl = functionDecl.genericDecl, !genericDecl.generics.isEmpty {
+                symbol.forallType = TrussType.ForallType(
+                    parameters: genericParams(of: genericDecl), body: functionType
+                )
+                symbol.functionType = functionType
+            } else {
+                symbol.functionType = functionType
+            }
+            withFunctionReturnType(returnType ?? TrussType.VoidType.INSTANCE) {
+                visitFunctionBody(
+                    functionDecl.body, expectedReturn: returnType, at: functionDecl.name
+                )
+            }
         }
         return nil
     }
 
+    @discardableResult
+    public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil)
+        -> Any?
+    {
+        guard let symbol = initDecl.symbol else {
+            return super.visitInitDecl(initDecl, additional: additional)
+        }
+        withScope(symbol.scope) {
+            let parameterTypes = fillParameterTypes(initDecl.parameters, into: symbol)
+            let functionType = functionType(
+                labels: initDecl.parameters.map { $0.label?.value },
+                parameterTypes: parameterTypes,
+                asyncToken: initDecl.asyncToken,
+                throwsClause: initDecl.throwsClause,
+                returnType: TrussType.VoidType.INSTANCE
+            )
+            symbol.functionType = functionType
+            withFunctionReturnType(TrussType.VoidType.INSTANCE) {
+                visitFunctionBody(
+                    .Block(initDecl.body), expectedReturn: nil, at: initDecl.token
+                )
+            }
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitSubscriptDecl(
+        _ subscriptDecl: AST.SubscriptDecl, additional: Any? = nil
+    ) -> Any? {
+        guard let symbol = subscriptDecl.symbol else {
+            return super.visitSubscriptDecl(subscriptDecl, additional: additional)
+        }
+        withScope(symbol.scope) {
+            let parameterTypes = fillParameterTypes(subscriptDecl.parameters, into: symbol)
+            let returnType: TrussType.TrussType? =
+                evaluate(subscriptDecl.returnType) ?? TrussType.VoidType.INSTANCE
+            let functionType = functionType(
+                labels: subscriptDecl.parameters.map { $0.label?.value },
+                parameterTypes: parameterTypes,
+                asyncToken: subscriptDecl.asyncToken,
+                throwsClause: subscriptDecl.throwsClause,
+                returnType: returnType
+            )
+            symbol.functionType = functionType
+            withFunctionReturnType(returnType ?? TrussType.VoidType.INSTANCE) {
+                visitFunctionBody(
+                    .Block(subscriptDecl.body), expectedReturn: returnType,
+                    at: subscriptDecl.token
+                )
+            }
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil)
+        -> Any?
+    {
+        withScope(deinitDecl.scope) {
+            super.visitDeinitDecl(deinitDecl, additional: additional)
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitVariableDecl(
+        _ variableDecl: AST.VariableDecl, additional: Any? = nil
+    ) -> Any? {
+        let type: TrussType.TrussType? =
+            if let typeExpr = variableDecl.typeExpression {
+                evaluate(typeExpr)
+            } else {
+                nil
+            }
+        if let type {
+            variableDecl.symbol?.type = type
+            if let initializer = variableDecl.initializer {
+                check(initializer, type, at: variableDecl.name)
+            }
+            for accessor in variableDecl.accessors {
+                checkAccessor(accessor, type, at: variableDecl.name)
+            }
+        } else if let initializer = variableDecl.initializer {
+            let inferred = infer(initializer)
+            variableDecl.symbol?.type = inferred
+            for accessor in variableDecl.accessors {
+                if let inferred {
+                    checkAccessor(accessor, inferred, at: variableDecl.name)
+                } else {
+                    visitAccessorStatements(accessor)
+                }
+            }
+        } else {
+            for accessor in variableDecl.accessors {
+                visitAccessorStatements(accessor)
+            }
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitExpressionStatement(
+        _ expressionStatement: AST.ExpressionStatement, additional: Any? = nil
+    ) -> Any? {
+        _ = infer(expressionStatement.expression)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitReturn(_ returnStatement: AST.Return, additional: Any? = nil)
+        -> Any?
+    {
+        guard let value = returnStatement.value else { return nil }
+        if let expected = functionReturnTypes.last {
+            check(value, expected, at: returnStatement.token)
+        } else {
+            _ = infer(value)
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitThrow(_ throwStatement: AST.Throw, additional: Any? = nil)
+        -> Any?
+    {
+        _ = infer(throwStatement.expression)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitWhile(_ whileStatement: AST.While, additional: Any? = nil)
+        -> Any?
+    {
+        withScope(whileStatement.scope) {
+            super.visitWhile(whileStatement, additional: additional)
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitRepeatWhile(
+        _ repeatWhile: AST.RepeatWhile, additional: Any? = nil
+    ) -> Any? {
+        withScope(repeatWhile.scope) {
+            super.visitRepeatWhile(repeatWhile, additional: additional)
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitFor(_ forStatement: AST.For, additional: Any? = nil) -> Any? {
+        _ = infer(forStatement.sequence)
+        if let whereClause = forStatement.whereClause {
+            _ = infer(whereClause)
+        }
+        for statement in forStatement.body {
+            visit(statement)
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
+        nil
+    }
+
+    @discardableResult
+    public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
+        variable.ty = evaluateVariable(variable)
+        return nil
+    }
+
+    private func visitFunctionBody(
+        _ body: AST.FunctionDecl.Body?, expectedReturn: TrussType.TrussType?, at token: Token
+    ) {
+        guard let body else { return }
+        switch body {
+        case let .Block(statements):
+            for statement in statements {
+                visit(statement)
+            }
+        case let .Expression(expression):
+            if let expectedReturn {
+                check(expression, expectedReturn, at: token)
+            } else {
+                _ = infer(expression)
+            }
+        }
+    }
+
+    private func checkAccessor(
+        _ accessor: AST.Accessor, _ type: TrussType.TrussType, at token: Token
+    ) {
+        withScope(accessor.scope) {
+            switch accessor.body {
+            case let .Block(statements):
+                for statement in statements {
+                    visit(statement)
+                }
+            case let .Expression(expression):
+                check(expression, type, at: accessor.token ?? token)
+            }
+        }
+    }
+
+    private func visitAccessorStatements(_ accessor: AST.Accessor) {
+        withScope(accessor.scope) {
+            switch accessor.body {
+            case let .Block(statements):
+                for statement in statements {
+                    visit(statement)
+                }
+            case let .Expression(expression):
+                _ = infer(expression)
+            }
+        }
+    }
+
     private func fillParameterTypes(
         _ parameters: [AST.FunctionDecl.Parameter], into symbol: Symbol.FunctionSymbol
-    ) {
+    ) -> [TrussType.TrussType?] {
+        var types: [TrussType.TrussType?] = []
         for parameter in parameters {
-            let type = evaluate(parameter.type)
-            let variable = symbol.scope.values[parameter.name.value]?.first
-                as? Symbol.VariableSymbol
+            let type: TrussType.TrussType? =
+                if let ty = parameter.type {
+                    evaluate(ty)
+                } else {
+                    nil
+                }
+            let variable =
+                symbol.scope.values[parameter.name.value]?.first
+                    as? Symbol.VariableSymbol
             variable?.type = type
+            types.append(type)
         }
+        return types
+    }
+
+    private func genericParams(of genericDecl: AST.GenericDecl) -> [Symbol.GenericParamSymbol] {
+        var params: [Symbol.GenericParamSymbol] = []
+        for generic in genericDecl.generics {
+            if let symbol = scopeStack.last?.types[generic.name.value]
+                as? Symbol.GenericParamSymbol
+            {
+                params.append(symbol)
+            }
+        }
+        return params
     }
 
     private func functionType(
         labels: [String?],
-        parameterTypes: [AST.Expression?],
+        parameterTypes: [TrussType.TrussType?],
         asyncToken: Token?,
         throwsClause: AST.ThrowsClause?,
-        returnType: AST.Expression?,
-        fallbackReturnType: TrussType.TrussType? = nil
+        returnType: TrussType.TrussType?
     ) -> TrussType.FunctionType {
         for type in throwsClause?.types ?? [] {
             _ = evaluate(type)
         }
-        let resolvedReturnType: TrussType.TrussType? =
-            if let returnType {
-                evaluate(returnType)
-            } else {
-                fallbackReturnType
-            }
         return TrussType.FunctionType(
             parameters: zip(labels, parameterTypes).map { label, type in
-                TrussType.FunctionType.Parameter(label: label, type: evaluate(type))
+                TrussType.FunctionType.Parameter(label: label, type: type)
             },
             isAsync: asyncToken != nil,
             isThrowing: throwsClause != nil,
-            returnType: resolvedReturnType
+            returnType: returnType
         )
     }
 
-    private func evaluate(_ expression: AST.Expression?) -> TrussType.TrussType? {
-        guard let expression else { return nil }
+    private func evaluate(_ expression: AST.Expression) -> TrussType.TrussType? {
         let result: TrussType.TrussType?
         switch expression {
         case let variable as AST.Variable:
@@ -209,10 +447,10 @@ public final class TypeResolver: AST.Visitor {
         case let closureType as AST.ClosureType:
             result = functionType(
                 labels: closureType.parameters.map { $0.label?.value },
-                parameterTypes: closureType.parameters.map(\.type),
+                parameterTypes: closureType.parameters.map { evaluate($0.type) },
                 asyncToken: closureType.asyncToken,
                 throwsClause: closureType.throwsClause,
-                returnType: closureType.returnType
+                returnType: evaluate(closureType.returnType)
             )
         case let tupleExpression as AST.TupleExpression:
             var elements: [TrussType.TupleType.Element] = []
@@ -223,7 +461,8 @@ public final class TypeResolver: AST.Visitor {
                     break
                 }
                 elements.append(
-                    TrussType.TupleType.Element(label: argument.label?.value, type: type))
+                    TrussType.TupleType.Element(label: argument.label?.value, type: type)
+                )
             }
             result = ok ? TrussType.TupleType(elements) : nil
         case let composition as AST.ProtocolCompositionType:
@@ -254,6 +493,10 @@ public final class TypeResolver: AST.Visitor {
                 members.append(member)
             }
             result = ok ? TrussType.CompositionType(members) : nil
+        case let anyType as AST.AnyType:
+            result = evaluate(anyType.wrappedType)
+        case let someType as AST.SomeType:
+            result = evaluateOpaque(someType)
         case is AST.VoidLiteral:
             result = TrussType.VoidType.INSTANCE
         default:
@@ -261,6 +504,24 @@ public final class TypeResolver: AST.Visitor {
         }
         expression.ty = result
         return result
+    }
+
+    private func evaluateOpaque(_ someType: AST.SomeType) -> TrussType.TrussType? {
+        guard let inner = evaluate(someType.wrappedType) else { return nil }
+        let variable = freshTypeVariable()
+        for member in compositionMembers(inner) {
+            if let protocolType = member as? TrussType.ProtocolType {
+                addConstraint(variable, protocolType)
+            }
+        }
+        return variable
+    }
+
+    private func compositionMembers(_ type: TrussType.TrussType) -> [TrussType.TrussType] {
+        if let composition = type as? TrussType.CompositionType {
+            return composition.members
+        }
+        return [type]
     }
 
     private func evaluateVariable(_ variable: AST.Variable) -> TrussType.TrussType? {
@@ -271,6 +532,9 @@ public final class TypeResolver: AST.Visitor {
             if let typeAlias = symbol as? Symbol.TypeAliasSymbol {
                 return resolveTypealias(typeAlias)
             }
+            if let genericParam = symbol as? Symbol.GenericParamSymbol {
+                return TrussType.GenericParamType(genericParam.name, genericParam)
+            }
             return nil
         }
         switch variable.name.value {
@@ -278,16 +542,6 @@ public final class TypeResolver: AST.Visitor {
         case "Never": return TrussType.NeverType.INSTANCE
         default: return nil
         }
-    }
-
-    private func resolveTypealias(_ symbol: Symbol.TypeAliasSymbol) -> TrussType.TrussType? {
-        if let target = symbol.targetType { return target }
-        if resolvingTypealiases.contains(symbol.id) { return nil }
-        guard let decl = typealiasDecls[symbol.id] else { return nil }
-        resolvingTypealiases.insert(symbol.id)
-        defer { resolvingTypealiases.remove(symbol.id) }
-        symbol.targetType = evaluate(decl.typeExpression)
-        return symbol.targetType
     }
 
     private func evaluateGenericApplication(
@@ -302,5 +556,211 @@ public final class TypeResolver: AST.Visitor {
             arguments.append(resolved)
         }
         return TrussType.GenericInstantiation(base: base, arguments: arguments)
+    }
+
+    private func resolveTypealias(_ symbol: Symbol.TypeAliasSymbol) -> TrussType.TrussType? {
+        if let target = symbol.targetType { return target }
+        if resolvingTypealiases.contains(symbol.id) { return nil }
+        guard let decl = typealiasDecls[symbol.id] else { return nil }
+        resolvingTypealiases.insert(symbol.id)
+        defer { resolvingTypealiases.remove(symbol.id) }
+        symbol.targetType = evaluate(decl.typeExpression)
+        return symbol.targetType
+    }
+
+    private func resolvedSymbol(_ expression: AST.Expression) -> Symbol.Symbol? {
+        if let variable = expression as? AST.Variable {
+            return variable.symbol
+        }
+        if let member = expression as? AST.MemberAccess {
+            return member.symbol
+        }
+        if let selfExpression = expression as? AST.SelfExpression {
+            return selfExpression.symbol
+        }
+        if let superExpression = expression as? AST.SuperExpression {
+            return superExpression.symbol
+        }
+        return nil
+    }
+
+    private func withScope(_ scope: Scope?, _ body: () -> Void) {
+        guard let scope else {
+            body()
+            return
+        }
+        scopeStack.append(scope)
+        constraintFrames.append([:])
+        body()
+        constraintFrames.removeLast()
+        scopeStack.removeLast()
+    }
+
+    private func withTypeContext(_ symbol: Symbol.NominalTypeSymbol?, _ body: () -> Void) {
+        guard let symbol else {
+            body()
+            return
+        }
+        typeStack.append(symbol)
+        body()
+        typeStack.removeLast()
+    }
+
+    private func withFunctionReturnType(_ type: TrussType.TrussType, _ body: () -> Void) {
+        functionReturnTypes.append(type)
+        body()
+        functionReturnTypes.removeLast()
+    }
+
+    private func freshTypeVariable(_ name: String? = nil) -> TrussType.TypeVariableType {
+        let variable = TrussType.TypeVariableType(Id.TypeVariableId(id: nextTypeVariableId), name)
+        nextTypeVariableId += 1
+        return variable
+    }
+
+    private func addConstraint(
+        _ variable: TrussType.TypeVariableType, _ protocolType: TrussType.ProtocolType
+    ) {
+        guard !constraintFrames.isEmpty else { return }
+        constraintFrames[constraintFrames.count - 1][variable.id, default: []].append(
+            protocolType)
+    }
+
+    private func lookupOperatorFunctions(_ name: String) -> [Symbol.FunctionSymbol] {
+        for scope in scopeStack.reversed() {
+            if let entries = scope.values[name] {
+                return entries.compactMap { $0 as? Symbol.FunctionSymbol }
+            }
+        }
+        return []
+    }
+
+    private func typeText(_ type: TrussType.TrussType?) -> String {
+        guard let type else { return "unknown" }
+        switch type {
+        case is TrussType.VoidType: return "Void"
+        case is TrussType.NeverType: return "Never"
+        case let nominal as TrussType.NominalType:
+            return nominal.name
+        case let optional as TrussType.OptionalType:
+            return "\(typeText(optional.wrapped))?"
+        case let variable as TrussType.TypeVariableType:
+            if let binding = variable.binding {
+                return typeText(resolve(binding))
+            }
+            return variable.name ?? "T\(variable.id.id)"
+        case let genericParam as TrussType.GenericParamType:
+            return genericParam.name
+        case let forall as TrussType.ForallType:
+            return "forall " + forall.parameters.map(\.name).joined(separator: ", ")
+        default:
+            return "unknown"
+        }
+    }
+
+    private func emitMismatch(
+        at token: Token, expected: TrussType.TrussType?, found: TrussType.TrussType?
+    ) {
+        context.emitError(
+            "expected '\(typeText(expected))', found '\(typeText(found))'", at: token
+        )
+    }
+
+    private func emitMissingAnnotation(at token: Token, kind: String, name: String) {
+        context.emitError(
+            "\(kind) '\(name)' requires an explicit type annotation", at: token
+        )
+    }
+
+    private func emitNoMember(at token: Token, type: String, member: String) {
+        context.emitError("type '\(type)' has no member '\(member)'", at: token)
+    }
+
+    private func emitNoExactMatch(
+        at token: Token, name: String, candidates: [Symbol.FunctionSymbol]
+    ) {
+        var notes: [Diagnostic] = []
+        for candidate in candidates {
+            if let noteToken = candidate.sourceToken {
+                notes.append(
+                    Diagnostic(
+                        severity: .note, message: "candidate: \(candidate.name)",
+                        range: noteToken.sourceRange(
+                            in: context.sourceTable[noteToken.id]!.stringSourceBuffer
+                        )
+                    )
+                )
+            }
+        }
+        context.emitError(
+            "no exact matches in call to '\(name)'", at: token, notes: notes
+        )
+    }
+
+    private func emitAmbiguous(at token: Token, name: String) {
+        context.emitError("ambiguous use of '\(name)'", at: token)
+    }
+
+    private func emitOperatorNoImplementation(at token: Token, name: String) {
+        context.emitError("operator '\(name)' has no function declaration", at: token)
+    }
+
+    private func resolve(_ type: TrussType.TrussType) -> TrussType.TrussType {
+        // TODO: resolve TypeVariableType.binding chain depth-first
+        type
+    }
+
+    private func unify(
+        _ a: TrussType.TrussType, _ b: TrussType.TrussType, at token: Token
+    ) -> Bool {
+        // TODO: find/occurs-check/bind for type variables; structural types field-by-field; nominal by typeId identity; emitMismatch on failure
+        a === b
+    }
+
+    private func coerce(
+        _ actual: TrussType.TrussType, to expected: TrussType.TrussType, at token: Token
+    ) -> Bool {
+        // TODO: try unify first; on failure try conversions: optional promotion T->T?, inheritance C->superclass, Never->any, concrete->protocol existential (conformances + superclass chain); emitMismatch on failure
+        unify(actual, expected, at: token)
+    }
+
+    private func infer(_ expression: AST.Expression) -> TrussType.TrussType? {
+        // TODO: per-expression rules; write result to expression.ty; variables look up symbol.type; calls go through resolveOverloads; member resolution via type scope; closures/literals/operators per plan
+        expression.ty = nil
+        return nil
+    }
+
+    private func check(
+        _ expression: AST.Expression, _ expected: TrussType.TrussType, at token: Token
+    ) {
+        // TODO: bidirectional downward; expected type permeates tuple/closure/array-dictionary; leaves go through coerce; write result to expression.ty
+        _ = infer(expression)
+    }
+
+    private func resolveOverloads(
+        _ candidates: [Symbol.FunctionSymbol],
+        arguments: [AST.LabeledArgument],
+        trailingClosures: [(Token?, AST.Closure)],
+        expectedReturn: TrussType.TrussType?,
+        at token: Token
+    ) -> Symbol.FunctionSymbol? {
+        // TODO: filter by count/labels -> try each candidate bidirectionally (parameter check + return unify, generic candidates instantiated) -> single winner; no match emitNoExactMatch; multiple winners emitAmbiguous
+        nil
+    }
+
+    private func instantiate(_ forall: TrussType.ForallType) -> TrussType.TrussType {
+        // TODO: replace GenericParamType in body with fresh type variables (in parameter order)
+        forall.body
+    }
+
+    private func join(
+        _ types: [TrussType.TrussType], at token: Token
+    ) -> TrussType.TrussType? {
+        // TODO: unify each in turn (fall back to coerce on failure); caller supplies Void for if-without-else
+        types.first
+    }
+
+    private func checkConstraints(for variable: TrussType.TypeVariableType) {
+        // TODO: after variable resolves, verify constraints in current frame (conformances + superclass chain); emitMismatch if not satisfied
     }
 }

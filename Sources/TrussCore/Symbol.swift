@@ -111,6 +111,7 @@ public enum Symbol {
         public var locals: [VariableSymbol]
         public let signature: FunctionSignature
         public var functionType: TrussType.FunctionType? = nil
+        public var forallType: TrussType.ForallType? = nil
         public init(
             id: Id.SymbolId, name: String, locals: [VariableSymbol],
             scope: Scope, signature: FunctionSignature

@@ -194,3 +194,190 @@ import TrussSemantics
     let neverDecl = programs[0].statements[1] as! AST.VariableDecl
     #expect(neverDecl.symbol?.type is TrussType.NeverType)
 }
+
+@Test func matchingAssignmentPasses() {
+    let (context, programs) = runTypeResolver(["struct S { init() {} }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet x: S = s"])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let variableDecl = programs[0].statements[3] as! AST.VariableDecl
+    #expect(variableDecl.symbol?.type is TrussType.StructType)
+}
+
+@Test func mismatchedAssignmentReportsError() {
+    let (context, _) = runTypeResolver(["struct S { init() {} }\nstruct T { init() {} }\nfunc makeT() -> T { T() }\nlet t = makeT()\nlet x: S = t"])
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("expected 'S', found 'T'"))
+}
+
+@Test func optionalPromotion() {
+    let (context, _) = runTypeResolver(["struct S { init() {} }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet x: S? = s"])
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func subclassAssignment() {
+    let (context, _) = runTypeResolver(["class Base { init() {} }\nclass Derived: Base { init() {} }\nfunc makeDerived() -> Derived { Derived() }\nlet d = makeDerived()\nlet b: Base = d"])
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func neverConvertsToAnyType() {
+    let (context, _) = runTypeResolver(["struct S { init() {} }\nfunc makeNever() -> Never { }\nlet n = makeNever()\nlet x: S = n"])
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func conformancePromotion() {
+    let (context, _) = runTypeResolver(["protocol P {}\nstruct S: P { init() {} }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet x: P = s"])
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func conformanceMismatchReportsError() {
+    let (context, _) = runTypeResolver(["protocol P {}\nstruct T { init() {} }\nfunc makeT() -> T { T() }\nlet t = makeT()\nlet x: P = t"])
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("expected 'P', found 'T'"))
+}
+
+@Test func overloadResolutionByExpectedReturn() throws {
+    let (context, programs) = runTypeResolver(["struct S { init() {} }\nstruct T { init() {} }\nfunc f() -> S { S() }\nfunc f() -> T { T() }\nlet x: S = f()"])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let variableDecl = programs[0].statements[4] as! AST.VariableDecl
+    let call = try #require(variableDecl.initializer as? AST.Call)
+    #expect(call.symbol?.name == "f")
+}
+
+@Test func overloadNoMatchReportsError() {
+    let (context, _) = runTypeResolver(["struct S { init() {} }\nstruct T { init() {} }\nfunc f(x: S) {}\nfunc f(x: T) {}\nfunc makeT() -> T { T() }\nf(makeT())"])
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains(where: { $0.contains("no exact matches in call to 'f'") }))
+}
+
+@Test func overloadAmbiguousReportsError() {
+    let (context, _) = runTypeResolver(["struct S { init() {} }\nstruct T { init() {} }\nfunc f() -> S { S() }\nfunc f() -> T { T() }\nlet g = f()"])
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains(where: { $0.contains("ambiguous use of 'f'") }))
+}
+
+@Test func genericFunctionTypeIsForall() throws {
+    let (_, programs) = runTypeResolver(["struct S { init() {} }\nfunc id<T>(x: T) -> T { x }"])
+    let functionDecl = programs[0].statements[1] as! AST.FunctionDecl
+    let forall = try #require(functionDecl.symbol?.forallType)
+    #expect(forall.parameters.count == 1)
+    #expect(forall.parameters[0].name == "T")
+    #expect(forall.body is TrussType.FunctionType)
+}
+
+@Test func genericFunctionImplicitInstantiation() throws {
+    let (context, programs) = runTypeResolver(["struct S { init() {} }\nfunc id<T>(x: T) -> T { x }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet a = id(s)"])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let variableDecl = programs[0].statements[4] as! AST.VariableDecl
+    #expect(variableDecl.symbol?.type is TrussType.StructType)
+}
+
+@Test func genericFunctionExplicitInstantiation() throws {
+    let (context, programs) = runTypeResolver(["struct S { init() {} }\nfunc id<T>(x: T) -> T { x }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet a = id<S>(s)"])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let variableDecl = programs[0].statements[4] as! AST.VariableDecl
+    #expect(variableDecl.symbol?.type is TrussType.StructType)
+}
+
+@Test func genericStructMember() throws {
+    let (context, programs) = runTypeResolver(["struct S { init() {} }\nstruct Box<T> { init(v: T) {} var value: T }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet b = Box(v: s)\nlet v = b.value"])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let variableDecl = programs[0].statements[5] as! AST.VariableDecl
+    #expect(variableDecl.symbol?.type is TrussType.StructType)
+}
+
+@Test func closureParameterFromExpectedType() throws {
+    let (context, programs) = runTypeResolver(["struct S { init() {} }\nlet f: (S) -> S = { x in x }"])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let variableDecl = programs[0].statements[1] as! AST.VariableDecl
+    let function = try #require(variableDecl.symbol?.type as? TrussType.FunctionType)
+    #expect(function.parameters.count == 1)
+    #expect(function.parameters[0].type is TrussType.StructType)
+    #expect(function.returnType is TrussType.StructType)
+}
+
+@Test func closureWithoutContextReportsError() {
+    let (context, _) = runTypeResolver(["struct S { init() {} }\nlet f = { x in x }"])
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains(where: { $0.contains("requires an explicit type annotation") }))
+}
+
+@Test func memberAccessOnInstance() throws {
+    let (context, programs) = runTypeResolver(["struct S { init() {} var x: S }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet y = s.x"])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let variableDecl = programs[0].statements[3] as! AST.VariableDecl
+    #expect(variableDecl.symbol?.type is TrussType.StructType)
+}
+
+@Test func optionalChainingMemberAccess() throws {
+    let (context, programs) = runTypeResolver(["struct S { init() {} var x: S }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet z: S? = s\nlet w = z?.x"])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let variableDecl = programs[0].statements[4] as! AST.VariableDecl
+    let optional = try #require(variableDecl.symbol?.type as? TrussType.OptionalType)
+    #expect(optional.wrapped is TrussType.StructType)
+}
+
+@Test func ifElseJoinProducesBranchType() throws {
+    let (context, programs) = runTypeResolver(["struct S { init() {} }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet x = if true { s } else { s }"])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let variableDecl = programs[0].statements[3] as! AST.VariableDecl
+    #expect(variableDecl.symbol?.type is TrussType.StructType)
+}
+
+@Test func ifElseMismatchedBranchesReportError() {
+    let (context, _) = runTypeResolver(["struct S { init() {} }\nstruct T { init() {} }\nfunc makeS() -> S { S() }\nfunc makeT() -> T { T() }\nlet s = makeS()\nlet t = makeT()\nlet x = if true { s } else { t }"])
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func ifWithoutElseIsVoid() throws {
+    let (context, programs) = runTypeResolver(["struct S { init() {} }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet x = if true { s }"])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let variableDecl = programs[0].statements[3] as! AST.VariableDecl
+    #expect(variableDecl.symbol?.type is TrussType.VoidType)
+}
+
+@Test func literalAdaptsToAnyAnnotation() {
+    let (context, _) = runTypeResolver(["struct S { init() {} }\nlet x: S = 1"])
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func functionReturnTypeChecked() {
+    let (context, _) = runTypeResolver(["struct S { init() {} }\nstruct T { init() {} }\nfunc makeT() -> T { T() }\nlet t = makeT()\nfunc f() -> S { return t }"])
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("expected 'S', found 'T'"))
+}
+
+@Test func voidFunctionCannotReturnValue() {
+    let (context, _) = runTypeResolver(["struct S { init() {} }\nfunc makeS() -> S { S() }\nlet s = makeS()\nfunc f() { return s }"])
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func someTypeProducesVariableWithConstraint() throws {
+    let (context, programs) = runTypeResolver(["protocol P {}\nstruct S: P { init() {} }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet x: some P = s"])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let variableDecl = programs[0].statements[4] as! AST.VariableDecl
+    let variable = try #require(variableDecl.symbol?.type as? TrussType.TypeVariableType)
+    #expect(variable.binding is TrussType.StructType)
+}
+
+@Test func someTypeOnFunctionReturn() {
+    let (context, _) = runTypeResolver(["protocol P {}\nstruct S: P { init() {} }\nfunc makeS() -> S { S() }\nfunc f() -> some P { makeS() }"])
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func anyTypeDereferencesToProtocol() throws {
+    let (context, programs) = runTypeResolver(["protocol P {}\nstruct S: P { init() {} }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet x: any P = s"])
+    #expect(!context.diagnositicEngine.hasErrors)
+    let variableDecl = try #require(programs[0].statements[4] as? AST.VariableDecl)
+    #expect(variableDecl.symbol?.type is TrussType.ProtocolType)
+}
+
+@Test func someTypeDereferencesToProtocolOnAnnotation() throws {
+    let (_, programs) = runTypeResolver(["protocol P {}\nlet x: any P"])
+    let variableDecl = programs[0].statements[1] as! AST.VariableDecl
+    #expect(variableDecl.symbol?.type is TrussType.ProtocolType)
+}
