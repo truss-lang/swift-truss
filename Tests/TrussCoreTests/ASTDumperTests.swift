@@ -349,15 +349,15 @@ import TrussCore
             Program "main"
             |-FunctionDecl f sym:f#3
             | |-Parameter a label:a
-            | | `-Variable Int
+            | | `-Variable Int ty:ErrorType
             | `-Parameter b label:b
-            |   |-Variable Int
+            |   |-Variable Int ty:ErrorType
             |   `-Default
             |     `-IntegerLiteral 0
             |-FunctionDecl f sym:f#5
             | `-Parameter xs label:xs
-            |   `-VariadicType ...
-            |     `-Variable Int
+            |   `-VariadicType ... ty:ErrorType
+            |     `-Variable Int ty:ErrorType
             `-FunctionDecl g sym:g#6
               `-ExpressionStatement
                 `-Call
@@ -395,15 +395,15 @@ import TrussCore
             |-StructDecl S sym:S#1
             | |-VariableDecl x sym:x#6
             | | `-Type
-            | |   `-Variable Int
+            | |   `-Variable Int ty:ErrorType
             | |-InitDecl sym:init#8
             | | `-Parameter x label:x
-            | |   `-Variable Int
+            | |   `-Variable Int ty:ErrorType
             | `-SubscriptDecl sym:subscript#10
             |   |-Parameter i label:i
-            |   | `-Variable Int
+            |   | `-Variable Int ty:ErrorType
             |   |-ReturnType
-            |   | `-Variable Int
+            |   | `-Variable Int ty:ErrorType
             |   `-Return
             |     `-Variable x sym:x#6
             |-TypeAliasDecl T sym:T#2

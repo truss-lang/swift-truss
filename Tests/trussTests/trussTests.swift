@@ -20,12 +20,14 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
 
 @Test func driverMultiFileMergesCrossFileExtension() throws {
     let a = try writeTemp(
-        "a.truss", "struct Point {\n    var x: Int32\n    var y: Int32\n}\n"
+        "a.truss",
+        "struct Coord {}\nstruct Point {\n    var x: Coord\n    var y: Coord\n}\n"
     )
     let b = try writeTemp(
         "b.truss",
         "precedencegroup Additive {}\ninfix operator +: Additive\n"
-            + "extension Point {\n    func sum() -> Int32 {\n        self.x + self.y\n    }\n}\n"
+            + "func +(lhs: Coord, rhs: Coord) -> Coord { lhs }\n"
+            + "extension Point {\n    func sum() -> Coord {\n        self.x + self.y\n    }\n}\n"
     )
     let config = DriverConfig(dumpSymbols: true)
     let result = Driver(config: config).run(files: [a, b])

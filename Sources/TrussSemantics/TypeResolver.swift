@@ -132,7 +132,7 @@ public final class TypeResolver: AST.Visitor {
         guard let symbol = functionDecl.symbol else { return nil }
         withScope(symbol.scope) {
             let parameterTypes = fillParameterTypes(functionDecl.parameters, into: symbol)
-            let returnType: TrussType.TrussType? =
+            let returnType: TrussType.TrussType =
                 if let typeExpression = functionDecl.returnTypeExpression {
                     evaluate(typeExpression)
                 } else {
@@ -153,7 +153,7 @@ public final class TypeResolver: AST.Visitor {
             } else {
                 symbol.functionType = functionType
             }
-            withFunctionReturnType(returnType ?? TrussType.VoidType.INSTANCE) {
+            withFunctionReturnType(returnType) {
                 visitFunctionBody(
                     functionDecl.body, expectedReturn: returnType, at: functionDecl.name
                 )
@@ -197,8 +197,7 @@ public final class TypeResolver: AST.Visitor {
         }
         withScope(symbol.scope) {
             let parameterTypes = fillParameterTypes(subscriptDecl.parameters, into: symbol)
-            let returnType: TrussType.TrussType? =
-                evaluate(subscriptDecl.returnType) ?? TrussType.VoidType.INSTANCE
+            let returnType: TrussType.TrussType = evaluate(subscriptDecl.returnType)
             let functionType = functionType(
                 labels: subscriptDecl.parameters.map { $0.label?.value },
                 parameterTypes: parameterTypes,
@@ -207,7 +206,7 @@ public final class TypeResolver: AST.Visitor {
                 returnType: returnType
             )
             symbol.functionType = functionType
-            withFunctionReturnType(returnType ?? TrussType.VoidType.INSTANCE) {
+            withFunctionReturnType(returnType) {
                 visitFunctionBody(
                     .Block(subscriptDecl.body), expectedReturn: returnType,
                     at: subscriptDecl.token
@@ -383,14 +382,14 @@ public final class TypeResolver: AST.Visitor {
 
     private func fillParameterTypes(
         _ parameters: [AST.FunctionDecl.Parameter], into symbol: Symbol.FunctionSymbol
-    ) -> [TrussType.TrussType?] {
-        var types: [TrussType.TrussType?] = []
+    ) -> [TrussType.TrussType] {
+        var types: [TrussType.TrussType] = []
         for parameter in parameters {
-            let type: TrussType.TrussType? =
+            let type: TrussType.TrussType =
                 if let ty = parameter.type {
                     evaluate(ty)
                 } else {
-                    nil
+                    TrussType.ErrorType.INSTANCE
                 }
             let variable =
                 symbol.scope.values[parameter.name.value]?.first
@@ -415,10 +414,10 @@ public final class TypeResolver: AST.Visitor {
 
     private func functionType(
         labels: [String?],
-        parameterTypes: [TrussType.TrussType?],
+        parameterTypes: [TrussType.TrussType],
         asyncToken: Token?,
         throwsClause: AST.ThrowsClause?,
-        returnType: TrussType.TrussType?
+        returnType: TrussType.TrussType
     ) -> TrussType.FunctionType {
         for type in throwsClause?.types ?? [] {
             _ = evaluate(type)
@@ -433,49 +432,84 @@ public final class TypeResolver: AST.Visitor {
         )
     }
 
-    private func evaluate(_ expression: AST.Expression) -> TrussType.TrussType? {
-        let result: TrussType.TrussType?
+    private func evaluate(_ expression: AST.Expression) -> TrussType.TrussType {
+        let result: TrussType.TrussType
         switch expression {
         case let variable as AST.Variable:
-            result = evaluateVariable(variable)
+            if let evaluated = evaluateVariable(variable) {
+                result = evaluated
+            } else {
+                context.emitError("cannot find type '\(variable.name.value)'", at: variable.name)
+                result = TrussType.ErrorType.INSTANCE
+            }
+        case let member as AST.MemberAccess:
+            if let symbol = member.symbol, let evaluated = evaluateSymbol(symbol) {
+                result = evaluated
+            } else {
+                context.emitError("cannot find type '\(member.member.value)'", at: member.member)
+                result = TrussType.ErrorType.INSTANCE
+            }
         case let parenthetical as AST.ParentheticalExpression:
             result = evaluate(parenthetical.inner)
         case let optionalType as AST.OptionalType:
-            result = evaluate(optionalType.wrappedType).map(TrussType.OptionalType.init)
+            let wrapped = evaluate(optionalType.wrappedType)
+            result =
+                wrapped is TrussType.ErrorType
+                    ? TrussType.ErrorType.INSTANCE : TrussType.OptionalType(wrapped)
         case let variadicType as AST.VariadicType:
-            result = evaluate(variadicType.base).map(TrussType.VariadicType.init)
+            let base = evaluate(variadicType.base)
+            result =
+                base is TrussType.ErrorType
+                    ? TrussType.ErrorType.INSTANCE : TrussType.VariadicType(base)
         case let closureType as AST.ClosureType:
-            result = functionType(
-                labels: closureType.parameters.map { $0.label?.value },
-                parameterTypes: closureType.parameters.map { evaluate($0.type) },
-                asyncToken: closureType.asyncToken,
-                throwsClause: closureType.throwsClause,
-                returnType: evaluate(closureType.returnType)
-            )
+            var parameters: [TrussType.TrussType] = []
+            var failed = false
+            for parameter in closureType.parameters {
+                let type = evaluate(parameter.type)
+                if type is TrussType.ErrorType {
+                    failed = true
+                    break
+                }
+                parameters.append(type)
+            }
+            let returnType = evaluate(closureType.returnType)
+            if failed || returnType is TrussType.ErrorType {
+                result = TrussType.ErrorType.INSTANCE
+            } else {
+                result = functionType(
+                    labels: closureType.parameters.map { $0.label?.value },
+                    parameterTypes: parameters,
+                    asyncToken: closureType.asyncToken,
+                    throwsClause: closureType.throwsClause,
+                    returnType: returnType
+                )
+            }
         case let tupleExpression as AST.TupleExpression:
             var elements: [TrussType.TupleType.Element] = []
-            var ok = true
+            var failed = false
             for argument in tupleExpression.elements {
-                guard let type = evaluate(argument.value) else {
-                    ok = false
+                let type = evaluate(argument.value)
+                if type is TrussType.ErrorType {
+                    failed = true
                     break
                 }
                 elements.append(
                     TrussType.TupleType.Element(label: argument.label?.value, type: type)
                 )
             }
-            result = ok ? TrussType.TupleType(elements) : nil
+            result = failed ? TrussType.ErrorType.INSTANCE : TrussType.TupleType(elements)
         case let composition as AST.ProtocolCompositionType:
             var members: [TrussType.TrussType] = []
-            var ok = true
+            var failed = false
             for type in composition.types {
-                guard let member = evaluate(type) else {
-                    ok = false
+                let member = evaluate(type)
+                if member is TrussType.ErrorType {
+                    failed = true
                     break
                 }
                 members.append(member)
             }
-            result = ok ? TrussType.CompositionType(members) : nil
+            result = failed ? TrussType.ErrorType.INSTANCE : TrussType.CompositionType(members)
         case let genericApplication as AST.GenericApplication:
             result = evaluateGenericApplication(genericApplication)
         case let sequential as AST.SequentialExpression
@@ -484,30 +518,36 @@ public final class TypeResolver: AST.Visitor {
                 return false
             }):
             var members: [TrussType.TrussType] = []
-            var ok = true
+            var failed = false
             for operand in sequential.operands {
-                guard let member = evaluate(operand) else {
-                    ok = false
+                let member = evaluate(operand)
+                if member is TrussType.ErrorType {
+                    failed = true
                     break
                 }
                 members.append(member)
             }
-            result = ok ? TrussType.CompositionType(members) : nil
+            result = failed ? TrussType.ErrorType.INSTANCE : TrussType.CompositionType(members)
         case let anyType as AST.AnyType:
-            result = evaluate(anyType.wrappedType)
+            let wrapped = evaluate(anyType.wrappedType)
+            result =
+                wrapped is TrussType.ErrorType ? TrussType.ErrorType.INSTANCE : wrapped
         case let someType as AST.SomeType:
             result = evaluateOpaque(someType)
         case is AST.VoidLiteral:
             result = TrussType.VoidType.INSTANCE
         default:
-            result = nil
+            result = TrussType.ErrorType.INSTANCE
         }
         expression.ty = result
         return result
     }
 
-    private func evaluateOpaque(_ someType: AST.SomeType) -> TrussType.TrussType? {
-        guard let inner = evaluate(someType.wrappedType) else { return nil }
+    private func evaluateOpaque(_ someType: AST.SomeType) -> TrussType.TrussType {
+        let inner = evaluate(someType.wrappedType)
+        if inner is TrussType.ErrorType {
+            return TrussType.ErrorType.INSTANCE
+        }
         let variable = freshTypeVariable()
         for member in compositionMembers(inner) {
             if let protocolType = member as? TrussType.ProtocolType {
@@ -526,16 +566,7 @@ public final class TypeResolver: AST.Visitor {
 
     private func evaluateVariable(_ variable: AST.Variable) -> TrussType.TrussType? {
         if let symbol = variable.symbol {
-            if let nominal = symbol as? Symbol.NominalTypeSymbol {
-                return nominal.typeId.flatMap { context.typeTable[$0] }
-            }
-            if let typeAlias = symbol as? Symbol.TypeAliasSymbol {
-                return resolveTypealias(typeAlias)
-            }
-            if let genericParam = symbol as? Symbol.GenericParamSymbol {
-                return TrussType.GenericParamType(genericParam.name, genericParam)
-            }
-            return nil
+            return evaluateSymbol(symbol)
         }
         switch variable.name.value {
         case "Void": return TrussType.VoidType.INSTANCE
@@ -544,28 +575,53 @@ public final class TypeResolver: AST.Visitor {
         }
     }
 
+    private func evaluateSymbol(_ symbol: Symbol.Symbol) -> TrussType.TrussType? {
+        if let nominal = symbol as? Symbol.NominalTypeSymbol {
+            return nominal.typeId.flatMap { context.typeTable[$0] }
+        }
+        if let typeAlias = symbol as? Symbol.TypeAliasSymbol {
+            return resolveTypealias(typeAlias)
+        }
+        if let genericParam = symbol as? Symbol.GenericParamSymbol {
+            return TrussType.GenericParamType(genericParam.name, genericParam)
+        }
+        return nil
+    }
+
     private func evaluateGenericApplication(
         _ genericApplication: AST.GenericApplication
-    ) -> TrussType.TrussType? {
+    ) -> TrussType.TrussType {
         guard let base = evaluate(genericApplication.base) as? TrussType.NominalType else {
-            return nil
+            return TrussType.ErrorType.INSTANCE
         }
         var arguments: [TrussType.TrussType] = []
         for argument in genericApplication.genericArguments {
-            guard let resolved = evaluate(argument) else { return nil }
+            let resolved = evaluate(argument)
+            if resolved is TrussType.ErrorType {
+                return TrussType.ErrorType.INSTANCE
+            }
             arguments.append(resolved)
         }
         return TrussType.GenericInstantiation(base: base, arguments: arguments)
     }
 
-    private func resolveTypealias(_ symbol: Symbol.TypeAliasSymbol) -> TrussType.TrussType? {
+    private func resolveTypealias(_ symbol: Symbol.TypeAliasSymbol) -> TrussType.TrussType {
         if let target = symbol.targetType { return target }
-        if resolvingTypealiases.contains(symbol.id) { return nil }
-        guard let decl = typealiasDecls[symbol.id] else { return nil }
+        if resolvingTypealiases.contains(symbol.id) {
+            if let token = symbol.sourceToken {
+                context.emitError(
+                    "circular reference to typealias '\(symbol.name)'", at: token
+                )
+            }
+            return TrussType.ErrorType.INSTANCE
+        }
+        guard let decl = typealiasDecls[symbol.id] else {
+            return TrussType.ErrorType.INSTANCE
+        }
         resolvingTypealiases.insert(symbol.id)
         defer { resolvingTypealiases.remove(symbol.id) }
         symbol.targetType = evaluate(decl.typeExpression)
-        return symbol.targetType
+        return symbol.targetType ?? TrussType.ErrorType.INSTANCE
     }
 
     private func resolvedSymbol(_ expression: AST.Expression) -> Symbol.Symbol? {
@@ -640,6 +696,7 @@ public final class TypeResolver: AST.Visitor {
         switch type {
         case is TrussType.VoidType: return "Void"
         case is TrussType.NeverType: return "Never"
+        case is TrussType.ErrorType: return "_"
         case let nominal as TrussType.NominalType:
             return nominal.name
         case let optional as TrussType.OptionalType:

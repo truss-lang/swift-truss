@@ -98,6 +98,7 @@ public extension AST {
             switch ty {
             case is TrussType.VoidType: return "VoidType"
             case is TrussType.NeverType: return "NeverType"
+            case is TrussType.ErrorType: return "ErrorType"
             case let nominal as TrussType.NominalType:
                 return "\(nominalKind(nominal))(\(nominal.name))#\(nominal.id.id)"
             case let optional as TrussType.OptionalType:
@@ -112,7 +113,7 @@ public extension AST {
             case let function as TrussType.FunctionType:
                 var text = "Function(("
                 text += function.parameters.map { parameter in
-                    let type = parameter.type.map(typeText) ?? "?"
+                    let type = typeText(parameter.type)
                     if let label = parameter.label {
                         return "\(label):\(type)"
                     }
@@ -121,7 +122,7 @@ public extension AST {
                 text += ")"
                 if function.isAsync { text += " async" }
                 if function.isThrowing { text += " throws" }
-                text += " -> " + (function.returnType.map(typeText) ?? "?") + ")"
+                text += " -> " + typeText(function.returnType) + ")"
                 return text
             case let composition as TrussType.CompositionType:
                 return "Composition("
@@ -139,7 +140,7 @@ public extension AST {
                 return "Var(\(name))"
             case let forall as TrussType.ForallType:
                 return "forall "
-                    + forall.parameters.map { $0.name }.joined(separator: ", ") + ". "
+                    + forall.parameters.map(\.name).joined(separator: ", ") + ". "
                     + typeText(forall.body)
             case let genericParam as TrussType.GenericParamType:
                 return "GenericParam(\(genericParam.name))"

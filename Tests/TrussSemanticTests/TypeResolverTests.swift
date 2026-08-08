@@ -18,10 +18,29 @@ import TrussSemantics
     #expect(variableDecl.symbol?.type == nil)
 }
 
-@Test func noBuiltinTypeLeavesNil() {
-    let (_, programs) = runTypeResolver(["let x: Int32"])
+@Test func noBuiltinTypeIsErrorType() {
+    let (context, programs) = runTypeResolver(["let x: Int32"])
     let variableDecl = programs[0].statements[0] as! AST.VariableDecl
-    #expect(variableDecl.symbol?.type == nil)
+    #expect(variableDecl.symbol?.type is TrussType.ErrorType)
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("cannot find type 'Int32'"))
+}
+
+@Test func moduleMemberTypeAnnotation() throws {
+    let (_, programs) = runTypeResolver(["module M {\n    struct A {}\n}\nlet x: M.A"])
+    let variableDecl = programs[0].statements[1] as! AST.VariableDecl
+    let type = try #require(variableDecl.symbol?.type)
+    #expect((type as! TrussType.StructType).name == "A")
+}
+
+@Test func nestedTypeAnnotation() throws {
+    let (_, programs) = runTypeResolver([
+        "struct Outer {\n    struct Inner {}\n}\nlet x: Outer.Inner",
+    ])
+    let variableDecl = programs[0].statements[1] as! AST.VariableDecl
+    let type = try #require(variableDecl.symbol?.type)
+    #expect((type as! TrussType.StructType).name == "Inner")
 }
 
 @Test func optionalAnnotation() throws {
@@ -79,11 +98,14 @@ import TrussSemantics
     #expect(functionType.returnType is TrussType.VoidType)
 }
 
-@Test func unresolvableReturnAnnotationIsNil() throws {
-    let (_, programs) = runTypeResolver(["func f() -> Int32 {}"])
+@Test func unresolvableReturnAnnotationIsErrorType() throws {
+    let (context, programs) = runTypeResolver(["func f() -> Int32 {}"])
     let functionDecl = programs[0].statements[0] as! AST.FunctionDecl
     let functionType = try #require(functionDecl.symbol?.functionType)
-    #expect(functionType.returnType == nil)
+    #expect(functionType.returnType is TrussType.ErrorType)
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("cannot find type 'Int32'"))
 }
 
 @Test func initFunctionTypeReturnsVoid() throws {
@@ -120,14 +142,17 @@ import TrussSemantics
     #expect((type as! TrussType.StructType).name == "S")
 }
 
-@Test func typealiasCycleResolvesToNil() throws {
-    let (_, programs) = runTypeResolver(["typealias A = B\ntypealias B = A\nlet x: A"])
+@Test func typealiasCycleIsErrorType() {
+    let (context, programs) = runTypeResolver(["typealias A = B\ntypealias B = A\nlet x: A"])
     let variableDecl = programs[0].statements[2] as! AST.VariableDecl
-    #expect(variableDecl.symbol?.type == nil)
+    #expect(variableDecl.symbol?.type is TrussType.ErrorType)
     let aSymbol = (programs[0].statements[0] as! AST.TypeAliasDecl).symbol
     let bSymbol = (programs[0].statements[1] as! AST.TypeAliasDecl).symbol
-    #expect(aSymbol?.targetType == nil)
-    #expect(bSymbol?.targetType == nil)
+    #expect(aSymbol?.targetType is TrussType.ErrorType)
+    #expect(bSymbol?.targetType is TrussType.ErrorType)
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("circular reference to typealias 'A'"))
 }
 
 @Test func closureLiteralFunctionType() throws {

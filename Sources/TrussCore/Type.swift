@@ -17,6 +17,11 @@ public enum TrussType {
         private override init() {}
     }
 
+    public final class ErrorType: TrussType, @unchecked Sendable {
+        public static let INSTANCE = ErrorType()
+        private override init() {}
+    }
+
     @abstractClass
     public class NominalType: TrussType {
         public let id: Id.TypeId
@@ -91,8 +96,8 @@ public enum TrussType {
     public final class FunctionType: TrussType {
         public struct Parameter {
             public let label: String?
-            public let type: TrussType?
-            public init(label: String?, type: TrussType?) {
+            public let type: TrussType
+            public init(label: String?, type: TrussType) {
                 self.label = label
                 self.type = type
             }
@@ -101,10 +106,10 @@ public enum TrussType {
         public let parameters: [Parameter]
         public let isAsync: Bool
         public let isThrowing: Bool
-        public let returnType: TrussType?
+        public let returnType: TrussType
         public init(
             parameters: [Parameter], isAsync: Bool = false, isThrowing: Bool = false,
-            returnType: TrussType? = nil
+            returnType: TrussType = VoidType.INSTANCE
         ) {
             self.parameters = parameters
             self.isAsync = isAsync
