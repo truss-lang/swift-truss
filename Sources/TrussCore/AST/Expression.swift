@@ -29,6 +29,10 @@ public extension AST {
         public override init(_ sourceRange: SourceRange) {
             super.init(sourceRange)
         }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitErrorExpression(self, additional: additional)
+        }
     }
 
     final class ParentheticalExpression: Expression {

@@ -2345,7 +2345,13 @@ public final class Parser {
     }
 
     private func parseFunctionParameter() -> AST.FunctionDecl.Parameter {
-        let startToken = peek!
+        guard let startToken = peek else {
+            emitError("expected parameter", at: endOfFile)
+            return AST.FunctionDecl.Parameter(
+                label: nil, name: errorToken(), type: nil, defaultValue: nil,
+                sourceRange: SourceRange(location: endOfFile)
+            )
+        }
         guard let first = next else {
             emitError("expected parameter", at: endOfFile)
             return AST.FunctionDecl.Parameter(
