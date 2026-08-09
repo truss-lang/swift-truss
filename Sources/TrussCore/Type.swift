@@ -106,14 +106,16 @@ public enum TrussType {
         public let parameters: [Parameter]
         public let isAsync: Bool
         public let isThrowing: Bool
+        public let throwsTypes: [TrussType]
         public let returnType: TrussType
         public init(
             parameters: [Parameter], isAsync: Bool = false, isThrowing: Bool = false,
-            returnType: TrussType = VoidType.INSTANCE
+            throwsTypes: [TrussType] = [], returnType: TrussType = VoidType.INSTANCE
         ) {
             self.parameters = parameters
             self.isAsync = isAsync
             self.isThrowing = isThrowing
+            self.throwsTypes = throwsTypes
             self.returnType = returnType
         }
     }

@@ -121,7 +121,12 @@ public extension AST {
                 }.joined(separator: ", ")
                 text += ")"
                 if function.isAsync { text += " async" }
-                if function.isThrowing { text += " throws" }
+                if function.isThrowing {
+                    text += " throws"
+                    if !function.throwsTypes.isEmpty {
+                        text += "(" + function.throwsTypes.map(typeText).joined(separator: ", ") + ")"
+                    }
+                }
                 text += " -> " + typeText(function.returnType) + ")"
                 return text
             case let composition as TrussType.CompositionType:

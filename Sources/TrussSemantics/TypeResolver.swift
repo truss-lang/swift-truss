@@ -419,15 +419,13 @@ public final class TypeResolver: AST.Visitor {
         throwsClause: AST.ThrowsClause?,
         returnType: TrussType.TrussType
     ) -> TrussType.FunctionType {
-        for type in throwsClause?.types ?? [] {
-            _ = evaluate(type)
-        }
-        return TrussType.FunctionType(
+        TrussType.FunctionType(
             parameters: zip(labels, parameterTypes).map { label, type in
                 TrussType.FunctionType.Parameter(label: label, type: type)
             },
             isAsync: asyncToken != nil,
             isThrowing: throwsClause != nil,
+            throwsTypes: (throwsClause?.types ?? []).map(evaluate),
             returnType: returnType
         )
     }

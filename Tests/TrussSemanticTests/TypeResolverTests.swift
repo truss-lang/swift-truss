@@ -117,6 +117,34 @@ import TrussSemantics
     #expect(functionType.returnType is TrussType.VoidType)
 }
 
+@Test func throwsClauseRecordsThrownTypes() throws {
+    let (_, programs) = runTypeResolver([
+        "struct E1 {}\nstruct E2 {}\nfunc f() throws(E1, E2) {}",
+    ])
+    let functionDecl = programs[0].statements[2] as! AST.FunctionDecl
+    let functionType = try #require(functionDecl.symbol?.functionType)
+    #expect(functionType.isThrowing)
+    #expect(functionType.throwsTypes.count == 2)
+    #expect((functionType.throwsTypes[0] as! TrussType.StructType).name == "E1")
+    #expect((functionType.throwsTypes[1] as! TrussType.StructType).name == "E2")
+}
+
+@Test func plainThrowsHasNoThrownTypes() throws {
+    let (_, programs) = runTypeResolver(["func f() throws {}"])
+    let functionDecl = programs[0].statements[0] as! AST.FunctionDecl
+    let functionType = try #require(functionDecl.symbol?.functionType)
+    #expect(functionType.isThrowing)
+    #expect(functionType.throwsTypes.isEmpty)
+}
+
+@Test func nonThrowingFunctionHasEmptyThrows() throws {
+    let (_, programs) = runTypeResolver(["func f() {}"])
+    let functionDecl = programs[0].statements[0] as! AST.FunctionDecl
+    let functionType = try #require(functionDecl.symbol?.functionType)
+    #expect(!functionType.isThrowing)
+    #expect(functionType.throwsTypes.isEmpty)
+}
+
 @Test func subscriptFunctionTypeReturnsElement() throws {
     let (_, programs) = runTypeResolver(["struct S {\n    subscript(i: S) -> S {\n    }\n}"])
     let structDecl = programs[0].statements[0] as! AST.StructDecl
