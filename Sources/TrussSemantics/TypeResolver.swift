@@ -339,11 +339,11 @@ public final class TypeResolver: AST.Visitor {
     ) {
         guard let body else { return }
         switch body {
-        case .Block(let statements):
+        case let .Block(statements):
             for statement in statements {
                 visit(statement)
             }
-        case .Expression(let expression):
+        case let .Expression(expression):
             if let expectedReturn {
                 check(expression, expectedReturn, at: token)
             } else {
@@ -357,11 +357,11 @@ public final class TypeResolver: AST.Visitor {
     ) {
         withScope(accessor.scope) {
             switch accessor.body {
-            case .Block(let statements):
+            case let .Block(statements):
                 for statement in statements {
                     visit(statement)
                 }
-            case .Expression(let expression):
+            case let .Expression(expression):
                 check(expression, type, at: accessor.token ?? token)
             }
         }
@@ -370,11 +370,11 @@ public final class TypeResolver: AST.Visitor {
     private func visitAccessorStatements(_ accessor: AST.Accessor) {
         withScope(accessor.scope) {
             switch accessor.body {
-            case .Block(let statements):
+            case let .Block(statements):
                 for statement in statements {
                     visit(statement)
                 }
-            case .Expression(let expression):
+            case let .Expression(expression):
                 _ = infer(expression)
             }
         }
@@ -393,7 +393,7 @@ public final class TypeResolver: AST.Visitor {
                 }
             let variable =
                 symbol.scope.values[parameter.name.value]?.first
-                as? Symbol.VariableSymbol
+                    as? Symbol.VariableSymbol
             variable?.type = type
             types.append(type)
         }
@@ -453,12 +453,12 @@ public final class TypeResolver: AST.Visitor {
             let wrapped = evaluate(optionalType.wrappedType)
             result =
                 wrapped is TrussType.ErrorType
-                ? TrussType.ErrorType.INSTANCE : TrussType.OptionalType(wrapped)
+                    ? TrussType.ErrorType.INSTANCE : TrussType.OptionalType(wrapped)
         case let variadicType as AST.VariadicType:
             let base = evaluate(variadicType.base)
             result =
                 base is TrussType.ErrorType
-                ? TrussType.ErrorType.INSTANCE : TrussType.VariadicType(base)
+                    ? TrussType.ErrorType.INSTANCE : TrussType.VariadicType(base)
         case let closureType as AST.ClosureType:
             var parameters: [TrussType.TrussType] = []
             var failed = false
@@ -511,10 +511,10 @@ public final class TypeResolver: AST.Visitor {
         case let genericApplication as AST.GenericApplication:
             result = evaluateGenericApplication(genericApplication)
         case let sequential as AST.SequentialExpression
-        where sequential.ops.allSatisfy({ op in
-            if case .Operator(.BitAnd) = op.kind { return true }
-            return false
-        }):
+            where sequential.ops.allSatisfy({ op in
+                if case .Operator(.BitAnd) = op.kind { return true }
+                return false
+            }):
             var members: [TrussType.TrussType] = []
             var failed = false
             for operand in sequential.operands {
@@ -801,9 +801,9 @@ public final class TypeResolver: AST.Visitor {
             return true
         }
         switch (a, b) {
-        case (let l as TrussType.NominalType, let r as TrussType.NominalType):
+        case let (l as TrussType.NominalType, r as TrussType.NominalType):
             return l.id == r.id
-        case (let l as TrussType.TupleType, let r as TrussType.TupleType):
+        case let (l as TrussType.TupleType, r as TrussType.TupleType):
             guard l.elements.count == r.elements.count else {
                 return false
             }
@@ -816,9 +816,9 @@ public final class TypeResolver: AST.Visitor {
                 }
             }
             return true
-        case (let l as TrussType.FunctionType, let r as TrussType.FunctionType):
+        case let (l as TrussType.FunctionType, r as TrussType.FunctionType):
             guard l.parameters.count == r.parameters.count, l.isAsync == r.isAsync,
-                l.isThrowing == r.isThrowing, l.throwsTypes.count == r.throwsTypes.count
+                  l.isThrowing == r.isThrowing, l.throwsTypes.count == r.throwsTypes.count
             else {
                 return false
             }
@@ -833,18 +833,18 @@ public final class TypeResolver: AST.Visitor {
                 }
             }
             return unify(l.returnType, r.returnType, at: token)
-        case (let l as TrussType.VariadicType, let r as TrussType.VariadicType):
+        case let (l as TrussType.VariadicType, r as TrussType.VariadicType):
             return unify(l.base, r.base, at: token)
-        case (let l as TrussType.CompositionType, let r as TrussType.CompositionType):
+        case let (l as TrussType.CompositionType, r as TrussType.CompositionType):
             for (lm, rm) in zip(l.members, r.members) {
                 guard unify(lm, rm, at: token) else {
                     return false
                 }
             }
             return true
-        case (let l as TrussType.OptionalType, let r as TrussType.OptionalType):
+        case let (l as TrussType.OptionalType, r as TrussType.OptionalType):
             return unify(l.wrapped, r.wrapped, at: token)
-        case (let l as TrussType.GenericInstantiation, let r as TrussType.GenericInstantiation):
+        case let (l as TrussType.GenericInstantiation, r as TrussType.GenericInstantiation):
             guard unify(l.base, r.base, at: token) else {
                 return false
             }
@@ -854,17 +854,21 @@ public final class TypeResolver: AST.Visitor {
                 }
             }
             return true
-        case (let l as TrussType.ForallType, let r as TrussType.ForallType):
+        case let (l as TrussType.ForallType, r as TrussType.ForallType):
             guard l.parameters.count == r.parameters.count else {
                 return false
             }
-            for (lp, rp) in zip(l.parameters, r.parameters) {
-                guard lp.name == rp.name else {
-                    return false
-                }
+            var mapping: [String: TrussType.GenericParamType] = [:]
+            for (index, lParam) in l.parameters.enumerated() {
+                mapping[lParam.name] = TrussType.GenericParamType(
+                    r.parameters[index].name, r.parameters[index]
+                )
             }
-            return unify(l.body, r.body, at: token)
-        case (let l as TrussType.GenericParamType, let r as TrussType.GenericParamType):
+            let substituted = replacingGenericParam(l.body) { genericParam in
+                mapping[genericParam.name] ?? genericParam
+            }
+            return unify(substituted, r.body, at: token)
+        case let (l as TrussType.GenericParamType, r as TrussType.GenericParamType):
             return l.name == r.name
         default:
             break
@@ -901,11 +905,106 @@ public final class TypeResolver: AST.Visitor {
         }
     }
 
+    private func replacingGenericParam(
+        _ type: TrussType.TrussType,
+        _ replace: (TrussType.GenericParamType) -> TrussType.TrussType
+    ) -> TrussType.TrussType {
+        switch type {
+        case let genericParam as TrussType.GenericParamType:
+            replace(genericParam)
+        case let optional as TrussType.OptionalType:
+            TrussType.OptionalType(replacingGenericParam(optional.wrapped, replace))
+        case let tuple as TrussType.TupleType:
+            TrussType.TupleType(
+                tuple.elements.map { element in
+                    TrussType.TupleType.Element(
+                        label: element.label,
+                        type: replacingGenericParam(element.type, replace)
+                    )
+                })
+        case let function as TrussType.FunctionType:
+            TrussType.FunctionType(
+                parameters: function.parameters.map { parameter in
+                    TrussType.FunctionType.Parameter(
+                        label: parameter.label,
+                        type: replacingGenericParam(parameter.type, replace)
+                    )
+                },
+                isAsync: function.isAsync,
+                isThrowing: function.isThrowing,
+                throwsTypes: function.throwsTypes.map { replacingGenericParam($0, replace) },
+                returnType: replacingGenericParam(function.returnType, replace)
+            )
+        case let variadic as TrussType.VariadicType:
+            TrussType.VariadicType(replacingGenericParam(variadic.base, replace))
+        case let composition as TrussType.CompositionType:
+            TrussType.CompositionType(
+                composition.members.map { replacingGenericParam($0, replace) })
+        case let generic as TrussType.GenericInstantiation:
+            TrussType.GenericInstantiation(
+                base: generic.base,
+                arguments: generic.arguments.map { replacingGenericParam($0, replace) }
+            )
+        case let forall as TrussType.ForallType:
+            TrussType.ForallType(
+                parameters: forall.parameters,
+                body: replacingGenericParam(forall.body, replace)
+            )
+        default:
+            type
+        }
+    }
+
     private func coerce(
         _ actual: TrussType.TrussType, to expected: TrussType.TrussType, at token: Token
     ) -> Bool {
-        // TODO: try unify first; on failure try conversions: optional promotion T->T?, inheritance C->superclass, Never->any, concrete->protocol existential (conformances + superclass chain); emitMismatch on failure
-        unify(actual, expected, at: token)
+        if canCoerce(actual, to: expected, at: token) {
+            return true
+        }
+        emitMismatch(at: token, expected: expected, found: actual)
+        return false
+    }
+
+    private func canCoerce(
+        _ actual: TrussType.TrussType, to expected: TrussType.TrussType, at token: Token
+    ) -> Bool {
+        if unify(actual, expected, at: token) {
+            return true
+        }
+        if actual is TrussType.NeverType {
+            return true
+        }
+        if let optional = expected as? TrussType.OptionalType {
+            return canCoerce(actual, to: optional.wrapped, at: token)
+        }
+        if let variadic = expected as? TrussType.VariadicType {
+            return canCoerce(actual, to: variadic.base, at: token)
+        }
+        if let actualClass = actual as? TrussType.ClassType,
+           let expectedClass = expected as? TrussType.ClassType
+        {
+            for superclass in superclassChain(of: actualClass) {
+                if unify(superclass, expectedClass, at: token) {
+                    return true
+                }
+            }
+        }
+        if let expectedProtocol = expected as? TrussType.ProtocolType,
+           let actualNominal = actual as? TrussType.NominalType
+        {
+            return conformsTo(actualNominal, expectedProtocol)
+        }
+        if let expectedComposition = expected as? TrussType.CompositionType,
+           let actualNominal = actual as? TrussType.NominalType
+        {
+            return expectedComposition.members.allSatisfy { member in
+                guard let protocolType = member as? TrussType.ProtocolType else {
+                    return false
+                }
+                return conformsTo(actualNominal, protocolType)
+            }
+        }
+        return false
     }
 
     private func infer(_ expression: AST.Expression) -> TrussType.TrussType? {
@@ -958,9 +1057,9 @@ public final class TypeResolver: AST.Visitor {
             return true
         }
         if let classSymbol = symbol as? Symbol.ClassSymbol,
-            let superclass = classSymbol.superclass,
-            let superclassType = superclass.typeId.flatMap({ context.typeTable[$0] })
-                as? TrussType.NominalType
+           let superclass = classSymbol.superclass,
+           let superclassType = superclass.typeId.flatMap({ context.typeTable[$0] })
+           as? TrussType.NominalType
         {
             return conformsTo(superclassType, protocolType)
         }
@@ -969,9 +1068,9 @@ public final class TypeResolver: AST.Visitor {
 
     private func superclassChain(of type: TrussType.ClassType) -> [TrussType.ClassType] {
         guard let classSymbol = type.symbol as? Symbol.ClassSymbol,
-            let superclass = classSymbol.superclass,
-            let superclassType = superclass.typeId.flatMap({ context.typeTable[$0] })
-                as? TrussType.ClassType
+              let superclass = classSymbol.superclass,
+              let superclassType = superclass.typeId.flatMap({ context.typeTable[$0] })
+              as? TrussType.ClassType
         else {
             return []
         }
