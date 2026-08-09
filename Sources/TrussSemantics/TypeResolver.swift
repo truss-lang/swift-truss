@@ -871,9 +871,8 @@ public final class TypeResolver: AST.Visitor {
         case let (l as TrussType.GenericParamType, r as TrussType.GenericParamType):
             return l.name == r.name
         default:
-            break
+            return false
         }
-        return false
     }
 
     private func occurs(
@@ -1024,16 +1023,119 @@ public final class TypeResolver: AST.Visitor {
         _ candidates: [Symbol.FunctionSymbol],
         arguments: [AST.LabeledArgument],
         trailingClosures: [(Token?, AST.Closure)],
-        expectedReturn: TrussType.TrussType?,
+        expectedReturn: TrussType.TrussType,
         at token: Token
     ) -> Symbol.FunctionSymbol? {
-        // TODO: filter by count/labels -> try each candidate bidirectionally (parameter check + return unify, generic candidates instantiated) -> single winner; no match emitNoExactMatch; multiple winners emitAmbiguous
-        nil
+        let allArguments = arguments + trailingClosures.map { label, closure in
+            AST.LabeledArgument(label: label, value: closure, sourceRange: closure.sourceRange)
+        }
+        var matched: [Symbol.FunctionSymbol] = []
+        for candidate in candidates {
+            let ty: TrussType.FunctionType
+            if let forallType = candidate.forallType {
+                if let functionType = instantiate(forallType) as? TrussType.FunctionType {
+                    ty = functionType
+                } else {
+                    continue
+                }
+            } else if let functionType = candidate.functionType {
+                ty = functionType
+            } else {
+                continue
+            }
+            guard let mapping = mapArguments(allArguments, to: candidate.signature) else {
+                continue
+            }
+            var ok = true
+            for (index, argument) in allArguments.enumerated() {
+                let parameterIndex = mapping[index]
+                guard parameterIndex < ty.parameters.count else {
+                    continue
+                }
+                let parameterType = ty.parameters[parameterIndex].type
+                if let actual = infer(argument.value) {
+                    if !canCoerce(actual, to: parameterType, at: token) {
+                        ok = false
+                        break
+                    }
+                }
+            }
+            if ok, !canCoerce(ty.returnType, to: expectedReturn, at: token) {
+                ok = false
+            }
+            if ok {
+                matched.append(candidate)
+            }
+        }
+        let name = candidates.first?.name ?? "<unknown>"
+        switch matched.count {
+        case 0:
+            emitNoExactMatch(at: token, name: name, candidates: candidates)
+            return nil
+        case 1:
+            return matched[0]
+        default:
+            emitAmbiguous(at: token, name: name)
+            return nil
+        }
+    }
+
+    private func mapArguments(
+        _ arguments: [AST.LabeledArgument], to signature: Symbol.FunctionSignature
+    ) -> [Int]? {
+        let paramCount = signature.labels.count
+        var used = [Bool](repeating: false, count: paramCount)
+        var mapping: [Int] = []
+        var varargIndex: Int?
+
+        for argument in arguments {
+            if let label = argument.label?.value {
+                var found: Int?
+                for (i, paramLabel) in signature.labels.enumerated()
+                    where paramLabel == label && !used[i]
+                {
+                    found = i
+                    break
+                }
+                guard let index = found else { return nil }
+                used[index] = true
+                mapping.append(index)
+                if signature.isVararg[index] {
+                    varargIndex = index
+                }
+            } else if let varargIndex {
+                mapping.append(varargIndex)
+            } else {
+                var found: Int?
+                for (i, isUsed) in used.enumerated() where !isUsed {
+                    found = i
+                    break
+                }
+                guard let index = found else { return nil }
+                used[index] = true
+                mapping.append(index)
+                if signature.isVararg[index] {
+                    varargIndex = index
+                }
+            }
+        }
+
+        for (i, hasDefault) in signature.hasDefaults.enumerated() {
+            if !hasDefault, !used[i], !signature.isVararg[i] {
+                return nil
+            }
+        }
+        return mapping
     }
 
     private func instantiate(_ forall: TrussType.ForallType) -> TrussType.TrussType {
-        // TODO: replace GenericParamType in body with fresh type variables (in parameter order)
-        forall.body
+        var mapping: [String: TrussType.TypeVariableType] = [:]
+        for param in forall.parameters {
+            mapping[param.name] = freshTypeVariable()
+        }
+        return replacingGenericParam(forall.body) { genericParam in
+            mapping[genericParam.name] ?? genericParam
+        }
     }
 
     private func join(
