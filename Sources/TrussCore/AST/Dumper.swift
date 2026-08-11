@@ -324,10 +324,10 @@ public extension AST {
         }
 
         @discardableResult
-        public override func visitErrorStatement(
-            _ errorStatement: ErrorStatement, additional: Any? = nil
+        public override func visitErrorExpressionStatement(
+            _ errorStatement: ErrorExpressionStatement, additional: Any? = nil
         ) -> Any? {
-            dumpNode("ErrorStatement")
+            dumpNode("ErrorExpressionStatement")
             return nil
         }
 
@@ -917,8 +917,8 @@ public extension AST {
         }
 
         @discardableResult
-        public override func visitParentheticalExpression(
-            _ parentheticalExpression: ParentheticalExpression, additional: Any? = nil
+        public override func visitParenthetical(
+            _ parentheticalExpression: Parenthetical, additional: Any? = nil
         ) -> Any? {
             dumpNode(
                 "ParentheticalExpression" + tyText(parentheticalExpression.ty),
@@ -1121,8 +1121,8 @@ public extension AST {
         }
 
         @discardableResult
-        public override func visitSelfTypeExpression(
-            _ selfTypeExpression: SelfTypeExpression, additional: Any? = nil
+        public override func visitSelfType(
+            _ selfTypeExpression: SelfType, additional: Any? = nil
         ) -> Any? {
             dumpNode("SelfTypeExpression" + tyText(selfTypeExpression.ty))
             return nil
@@ -1272,8 +1272,8 @@ public extension AST {
         }
 
         @discardableResult
-        public override func visitTupleExpression(
-            _ tupleExpression: TupleExpression, additional: Any? = nil
+        public override func visitTuple(
+            _ tupleExpression: Tuple, additional: Any? = nil
         ) -> Any? {
             var children: [() -> Void] = []
             for element in tupleExpression.elements {
@@ -1306,8 +1306,8 @@ public extension AST {
         }
 
         @discardableResult
-        public override func visitSequentialExpression(
-            _ sequentialExpression: SequentialExpression, additional: Any? = nil
+        public override func visitSequential(
+            _ sequentialExpression: Sequential, additional: Any? = nil
         ) -> Any? {
             var text = "SequentialExpression "
             if sequentialExpression.ops.isEmpty {
@@ -1388,14 +1388,15 @@ public extension AST {
         }
 
         @discardableResult
-        public override func visitCastExpression(
-            _ castExpression: CastExpression, additional: Any? = nil
+        public override func visitCast(
+            _ castExpression: Cast, additional: Any? = nil
         ) -> Any? {
             let kindText =
                 switch castExpression.kind {
                 case .As: "as"
                 case .OptionalAs: "as?"
                 case .AsExclamation: "as!"
+                case .AsBitCast: "as!!"
                 case .Is: "is"
                 }
             var children: [() -> Void] = [{ self.visit(castExpression.left) }]
@@ -1405,8 +1406,8 @@ public extension AST {
         }
 
         @discardableResult
-        public override func visitTryExpression(
-            _ tryExpression: TryExpression, additional: Any? = nil
+        public override func visitTry(
+            _ tryExpression: Try, additional: Any? = nil
         ) -> Any? {
             let kindText =
                 switch tryExpression.kind {
@@ -1422,8 +1423,8 @@ public extension AST {
         }
 
         @discardableResult
-        public override func visitAwaitExpression(
-            _ awaitExpression: AwaitExpression, additional: Any? = nil
+        public override func visitAwait(
+            _ awaitExpression: Await, additional: Any? = nil
         ) -> Any? {
             dumpNode(
                 "AwaitExpression await" + tyText(awaitExpression.ty),
@@ -1447,6 +1448,17 @@ public extension AST {
                 }
             }
             dumpNode("Subscript" + tyText(subscriptExpr.ty), children: children)
+            return nil
+        }
+
+        @discardableResult
+        public override func visitForceUnwrap(
+            _ forceUnwrap: ForceUnwrap, additional: Any? = nil
+        ) -> Any? {
+            dumpNode(
+                "ForceUnwrapExpression !" + tyText(forceUnwrap.ty),
+                children: [{ self.visit(forceUnwrap.expression) }]
+            )
             return nil
         }
 

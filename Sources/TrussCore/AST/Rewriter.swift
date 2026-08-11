@@ -347,8 +347,8 @@ extension AST {
         }
 
         @discardableResult
-        open override func visitErrorStatement(
-            _ errorStatement: AST.ErrorStatement, additional: Any? = nil
+        open override func visitErrorExpressionStatement(
+            _ errorStatement: AST.ErrorExpressionStatement, additional: Any? = nil
         ) -> Any? {
             errorStatement
         }
@@ -954,12 +954,12 @@ extension AST {
         }
 
         @discardableResult
-        open override func visitParentheticalExpression(
-            _ parentheticalExpression: AST.ParentheticalExpression, additional: Any? = nil
+        open override func visitParenthetical(
+            _ parentheticalExpression: AST.Parenthetical, additional: Any? = nil
         ) -> Any? {
             let inner = rewrite(parentheticalExpression.inner)
             if inner === parentheticalExpression.inner { return parentheticalExpression }
-            let newParentheticalExpression = AST.ParentheticalExpression(
+            let newParentheticalExpression = AST.Parenthetical(
                 inner, sourceRange: parentheticalExpression.sourceRange
             )
             return newParentheticalExpression
@@ -1197,8 +1197,8 @@ extension AST {
         }
 
         @discardableResult
-        open override func visitSelfTypeExpression(
-            _ selfTypeExpression: AST.SelfTypeExpression, additional: Any? = nil
+        open override func visitSelfType(
+            _ selfTypeExpression: AST.SelfType, additional: Any? = nil
         ) -> Any? {
             selfTypeExpression
         }
@@ -1337,8 +1337,8 @@ extension AST {
         }
 
         @discardableResult
-        open override func visitTupleExpression(
-            _ tupleExpression: AST.TupleExpression, additional: Any? = nil
+        open override func visitTuple(
+            _ tupleExpression: AST.Tuple, additional: Any? = nil
         ) -> Any? {
             var elementsChanged = false
             let elements = tupleExpression.elements.map { element -> AST.LabeledArgument in
@@ -1349,7 +1349,7 @@ extension AST {
                 )
             }
             if !elementsChanged { return tupleExpression }
-            let newTupleExpression = AST.TupleExpression(
+            let newTupleExpression = AST.Tuple(
                 elements, sourceRange: tupleExpression.sourceRange
             )
             return newTupleExpression
@@ -1383,14 +1383,14 @@ extension AST {
         }
 
         @discardableResult
-        open override func visitSequentialExpression(
-            _ sequentialExpression: AST.SequentialExpression, additional: Any? = nil
+        open override func visitSequential(
+            _ sequentialExpression: AST.Sequential, additional: Any? = nil
         ) -> Any? {
             let operands = rewriteAll(sequentialExpression.operands)
             if unchanged(sequentialExpression.operands, operands) {
                 return sequentialExpression
             }
-            let newSequentialExpression = AST.SequentialExpression(
+            let newSequentialExpression = AST.Sequential(
                 sequentialExpression.ops, operands, sourceRange: sequentialExpression.sourceRange
             )
             return newSequentialExpression
@@ -1471,15 +1471,15 @@ extension AST {
         }
 
         @discardableResult
-        open override func visitCastExpression(
-            _ castExpression: AST.CastExpression, additional: Any? = nil
+        open override func visitCast(
+            _ castExpression: AST.Cast, additional: Any? = nil
         ) -> Any? {
             let left = rewrite(castExpression.left)
             let right = rewrite(castExpression.right)
             if left === castExpression.left, right === castExpression.right {
                 return castExpression
             }
-            let newCastExpression = AST.CastExpression(
+            let newCastExpression = AST.Cast(
                 left, castExpression.token, right, castExpression.kind,
                 sourceRange: castExpression.sourceRange
             )
@@ -1487,12 +1487,12 @@ extension AST {
         }
 
         @discardableResult
-        open override func visitTryExpression(
-            _ tryExpression: AST.TryExpression, additional: Any? = nil
+        open override func visitTry(
+            _ tryExpression: AST.Try, additional: Any? = nil
         ) -> Any? {
             let expression = rewrite(tryExpression.expression)
             if expression === tryExpression.expression { return tryExpression }
-            let newTryExpression = AST.TryExpression(
+            let newTryExpression = AST.Try(
                 tryExpression.token, tryExpression.kind, expression,
                 sourceRange: tryExpression.sourceRange
             )
@@ -1500,12 +1500,12 @@ extension AST {
         }
 
         @discardableResult
-        open override func visitAwaitExpression(
-            _ awaitExpression: AST.AwaitExpression, additional: Any? = nil
+        open override func visitAwait(
+            _ awaitExpression: AST.Await, additional: Any? = nil
         ) -> Any? {
             let expression = rewrite(awaitExpression.expression)
             if expression === awaitExpression.expression { return awaitExpression }
-            let newAwaitExpression = AST.AwaitExpression(
+            let newAwaitExpression = AST.Await(
                 awaitExpression.token, expression, sourceRange: awaitExpression.sourceRange
             )
             return newAwaitExpression
@@ -1529,6 +1529,19 @@ extension AST {
                 base: base, arguments: arguments, sourceRange: subscriptExpr.sourceRange
             )
             return newSubscript
+        }
+
+        @discardableResult
+        open override func visitForceUnwrap(
+            _ forceUnwrap: AST.ForceUnwrap, additional: Any? = nil
+        ) -> Any? {
+            let expression = rewrite(forceUnwrap.expression)
+            if expression === forceUnwrap.expression {
+                return forceUnwrap
+            }
+            return AST.ForceUnwrap(
+                expression, forceUnwrap.token, sourceRange: forceUnwrap.sourceRange
+            )
         }
 
         @discardableResult

@@ -192,6 +192,7 @@ public enum OperatorKind: Sendable {
     case BitXor // ^
 
     case Not // !
+    case NotNot // !!
     case And // &&
     case Or // ||
 

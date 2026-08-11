@@ -58,8 +58,8 @@ extension AST {
         }
 
         @discardableResult
-        open func visitErrorStatement(
-            _ errorStatement: AST.ErrorStatement, additional: Any? = nil
+        open func visitErrorExpressionStatement(
+            _ errorStatement: AST.ErrorExpressionStatement, additional: Any? = nil
         ) -> Any? {
             nil
         }
@@ -455,8 +455,8 @@ extension AST {
         }
 
         @discardableResult
-        open func visitParentheticalExpression(
-            _ parentheticalExpression: AST.ParentheticalExpression, additional: Any? = nil
+        open func visitParenthetical(
+            _ parentheticalExpression: AST.Parenthetical, additional: Any? = nil
         ) -> Any? {
             visit(parentheticalExpression.inner, additional: additional)
         }
@@ -607,8 +607,8 @@ extension AST {
         }
 
         @discardableResult
-        open func visitSelfTypeExpression(
-            _ selfTypeExpression: AST.SelfTypeExpression, additional: Any? = nil
+        open func visitSelfType(
+            _ selfTypeExpression: AST.SelfType, additional: Any? = nil
         ) -> Any? {
             nil
         }
@@ -710,8 +710,8 @@ extension AST {
         }
 
         @discardableResult
-        open func visitTupleExpression(
-            _ tupleExpression: AST.TupleExpression, additional: Any? = nil
+        open func visitTuple(
+            _ tupleExpression: AST.Tuple, additional: Any? = nil
         ) -> Any? {
             for element in tupleExpression.elements {
                 visit(element.value, additional: additional)
@@ -735,8 +735,8 @@ extension AST {
         }
 
         @discardableResult
-        open func visitSequentialExpression(
-            _ sequentialExpression: AST.SequentialExpression, additional: Any? = nil
+        open func visitSequential(
+            _ sequentialExpression: AST.Sequential, additional: Any? = nil
         ) -> Any? {
             var last: Any?
             for operand in sequentialExpression.operands {
@@ -789,8 +789,8 @@ extension AST {
         }
 
         @discardableResult
-        open func visitCastExpression(
-            _ castExpression: AST.CastExpression, additional: Any? = nil
+        open func visitCast(
+            _ castExpression: AST.Cast, additional: Any? = nil
         ) -> Any? {
             visit(castExpression.left, additional: additional)
             visit(castExpression.right, additional: additional)
@@ -798,15 +798,15 @@ extension AST {
         }
 
         @discardableResult
-        open func visitTryExpression(
-            _ tryExpression: AST.TryExpression, additional: Any? = nil
+        open func visitTry(
+            _ tryExpression: AST.Try, additional: Any? = nil
         ) -> Any? {
             visit(tryExpression.expression, additional: additional)
         }
 
         @discardableResult
-        open func visitAwaitExpression(
-            _ awaitExpression: AST.AwaitExpression, additional: Any? = nil
+        open func visitAwait(
+            _ awaitExpression: AST.Await, additional: Any? = nil
         ) -> Any? {
             visit(awaitExpression.expression, additional: additional)
         }
@@ -823,6 +823,12 @@ extension AST {
         }
 
         @discardableResult
+        open func visitForceUnwrap(
+            _ forceUnwrap: AST.ForceUnwrap, additional: Any? = nil
+        ) -> Any? {
+            visit(forceUnwrap.expression, additional: additional)
+        }
+
         open func visitOptionalBinding(
             _ optionalBinding: AST.OptionalBinding, additional: Any? = nil
         ) -> Any? {

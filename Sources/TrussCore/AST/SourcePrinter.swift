@@ -212,8 +212,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitErrorStatement(
-        _ errorStatement: AST.ErrorStatement, additional: Any? = nil
+    public override func visitErrorExpressionStatement(
+        _ errorStatement: AST.ErrorExpressionStatement, additional: Any? = nil
     ) -> Any? {
         state.write("<error>")
         return nil
@@ -739,8 +739,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitParentheticalExpression(
-        _ parentheticalExpression: AST.ParentheticalExpression, additional: Any? = nil
+    public override func visitParenthetical(
+        _ parentheticalExpression: AST.Parenthetical, additional: Any? = nil
     ) -> Any? {
         state.write("(")
         visit(parentheticalExpression.inner)
@@ -921,8 +921,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitSelfTypeExpression(
-        _ selfTypeExpression: AST.SelfTypeExpression, additional: Any? = nil
+    public override func visitSelfType(
+        _ selfTypeExpression: AST.SelfType, additional: Any? = nil
     ) -> Any? {
         state.write("Self")
         return nil
@@ -1059,8 +1059,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitTupleExpression(
-        _ tupleExpression: AST.TupleExpression, additional: Any? = nil
+    public override func visitTuple(
+        _ tupleExpression: AST.Tuple, additional: Any? = nil
     ) -> Any? {
         state.write("(")
         for (index, element) in tupleExpression.elements.enumerated() {
@@ -1090,8 +1090,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitSequentialExpression(
-        _ sequentialExpression: AST.SequentialExpression, additional: Any? = nil
+    public override func visitSequential(
+        _ sequentialExpression: AST.Sequential, additional: Any? = nil
     ) -> Any? {
         let ops = sequentialExpression.ops
         let operands = sequentialExpression.operands
@@ -1195,14 +1195,15 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitCastExpression(
-        _ castExpression: AST.CastExpression, additional: Any? = nil
+    public override func visitCast(
+        _ castExpression: AST.Cast, additional: Any? = nil
     ) -> Any? {
         visit(castExpression.left)
         switch castExpression.kind {
         case .As: state.write(" as ")
         case .OptionalAs: state.write(" as? ")
         case .AsExclamation: state.write(" as! ")
+        case .AsBitCast: state.write(" as!! ")
         case .Is: state.write(" is ")
         }
         visit(castExpression.right)
@@ -1210,8 +1211,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitTryExpression(
-        _ tryExpression: AST.TryExpression, additional: Any? = nil
+    public override func visitTry(
+        _ tryExpression: AST.Try, additional: Any? = nil
     ) -> Any? {
         switch tryExpression.kind {
         case .Try: state.write("try ")
@@ -1223,8 +1224,8 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitAwaitExpression(
-        _ awaitExpression: AST.AwaitExpression, additional: Any? = nil
+    public override func visitAwait(
+        _ awaitExpression: AST.Await, additional: Any? = nil
     ) -> Any? {
         state.write("await ")
         visit(awaitExpression.expression)
@@ -1245,6 +1246,15 @@ public final class SourcePrinter: AST.Visitor {
             visit(argument.value)
         }
         state.write("]")
+        return nil
+    }
+
+    @discardableResult
+    public override func visitForceUnwrap(
+        _ forceUnwrap: AST.ForceUnwrap, additional: Any? = nil
+    ) -> Any? {
+        visit(forceUnwrap.expression)
+        state.write("!")
         return nil
     }
 

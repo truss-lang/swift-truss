@@ -35,7 +35,7 @@ public extension AST {
         }
     }
 
-    final class ParentheticalExpression: Expression {
+    final class Parenthetical: Expression {
         public let inner: Expression
         public init(_ inner: Expression, sourceRange: SourceRange) {
             self.inner = inner
@@ -43,7 +43,7 @@ public extension AST {
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitParentheticalExpression(self, additional: additional)
+            visitor.visitParenthetical(self, additional: additional)
         }
     }
 
@@ -350,7 +350,7 @@ public extension AST {
         }
     }
 
-    final class SelfTypeExpression: Expression {
+    final class SelfType: Expression {
         public let token: Token
         public init(
             _ token: Token, sourceRange: SourceRange
@@ -360,7 +360,7 @@ public extension AST {
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitSelfTypeExpression(self, additional: additional)
+            visitor.visitSelfType(self, additional: additional)
         }
     }
 
@@ -582,7 +582,7 @@ public extension AST {
         }
     }
 
-    final class TupleExpression: Expression {
+    final class Tuple: Expression {
         public let elements: [LabeledArgument]
         public init(_ elements: [LabeledArgument], sourceRange: SourceRange) {
             self.elements = elements
@@ -590,7 +590,7 @@ public extension AST {
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitTupleExpression(self, additional: additional)
+            visitor.visitTuple(self, additional: additional)
         }
     }
 
@@ -627,7 +627,7 @@ public extension AST {
         }
     }
 
-    final class SequentialExpression: Expression {
+    final class Sequential: Expression {
         public let ops: [Token]
         public let operands: [Expression]
         public init(_ ops: [Token], _ operands: [Expression], sourceRange: SourceRange) {
@@ -637,7 +637,7 @@ public extension AST {
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitSequentialExpression(self, additional: additional)
+            visitor.visitSequential(self, additional: additional)
         }
     }
 
@@ -730,7 +730,7 @@ public extension AST {
         }
     }
 
-    final class CastExpression: Expression {
+    final class Cast: Expression {
         public let left: Expression
         public let token: Token
         public let right: Expression
@@ -747,18 +747,19 @@ public extension AST {
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitCastExpression(self, additional: additional)
+            visitor.visitCast(self, additional: additional)
         }
 
         public enum Kind {
             case As
             case OptionalAs
             case AsExclamation
+            case AsBitCast
             case Is
         }
     }
 
-    final class TryExpression: Expression {
+    final class Try: Expression {
         public let token: Token
         public let kind: Kind
         public let expression: Expression
@@ -773,7 +774,7 @@ public extension AST {
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitTryExpression(self, additional: additional)
+            visitor.visitTry(self, additional: additional)
         }
 
         public enum Kind {
@@ -783,7 +784,7 @@ public extension AST {
         }
     }
 
-    final class AwaitExpression: Expression {
+    final class Await: Expression {
         public let token: Token
         public let expression: Expression
         public init(
@@ -795,7 +796,7 @@ public extension AST {
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitAwaitExpression(self, additional: additional)
+            visitor.visitAwait(self, additional: additional)
         }
     }
 
@@ -818,6 +819,20 @@ public extension AST {
             super.copySemantics(from: other)
             guard let otherSubscript = other as? AST.Subscript else { return }
             overloads = otherSubscript.overloads
+        }
+    }
+
+    final class ForceUnwrap: Expression {
+        public let token: Token
+        public let expression: Expression
+        public init(_ expression: Expression, _ token: Token, sourceRange: SourceRange) {
+            self.token = token
+            self.expression = expression
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitForceUnwrap(self, additional: additional)
         }
     }
 
@@ -974,7 +989,7 @@ public extension OperatorKind {
     }
 }
 
-public extension AST.SequentialExpression {
+public extension AST.Sequential {
     func genericApplicationGroupCloseIndex() -> Int? {
         guard let first = ops.first, case .Operator(.Less) = first.kind else { return nil }
         var depth = 0

@@ -36,13 +36,13 @@ public extension AST {
         }
     }
 
-    final class ErrorStatement: Statement {
+    final class ErrorExpressionStatement: Statement {
         public init(sourceRange: SourceRange) {
             super.init(sourceRange)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitErrorStatement(self, additional: additional)
+            visitor.visitErrorExpressionStatement(self, additional: additional)
         }
     }
 
