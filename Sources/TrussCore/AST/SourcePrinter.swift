@@ -411,7 +411,8 @@ public final class SourcePrinter: AST.Visitor {
         visit(extensionDecl.base)
         if !extensionDecl.conformances.isEmpty {
             state.write(
-                ": " + extensionDecl.conformances.map { render($0) }.joined(separator: ", "))
+                ": " + extensionDecl.conformances.map { render($0) }.joined(separator: ", ")
+            )
         }
         appendBlock(extensionDecl.body)
         return nil
@@ -489,7 +490,8 @@ public final class SourcePrinter: AST.Visitor {
         state.write("func " + functionDecl.name.value)
         if let genericDecl = functionDecl.genericDecl { state.write(genericDeclText(genericDecl)) }
         state.write(
-            parametersText(functionDecl.parameters, vararg: functionDecl.varargToken != nil))
+            parametersText(functionDecl.parameters, vararg: functionDecl.varargToken != nil)
+        )
         if functionDecl.asyncToken != nil {
             state.write(" async")
         }
@@ -1199,7 +1201,7 @@ public final class SourcePrinter: AST.Visitor {
         visit(castExpression.left)
         switch castExpression.kind {
         case .As: state.write(" as ")
-        case .AsQuestion: state.write(" as? ")
+        case .OptionalAs: state.write(" as? ")
         case .AsExclamation: state.write(" as! ")
         case .Is: state.write(" is ")
         }

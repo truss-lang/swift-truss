@@ -104,7 +104,8 @@ public final class Parser {
                 severity: .error, message: message,
                 range: token.sourceRange(in: buffer),
                 notes: notes + token.expansionNotes(in: context)
-            ))
+            )
+        )
     }
 
     private func errorStatement(from startToken: Token, to endToken: Token)
@@ -3484,7 +3485,7 @@ public final class Parser {
                 if token.kind == .Keyword(.Is) {
                     kind = .Is
                 } else if peek?.kind == .Operator(.QuestionMark) {
-                    kind = .AsQuestion
+                    kind = .OptionalAs
                     index += 1
                 } else if peek?.kind == .Operator(.Not) {
                     kind = .AsExclamation
@@ -5385,7 +5386,8 @@ public final class Parser {
                         AST.Modifier(
                             token: token, kind: .Convenience,
                             sourceRange: token.sourceRange(in: buffer)
-                        ))
+                        )
+                    )
                 case .Override:
                     index += 1
                     modifiers.append(

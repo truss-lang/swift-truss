@@ -586,7 +586,8 @@ public final class Preprocessor {
                 if let paramIndex = params.firstIndex(of: pastedBody[k + 1].value) {
                     let text = args[paramIndex].map(\.value).joined(separator: " ")
                     replaced.append(
-                        Token(value: text, kind: .StringLiteral, pos: bt.pos, id: bt.id))
+                        Token(value: text, kind: .StringLiteral, pos: bt.pos, id: bt.id)
+                    )
                     k += 2
                     continue
                 }
@@ -596,7 +597,8 @@ public final class Preprocessor {
                     let text = args.dropFirst(params.count).flatMap { $0 }.map(\.value)
                         .joined(separator: ", ")
                     replaced.append(
-                        Token(value: text, kind: .StringLiteral, pos: bt.pos, id: bt.id))
+                        Token(value: text, kind: .StringLiteral, pos: bt.pos, id: bt.id)
+                    )
                     k += 2
                     continue
                 }
@@ -612,7 +614,8 @@ public final class Preprocessor {
                 for va in variadicArgs {
                     if !first {
                         replaced.append(
-                            Token(value: ",", kind: .Separator(.Comma), pos: bt.pos, id: bt.id))
+                            Token(value: ",", kind: .Separator(.Comma), pos: bt.pos, id: bt.id)
+                        )
                     }
                     replaced.append(contentsOf: va)
                     first = false
@@ -817,12 +820,14 @@ public final class Preprocessor {
                         result.append(
                             Token(
                                 value: "1", kind: .IntegerLiteral(1), pos: token.pos, id: token.id
-                            ))
+                            )
+                        )
                     } else {
                         result.append(
                             Token(
                                 value: "0", kind: .IntegerLiteral(0), pos: token.pos, id: token.id
-                            ))
+                            )
+                        )
                     }
                 } else {
                     result.append(token)
@@ -852,7 +857,8 @@ public final class Preprocessor {
                 severity: severity, message: message,
                 range: token.sourceRange(in: source.stringSourceBuffer),
                 notes: token.expansionNotes(in: context)
-            ))
+            )
+        )
     }
 }
 

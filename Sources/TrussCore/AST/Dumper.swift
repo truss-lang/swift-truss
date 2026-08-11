@@ -791,7 +791,8 @@ public extension AST {
             if !asmStatement.options.isEmpty {
                 children.append {
                     self.dumpNode(
-                        "Options \(asmStatement.options.map(\.value).joined(separator: ", "))")
+                        "Options \(asmStatement.options.map(\.value).joined(separator: ", "))"
+                    )
                 }
             }
             dumpNode("Asm", children: children)
@@ -932,7 +933,8 @@ public extension AST {
         {
             dumpNode(
                 "Variable \(variable.name.value)" + tyText(variable.ty) + symText(variable.symbol)
-                    + overloadsText(variable.overloads))
+                    + overloadsText(variable.overloads)
+            )
             return nil
         }
 
@@ -971,7 +973,8 @@ public extension AST {
             let rawMarker = stringLiteral.token.isRaw ? " [raw]" : ""
             dumpNode(
                 "StringLiteral \"\(escapeString(stringLiteral.token.value))\"" + rawMarker
-                    + tyText(stringLiteral.ty))
+                    + tyText(stringLiteral.ty)
+            )
             return nil
         }
 
@@ -1138,7 +1141,8 @@ public extension AST {
             _ superExpression: SuperExpression, additional: Any? = nil
         ) -> Any? {
             dumpNode(
-                "SuperExpression" + tyText(superExpression.ty) + symText(superExpression.symbol))
+                "SuperExpression" + tyText(superExpression.ty) + symText(superExpression.symbol)
+            )
             return nil
         }
 
@@ -1390,7 +1394,7 @@ public extension AST {
             let kindText =
                 switch castExpression.kind {
                 case .As: "as"
-                case .AsQuestion: "as?"
+                case .OptionalAs: "as?"
                 case .AsExclamation: "as!"
                 case .Is: "is"
                 }

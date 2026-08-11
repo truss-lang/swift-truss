@@ -325,7 +325,8 @@ func tokenValues(_ tokens: [Token]) -> [String] {
 }
 
 @Test func ppDeferExpansion() {
-    let source = "#define EMPTY()\n#define DEFER2(A) A EMPTY()\n#define A() 123\n#define EXPAND(...) __VA_ARGS__\nEXPAND(DEFER2(A)())"
+    let source =
+        "#define EMPTY()\n#define DEFER2(A) A EMPTY()\n#define A() 123\n#define EXPAND(...) __VA_ARGS__\nEXPAND(DEFER2(A)())"
     let tokens = preprocess(source)
     #expect(tokenValues(tokens) == ["123"])
 }
@@ -655,7 +656,8 @@ func parseWithPreprocessor(_ source: String) -> [Diagnostic] {
     #expect(
         diagnostics.contains {
             $0.notes.contains { $0.message == "in expansion of macro 'BAD'" }
-        })
+        }
+    )
 }
 
 @Test func ppPreprocessorErrorShowsExpansionNote() {
@@ -664,7 +666,8 @@ func parseWithPreprocessor(_ source: String) -> [Diagnostic] {
         diagnostics.contains {
             $0.message.contains("division by zero")
                 && $0.notes.contains { $0.message == "in expansion of macro 'DIV'" }
-        })
+        }
+    )
 }
 
 @Test func ppNestedExpansionNotes() {

@@ -178,6 +178,7 @@ public final class Driver {
             Diagnostic(
                 severity: .error, message: "could not read file '\(file)'",
                 range: SourceRange(start: location, end: location)
-            ))
+            )
+        )
     }
 }

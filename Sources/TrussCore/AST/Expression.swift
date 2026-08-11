@@ -645,6 +645,7 @@ public extension AST {
         public let left: Expression
         public let right: Expression
         public let operatorToken: Token
+        public let symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ left: Expression, _ right: Expression, _ operatorToken: Token,
             sourceRange: SourceRange
@@ -749,7 +750,7 @@ public extension AST {
 
         public enum Kind {
             case As
-            case AsQuestion
+            case OptionalAs
             case AsExclamation
             case Is
         }
@@ -799,6 +800,8 @@ public extension AST {
     final class Subscript: Expression {
         public let base: Expression
         public let arguments: [LabeledArgument]
+        public var overloads: [Symbol.FunctionSymbol]? = nil
+        public var symbol: Symbol.FunctionSymbol? = nil
         public init(base: Expression, arguments: [LabeledArgument], sourceRange: SourceRange) {
             self.base = base
             self.arguments = arguments
@@ -807,6 +810,12 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitSubscript(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            super.copySemantics(from: other)
+            guard let otherSubscript = other as? AST.Subscript else { return }
+            overloads = otherSubscript.overloads
         }
     }
 

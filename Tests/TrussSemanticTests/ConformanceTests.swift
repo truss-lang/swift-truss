@@ -17,7 +17,8 @@ private func packageScope(_ programs: [AST.Program]) -> Scope {
 
 @Test func enumAndActorAndProtocolConform() {
     let (context, programs) = runEnter(
-        ["protocol P {} enum E: P {} actor A: P {} protocol R: P {}"])
+        ["protocol P {} enum E: P {} actor A: P {} protocol R: P {}"]
+    )
     NameResolver(context: context).visitProgram(programs[0])
     let scope = packageScope(programs)
     let e = scope.types["E"] as! Symbol.EnumSymbol
@@ -65,7 +66,8 @@ private func packageScope(_ programs: [AST.Program]) -> Scope {
 
 @Test func genericProtocolCompositionResolved() {
     let (context, programs) = runEnter(
-        ["protocol P {} protocol Q {} struct S: P<Int32> & Q {}"])
+        ["protocol P {} protocol Q {} struct S: P<Int32> & Q {}"]
+    )
     NameResolver(context: context).visitProgram(programs[0])
     let s = packageScope(programs).types["S"] as! Symbol.StructSymbol
     #expect(s.conformances.map(\.name) == ["P", "Q"])
@@ -97,7 +99,8 @@ private func packageScope(_ programs: [AST.Program]) -> Scope {
 
 @Test func extensionCompositionAndUnknownConformance() {
     let (context, programs) = runEnter(
-        ["protocol P {} protocol Q {} struct S {} extension S: P & Q, Unknown {}"])
+        ["protocol P {} protocol Q {} struct S {} extension S: P & Q, Unknown {}"]
+    )
     let s = packageScope(programs).types["S"] as! Symbol.StructSymbol
     #expect(s.conformances.map(\.name) == ["P", "Q"])
     #expect(!context.diagnositicEngine.hasErrors)
@@ -105,7 +108,8 @@ private func packageScope(_ programs: [AST.Program]) -> Scope {
 
 @Test func extensionConformanceInPendingBase() {
     let (context, programs) = runEnter(
-        ["extension A.B { func f() {} }", "struct A {} extension A { class B {} }"])
+        ["extension A.B { func f() {} }", "struct A {} extension A { class B {} }"]
+    )
     let scope = packageScope(programs)
     let a = scope.types["A"] as! Symbol.StructSymbol
     let b = a.scope.types["B"] as! Symbol.ClassSymbol
@@ -122,7 +126,8 @@ private func packageScope(_ programs: [AST.Program]) -> Scope {
 
 @Test func nominalKindsDistinct() {
     let (context, programs) = runEnter(
-        ["struct S {} class C {} enum E {} protocol P {} actor A {}"])
+        ["struct S {} class C {} enum E {} protocol P {} actor A {}"]
+    )
     let scope = packageScope(programs)
     #expect(scope.types["S"] is Symbol.StructSymbol)
     #expect(scope.types["C"] is Symbol.ClassSymbol)

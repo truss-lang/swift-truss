@@ -112,7 +112,8 @@ public final class Lexer {
                         Token(
                             value: "(", kind: .Separator(.OpenParen),
                             pos: makePosition(openPos), id: input.id
-                        ))
+                        )
+                    )
                 }
             }
         }

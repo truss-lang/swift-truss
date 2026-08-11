@@ -338,11 +338,11 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(right!.name.value == "Int32")
 }
 
-@Test func parseCastAsQuestionExpression() {
+@Test func parseCastOptionalAsExpression() {
     let expr = firstExpression("x as? Int32")
     let cast = expr as? AST.CastExpression
     #expect(cast != nil)
-    #expect(cast!.kind == .AsQuestion)
+    #expect(cast!.kind == .OptionalAs)
 }
 
 @Test func parseCastAsExclamationExpression() {
@@ -364,7 +364,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let expr = firstExpression("a as B as? C")
     let cast = expr as? AST.CastExpression
     #expect(cast != nil)
-    #expect(cast!.kind == .AsQuestion)
+    #expect(cast!.kind == .OptionalAs)
     let inner = cast!.left as? AST.CastExpression
     try #require(inner != nil)
     #expect(inner!.kind == .As)
@@ -1624,7 +1624,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parsePrecedenceGroupMultipleHigherThanClauses() throws {
     let (program, diagnostics) = parseWithDiagnostics(
-        "precedencegroup Foo { higherThan: Bar higherThan: Baz }")
+        "precedencegroup Foo { higherThan: Bar higherThan: Baz }"
+    )
     let errors = diagnostics.filter { $0.severity == .error }
     #expect(errors.isEmpty)
     let pg = program.statements[0] as? AST.PrecedenceGroupDecl
@@ -1641,7 +1642,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parsePrecedenceGroupDuplicateAssociativityReportsFirstDefinition() throws {
     let (_, diagnostics) = parseWithDiagnostics(
-        "precedencegroup Foo { associativity: left associativity: right }")
+        "precedencegroup Foo { associativity: left associativity: right }"
+    )
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "associativity can only be set once")
@@ -1868,7 +1870,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseObserverInFunctionContextReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics(
-        "func main() { var a: Int = 0 { willSet {} didSet {} } }")
+        "func main() { var a: Int = 0 { willSet {} didSet {} } }"
+    )
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "property observers are not allowed in function context")
@@ -4917,7 +4920,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(matchExpr != nil)
     let cast = matchExpr!.cases[0].patterns[0] as? AST.CastExpression
     #expect(cast != nil)
-    #expect(cast!.kind == .AsQuestion)
+    #expect(cast!.kind == .OptionalAs)
 }
 
 @Test func parseMatchWithBinding() throws {
@@ -5933,7 +5936,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseWhereClauseMultipleRequirements() throws {
     let statements = parseStatements(
-        "protocol P { associatedtype T where T: Equatable, T.Element: Hashable }")
+        "protocol P { associatedtype T where T: Equatable, T.Element: Hashable }"
+    )
     try #require(statements.count == 1)
     let protocolDecl = statements[0] as? AST.ProtocolDecl
     try #require(protocolDecl != nil)
@@ -6189,7 +6193,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseSubscriptDeclWithGetSetBody() throws {
     let statements = parseStatements(
-        "struct S { subscript(i: Int) -> Int { get { i } set { _ = newValue } } }")
+        "struct S { subscript(i: Int) -> Int { get { i } set { _ = newValue } } }"
+    )
     try #require(statements.count == 1)
     let structDecl = statements[0] as? AST.StructDecl
     try #require(structDecl != nil)
@@ -6538,7 +6543,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseClosureFullSignature() throws {
     let body = parseBlockStatements(
-        "func main() { { [weak self] (x: Int32) throws -> Int32 in x } }")
+        "func main() { { [weak self] (x: Int32) throws -> Int32 in x } }"
+    )
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
     let closure = exprStmt!.expression as? AST.Closure
