@@ -328,7 +328,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseCastAsExpression() {
     let expr = firstExpression("x as Int32")
-    let cast = expr as? AST.CastExpression
+    let cast = expr as? AST.Cast
     #expect(cast != nil)
     #expect(cast!.kind == .As)
     #expect(cast!.token.kind == .Keyword(.As))
@@ -340,21 +340,21 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseCastOptionalAsExpression() {
     let expr = firstExpression("x as? Int32")
-    let cast = expr as? AST.CastExpression
+    let cast = expr as? AST.Cast
     #expect(cast != nil)
     #expect(cast!.kind == .OptionalAs)
 }
 
 @Test func parseCastAsExclamationExpression() {
     let expr = firstExpression("x as! Int32")
-    let cast = expr as? AST.CastExpression
+    let cast = expr as? AST.Cast
     #expect(cast != nil)
     #expect(cast!.kind == .AsExclamation)
 }
 
 @Test func parseIsExpression() {
     let expr = firstExpression("x is Int32")
-    let cast = expr as? AST.CastExpression
+    let cast = expr as? AST.Cast
     #expect(cast != nil)
     #expect(cast!.kind == .Is)
     #expect(cast!.token.kind == .Keyword(.Is))
@@ -362,10 +362,10 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseCastChain() throws {
     let expr = firstExpression("a as B as? C")
-    let cast = expr as? AST.CastExpression
+    let cast = expr as? AST.Cast
     #expect(cast != nil)
     #expect(cast!.kind == .OptionalAs)
-    let inner = cast!.left as? AST.CastExpression
+    let inner = cast!.left as? AST.Cast
     try #require(inner != nil)
     #expect(inner!.kind == .As)
     #expect(cast!.right is AST.Variable)
@@ -454,7 +454,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let callee = call!.callee as? AST.MemberAccess
     try #require(callee != nil)
     #expect(callee!.member.value == "deinit")
-    let paren = callee!.object as? AST.ParentheticalExpression
+    let paren = callee!.object as? AST.Parenthetical
     try #require(paren != nil)
 }
 
@@ -465,7 +465,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let callee = call!.callee as? AST.MemberAccess
     try #require(callee != nil)
     #expect(callee!.member.kind == .Keyword(.Init))
-    let seq = callee!.object as? AST.SequentialExpression
+    let seq = callee!.object as? AST.Sequential
     try #require(seq != nil)
     #expect(seq!.ops.count == 2)
 }
@@ -548,7 +548,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseInfixExpression() throws {
     let expr = firstExpression("a + b")
-    let sequentialExpression = expr as? AST.SequentialExpression
+    let sequentialExpression = expr as? AST.Sequential
     try #require(sequentialExpression != nil)
     try #require(sequentialExpression!.ops.count == 1)
     #expect(sequentialExpression!.ops[0].kind == .Operator(.Plus))
@@ -563,7 +563,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseComplexInfixExpression() throws {
     let expr = firstExpression("a + b * c - d")
-    let sequentialExpression = expr as? AST.SequentialExpression
+    let sequentialExpression = expr as? AST.Sequential
     try #require(sequentialExpression != nil)
     try #require(sequentialExpression!.ops.count == 3)
     #expect(sequentialExpression!.ops[0].kind == .Operator(.Plus))
@@ -580,7 +580,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseAssignmentExpression() throws {
     let expr = firstExpression("x = 42")
-    let sequentialExpression = expr as? AST.SequentialExpression
+    let sequentialExpression = expr as? AST.Sequential
     try #require(sequentialExpression != nil)
     try #require(sequentialExpression!.ops.count == 1)
     #expect(sequentialExpression!.ops[0].kind == .Operator(.Assign))
@@ -595,7 +595,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseComparisonExpression() throws {
     let expr = firstExpression("a == b")
-    let sequentialExpression = expr as? AST.SequentialExpression
+    let sequentialExpression = expr as? AST.Sequential
     try #require(sequentialExpression != nil)
     try #require(sequentialExpression!.ops.count == 1)
     #expect(sequentialExpression!.ops[0].kind == .Operator(.Equal))
@@ -604,14 +604,14 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseLogicalAndExpression() throws {
     let expr = firstExpression("a && b")
-    let sequentialExpression = expr as? AST.SequentialExpression
+    let sequentialExpression = expr as? AST.Sequential
     try #require(sequentialExpression != nil)
     #expect(sequentialExpression!.ops[0].kind == .Operator(.And))
 }
 
 @Test func parseLogicalOrExpression() throws {
     let expr = firstExpression("a || b")
-    let sequentialExpression = expr as? AST.SequentialExpression
+    let sequentialExpression = expr as? AST.Sequential
     try #require(sequentialExpression != nil)
     #expect(sequentialExpression!.ops[0].kind == .Operator(.Or))
 }
@@ -692,7 +692,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let ret = body[0] as? AST.Return
     try #require(ret != nil)
     #expect(ret!.token.kind == .Keyword(.Return))
-    let sequentialExpression = ret!.value as? AST.SequentialExpression
+    let sequentialExpression = ret!.value as? AST.Sequential
     try #require(sequentialExpression != nil)
     try #require(sequentialExpression!.ops.count == 1)
     #expect(sequentialExpression!.ops[0].kind == .Operator(.Plus))
@@ -764,7 +764,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(body.count == 1)
     let throwStmt = body[0] as? AST.Throw
     try #require(throwStmt != nil)
-    let sequentialExpression = throwStmt!.expression as? AST.SequentialExpression
+    let sequentialExpression = throwStmt!.expression as? AST.Sequential
     try #require(sequentialExpression != nil)
     try #require(sequentialExpression!.ops.count == 1)
     #expect(sequentialExpression!.ops[0].kind == .Operator(.Plus))
@@ -790,7 +790,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseTryExpression() throws {
     let expr = firstExpression("try foo()")
-    let tryExpr = expr as? AST.TryExpression
+    let tryExpr = expr as? AST.Try
     try #require(tryExpr != nil)
     #expect(tryExpr!.kind == .Try)
     #expect(tryExpr!.token.kind == .Keyword(.Try))
@@ -800,7 +800,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseTryQuestionExpression() throws {
     let expr = firstExpression("try? foo()")
-    let tryExpr = expr as? AST.TryExpression
+    let tryExpr = expr as? AST.Try
     try #require(tryExpr != nil)
     #expect(tryExpr!.kind == .OptionalTry)
     let call = tryExpr!.expression as? AST.Call
@@ -809,7 +809,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseTryExclamationExpression() throws {
     let expr = firstExpression("try! foo()")
-    let tryExpr = expr as? AST.TryExpression
+    let tryExpr = expr as? AST.Try
     try #require(tryExpr != nil)
     #expect(tryExpr!.kind == .TryExclamation)
     let call = tryExpr!.expression as? AST.Call
@@ -818,10 +818,10 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseTryWrapsWholeExpression() throws {
     let expr = firstExpression("try foo() + bar")
-    let tryExpr = expr as? AST.TryExpression
+    let tryExpr = expr as? AST.Try
     try #require(tryExpr != nil)
     #expect(tryExpr!.kind == .Try)
-    let sequentialExpression = tryExpr!.expression as? AST.SequentialExpression
+    let sequentialExpression = tryExpr!.expression as? AST.Sequential
     try #require(sequentialExpression != nil)
     try #require(sequentialExpression!.ops.count == 1)
     #expect(sequentialExpression!.ops[0].kind == .Operator(.Plus))
@@ -832,16 +832,16 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
     try #require(vd != nil)
-    let tryExpr = vd!.initializer as? AST.TryExpression
+    let tryExpr = vd!.initializer as? AST.Try
     try #require(tryExpr != nil)
     #expect(tryExpr!.kind == .OptionalTry)
 }
 
 @Test func parseTryInExpressionStatementWithOperator() throws {
     let expr = firstExpression("a + try b")
-    let sequentialExpression = expr as? AST.SequentialExpression
+    let sequentialExpression = expr as? AST.Sequential
     try #require(sequentialExpression != nil)
-    let right = sequentialExpression!.operands[1] as? AST.TryExpression
+    let right = sequentialExpression!.operands[1] as? AST.Try
     try #require(right != nil)
     #expect(right!.kind == .Try)
     let variable = right!.expression as? AST.Variable
@@ -851,7 +851,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseTryGreedyExclamationAfterTry() throws {
     let expr = firstExpression("try !flag")
-    let tryExpr = expr as? AST.TryExpression
+    let tryExpr = expr as? AST.Try
     try #require(tryExpr != nil)
     #expect(tryExpr!.kind == .TryExclamation)
     let variable = tryExpr!.expression as? AST.Variable
@@ -861,10 +861,10 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseTryNested() throws {
     let expr = firstExpression("try try foo()")
-    let outer = expr as? AST.TryExpression
+    let outer = expr as? AST.Try
     try #require(outer != nil)
     #expect(outer!.kind == .Try)
-    let inner = outer!.expression as? AST.TryExpression
+    let inner = outer!.expression as? AST.Try
     try #require(inner != nil)
     let call = inner!.expression as? AST.Call
     #expect(call != nil)
@@ -1740,7 +1740,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func sourceRangeInfixExpression() {
     let expr = firstExpression("a + b")
-    let sequentialExpression = expr as! AST.SequentialExpression
+    let sequentialExpression = expr as! AST.Sequential
     let range = sequentialExpression.sourceRange
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 19)
@@ -2493,7 +2493,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
     try #require(forStmt != nil)
-    let whereClause = forStmt!.whereClause as? AST.SequentialExpression
+    let whereClause = forStmt!.whereClause as? AST.Sequential
     try #require(whereClause != nil)
     #expect(whereClause!.ops.count == 1)
     #expect(forStmt!.body.isEmpty)
@@ -2527,7 +2527,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
     try #require(forStmt != nil)
-    let whereClause = forStmt!.whereClause as? AST.SequentialExpression
+    let whereClause = forStmt!.whereClause as? AST.Sequential
     try #require(whereClause != nil)
     #expect(whereClause!.ops.count == 3)
     #expect(whereClause!.operands.count == 4)
@@ -2885,7 +2885,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseSelfTypeExpression() {
     let expr = firstExpression("Self")
-    let selfExpr = expr as? AST.SelfTypeExpression
+    let selfExpr = expr as? AST.SelfType
     #expect(selfExpr != nil)
 }
 
@@ -2908,7 +2908,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseParenthesizedVariable() throws {
     let expr = firstExpression("(x)")
-    let paren = expr as? AST.ParentheticalExpression
+    let paren = expr as? AST.Parenthetical
     try #require(paren != nil)
     let varExpr = paren!.inner as? AST.Variable
     try #require(varExpr != nil)
@@ -2917,9 +2917,9 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseParenthesizedSequentialExpression() throws {
     let expr = firstExpression("(a + b)")
-    let paren = expr as? AST.ParentheticalExpression
+    let paren = expr as? AST.Parenthetical
     try #require(paren != nil)
-    let seq = paren!.inner as? AST.SequentialExpression
+    let seq = paren!.inner as? AST.Sequential
     try #require(seq != nil)
     try #require(seq!.ops.count == 1)
     #expect(seq!.ops[0].kind == .Operator(.Plus))
@@ -2930,7 +2930,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parsePlusAssignExpression() throws {
     let expr = firstExpression("x += 1")
-    let seq = expr as? AST.SequentialExpression
+    let seq = expr as? AST.Sequential
     try #require(seq != nil)
     try #require(seq!.ops.count == 1)
     #expect(seq!.ops[0].kind == .Operator(.PlusAssign))
@@ -2945,14 +2945,14 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseMultiplyAssignExpression() throws {
     let expr = firstExpression("x *= 2")
-    let seq = expr as? AST.SequentialExpression
+    let seq = expr as? AST.Sequential
     try #require(seq != nil)
     #expect(seq!.ops[0].kind == .Operator(.MultiplyAssign))
 }
 
 @Test func parseMinusAssignExpression() throws {
     let expr = firstExpression("x -= 3")
-    let seq = expr as? AST.SequentialExpression
+    let seq = expr as? AST.Sequential
     try #require(seq != nil)
     #expect(seq!.ops[0].kind == .Operator(.MinusAssign))
 }
@@ -3166,7 +3166,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseIfExpressionAsAssignmentValue() throws {
     let expr = firstExpression("x = if true {} else {}")
-    let seq = expr as? AST.SequentialExpression
+    let seq = expr as? AST.Sequential
     try #require(seq != nil)
     try #require(seq!.ops.count == 1)
     #expect(seq!.ops[0].kind == .Operator(.Assign))
@@ -3203,7 +3203,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
     #expect(member!.member.value == "foo")
-    let paren = member!.object as? AST.ParentheticalExpression
+    let paren = member!.object as? AST.Parenthetical
     try #require(paren != nil)
     let ifExpr = paren!.inner as? AST.If
     #expect(ifExpr != nil)
@@ -3211,7 +3211,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseIfExpressionElseIfChainAsValue() throws {
     let expr = firstExpression("x = if a {} else if b {} else {}")
-    let seq = expr as? AST.SequentialExpression
+    let seq = expr as? AST.Sequential
     try #require(seq != nil)
     let ifExpr = seq!.operands[1] as? AST.If
     try #require(ifExpr != nil)
@@ -3246,7 +3246,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let expr = firstExpression("if a + b == c {}")
     let ifExpr = expr as? AST.If
     try #require(ifExpr != nil)
-    let seq = ifExpr!.condition as? AST.SequentialExpression
+    let seq = ifExpr!.condition as? AST.Sequential
     try #require(seq != nil)
     #expect(seq!.ops.count == 2)
 }
@@ -3299,7 +3299,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("func foo() -> + {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
-    let returnType = decl!.returnTypeExpression as? AST.SequentialExpression
+    let returnType = decl!.returnTypeExpression as? AST.Sequential
     try #require(returnType != nil)
     try #require(returnType!.ops.count == 1)
     #expect(returnType!.ops[0].kind == .Operator(.Plus))
@@ -3707,7 +3707,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseBareGenericSingleArg() throws {
     let expr = firstExpression("Array<Int32>")
-    let seq = expr as? AST.SequentialExpression
+    let seq = expr as? AST.Sequential
     try #require(seq != nil)
     try #require(seq!.ops.count == 2)
     #expect(seq!.ops[0].kind == .Operator(.Less))
@@ -3723,7 +3723,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseBareGenericMultipleArgs() throws {
     let expr = firstExpression("Array<Int32, String>")
-    let seq = expr as? AST.SequentialExpression
+    let seq = expr as? AST.Sequential
     try #require(seq != nil)
     try #require(seq!.ops.count == 3)
     #expect(seq!.ops[0].kind == .Operator(.Less))
@@ -3743,7 +3743,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseComparisonWithAngleBrackets() throws {
     let expr = firstExpression("1<2>3")
-    let seq = expr as? AST.SequentialExpression
+    let seq = expr as? AST.Sequential
     try #require(seq != nil)
     try #require(seq!.ops.count == 2)
     #expect(seq!.ops[0].kind == .Operator(.Less))
@@ -3764,7 +3764,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let expr = firstExpression("Array<Int32>()")
     let call = expr as? AST.Call
     try #require(call != nil)
-    let callee = call!.callee as? AST.SequentialExpression
+    let callee = call!.callee as? AST.Sequential
     try #require(callee != nil)
     #expect(callee!.ops.count == 2)
     let base = callee!.operands[0] as? AST.Variable
@@ -3788,7 +3788,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseParenthesizedAfterOperator() throws {
     let expr = firstExpression("a + (b)")
-    let seq = expr as? AST.SequentialExpression
+    let seq = expr as? AST.Sequential
     try #require(seq != nil)
     try #require(seq!.ops.count == 1)
     #expect(seq!.ops[0].kind == .Operator(.Plus))
@@ -3796,7 +3796,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let first = seq!.operands[0] as? AST.Variable
     try #require(first != nil)
     #expect(first!.name.value == "a")
-    let second = seq!.operands[1] as? AST.ParentheticalExpression
+    let second = seq!.operands[1] as? AST.Parenthetical
     try #require(second != nil)
     let inner = second!.inner as? AST.Variable
     try #require(inner != nil)
@@ -3820,7 +3820,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
     #expect(member!.member.value == "f")
-    let base = member!.object as? AST.SequentialExpression
+    let base = member!.object as? AST.Sequential
     #expect(base != nil)
     try #require(base!.ops.count == 2)
     #expect(base!.ops[0].kind == .Operator(.Less))
@@ -3842,7 +3842,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let member = call!.callee as? AST.MemberAccess
     try #require(member != nil)
     #expect(member!.member.value == "f")
-    let baseSeq = member!.object as? AST.SequentialExpression
+    let baseSeq = member!.object as? AST.Sequential
     #expect(baseSeq != nil)
     #expect(baseSeq!.ops.count == 2)
     #expect(baseSeq!.operands[0] is AST.Variable)
@@ -3869,7 +3869,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
     #expect(member!.member.value == "foo")
-    let baseSeq = member!.object as? AST.SequentialExpression
+    let baseSeq = member!.object as? AST.Sequential
     #expect(baseSeq != nil)
     try #require(baseSeq!.operands.count == 3)
     #expect((baseSeq!.operands[0] as? AST.Variable)?.name.value == "Array")
@@ -3884,7 +3884,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(member!.member.value == "result")
     let call = member!.object as? AST.Call
     try #require(call != nil)
-    let calleeSeq = call!.callee as? AST.SequentialExpression
+    let calleeSeq = call!.callee as? AST.Sequential
     try #require(calleeSeq != nil)
     try #require(calleeSeq!.operands.count == 2)
     #expect((calleeSeq!.operands[0] as? AST.Variable)?.name.value == "Producer")
@@ -3894,7 +3894,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseComparisonThenMemberAccess() throws {
     let expr = firstExpression("1 < 2 && 3 > x.foo")
-    let seq = expr as? AST.SequentialExpression
+    let seq = expr as? AST.Sequential
     try #require(seq != nil)
     let lastOperand = seq!.operands.last
     let member = lastOperand as? AST.MemberAccess
@@ -3907,7 +3907,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseNestedGenericRightShift() throws {
     let expr = firstExpression("Array<Array<Int32>>")
-    let seq = expr as? AST.SequentialExpression
+    let seq = expr as? AST.Sequential
     try #require(seq != nil)
     try #require(seq!.ops.count == 3)
     #expect(seq!.ops[0].kind == .Operator(.Less))
@@ -3966,7 +3966,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let arr = expr as? AST.ArrayLiteral
     try #require(arr != nil)
     try #require(arr!.elements.count == 2)
-    let seq = arr!.elements[0] as? AST.SequentialExpression
+    let seq = arr!.elements[0] as? AST.Sequential
     #expect(seq != nil)
     let v = arr!.elements[1] as? AST.Variable
     try #require(v != nil)
@@ -4153,7 +4153,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let call = expr as? AST.Call
     try #require(call != nil)
     try #require(call!.arguments.count == 1)
-    let seq = call!.arguments[0].value as? AST.SequentialExpression
+    let seq = call!.arguments[0].value as? AST.Sequential
     try #require(seq != nil)
     try #require(seq!.ops.count == 1)
     #expect(seq!.ops[0].kind == .Operator(.Plus))
@@ -4263,7 +4263,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(decl != nil)
     let variadic = decl!.parameters[0].type as? AST.VariadicType
     try #require(variadic != nil)
-    let tuple = variadic!.base as? AST.TupleExpression
+    let tuple = variadic!.base as? AST.Tuple
     try #require(tuple != nil)
     #expect(tuple!.elements.count == 2)
 }
@@ -4294,7 +4294,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("let r = 1...5")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
-    let seq = decl!.initializer as? AST.SequentialExpression
+    let seq = decl!.initializer as? AST.Sequential
     try #require(seq != nil)
     #expect(seq!.ops[0].kind == .Operator(.DotDotDot))
     #expect(seq!.operands.count == 2)
@@ -4364,7 +4364,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseArrayLiteralInExpression() throws {
     let expr = firstExpression("a + [1, 2]")
-    let seq = expr as? AST.SequentialExpression
+    let seq = expr as? AST.Sequential
     try #require(seq != nil)
     try #require(seq!.ops.count == 1)
     #expect(seq!.ops[0].kind == .Operator(.Plus))
@@ -4420,16 +4420,16 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
     let ifExpr = exprStmt!.expression as? AST.If
-    let seq = ifExpr!.condition as? AST.SequentialExpression
+    let seq = ifExpr!.condition as? AST.Sequential
     try #require(seq != nil)
     try #require(seq!.ops.count == 1)
     #expect(seq!.ops[0].kind == .Operator(.And))
-    let lhs = seq!.operands[0] as? AST.ParentheticalExpression
+    let lhs = seq!.operands[0] as? AST.Parenthetical
     try #require(lhs != nil)
     let lhsBinding = lhs!.inner as? AST.OptionalBinding
     try #require(lhsBinding != nil)
     #expect(lhsBinding!.name.value == "x")
-    let rhs = seq!.operands[1] as? AST.ParentheticalExpression
+    let rhs = seq!.operands[1] as? AST.Parenthetical
     try #require(rhs != nil)
     let rhsBinding = rhs!.inner as? AST.OptionalBinding
     try #require(rhsBinding != nil)
@@ -4908,7 +4908,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseAsExpressionStillCastExpression() {
     let expr = firstExpression("x as Int32")
-    let cast = expr as? AST.CastExpression
+    let cast = expr as? AST.Cast
     #expect(cast != nil)
     #expect(cast!.kind == .As)
     #expect(!(expr is AST.AsPattern))
@@ -4918,7 +4918,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let expr = firstExpression("match a { let x as? Int32 -> x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
-    let cast = matchExpr!.cases[0].patterns[0] as? AST.CastExpression
+    let cast = matchExpr!.cases[0].patterns[0] as? AST.Cast
     #expect(cast != nil)
     #expect(cast!.kind == .OptionalAs)
 }
@@ -5026,7 +5026,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     try #require(matchExpr!.cases.count == 1)
-    let seq = matchExpr!.cases[0].patterns[0] as? AST.SequentialExpression
+    let seq = matchExpr!.cases[0].patterns[0] as? AST.Sequential
     try #require(seq != nil)
     try #require(seq!.ops.count == 1)
     #expect(seq!.ops[0].kind == .Operator(.DotDotDot))
@@ -5043,7 +5043,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let expr = firstExpression("match x { 1..<5 -> 1 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
-    let seq = matchExpr!.cases[0].patterns[0] as? AST.SequentialExpression
+    let seq = matchExpr!.cases[0].patterns[0] as? AST.Sequential
     try #require(seq != nil)
     #expect(seq!.ops[0].kind == .Operator(.DotDotLess))
 }
@@ -5052,7 +5052,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let expr = firstExpression("match x { 1..5 -> 1 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
-    let seq = matchExpr!.cases[0].patterns[0] as? AST.SequentialExpression
+    let seq = matchExpr!.cases[0].patterns[0] as? AST.Sequential
     try #require(seq != nil)
     #expect(seq!.ops[0].kind == .Operator(.DotDot))
 }
@@ -5065,7 +5065,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(matchExpr!.cases[0].patterns.count == 2)
     #expect(matchExpr!.cases[1].patterns.count == 1)
     for pattern in matchExpr!.cases[0].patterns {
-        let seq = pattern as? AST.SequentialExpression
+        let seq = pattern as? AST.Sequential
         try #require(seq != nil)
         #expect(seq!.ops[0].kind == .Operator(.DotDotDot))
     }
@@ -5078,7 +5078,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let ifExpr = exprStmt!.expression as? AST.If
     let caseMatch = ifExpr!.condition as? AST.CaseMatch
     #expect(caseMatch != nil)
-    let seq = caseMatch!.pattern as? AST.SequentialExpression
+    let seq = caseMatch!.pattern as? AST.Sequential
     try #require(seq != nil)
     #expect(seq!.ops[0].kind == .Operator(.DotDotDot))
     #expect(seq!.operands.count == 2)
@@ -5530,7 +5530,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(structDecl != nil)
     try #require(structDecl!.genericDecl != nil)
     try #require(structDecl!.genericDecl!.generics.count == 1)
-    let constraint = structDecl!.genericDecl!.generics[0].constraint as? AST.SelfTypeExpression
+    let constraint = structDecl!.genericDecl!.generics[0].constraint as? AST.SelfType
     #expect(constraint != nil)
 }
 
@@ -5538,7 +5538,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseTupleExpression() throws {
     let expr = firstExpression("(1, 2)")
-    let tuple = expr as? AST.TupleExpression
+    let tuple = expr as? AST.Tuple
     try #require(tuple != nil)
     try #require(tuple!.elements.count == 2)
     let e0 = tuple!.elements[0].value as? AST.IntegerLiteral
@@ -5549,7 +5549,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseLabeledTupleExpression() throws {
     let expr = firstExpression("(name: String, age: Int)")
-    let tuple = expr as? AST.TupleExpression
+    let tuple = expr as? AST.Tuple
     try #require(tuple != nil)
     try #require(tuple!.elements.count == 2)
     #expect(tuple!.elements[0].label?.value == "name")
@@ -5558,7 +5558,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseTupleWithTrailingComma() throws {
     let expr = firstExpression("(1, 2,)")
-    let tuple = expr as? AST.TupleExpression
+    let tuple = expr as? AST.Tuple
     try #require(tuple != nil)
     #expect(tuple!.elements.count == 2)
 }
@@ -5572,7 +5572,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(match!.cases.count == 1)
     let patterns = match!.cases[0].patterns
     try #require(patterns.count == 1)
-    let tuple = patterns[0] as? AST.TupleExpression
+    let tuple = patterns[0] as? AST.Tuple
     try #require(tuple != nil)
     try #require(tuple!.elements.count == 2)
     let e0 = tuple!.elements[0].value as? AST.Variable
@@ -5587,7 +5587,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let body = parseBlockStatements("func main() { match x { (a, let b) -> b } }")
     let exprStmt = body[0] as? AST.ExpressionStatement
     let match = exprStmt!.expression as? AST.Match
-    let tuple = match!.cases[0].patterns[0] as? AST.TupleExpression
+    let tuple = match!.cases[0].patterns[0] as? AST.Tuple
     try #require(tuple != nil)
     try #require(tuple!.elements.count == 2)
     let binding = tuple!.elements[1].value as? AST.BindingPattern
@@ -5646,7 +5646,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.TypeAliasDecl
     try #require(decl != nil)
-    let tuple = decl!.typeExpression as? AST.TupleExpression
+    let tuple = decl!.typeExpression as? AST.Tuple
     try #require(tuple != nil)
     #expect(tuple!.elements.count == 2)
 }
@@ -5906,7 +5906,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let assoc = protocolDecl!.body[0] as? AST.AssociatedTypeDecl
     #expect(assoc != nil)
     if case let .equality(right) = assoc!.whereClause![0].constraint {
-        let seq = right as? AST.SequentialExpression
+        let seq = right as? AST.Sequential
         try #require(seq != nil)
         #expect(seq!.ops.count == 2)
         let base = seq!.operands[0] as? AST.Variable
@@ -6319,7 +6319,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(forStmt != nil)
     let caseMatch = forStmt!.pattern as? AST.CaseMatch
     #expect(caseMatch != nil)
-    let subject = caseMatch!.subject as? AST.SequentialExpression
+    let subject = caseMatch!.subject as? AST.Sequential
     try #require(subject != nil)
     #expect(subject!.ops.count == 1)
 }
@@ -6799,7 +6799,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
         Issue.record("expected expression segment")
         return
     }
-    let seq = e as? AST.SequentialExpression
+    let seq = e as? AST.Sequential
     try #require(seq != nil)
     try #require(seq!.ops.count == 1)
     #expect(seq!.ops[0].kind == .Operator(.Plus))
@@ -7166,7 +7166,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseAwaitExpression() throws {
     let expr = firstExpression("await foo()")
-    let awaitExpr = expr as? AST.AwaitExpression
+    let awaitExpr = expr as? AST.Await
     try #require(awaitExpr != nil)
     #expect(awaitExpr!.token.kind == .Keyword(.Await))
     let call = awaitExpr!.expression as? AST.Call
@@ -7175,7 +7175,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseAwaitVariable() throws {
     let expr = firstExpression("await x")
-    let awaitExpr = expr as? AST.AwaitExpression
+    let awaitExpr = expr as? AST.Await
     try #require(awaitExpr != nil)
     let variable = awaitExpr!.expression as? AST.Variable
     try #require(variable != nil)
@@ -7184,18 +7184,18 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 
 @Test func parseTryAwait() throws {
     let expr = firstExpression("try await foo()")
-    let tryExpr = expr as? AST.TryExpression
+    let tryExpr = expr as? AST.Try
     try #require(tryExpr != nil)
     #expect(tryExpr!.kind == .Try)
-    let awaitExpr = tryExpr!.expression as? AST.AwaitExpression
+    let awaitExpr = tryExpr!.expression as? AST.Await
     #expect(awaitExpr != nil)
 }
 
 @Test func parseAwaitTry() throws {
     let expr = firstExpression("await try foo()")
-    let awaitExpr = expr as? AST.AwaitExpression
+    let awaitExpr = expr as? AST.Await
     try #require(awaitExpr != nil)
-    let tryExpr = awaitExpr!.expression as? AST.TryExpression
+    let tryExpr = awaitExpr!.expression as? AST.Try
     try #require(tryExpr != nil)
     #expect(tryExpr!.kind == .Try)
 }
@@ -7204,7 +7204,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let body = parseBlockStatements("func main() { await foo() }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
-    let awaitExpr = exprStmt!.expression as? AST.AwaitExpression
+    let awaitExpr = exprStmt!.expression as? AST.Await
     #expect(awaitExpr != nil)
 }
 
@@ -7337,4 +7337,13 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(moduleDecl!.body.count == 2)
     #expect(moduleDecl!.body[0] is AST.StructDecl)
     #expect(moduleDecl!.body[1] is AST.ExtensionDecl)
+}
+
+@Test func parseCastAsBitCastExpression() {
+    let expr = firstExpression("x as!! Int32")
+    let cast = expr as? AST.Cast
+    #expect(cast != nil)
+    #expect(cast!.kind == .AsBitCast)
+    let right = cast!.right as? AST.Variable
+    #expect(right!.name.value == "Int32")
 }

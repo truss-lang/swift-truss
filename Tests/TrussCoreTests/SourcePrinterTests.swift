@@ -319,3 +319,7 @@ import TrussCore
         assertRoundTrip(source)
     }
 }
+
+@Test func roundTripBitCast() {
+    assertRoundTrip("let x = s as!! T")
+}

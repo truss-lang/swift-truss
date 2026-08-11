@@ -215,8 +215,7 @@ func variable(_ expr: AST.Expression?, _ name: String) -> Bool {
     ])
     #expect(!context.diagnositicEngine.hasErrors)
     let root = binary(firstBodyExpression(programs[0]), op: "*")
-    let left = root?.left as? AST.Postfix
-    #expect(left?.operatorToken.value == "!")
+    let left = root?.left as? AST.ForceUnwrap
     #expect(variable(left?.expression, "a"))
     #expect(variable(root?.right, "b"))
 }
@@ -238,8 +237,7 @@ func variable(_ expr: AST.Expression?, _ name: String) -> Bool {
         "postfix operator ! func main() { a! }",
     ])
     #expect(!context.diagnositicEngine.hasErrors)
-    let outer = firstBodyExpression(programs[0]) as? AST.Postfix
-    #expect(outer?.operatorToken.value == "!")
+    let outer = firstBodyExpression(programs[0]) as? AST.ForceUnwrap
     #expect(variable(outer?.expression, "a"))
 }
 
@@ -263,7 +261,7 @@ func variable(_ expr: AST.Expression?, _ name: String) -> Bool {
     ])
     #expect(!context.diagnositicEngine.hasErrors)
     let root = binary(firstBodyExpression(programs[0]), op: "*")
-    let paren = root?.left as? AST.ParentheticalExpression
+    let paren = root?.left as? AST.Parenthetical
     let inner = binary(paren?.inner, op: "+")
     #expect(integer(inner?.left, "1"))
     #expect(integer(inner?.right, "2"))
@@ -321,7 +319,7 @@ func variable(_ expr: AST.Expression?, _ name: String) -> Bool {
             + "infix operator +: A func main() { 1 + 2 }",
     ])
     #expect(context.diagnositicEngine.hasErrors)
-    #expect(firstBodyExpression(programs[0]) is AST.SequentialExpression)
+    #expect(firstBodyExpression(programs[0]) is AST.Sequential)
 }
 
 @Test func genericApplicationSequenceLeftUnfolded() {
@@ -330,7 +328,7 @@ func variable(_ expr: AST.Expression?, _ name: String) -> Bool {
             + "func main() { Array<Int32> }",
     ])
     #expect(!context.diagnositicEngine.hasErrors)
-    #expect(firstBodyExpression(programs[0]) is AST.SequentialExpression)
+    #expect(firstBodyExpression(programs[0]) is AST.Sequential)
 }
 
 @Test func genericApplicationFoldsSingleArg() {

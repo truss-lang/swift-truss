@@ -222,7 +222,7 @@ import TrussSemantics
 @Test func castExpressionTypeIsTarget() throws {
     let (_, programs) = runTypeChecker(["struct S {}\nlet x = y as S"])
     let variableDecl = programs[0].statements[1] as! AST.VariableDecl
-    let cast = try #require(variableDecl.initializer as? AST.CastExpression)
+    let cast = try #require(variableDecl.initializer as? AST.Cast)
     #expect(cast.right.ty is TrussType.StructType)
     #expect(cast.ty is TrussType.StructType)
 }
@@ -620,9 +620,16 @@ import TrussSemantics
 
 @Test func keyPathExpressionInferred() {
     let (context, _) = runTypeChecker(
-        ["struct S { init() {} var x: S }\nfunc main() { let kp = \\.x }"]
+        ["struct S { init() {} var x: S }\nfunc main() { let kp = \\S.x }"]
     )
     #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func keyPathWithoutRootReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} var x: S }\nfunc main() { let kp = \\.x }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
 }
 
 @Test func voidLiteralType() throws {
@@ -1164,4 +1171,93 @@ import TrussSemantics
     let variableDecl = programs[0].statements[3] as! AST.VariableDecl
     let type = try #require(variableDecl.symbol?.type)
     #expect(type is TrussType.StructType)
+}
+
+@Test func nestedTypeGenericInitCall() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct S { init() {} }\nstruct Outer { struct Inner<T> { init() {} } }\nfunc main() { let b = Outer.Inner<S>() }",
+        ]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func nestedTypeGenericInitWithMultipleArguments() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct S { init() {} }\nstruct T { init() {} }\nstruct Outer { struct Inner<A, B> { init() {} } }\nfunc main() { let b = Outer.Inner<S, T>() }",
+        ]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func nestedTypeAsGenericArgument() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct S { init() {} }\nstruct W<T> { init() {} }\nstruct Outer { struct Inner<T> { init() {} } }\nlet x: W<Outer.Inner<S>>",
+        ]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func nestedTypeGenericArgumentOnValuePosition() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct S { init() {} }\nstruct W<T> { init() {} }\nstruct Outer { struct Inner<T> { init() {} } }\nlet x = W<Outer.Inner<S>>",
+        ]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func castInstanceToProtocolConforms() {
+    let (context, _) = runTypeChecker(
+        ["protocol P {}\nstruct S: P { init() {} }\nfunc main() { let s = S(); let x = s as P }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func castInstanceToUnrelatedTypeReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nstruct T { init() {} }\nfunc main() { let s = S(); let x = s as T }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func castInstanceToCompositionConforms() {
+    let (context, _) = runTypeChecker(
+        ["protocol P {}\nprotocol Q {}\nstruct S: P, Q { init() {} }\nfunc main() { let s = S(); let x = s as P & Q }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func bitCastAcceptsUnrelatedTypes() throws {
+    let (_, programs) = runTypeChecker(
+        ["struct S { init() {} }\nstruct T { init() {} }\nlet s = S()\nlet x = s as!! T"]
+    )
+    let variableDecl = programs[0].statements[3] as! AST.VariableDecl
+    let cast = try #require(variableDecl.initializer as? AST.Cast)
+    #expect(cast.kind == .AsBitCast)
+    #expect(cast.ty is TrussType.StructType)
+}
+
+@Test func forceUnwrapOptional() throws {
+    let (_, programs) = runTypeChecker(
+        ["struct S { init() {} }\nstruct T { init() {} }\nfunc f(z: S?) -> T { let x = z!; return T() }"]
+    )
+    let functionDecl = programs[0].statements[2] as! AST.FunctionDecl
+    let body = try #require(functionDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block")
+        return
+    }
+    let variableDecl = try #require(statements[0] as? AST.VariableDecl)
+    let forceUnwrap = try #require(variableDecl.initializer as? AST.ForceUnwrap)
+    #expect(forceUnwrap.ty is TrussType.StructType)
+}
+
+@Test func forceUnwrapNonOptionalReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nfunc f(s: S) { let x = s! }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
 }

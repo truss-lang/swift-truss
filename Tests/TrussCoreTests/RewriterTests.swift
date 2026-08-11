@@ -57,13 +57,13 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
         )
     }
 
-    override func visitSequentialExpression(
-        _ sequentialExpression: AST.SequentialExpression, additional: Any? = nil
+    override func visitSequential(
+        _ sequentialExpression: AST.Sequential, additional: Any? = nil
     ) -> Any? {
         guard
-            let rewritten = super.visitSequentialExpression(
+            let rewritten = super.visitSequential(
                 sequentialExpression, additional: additional
-            ) as? AST.SequentialExpression
+            ) as? AST.Sequential
         else { return nil }
         let ops = rewritten.ops
         let operands = rewritten.operands
@@ -136,7 +136,7 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     let newFunctionDecl = rewritten.statements[0] as! AST.FunctionDecl
     let forStmt = blockBody(newFunctionDecl)[0] as! AST.For
     #expect(forStmt !== originalFor)
-    let whereClause = forStmt.whereClause as! AST.SequentialExpression
+    let whereClause = forStmt.whereClause as! AST.Sequential
     let literal = whereClause.operands[1] as! AST.IntegerLiteral
     #expect(literal.value == 1)
 }
@@ -224,7 +224,7 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     let call = (blockBody(functionDecl)[0] as! AST.ExpressionStatement).expression as! AST.Call
     #expect((call.arguments[0].value as! AST.IntegerLiteral).value == 2)
     #expect((call.arguments[1].value as! AST.IntegerLiteral).value == 3)
-    let tuple = (rewritten.statements[1] as! AST.VariableDecl).initializer as! AST.TupleExpression
+    let tuple = (rewritten.statements[1] as! AST.VariableDecl).initializer as! AST.Tuple
     #expect((tuple.elements[0].value as! AST.IntegerLiteral).value == 4)
     #expect((tuple.elements[1].value as! AST.IntegerLiteral).value == 5)
     let dictionary = (rewritten.statements[2] as! AST.VariableDecl).initializer
