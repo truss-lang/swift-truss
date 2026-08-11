@@ -639,7 +639,7 @@ public final class TypeChecker: AST.Visitor {
                 context.emitError("cannot find type '\(member.member.value)'", at: member.member)
                 result = TrussType.ErrorType.INSTANCE
             }
-        case let parenthetical as AST.ParentheticalExpression:
+        case let parenthetical as AST.Parenthetical:
             result = evaluate(parenthetical.inner)
         case let optionalType as AST.OptionalType:
             let wrapped = evaluate(optionalType.wrappedType)
@@ -674,7 +674,7 @@ public final class TypeChecker: AST.Visitor {
                     returnType: returnType
                 )
             }
-        case let tupleExpression as AST.TupleExpression:
+        case let tupleExpression as AST.Tuple:
             var elements: [TrussType.TupleType.Element] = []
             var failed = false
             for argument in tupleExpression.elements {
@@ -714,7 +714,7 @@ public final class TypeChecker: AST.Visitor {
             result = failed ? TrussType.ErrorType.INSTANCE : TrussType.CompositionType(members)
         case let genericApplication as AST.GenericApplication:
             result = evaluateGenericApplication(genericApplication)
-        case let sequential as AST.SequentialExpression
+        case let sequential as AST.Sequential
             where sequential.ops.allSatisfy({ op in
                 if case .Operator(.BitAnd) = op.kind { return true }
                 return false
@@ -843,6 +843,34 @@ public final class TypeChecker: AST.Visitor {
         }
         if let superExpression = expression as? AST.SuperExpression {
             return superExpression.symbol
+        }
+        if let generic = expression as? AST.GenericApplication {
+            return resolvedSymbol(generic.base)
+        }
+        if let sequential = expression as? AST.Sequential,
+           sequential.genericApplicationGroupCloseIndex() != nil,
+           let base = sequential.operands.first
+        {
+            return resolvedSymbol(base)
+        }
+        return nil
+    }
+
+    private func baseName(of expression: AST.Expression) -> String? {
+        if let variable = expression as? AST.Variable {
+            return variable.name.value
+        }
+        if let member = expression as? AST.MemberAccess {
+            return member.member.value
+        }
+        if let generic = expression as? AST.GenericApplication {
+            return baseName(of: generic.base)
+        }
+        if let sequential = expression as? AST.Sequential,
+           sequential.genericApplicationGroupCloseIndex() != nil,
+           let base = sequential.operands.first
+        {
+            return baseName(of: base)
         }
         return nil
     }
@@ -1082,7 +1110,7 @@ public final class TypeChecker: AST.Visitor {
         if let generic = callee as? AST.GenericApplication {
             return generic.genericArguments
         }
-        if let sequential = callee as? AST.SequentialExpression,
+        if let sequential = callee as? AST.Sequential,
            sequential.genericApplicationGroupCloseIndex() != nil
         {
             return Array(sequential.operands.dropFirst())
@@ -1359,7 +1387,7 @@ public final class TypeChecker: AST.Visitor {
         if let variadic = expected as? TrussType.VariadicType {
             return canCoerce(actual, to: variadic.base, at: token)
         }
-        if let actualClass = actual as? TrussType.ClassType,
+        if let actualClass = nominalBase(of: actual) as? TrussType.ClassType,
            let expectedClass = expected as? TrussType.ClassType
         {
             for superclass in superclassChain(of: actualClass) {
@@ -1374,7 +1402,7 @@ public final class TypeChecker: AST.Visitor {
             return satisfiesConformance(genericParam, to: expectedProtocol)
         }
         if let expectedProtocol = expected as? TrussType.ProtocolType,
-           let actualNominal = actual as? TrussType.NominalType
+           let actualNominal = nominalBase(of: actual)
         {
             return conformsTo(actualNominal, expectedProtocol)
         }
@@ -1389,7 +1417,7 @@ public final class TypeChecker: AST.Visitor {
             }
         }
         if let expectedComposition = expected as? TrussType.CompositionType,
-           let actualNominal = actual as? TrussType.NominalType
+           let actualNominal = nominalBase(of: actual)
         {
             return expectedComposition.members.allSatisfy { member in
                 guard let protocolType = member as? TrussType.ProtocolType else {
@@ -1399,6 +1427,16 @@ public final class TypeChecker: AST.Visitor {
             }
         }
         return false
+    }
+
+    private func nominalBase(of type: TrussType.TrussType) -> TrussType.NominalType? {
+        if let nominal = type as? TrussType.NominalType {
+            return nominal
+        }
+        if let generic = type as? TrussType.GenericInstantiation {
+            return generic.base
+        }
+        return nil
     }
 
     private func satisfiesConformance(
@@ -1496,8 +1534,8 @@ public final class TypeChecker: AST.Visitor {
                 {
                     call.symbol = resolved.symbol
                     if resolved.symbol.name == "init",
-                       let calleeVariable = call.callee as? AST.Variable,
-                       let typeSymbol = calleeVariable.symbol as? Symbol.NominalTypeSymbol,
+                       let typeSymbol = resolvedSymbol(call.callee)
+                       as? Symbol.NominalTypeSymbol,
                        let typeId = typeSymbol.typeId,
                        let nominal = context.typeTable[typeId] as? TrussType.NominalType
                     {
@@ -1551,7 +1589,7 @@ public final class TypeChecker: AST.Visitor {
                     "cannot find '\(variable.name.value)' in this scope", at: variable.name
                 )
             }
-        case let tupleExpression as AST.TupleExpression:
+        case let tupleExpression as AST.Tuple:
             var elements: [TrussType.TupleType.Element] = []
             for argument in tupleExpression.elements {
                 let type = infer(argument.value, at: token)
@@ -1742,9 +1780,9 @@ public final class TypeChecker: AST.Visitor {
             {
                 expression.ty = context.typeTable[typeId]
             }
-        case let parentheticalExpression as AST.ParentheticalExpression:
+        case let parentheticalExpression as AST.Parenthetical:
             expression.ty = infer(parentheticalExpression.inner, at: token)
-        case let castExpression as AST.CastExpression:
+        case let castExpression as AST.Cast:
             let leftType = infer(castExpression.left, at: token)
             let target = evaluate(castExpression.right)
             switch castExpression.kind {
@@ -1759,10 +1797,12 @@ public final class TypeChecker: AST.Visitor {
                 expression.ty = target
             case .AsExclamation:
                 expression.ty = target
+            case .AsBitCast:
+                expression.ty = target
             case .OptionalAs:
                 expression.ty = TrussType.OptionalType(target)
             }
-        case let tryExpression as AST.TryExpression:
+        case let tryExpression as AST.Try:
             tryContextDepth += 1
             let inferred = infer(tryExpression.expression, at: token)
             tryContextDepth -= 1
@@ -1779,7 +1819,7 @@ public final class TypeChecker: AST.Visitor {
                     "try used on call to non-throwing function", at: tryExpression.token
                 )
             }
-        case let awaitExpression as AST.AwaitExpression:
+        case let awaitExpression as AST.Await:
             expression.ty = infer(awaitExpression.expression, at: token)
             if let call = awaitExpression.expression as? AST.Call,
                let symbol = call.symbol,
@@ -1790,14 +1830,8 @@ public final class TypeChecker: AST.Visitor {
                 )
             }
         case let genericApplication as AST.GenericApplication:
-            let baseSymbol: Symbol.NominalTypeSymbol? =
-                if let variable = genericApplication.base as? AST.Variable {
-                    variable.symbol as? Symbol.NominalTypeSymbol
-                } else if let member = genericApplication.base as? AST.MemberAccess {
-                    member.symbol as? Symbol.NominalTypeSymbol
-                } else {
-                    nil
-                }
+            let baseSymbol = resolvedSymbol(genericApplication.base)
+                as? Symbol.NominalTypeSymbol
             if let typeSymbol = baseSymbol,
                let typeId = typeSymbol.typeId,
                let nominal = context.typeTable[typeId] as? TrussType.NominalType
@@ -1805,25 +1839,12 @@ public final class TypeChecker: AST.Visitor {
                 var arguments: [TrussType.TrussType] = []
                 var ok = true
                 for argument in genericApplication.genericArguments {
-                    if let argumentVariable = argument as? AST.Variable,
-                       let argumentSymbol = argumentVariable.symbol as? Symbol.NominalTypeSymbol,
-                       let argumentTypeId = argumentSymbol.typeId,
-                       let argumentType = context.typeTable[argumentTypeId]
-                    {
-                        arguments.append(argumentType)
-                    } else if let argumentVariable = argument as? AST.Variable,
-                              argumentVariable.symbol == nil
-                    {
-                        context.emitError(
-                            "cannot find type '\(argumentVariable.name.value)'",
-                            at: argumentVariable.name
-                        )
-                        ok = false
-                        break
-                    } else {
+                    let argumentType = evaluate(argument)
+                    if argumentType is TrussType.ErrorType {
                         ok = false
                         break
                     }
+                    arguments.append(argumentType)
                 }
                 if ok {
                     checkGenericArguments(
@@ -1833,16 +1854,13 @@ public final class TypeChecker: AST.Visitor {
                         base: nominal, arguments: arguments
                     )
                 }
-            } else if let variable = genericApplication.base as? AST.Variable {
-                context.emitError(
-                    "cannot find type '\(variable.name.value)'", at: variable.name
-                )
-            } else if let member = genericApplication.base as? AST.MemberAccess,
-                      member.symbol == nil
-            {
-                context.emitError(
-                    "cannot find type '\(member.member.value)'", at: member.member
-                )
+            } else if baseSymbol == nil {
+                if let name = baseName(of: genericApplication.base) {
+                    context.emitError(
+                        "cannot find type '\(name)'",
+                        at: syntheticToken(for: genericApplication)
+                    )
+                }
             }
         case let shorthandArgument as AST.ShorthandArgument:
             if let parameters = closureParameterTypes.last,
@@ -1855,7 +1873,7 @@ public final class TypeChecker: AST.Visitor {
                     at: shorthandArgument.dollarToken
                 )
             }
-        case is AST.SelfTypeExpression:
+        case is AST.SelfType:
             if let typeId = typeStack.last?.typeId {
                 expression.ty = context.typeTable[typeId]
             } else {
@@ -1866,6 +1884,22 @@ public final class TypeChecker: AST.Visitor {
         case let keyPathExpression as AST.KeyPathExpression:
             if let root = keyPathExpression.root {
                 _ = infer(root, at: token)
+            } else {
+                context.emitError(
+                    "key path requires a root type",
+                    at: keyPathExpression.backslashToken
+                )
+            }
+        case let forceUnwrap as AST.ForceUnwrap:
+            if let inner = infer(forceUnwrap.expression, at: token) {
+                if let optional = inner as? TrussType.OptionalType {
+                    expression.ty = optional.wrapped
+                } else if !(inner is TrussType.ErrorType) {
+                    context.emitError(
+                        "cannot force unwrap value of non-optional type '\(typeText(inner))'",
+                        at: forceUnwrap.token
+                    )
+                }
             }
         case is AST.VoidLiteral:
             expression.ty = TrussType.VoidType.INSTANCE
@@ -2305,7 +2339,7 @@ public final class TypeChecker: AST.Visitor {
                 closureParameterTypes.removeLast()
             }
             expression.ty = functionType
-        case let tupleExpression as AST.TupleExpression:
+        case let tupleExpression as AST.Tuple:
             if let tupleType = expected as? TrussType.TupleType {
                 for (index, element) in tupleExpression.elements.enumerated() {
                     guard index < tupleType.elements.count else { break }

@@ -273,7 +273,7 @@ public final class NameResolver: AST.Visitor {
                 }
                 continue
             }
-            if let sequential = expression as? AST.SequentialExpression,
+            if let sequential = expression as? AST.Sequential,
                let members = sequential.compositionMemberBaseOperands()
             {
                 collectConformances(members, into: symbol)
@@ -300,7 +300,7 @@ public final class NameResolver: AST.Visitor {
         if let genericApplication = expression as? AST.GenericApplication {
             return genericApplication.base
         }
-        if let sequential = expression as? AST.SequentialExpression,
+        if let sequential = expression as? AST.Sequential,
            sequential.genericApplicationGroupCloseIndex() != nil,
            let base = sequential.operands.first
         {
@@ -334,24 +334,22 @@ public final class NameResolver: AST.Visitor {
         case let memberAccess as AST.MemberAccess:
             call.overloads = memberAccess.overloads
         case let genericApplication as AST.GenericApplication:
-            if let variable = genericApplication.base as? AST.Variable {
-                if let nominal = variable.symbol as? Symbol.NominalTypeSymbol {
-                    call.overloads = memberResolution("init", in: nominal).1
-                } else {
-                    call.overloads = variable.overloads
-                }
-            } else if let memberAccess = genericApplication.base as? AST.MemberAccess {
-                call.overloads = memberAccess.overloads
+            if let nominal = resolvedSymbol(genericApplication.base)
+                as? Symbol.NominalTypeSymbol
+            {
+                call.overloads = memberResolution("init", in: nominal).1
+            } else if let overloads = calleeOverloads(genericApplication.base) {
+                call.overloads = overloads
             }
-        case let sequential as AST.SequentialExpression:
-            if let variable = sequential.operands.first as? AST.Variable {
-                if let nominal = variable.symbol as? Symbol.NominalTypeSymbol {
-                    call.overloads = memberResolution("init", in: nominal).1
-                } else {
-                    call.overloads = variable.overloads
-                }
-            } else if let memberAccess = sequential.operands.first as? AST.MemberAccess {
-                call.overloads = memberAccess.overloads
+        case let sequential as AST.Sequential:
+            if let base = sequential.operands.first,
+               let nominal = resolvedSymbol(base) as? Symbol.NominalTypeSymbol
+            {
+                call.overloads = memberResolution("init", in: nominal).1
+            } else if let base = sequential.operands.first,
+                      let overloads = calleeOverloads(base)
+            {
+                call.overloads = overloads
             }
         default:
             break
@@ -485,6 +483,19 @@ public final class NameResolver: AST.Visitor {
         return (nil, nil)
     }
 
+    private func calleeOverloads(_ expression: AST.Expression) -> [Symbol.FunctionSymbol]? {
+        if let variable = expression as? AST.Variable {
+            return variable.overloads
+        }
+        if let member = expression as? AST.MemberAccess {
+            return member.overloads
+        }
+        if let call = expression as? AST.Call {
+            return call.overloads
+        }
+        return nil
+    }
+
     private func resolvedSymbol(_ expression: AST.Expression) -> Symbol.Symbol? {
         if let variable = expression as? AST.Variable {
             return variable.symbol
@@ -497,6 +508,15 @@ public final class NameResolver: AST.Visitor {
         }
         if let superExpression = expression as? AST.SuperExpression {
             return superExpression.symbol
+        }
+        if let generic = expression as? AST.GenericApplication {
+            return resolvedSymbol(generic.base)
+        }
+        if let sequential = expression as? AST.Sequential,
+           sequential.genericApplicationGroupCloseIndex() != nil,
+           let base = sequential.operands.first
+        {
+            return resolvedSymbol(base)
         }
         return nil
     }
@@ -512,7 +532,7 @@ public final class NameResolver: AST.Visitor {
             return scope?.types[memberAccess.member.value]
         case let genericApplication as AST.GenericApplication:
             return resolveBase(genericApplication.base)
-        case let sequential as AST.SequentialExpression:
+        case let sequential as AST.Sequential:
             guard
                 sequential.genericApplicationGroupCloseIndex() != nil,
                 let base = sequential.operands.first

@@ -105,7 +105,7 @@ public final class MergePass: AST.Visitor {
             }
             return
         }
-        if let sequential = expression as? AST.SequentialExpression,
+        if let sequential = expression as? AST.Sequential,
            let members = sequential.compositionMemberBaseOperands()
         {
             for member in members {
@@ -136,7 +136,7 @@ public final class MergePass: AST.Visitor {
             return scope?.types[memberAccess.member.value] as? Symbol.ProtocolSymbol
         case let genericApplication as AST.GenericApplication:
             return resolveProtocol(genericApplication.base, chain: chain)
-        case let sequential as AST.SequentialExpression:
+        case let sequential as AST.Sequential:
             guard
                 sequential.genericApplicationGroupCloseIndex() != nil,
                 let base = sequential.operands.first
@@ -162,7 +162,7 @@ public final class MergePass: AST.Visitor {
             return scope?.types[memberAccess.member.value]
         case let genericApplication as AST.GenericApplication:
             return resolveBase(genericApplication.base, chain: chain)
-        case let sequential as AST.SequentialExpression:
+        case let sequential as AST.Sequential:
             guard
                 sequential.genericApplicationGroupCloseIndex() != nil,
                 let base = sequential.operands.first
@@ -195,7 +195,7 @@ public final class MergePass: AST.Visitor {
             return baseName(memberAccess.object) + "." + memberAccess.member.value
         case let genericApplication as AST.GenericApplication:
             return baseName(genericApplication.base)
-        case let sequential as AST.SequentialExpression:
+        case let sequential as AST.Sequential:
             guard
                 sequential.genericApplicationGroupCloseIndex() != nil,
                 let base = sequential.operands.first
