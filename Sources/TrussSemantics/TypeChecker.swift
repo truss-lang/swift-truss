@@ -11,6 +11,7 @@ public final class TypeChecker: AST.Visitor {
     private var functionReturnTypes: [TrussType.TrussType] = []
     private var functionThrowsStack: [(isThrowing: Bool, types: [TrussType.TrussType])] = []
     private var tryContextDepth = 0
+    private var doThrownTypeStack: [[TrussType.TrussType]] = []
     private var constraintFrames: [[Id.TypeVariableId: [TrussType.ProtocolType]]] = []
     private var closureParameterTypes: [[TrussType.TrussType]] = []
     private var rawTypeStack: [TrussType.TrussType?] = []
@@ -1664,6 +1665,7 @@ public final class TypeChecker: AST.Visitor {
             checkPattern(caseMatch.pattern, against: subjectType, at: caseMatch.token)
             expression.ty = TrussType.VoidType.INSTANCE
         case let doExpression as AST.Do:
+            doThrownTypeStack.append([])
             for statement in doExpression.body {
                 visit(statement)
             }
@@ -1676,12 +1678,19 @@ public final class TypeChecker: AST.Visitor {
                 TrussType.VoidType.INSTANCE
             }
             var catchTypes: [TrussType.TrussType] = []
-            let thrownType = functionThrowsStack.last?.types.count == 1
-                ? functionThrowsStack.last?.types.first
-                : nil
+            let thrownTypes = doThrownTypeStack.last ?? []
             for catchClause in doExpression.catches {
                 if let pattern = catchClause.pattern {
-                    checkPattern(pattern, against: thrownType, at: token)
+                    var matched = false
+                    for thrownType in thrownTypes {
+                        if checkPattern(pattern, against: thrownType, at: token, reportErrors: false) {
+                            matched = true
+                            break
+                        }
+                    }
+                    if !matched, let first = thrownTypes.first {
+                        _ = checkPattern(pattern, against: first, at: token)
+                    }
                 }
                 if let whereCondition = catchClause.whereCondition {
                     _ = infer(whereCondition, at: catchClause.whereToken ?? token)
@@ -1712,6 +1721,7 @@ public final class TypeChecker: AST.Visitor {
             } else {
                 expression.ty = join([bodyType] + catchTypes, at: token)
             }
+            doThrownTypeStack.removeLast()
         case let memberAccess as AST.MemberAccess:
             _ = infer(memberAccess.object, at: token)
             if let symbol = memberAccess.symbol {
@@ -1813,11 +1823,18 @@ public final class TypeChecker: AST.Visitor {
             }
             if let call = tryExpression.expression as? AST.Call,
                let symbol = call.symbol,
-               symbol.functionType?.isThrowing == false
+               let functionType = symbol.functionType
             {
-                context.emitError(
-                    "try used on call to non-throwing function", at: tryExpression.token
-                )
+                if !functionType.throwsTypes.isEmpty, !doThrownTypeStack.isEmpty {
+                    doThrownTypeStack[doThrownTypeStack.count - 1].append(
+                        contentsOf: functionType.throwsTypes
+                    )
+                }
+                if functionType.isThrowing == false {
+                    context.emitError(
+                        "try used on call to non-throwing function", at: tryExpression.token
+                    )
+                }
             }
         case let awaitExpression as AST.Await:
             expression.ty = infer(awaitExpression.expression, at: token)
@@ -2147,41 +2164,79 @@ public final class TypeChecker: AST.Visitor {
     }
 
     private func checkPattern(
-        _ pattern: AST.Expression, against subjectType: TrussType.TrussType?, at token: Token
-    ) {
+        _ pattern: AST.Expression, against subjectType: TrussType.TrussType?, at token: Token,
+        reportErrors: Bool = true
+    ) -> Bool {
+        var matched = true
         switch pattern {
         case let binding as AST.BindingPattern:
-            bindPatternVariable(binding, type: subjectType, at: token)
+            matched =
+                bindPatternVariable(
+                    binding, type: subjectType, at: token, reportErrors: reportErrors
+                ) && matched
             if let subpattern = binding.subpattern {
-                checkPattern(subpattern, against: subjectType, at: token)
+                matched =
+                    checkPattern(
+                        subpattern, against: subjectType, at: token,
+                        reportErrors: reportErrors
+                    ) && matched
             }
         case let asPattern as AST.AsPattern:
             let target = evaluate(asPattern.typeExpression)
             if let subjectType, !canCoerce(subjectType, to: target, at: token) {
-                emitMismatch(at: token, expected: target, found: subjectType)
+                if reportErrors {
+                    emitMismatch(at: token, expected: target, found: subjectType)
+                }
+                matched = false
             }
-            checkPattern(asPattern.pattern, against: target, at: token)
+            matched =
+                checkPattern(
+                    asPattern.pattern, against: target, at: token, reportErrors: reportErrors
+                ) && matched
         case let isPattern as AST.IsPattern:
             let target = evaluate(isPattern.typeExpression)
             if let subjectType, !canCoerce(subjectType, to: target, at: token) {
-                emitMismatch(at: token, expected: target, found: subjectType)
+                if reportErrors {
+                    emitMismatch(at: token, expected: target, found: subjectType)
+                }
+                matched = false
             }
         case is AST.WildcardPattern:
             break
         case let call as AST.Call:
-            checkEnumCasePattern(call, against: subjectType, at: token)
+            matched =
+                checkEnumCasePattern(
+                    call, against: subjectType, at: token, reportErrors: reportErrors
+                ) && matched
         case let member as AST.MemberAccess:
-            checkEnumCasePattern(member, against: subjectType, at: token)
+            matched =
+                checkEnumCasePattern(
+                    member, against: subjectType, at: token, reportErrors: reportErrors
+                ) && matched
         case let implicit as AST.ImplicitMemberAccess:
-            checkEnumCasePattern(implicit, against: subjectType, at: token)
+            matched =
+                checkEnumCasePattern(
+                    implicit, against: subjectType, at: token, reportErrors: reportErrors
+                ) && matched
+        case let variable as AST.Variable:
+            if let subjectType, let declared = evaluateVariable(variable) {
+                if !canCoerce(subjectType, to: declared, at: token) {
+                    if reportErrors {
+                        emitMismatch(at: token, expected: declared, found: subjectType)
+                    }
+                    matched = false
+                }
+            }
         default:
             break
         }
+        return matched
     }
 
     private func bindPatternVariable(
-        _ binding: AST.BindingPattern, type: TrussType.TrussType?, at token: Token
-    ) {
+        _ binding: AST.BindingPattern, type: TrussType.TrussType?, at token: Token,
+        reportErrors: Bool = true
+    ) -> Bool {
         if let type,
            let variable = scopeStack.last?.values[binding.name.value]?.first
            as? Symbol.VariableSymbol
@@ -2195,14 +2250,19 @@ public final class TypeChecker: AST.Visitor {
         if let typeExpression = binding.typeExpression {
             let declared = evaluate(typeExpression)
             if let type, !canCoerce(type, to: declared, at: token) {
-                emitMismatch(at: token, expected: declared, found: type)
+                if reportErrors {
+                    emitMismatch(at: token, expected: declared, found: type)
+                }
+                return false
             }
         }
+        return true
     }
 
     private func checkEnumCasePattern(
-        _ pattern: AST.Expression, against subjectType: TrussType.TrussType?, at token: Token
-    ) {
+        _ pattern: AST.Expression, against subjectType: TrussType.TrussType?, at token: Token,
+        reportErrors: Bool = true
+    ) -> Bool {
         let caseName: String?
         var arguments: [AST.LabeledArgument] = []
         var caseType: TrussType.TrussType? = nil
@@ -2217,7 +2277,7 @@ public final class TypeChecker: AST.Visitor {
                 arguments = call.arguments
                 caseType = evaluate(member.object)
             } else {
-                return
+                return true
             }
         case let member as AST.MemberAccess:
             caseName = member.member.value
@@ -2226,77 +2286,95 @@ public final class TypeChecker: AST.Visitor {
             caseName = implicit.name.value
             caseType = subjectType
         default:
-            return
+            return true
         }
-        guard let caseName else { return }
+        guard let caseName else { return true }
         let baseType = (caseType as? TrussType.OptionalType)?.wrapped ?? caseType
         let nominal = (baseType as? TrussType.GenericInstantiation)?.base
             ?? (baseType as? TrussType.NominalType)
         guard let nominal else {
             if let caseType, !(caseType is TrussType.ErrorType) {
-                context.emitError(
-                    "cannot match against non-enum type '\(typeText(caseType))'", at: token
-                )
+                if reportErrors {
+                    context.emitError(
+                        "cannot match against non-enum type '\(typeText(caseType))'", at: token
+                    )
+                }
+                return false
             }
-            return
+            return true
         }
-        guard let symbol = nominal.symbol else { return }
+        guard let symbol = nominal.symbol else { return true }
         guard let caseSymbol = symbol.scope.values[caseName]?.first as? Symbol.CaseSymbol else {
-            emitNoMember(at: token, type: typeText(nominal), member: caseName)
-            return
+            if reportErrors {
+                emitNoMember(at: token, type: typeText(nominal), member: caseName)
+            }
+            return false
         }
         let expectedTypes = caseSymbol.associatedTypes
         let expectedLabels = caseSymbol.associatedLabels
         if arguments.isEmpty {
             if !expectedTypes.isEmpty {
-                context.emitError(
-                    "case '\(caseName)' has \(expectedTypes.count) associated value(s), "
-                        + "but none given",
-                    at: token
-                )
+                if reportErrors {
+                    context.emitError(
+                        "case '\(caseName)' has \(expectedTypes.count) associated value(s), "
+                            + "but none given",
+                        at: token
+                    )
+                }
+                return false
             }
-            return
+            return true
         }
         var mapped: [Int] = []
         var used = [Bool](repeating: false, count: expectedLabels.count)
         for argument in arguments {
             if let label = argument.label?.value {
                 guard let index = expectedLabels.firstIndex(of: label), !used[index] else {
-                    context.emitError(
-                        "case '\(caseName)' has no associated value labeled '\(label)'",
-                        at: token
-                    )
-                    return
+                    if reportErrors {
+                        context.emitError(
+                            "case '\(caseName)' has no associated value labeled '\(label)'",
+                            at: token
+                        )
+                    }
+                    return false
                 }
                 used[index] = true
                 mapped.append(index)
             } else {
                 let index = mapped.count
                 guard index < expectedLabels.count else {
-                    context.emitError(
-                        "case '\(caseName)' has \(expectedLabels.count) associated value(s), "
-                            + "but more given",
-                        at: token
-                    )
-                    return
+                    if reportErrors {
+                        context.emitError(
+                            "case '\(caseName)' has \(expectedLabels.count) associated value(s), "
+                                + "but more given",
+                            at: token
+                        )
+                    }
+                    return false
                 }
                 used[index] = true
                 mapped.append(index)
             }
         }
         if mapped.count < expectedTypes.count {
-            context.emitError(
-                "case '\(caseName)' has \(expectedTypes.count) associated value(s), "
-                    + "but \(mapped.count) given",
-                at: token
-            )
-            return
+            if reportErrors {
+                context.emitError(
+                    "case '\(caseName)' has \(expectedTypes.count) associated value(s), "
+                        + "but \(mapped.count) given",
+                    at: token
+                )
+            }
+            return false
         }
+        var matched = true
         for (argumentIndex, parameterIndex) in mapped.enumerated() {
-            checkPattern(
-                arguments[argumentIndex].value, against: expectedTypes[parameterIndex], at: token
-            )
+            matched =
+                checkPattern(
+                    arguments[argumentIndex].value, against: expectedTypes[parameterIndex],
+                    at: token, reportErrors: reportErrors
+                ) && matched
         }
+        return matched
     }
 
     private func check(

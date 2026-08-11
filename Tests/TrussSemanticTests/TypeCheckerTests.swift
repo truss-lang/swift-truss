@@ -1261,3 +1261,24 @@ import TrussSemantics
     )
     #expect(context.diagnositicEngine.hasErrors)
 }
+
+@Test func catchMatchesSecondThrowsType() {
+    let (context, _) = runTypeChecker(
+        ["struct E1 {}\nstruct E2 {}\nfunc f() throws(E1, E2) {}\nfunc g() { do { try f() } catch E2 { } }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func catchMismatchReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct E1 {}\nstruct E2 {}\nstruct T {}\nfunc f() throws(E1, E2) {}\nfunc g() { do { try f() } catch T { } }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func catchMatchesFirstThrowsType() {
+    let (context, _) = runTypeChecker(
+        ["struct E1 {}\nstruct E2 {}\nfunc f() throws(E1, E2) {}\nfunc g() { do { try f() } catch E1 { } }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
