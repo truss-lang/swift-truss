@@ -3,11 +3,21 @@ import TrussCore
 public final class DeclCollector: AST.Visitor {
     private let context: Context
     private var currentScope: Scope? = nil
+    private var currentPackageSymbol: Symbol.PackageSymbol? = nil
+    private var currentModuleSymbol: Symbol.ModuleSymbol? = nil
+    private var typeStack: [Symbol.NominalTypeSymbol] = []
     public init(context: Context) {
         self.context = context
     }
 
-    private func registerTypeSymbol(_ symbol: Symbol.Symbol, at token: Token) {
+    private func registerTypeSymbol(
+        _ symbol: Symbol.Symbol, at token: Token, modifiers: [AST.Modifier]
+    ) {
+        AccessExtractor.record(
+            symbol, package: currentPackageSymbol, module: currentModuleSymbol
+        )
+        symbol.memberOf = typeStack.last?.id
+        AccessExtractor.apply(to: symbol, modifiers: modifiers, context: context)
         context.register(symbol: symbol)
         currentScope!.registerType(symbol, at: token, context: context)
     }
@@ -35,9 +45,15 @@ public final class DeclCollector: AST.Visitor {
             program.packageSymbol = packageSymbol
         }
         let lastScope = currentScope
+        let lastPackage = currentPackageSymbol
+        let lastModule = currentModuleSymbol
         currentScope = program.packageSymbol!.scope
+        currentPackageSymbol = program.packageSymbol
+        currentModuleSymbol = nil
         super.visitProgram(program, additional: additional)
         currentScope = lastScope
+        currentPackageSymbol = lastPackage
+        currentModuleSymbol = lastModule
         return nil
     }
 
@@ -46,6 +62,7 @@ public final class DeclCollector: AST.Visitor {
         -> Any?
     {
         let lastScope = currentScope
+        let lastModule = currentModuleSymbol
         if let moduleSymbol = currentScope!.modules[moduleDecl.name.value] {
             moduleDecl.symbol = moduleSymbol
         } else {
@@ -57,8 +74,10 @@ public final class DeclCollector: AST.Visitor {
             moduleDecl.symbol = moduleSymbol
         }
         currentScope = moduleDecl.symbol!.scope
+        currentModuleSymbol = moduleDecl.symbol
         super.visitModuleDecl(moduleDecl, additional: additional)
         currentScope = lastScope
+        currentModuleSymbol = lastModule
         return nil
     }
 
@@ -83,14 +102,16 @@ public final class DeclCollector: AST.Visitor {
         -> Any?
     {
         let symbol = Symbol.StructSymbol(id: context.nextSymbolId, name: structDecl.name.value)
-        registerTypeSymbol(symbol, at: structDecl.name)
+        registerTypeSymbol(symbol, at: structDecl.name, modifiers: structDecl.modifiers)
         structDecl.symbol = symbol
         registerGenericParams(structDecl.genericDecl, into: symbol.scope)
         let lastScope = currentScope
         currentScope = symbol.scope
+        typeStack.append(symbol)
         for statement in structDecl.body {
             visit(statement, additional: additional)
         }
+        typeStack.removeLast()
         currentScope = lastScope
         return nil
     }
@@ -100,14 +121,24 @@ public final class DeclCollector: AST.Visitor {
         -> Any?
     {
         let symbol = Symbol.ClassSymbol(id: context.nextSymbolId, name: classDecl.name.value)
-        registerTypeSymbol(symbol, at: classDecl.name)
+        symbol.isAbstract = classDecl.modifiers.contains { modifier in
+            if case .Abstract = modifier.kind { return true }
+            return false
+        }
+        symbol.isFinal = classDecl.modifiers.contains { modifier in
+            if case .Final = modifier.kind { return true }
+            return false
+        }
+        registerTypeSymbol(symbol, at: classDecl.name, modifiers: classDecl.modifiers)
         classDecl.symbol = symbol
         registerGenericParams(classDecl.genericDecl, into: symbol.scope)
         let lastScope = currentScope
         currentScope = symbol.scope
+        typeStack.append(symbol)
         for statement in classDecl.body {
             visit(statement, additional: additional)
         }
+        typeStack.removeLast()
         currentScope = lastScope
         return nil
     }
@@ -117,14 +148,16 @@ public final class DeclCollector: AST.Visitor {
         -> Any?
     {
         let symbol = Symbol.EnumSymbol(id: context.nextSymbolId, name: enumDecl.name.value)
-        registerTypeSymbol(symbol, at: enumDecl.name)
+        registerTypeSymbol(symbol, at: enumDecl.name, modifiers: enumDecl.modifiers)
         enumDecl.symbol = symbol
         registerGenericParams(enumDecl.genericDecl, into: symbol.scope)
         let lastScope = currentScope
         currentScope = symbol.scope
+        typeStack.append(symbol)
         for statement in enumDecl.body {
             visit(statement, additional: additional)
         }
+        typeStack.removeLast()
         currentScope = lastScope
         return nil
     }
@@ -134,14 +167,16 @@ public final class DeclCollector: AST.Visitor {
         -> Any?
     {
         let symbol = Symbol.ProtocolSymbol(id: context.nextSymbolId, name: protocolDecl.name.value)
-        registerTypeSymbol(symbol, at: protocolDecl.name)
+        registerTypeSymbol(symbol, at: protocolDecl.name, modifiers: protocolDecl.modifiers)
         protocolDecl.symbol = symbol
         registerGenericParams(protocolDecl.genericDecl, into: symbol.scope)
         let lastScope = currentScope
         currentScope = symbol.scope
+        typeStack.append(symbol)
         for statement in protocolDecl.body {
             visit(statement, additional: additional)
         }
+        typeStack.removeLast()
         currentScope = lastScope
         return nil
     }
@@ -151,14 +186,16 @@ public final class DeclCollector: AST.Visitor {
         -> Any?
     {
         let symbol = Symbol.ActorSymbol(id: context.nextSymbolId, name: actorDecl.name.value)
-        registerTypeSymbol(symbol, at: actorDecl.name)
+        registerTypeSymbol(symbol, at: actorDecl.name, modifiers: actorDecl.modifiers)
         actorDecl.symbol = symbol
         registerGenericParams(actorDecl.genericDecl, into: symbol.scope)
         let lastScope = currentScope
         currentScope = symbol.scope
+        typeStack.append(symbol)
         for statement in actorDecl.body {
             visit(statement, additional: additional)
         }
+        typeStack.removeLast()
         currentScope = lastScope
         return nil
     }
@@ -170,7 +207,7 @@ public final class DeclCollector: AST.Visitor {
         let symbol = Symbol.TypeAliasSymbol(
             id: context.nextSymbolId, name: typeAliasDecl.name.value
         )
-        registerTypeSymbol(symbol, at: typeAliasDecl.name)
+        registerTypeSymbol(symbol, at: typeAliasDecl.name, modifiers: typeAliasDecl.modifiers)
         typeAliasDecl.symbol = symbol
         return nil
     }
@@ -182,7 +219,7 @@ public final class DeclCollector: AST.Visitor {
         let symbol = Symbol.AssociatedTypeSymbol(
             id: context.nextSymbolId, name: associatedTypeDecl.name.value
         )
-        registerTypeSymbol(symbol, at: associatedTypeDecl.name)
+        registerTypeSymbol(symbol, at: associatedTypeDecl.name, modifiers: associatedTypeDecl.modifiers)
         associatedTypeDecl.symbol = symbol
         return nil
     }

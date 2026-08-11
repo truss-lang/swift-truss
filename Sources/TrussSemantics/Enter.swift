@@ -3,13 +3,35 @@ import TrussCore
 public final class Enter: AST.Visitor {
     private let context: Context
     private var currentScope: Scope? = nil
+    private var currentPackageSymbol: Symbol.PackageSymbol? = nil
+    private var currentModuleSymbol: Symbol.ModuleSymbol? = nil
+    private var typeStack: [Symbol.NominalTypeSymbol] = []
     public init(context: Context) {
         self.context = context
     }
 
     private func registerValueSymbol(_ symbol: Symbol.Symbol, at token: Token) {
+        AccessExtractor.record(
+            symbol, package: currentPackageSymbol, module: currentModuleSymbol
+        )
+        symbol.memberOf = typeStack.last?.id
         context.register(symbol: symbol)
         currentScope!.registerValue(symbol, at: token, context: context)
+    }
+
+    private func registerMemberSymbol(
+        _ symbol: Symbol.Symbol, at token: Token, modifiers: [AST.Modifier]
+    ) {
+        AccessExtractor.apply(to: symbol, modifiers: modifiers, context: context)
+        symbol.isAbstract = modifiers.contains { modifier in
+            if case .Abstract = modifier.kind { return true }
+            return false
+        }
+        symbol.isFinal = modifiers.contains { modifier in
+            if case .Final = modifier.kind { return true }
+            return false
+        }
+        registerValueSymbol(symbol, at: token)
     }
 
     private func registerGenericParams(_ genericDecl: AST.GenericDecl?, into scope: Scope) {
@@ -53,8 +75,7 @@ public final class Enter: AST.Visitor {
     @discardableResult
     private func registerLocal(_ name: Token) -> Symbol.VariableSymbol {
         let symbol = Symbol.VariableSymbol(id: context.nextSymbolId, name: name.value)
-        context.register(symbol: symbol)
-        currentScope!.registerValue(symbol, at: name, context: context)
+        registerValueSymbol(symbol, at: name)
         return symbol
     }
 
@@ -62,9 +83,15 @@ public final class Enter: AST.Visitor {
     public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         guard let packageSymbol = program.packageSymbol else { return nil }
         let lastScope = currentScope
+        let lastPackage = currentPackageSymbol
+        let lastModule = currentModuleSymbol
         currentScope = packageSymbol.scope
+        currentPackageSymbol = packageSymbol
+        currentModuleSymbol = nil
         super.visitProgram(program, additional: additional)
         currentScope = lastScope
+        currentPackageSymbol = lastPackage
+        currentModuleSymbol = lastModule
         return nil
     }
 
@@ -74,9 +101,12 @@ public final class Enter: AST.Visitor {
     {
         guard let moduleSymbol = moduleDecl.symbol else { return nil }
         let lastScope = currentScope
+        let lastModule = currentModuleSymbol
         currentScope = moduleSymbol.scope
+        currentModuleSymbol = moduleSymbol
         super.visitModuleDecl(moduleDecl, additional: additional)
         currentScope = lastScope
+        currentModuleSymbol = lastModule
         return nil
     }
 
@@ -107,7 +137,9 @@ public final class Enter: AST.Visitor {
         guard let symbol = structDecl.symbol else { return nil }
         let lastScope = currentScope
         currentScope = symbol.scope
+        typeStack.append(symbol)
         visitTypeBody(structDecl.body, additional: additional)
+        typeStack.removeLast()
         currentScope = lastScope
         return nil
     }
@@ -119,7 +151,9 @@ public final class Enter: AST.Visitor {
         guard let symbol = classDecl.symbol else { return nil }
         let lastScope = currentScope
         currentScope = symbol.scope
+        typeStack.append(symbol)
         visitTypeBody(classDecl.body, additional: additional)
+        typeStack.removeLast()
         currentScope = lastScope
         return nil
     }
@@ -131,7 +165,9 @@ public final class Enter: AST.Visitor {
         guard let symbol = enumDecl.symbol else { return nil }
         let lastScope = currentScope
         currentScope = symbol.scope
+        typeStack.append(symbol)
         visitTypeBody(enumDecl.body, additional: additional)
+        typeStack.removeLast()
         currentScope = lastScope
         return nil
     }
@@ -143,7 +179,9 @@ public final class Enter: AST.Visitor {
         guard let symbol = protocolDecl.symbol else { return nil }
         let lastScope = currentScope
         currentScope = symbol.scope
+        typeStack.append(symbol)
         visitTypeBody(protocolDecl.body, additional: additional)
+        typeStack.removeLast()
         currentScope = lastScope
         return nil
     }
@@ -155,7 +193,9 @@ public final class Enter: AST.Visitor {
         guard let symbol = actorDecl.symbol else { return nil }
         let lastScope = currentScope
         currentScope = symbol.scope
+        typeStack.append(symbol)
         visitTypeBody(actorDecl.body, additional: additional)
+        typeStack.removeLast()
         currentScope = lastScope
         return nil
     }
@@ -187,9 +227,8 @@ public final class Enter: AST.Visitor {
                 return false
             }
         )
-        context.register(symbol: symbol)
+        registerMemberSymbol(symbol, at: functionDecl.name, modifiers: functionDecl.modifiers)
         functionDecl.symbol = symbol
-        currentScope!.registerValue(symbol, at: functionDecl.name, context: context)
 
         return nil
     }
@@ -212,9 +251,8 @@ public final class Enter: AST.Visitor {
             id: context.nextSymbolId, name: "init", locals: locals(of: scope), scope: scope,
             signature: signature(of: initDecl.parameters, varargToken: nil)
         )
-        context.register(symbol: symbol)
+        registerMemberSymbol(symbol, at: initDecl.token, modifiers: initDecl.modifiers)
         initDecl.symbol = symbol
-        currentScope!.registerValue(symbol, at: initDecl.token, context: context)
 
         return nil
     }
@@ -239,9 +277,8 @@ public final class Enter: AST.Visitor {
             id: context.nextSymbolId, name: "subscript", locals: locals(of: scope), scope: scope,
             signature: signature(of: subscriptDecl.parameters, varargToken: nil)
         )
-        context.register(symbol: symbol)
+        registerMemberSymbol(symbol, at: subscriptDecl.token, modifiers: subscriptDecl.modifiers)
         subscriptDecl.symbol = symbol
-        currentScope!.registerValue(symbol, at: subscriptDecl.token, context: context)
 
         return nil
     }
@@ -251,7 +288,18 @@ public final class Enter: AST.Visitor {
         -> Any?
     {
         super.visitVariableDecl(variableDecl, additional: additional)
-        variableDecl.symbol = registerLocal(variableDecl.name)
+        let symbol = Symbol.VariableSymbol(id: context.nextSymbolId, name: variableDecl.name.value)
+        AccessExtractor.apply(to: symbol, modifiers: variableDecl.modifiers, context: context)
+        symbol.isAbstract = variableDecl.modifiers.contains { modifier in
+            if case .Abstract = modifier.kind { return true }
+            return false
+        }
+        symbol.isFinal = variableDecl.modifiers.contains { modifier in
+            if case .Final = modifier.kind { return true }
+            return false
+        }
+        registerValueSymbol(symbol, at: variableDecl.name)
+        variableDecl.symbol = symbol
         return nil
     }
 
@@ -379,8 +427,9 @@ public final class Enter: AST.Visitor {
             let symbol = Symbol.CaseSymbol(
                 id: context.nextSymbolId, name: element.name.value
             )
-            context.register(symbol: symbol)
-            currentScope!.registerValue(symbol, at: element.name, context: context)
+            registerMemberSymbol(
+                symbol, at: element.name, modifiers: enumCaseDecl.modifiers
+            )
             enumCaseDecl.symbols.append(symbol)
         }
         return nil

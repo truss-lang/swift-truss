@@ -76,12 +76,14 @@ public final class MergePass: AST.Visitor {
     ) {
         let baseScope = base.scope
         for (_, symbol) in virtualScope.types {
+            symbol.memberOf = base.id
             baseScope.registerType(
                 symbol, at: symbol.sourceToken ?? extensionDecl.token, context: context
             )
         }
         for (_, symbols) in virtualScope.values {
             for symbol in symbols {
+                symbol.memberOf = base.id
                 baseScope.registerValue(
                     symbol, at: symbol.sourceToken ?? extensionDecl.token, context: context
                 )
