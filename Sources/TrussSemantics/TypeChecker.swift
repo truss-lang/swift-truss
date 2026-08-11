@@ -2163,6 +2163,7 @@ public final class TypeChecker: AST.Visitor {
         return expression.ty.map { resolve($0) }
     }
 
+    @discardableResult
     private func checkPattern(
         _ pattern: AST.Expression, against subjectType: TrussType.TrussType?, at token: Token,
         reportErrors: Bool = true
