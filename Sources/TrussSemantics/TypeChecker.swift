@@ -306,7 +306,7 @@ public final class TypeChecker: AST.Visitor {
         if let type {
             variableDecl.symbol?.type = type
             if variableDecl.initializer == nil, !functionReturnTypes.isEmpty,
-                variableDecl.token.value == "let"
+               variableDecl.token.value == "let"
             {
                 context.emitError(
                     "missing initializer in let declaration", at: variableDecl.name
@@ -373,9 +373,9 @@ public final class TypeChecker: AST.Visitor {
                     "throwing statement in non-throwing function", at: throwStatement.token
                 )
             } else if let thrownType, !throwsContext.types.isEmpty,
-                !throwsContext.types.contains(where: {
-                    canCoerce(thrownType, to: $0, at: throwStatement.token)
-                })
+                      !throwsContext.types.contains(where: {
+                          canCoerce(thrownType, to: $0, at: throwStatement.token)
+                      })
             {
                 emitMismatch(
                     at: throwStatement.token, expected: throwsContext.types.first,
@@ -581,7 +581,7 @@ public final class TypeChecker: AST.Visitor {
         for requirement in whereClause ?? [] {
             guard let variable = requirement.left as? AST.Variable,
                   let symbol = scope.types[variable.name.value]
-                    as? Symbol.GenericParamSymbol
+                  as? Symbol.GenericParamSymbol
             else {
                 continue
             }
@@ -1478,7 +1478,7 @@ public final class TypeChecker: AST.Visitor {
             if call.symbol == nil {
                 var overloads = call.overloads ?? []
                 if overloads.isEmpty, let member = call.callee as? AST.MemberAccess,
-                    let objectType = infer(member.object, at: token)
+                   let objectType = infer(member.object, at: token)
                 {
                     overloads = memberFunctionSymbols(of: member.member.value, in: objectType)
                 }
@@ -1526,15 +1526,15 @@ public final class TypeChecker: AST.Visitor {
                 return nil
             }
             if let symbol = call.symbol,
-                symbol.functionType?.isThrowing == true,
-                tryContextDepth == 0
+               symbol.functionType?.isThrowing == true,
+               tryContextDepth == 0
             {
                 context.emitError(
                     "call to throwing function must be tried", at: token
                 )
             }
             if let member = call.callee as? AST.MemberAccess, member.isOptional,
-                let ty = expression.ty
+               let ty = expression.ty
             {
                 expression.ty = TrussType.OptionalType(ty)
             }
@@ -1687,8 +1687,8 @@ public final class TypeChecker: AST.Visitor {
             }
             if memberAccess.isOptional {
                 if let objectType = memberAccess.object.ty,
-                    !(objectType is TrussType.OptionalType),
-                    !(objectType is TrussType.ErrorType)
+                   !(objectType is TrussType.OptionalType),
+                   !(objectType is TrussType.ErrorType)
                 {
                     context.emitError(
                         "left side of '?.' is not optional", at: memberAccess.token
@@ -1764,11 +1764,16 @@ public final class TypeChecker: AST.Visitor {
             }
         case let tryExpression as AST.TryExpression:
             tryContextDepth += 1
-            expression.ty = infer(tryExpression.expression, at: token)
+            let inferred = infer(tryExpression.expression, at: token)
             tryContextDepth -= 1
+            if tryExpression.kind == .OptionalTry, let inferred {
+                expression.ty = TrussType.OptionalType(inferred)
+            } else {
+                expression.ty = inferred
+            }
             if let call = tryExpression.expression as? AST.Call,
-                let symbol = call.symbol,
-                symbol.functionType?.isThrowing == false
+               let symbol = call.symbol,
+               symbol.functionType?.isThrowing == false
             {
                 context.emitError(
                     "try used on call to non-throwing function", at: tryExpression.token
@@ -1777,8 +1782,8 @@ public final class TypeChecker: AST.Visitor {
         case let awaitExpression as AST.AwaitExpression:
             expression.ty = infer(awaitExpression.expression, at: token)
             if let call = awaitExpression.expression as? AST.Call,
-                let symbol = call.symbol,
-                symbol.functionType?.isAsync == false
+               let symbol = call.symbol,
+               symbol.functionType?.isAsync == false
             {
                 context.emitError(
                     "await used on call to non-async function", at: awaitExpression.token
@@ -1807,7 +1812,7 @@ public final class TypeChecker: AST.Visitor {
                     {
                         arguments.append(argumentType)
                     } else if let argumentVariable = argument as? AST.Variable,
-                        argumentVariable.symbol == nil
+                              argumentVariable.symbol == nil
                     {
                         context.emitError(
                             "cannot find type '\(argumentVariable.name.value)'",
@@ -1833,7 +1838,7 @@ public final class TypeChecker: AST.Visitor {
                     "cannot find type '\(variable.name.value)'", at: variable.name
                 )
             } else if let member = genericApplication.base as? AST.MemberAccess,
-                member.symbol == nil
+                      member.symbol == nil
             {
                 context.emitError(
                     "cannot find type '\(member.member.value)'", at: member.member
@@ -2144,8 +2149,8 @@ public final class TypeChecker: AST.Visitor {
         _ binding: AST.BindingPattern, type: TrussType.TrussType?, at token: Token
     ) {
         if let type,
-            let variable = scopeStack.last?.values[binding.name.value]?.first
-                as? Symbol.VariableSymbol
+           let variable = scopeStack.last?.values[binding.name.value]?.first
+           as? Symbol.VariableSymbol
         {
             if let existing = variable.type {
                 _ = unify(existing, type, at: token)
@@ -2462,7 +2467,7 @@ public final class TypeChecker: AST.Visitor {
     private func isGenericCandidate(_ symbol: Symbol.FunctionSymbol) -> Bool {
         if symbol.forallType != nil { return true }
         if let functionType = symbol.functionType,
-            !genericParamSymbols(in: functionType).isEmpty
+           !genericParamSymbols(in: functionType).isEmpty
         {
             return true
         }
@@ -2521,7 +2526,7 @@ public final class TypeChecker: AST.Visitor {
         _ type: TrussType.TrussType,
         mapping: inout [String: TrussType.TypeVariableType]
     ) -> TrussType.TrussType {
-        return replacingGenericParam(type) { genericParam in
+        replacingGenericParam(type) { genericParam in
             if let existing = mapping[genericParam.name] { return existing }
             let fresh = freshTypeVariable()
             mapping[genericParam.name] = fresh
@@ -2609,8 +2614,7 @@ public final class TypeChecker: AST.Visitor {
                     let instantiated = replacingGenericParam(target) { genericParam in
                         if let targetIndex = parameters.firstIndex(where: {
                             $0.name == genericParam.name
-                        }), targetIndex < arguments.count
-                        {
+                        }), targetIndex < arguments.count {
                             return arguments[targetIndex]
                         }
                         return genericParam
@@ -2670,7 +2674,7 @@ public final class TypeChecker: AST.Visitor {
         }
         for (name, symbol) in protocolSymbol.scope.types {
             if symbol is Symbol.AssociatedTypeSymbol, !hasTypeMember(name, in: typeSymbol),
-                !missing.contains(name)
+               !missing.contains(name)
             {
                 missing.append(name)
             }

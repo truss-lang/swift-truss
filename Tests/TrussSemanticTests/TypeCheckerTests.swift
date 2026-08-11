@@ -637,7 +637,6 @@ import TrussSemantics
     #expect(variableDecl.symbol?.type is TrussType.VoidType)
 }
 
-
 @Test func genericApplicationValueType() throws {
     let (context, programs) = runTypeChecker(
         ["struct Box<T> { init() {} }\nstruct S { init() {} }\nfunc main() { let b = Box<S> }"]
@@ -939,7 +938,9 @@ import TrussSemantics
 
 @Test func nonGenericOverloadPreferredOverGeneric() {
     let (context, _) = runTypeChecker(
-        ["struct S { init() {} }\nfunc f<T>(x: T) -> T { x }\nfunc f(x: S) -> S { x }\nfunc main() { let a = f(x: S()) }"]
+        [
+            "struct S { init() {} }\nfunc f<T>(x: T) -> T { x }\nfunc f(x: S) -> S { x }\nfunc main() { let a = f(x: S()) }",
+        ]
     )
     #expect(!context.diagnositicEngine.hasErrors)
 }
@@ -1145,4 +1146,22 @@ import TrussSemantics
         ]
     )
     #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func tryQuestionWrapsResultInOptional() throws {
+    let (_, programs) = runTypeChecker(
+        ["struct S { init() {} }\nstruct E1 { init() {} }\nfunc f() throws(E1) -> S { S() }\nlet x = try? f()"]
+    )
+    let variableDecl = programs[0].statements[3] as! AST.VariableDecl
+    let type = try #require(variableDecl.symbol?.type)
+    #expect(type is TrussType.OptionalType)
+}
+
+@Test func tryExclamationKeepsPlainType() throws {
+    let (_, programs) = runTypeChecker(
+        ["struct S { init() {} }\nstruct E1 { init() {} }\nfunc f() throws(E1) -> S { S() }\nlet x = try! f()"]
+    )
+    let variableDecl = programs[0].statements[3] as! AST.VariableDecl
+    let type = try #require(variableDecl.symbol?.type)
+    #expect(type is TrussType.StructType)
 }
