@@ -224,7 +224,7 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
         "precedencegroup Additive {}\ninfix operator +: Additive\n"
             + "struct S {}\n"
             + "func +(lhs: S, rhs: S) -> S { lhs }\n"
-            + "func main() {\nlet s: S\nlet a: S = s + s\n}\n"
+            + "func main() {\nvar s: S\nlet a: S = s + s\n}\n"
     )
     let result = Driver(config: DriverConfig()).run(files: [file])
     #expect(!result.hasErrors)
@@ -246,7 +246,7 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
         "generic-fn.truss",
         "struct S {}\n"
             + "func id<T>(x: T) -> T { x }\n"
-            + "func main() {\nlet s: S\nlet a = id(s)\n}\n"
+            + "func main() {\nvar s: S\nlet a = id(s)\n}\n"
     )
     let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
     #expect(!result.hasErrors)

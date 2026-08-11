@@ -791,3 +791,358 @@ import TrussSemantics
     )
     #expect(!context.diagnositicEngine.hasErrors)
 }
+
+@Test func matchEnumCaseMatches() {
+    let (context, _) = runTypeChecker(
+        ["enum E { case a; case b }\nfunc f(e: E) { match e { .a -> { 1 } .b -> { 2 } } }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func matchUnknownCaseReportsError() {
+    let (context, _) = runTypeChecker(
+        ["enum E { case a }\nfunc f(e: E) { match e { .c -> 1 } }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func matchAssociatedValueBindsPatternType() throws {
+    let (_, programs) = runTypeChecker(
+        ["struct S { init() {} }\nenum R { case ok(S) }\nfunc f(r: R) { match r { .ok(let x) -> x } }"]
+    )
+    let functionDecl = try #require(programs[0].statements[2] as? AST.FunctionDecl)
+    let body = try #require(functionDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let expressionStatement = try #require(statements[0] as? AST.ExpressionStatement)
+    let matchExpression = try #require(expressionStatement.expression as? AST.Match)
+    let call = try #require(matchExpression.cases[0].patterns[0] as? AST.Call)
+    let binding = try #require(call.arguments[0].value as? AST.BindingPattern)
+    let bodyStatement = try #require(matchExpression.cases[0].body[0] as? AST.ExpressionStatement)
+    let variable = try #require(bodyStatement.expression as? AST.Variable)
+    let symbol = try #require(variable.symbol as? Symbol.VariableSymbol)
+    #expect(symbol.type is TrussType.StructType)
+}
+
+@Test func matchAssociatedValueCountMismatchReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nenum R { case ok(S) }\nfunc f(r: R) { match r { .ok() -> 1 } }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func matchNonEnumSubjectReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nfunc f(s: S) { match s { .a -> 1 } }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func ifCaseEnumMatches() {
+    let (context, _) = runTypeChecker(
+        ["enum E { case a }\nfunc f(e: E) { if case .a = e {} }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func ifCaseNonEnumSubjectReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nfunc f(s: S) { if case .a = s {} }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func caseBindingTypeAnnotationChecked() {
+    let (context, _) = runTypeChecker(
+        [
+            "enum E { case a }\nstruct S { init() {} }\nstruct T { init() {} }",
+            "func f(e: E, t: T) { if case let x: T = e { x } }",
+        ]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func forCasePatternChecked() {
+    let (context, _) = runTypeChecker(
+        ["enum E { case a }\nfunc f(es: E) { for case .a in es {} }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func enumRawValueMatchesRawType() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nenum E: S { case a = s }\nlet s = S()"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func enumRawValueMismatchReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nstruct T { init() {} }\nenum E: S { case a = t }\nlet t = T()"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func throwMatchesThrowsTypes() {
+    let (context, _) = runTypeChecker(
+        ["struct E1 { init() {} }\nfunc f() throws(E1) { throw E1() }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func throwMismatchReportsError() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct E1 { init() {} }\nstruct E2 { init() {} }",
+            "func f() throws(E1) { throw E2() }",
+        ]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func throwInNonThrowingFunctionReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct E1 { init() {} }\nfunc f() { throw E1() }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func doCatchPatternAndWhereChecked() {
+    let (context, _) = runTypeChecker(
+        ["struct E1 { init() {} }\nfunc f() throws(E1) { do { throw E1() } catch let e where true { () } }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func optionalChainingOnNonOptionalReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} var x: S }\nlet s = S()\nlet w = s?.x"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func setterAccessorDoesNotCheckReturnType() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} var x: S { get { S() } set { () } } }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func genericInitDeclaredAsForall() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nstruct Box<T> { init() {} }\nlet b = Box<S>()"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func nonGenericOverloadPreferredOverGeneric() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nfunc f<T>(x: T) -> T { x }\nfunc f(x: S) -> S { x }\nfunc main() { let a = f(x: S()) }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func nestedTypeGenericApplication() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nstruct Outer { struct Inner<T> { init() {} } }\nlet b: Outer.Inner<S>"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func throwingCallWithoutTryReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct E1 { init() {} }\nfunc f() throws(E1) {}\nfunc main() { f() }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func throwingCallWithTryPasses() {
+    let (context, _) = runTypeChecker(
+        ["struct E1 { init() {} }\nfunc f() throws(E1) {}\nfunc main() { try f() }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func forInBindingPatternResolvedInBody() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nfunc f(s: S) { for let x in s { x } }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func forBodyLocalScope() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nfunc f(s: S) { for x in s { let y = x; y } }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func localLetWithoutInitializerReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nfunc f() { let x: S }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func localVarWithoutInitializerAllowed() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nfunc f() { var x: S }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func topLevelLetWithoutInitializerAllowed() {
+    let (context, _) = runTypeChecker(["struct S { init() {} }\nlet x: S"])
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func multiGenericOverloadConstraintSelection() {
+    let (context, _) = runTypeChecker(
+        [
+            "protocol P {}\nprotocol Q {}",
+            "struct S: P { init() {} }\nstruct T: Q { init() {} }",
+            "func f<A: P>(x: A) -> A { x }\nfunc f<B: Q>(x: B) -> B { x }",
+            "func main() { let t = T(); let r = f(x: t) }",
+        ]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func missingProtocolWitnessReportsError() {
+    let (context, _) = runTypeChecker(
+        ["protocol P { func pm() }\nstruct S: P { init() {} }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func implementedProtocolWitnessPasses() {
+    let (context, _) = runTypeChecker(
+        ["protocol P { func pm() }\nstruct S: P { init() {} func pm() {} }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func inheritedProtocolWitnessChecked() {
+    let (context, _) = runTypeChecker(
+        ["protocol P1 { func pm() }\nprotocol P2: P1 {}\nstruct S: P2 { init() {} }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func superclassProvidesWitness() {
+    let (context, _) = runTypeChecker(
+        [
+            "protocol P { func pm() }\nclass B: P { init() {} func pm() {} }",
+            "class C: B, P { init() {} }",
+        ]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func missingAssociatedTypeWitnessReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nprotocol P { associatedtype T }\nstruct C: P { init() {} }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func associatedTypeWitnessViaTypealias() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nprotocol P { associatedtype T }\nstruct C: P { init() {} typealias T = S }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func instanceMethodCallResolved() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} func pm() -> S { self } }\nfunc f(s: S) { let a = s.pm() }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func instanceMethodCallWithArguments() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} func pm(a: S, b: S) -> S { a } }\nfunc f(s: S) { let r = s.pm(a: s, b: s) }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func instanceMethodCallThroughOptionalChain() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} func pm() -> S { self } }\nfunc f(z: S?) { let a = z?.pm() }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func instanceMethodOverloadResolution() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct S { init() {} }\nstruct T { init() {} }",
+            "struct R { init() {} func f(x: S) -> S { x } func f(x: T) -> T { x } }",
+            "func g(r: R, s: S) { let a = r.f(x: s) }",
+        ]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func rawValueWithoutRawTypeReportsError() {
+    let (context, _) = runTypeChecker(
+        ["protocol P {}\nstruct S { init() {} }\nenum E: P { case a = s }\nlet s = S()"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func rawValueWithTypeInComposition() {
+    let (context, _) = runTypeChecker(
+        ["protocol P {}\nstruct S { init() {} }\nenum E: P & S { case a = s }\nlet s = S()"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func rawValueWithProtocolOnlyCompositionReportsError() {
+    let (context, _) = runTypeChecker(
+        ["protocol P1 {}\nprotocol P2 {}\nstruct S { init() {} }\nenum E: P1 & P2 { case a = s }\nlet s = S()"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func mixedCompositionWithGenericMember() {
+    let (context, _) = runTypeChecker(
+        ["protocol P {}\nstruct S { init() {} }\nstruct W<T> { init() {} }\nlet x: W<S> & P"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func nestedEnumWithoutRawTypeDoesNotLeakOuter() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nenum A: S { enum B { case x = s } case y = s }\nlet s = S()"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func nestedEnumWithOwnRawTypes() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nenum A: S { enum B: S { case x = s } case y = s }\nlet s = S()"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func valueBitAndNotFoldedAsComposition() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nfunc f(a: S, b: S) { let c = a & b }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func valueBitAndWithDeclaredOperator() {
+    let (context, _) = runTypeChecker(
+        [
+            "precedencegroup G {}\ninfix operator &: G",
+            "struct S { init() {} }\nfunc &(lhs: S, rhs: S) -> S { lhs }",
+            "func f(a: S, b: S) { let c = a & b }",
+        ]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
