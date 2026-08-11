@@ -311,6 +311,36 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitCall(_ call: AST.Call, additional: Any? = nil) -> Any? {
+        super.visitCall(call, additional: additional)
+        switch call.callee {
+        case let variable as AST.Variable:
+            if let nominal = variable.symbol as? Symbol.NominalTypeSymbol {
+                call.overloads = memberResolution("init", in: nominal).1
+            } else {
+                call.overloads = variable.overloads
+            }
+        case let memberAccess as AST.MemberAccess:
+            call.overloads = memberAccess.overloads
+        case let genericApplication as AST.GenericApplication:
+            if let variable = genericApplication.base as? AST.Variable {
+                call.overloads = variable.overloads
+            } else if let memberAccess = genericApplication.base as? AST.MemberAccess {
+                call.overloads = memberAccess.overloads
+            }
+        case let sequential as AST.SequentialExpression:
+            if let variable = sequential.operands.first as? AST.Variable {
+                call.overloads = variable.overloads
+            } else if let memberAccess = sequential.operands.first as? AST.MemberAccess {
+                call.overloads = memberAccess.overloads
+            }
+        default:
+            break
+        }
+        return nil
+    }
+
+    @discardableResult
     public override func visitSelfExpression(
         _ selfExpression: AST.SelfExpression, additional: Any? = nil
     ) -> Any? {
@@ -342,6 +372,21 @@ public final class NameResolver: AST.Visitor {
         }
         memberAccess.symbol = symbol
         memberAccess.overloads = overloads
+        return nil
+    }
+
+    @discardableResult
+    public override func visitSubscript(
+        _ subscriptExpression: AST.Subscript, additional: Any? = nil
+    ) -> Any? {
+        visit(subscriptExpression.base, additional: additional)
+        for argument in subscriptExpression.arguments {
+            visit(argument.value, additional: additional)
+        }
+        guard let baseSymbol = resolvedSymbol(subscriptExpression.base) else { return nil }
+        if let typeSymbol = baseSymbol as? Symbol.NominalTypeSymbol {
+            subscriptExpression.overloads = memberResolution("subscript", in: typeSymbol).1
+        }
         return nil
     }
 

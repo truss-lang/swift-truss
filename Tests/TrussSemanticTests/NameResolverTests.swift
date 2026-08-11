@@ -505,7 +505,7 @@ func resolve(_ source: String) -> (Context, AST.Program) {
 }
 
 @Test func extensionUnresolvedBaseFallsBackSilently() {
-    let (context, probe) = probe("extension NotFound { func m() { self } }")
+    let (_, probe) = probe("extension NotFound { func m() { self } }")
     #expect(probe.selfExpressions[0].symbol == nil)
 }
 
