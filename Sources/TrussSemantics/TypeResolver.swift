@@ -10,12 +10,14 @@ public final class TypeResolver: AST.Visitor {
     private var typeStack: [Symbol.NominalTypeSymbol] = []
     private var functionReturnTypes: [TrussType.TrussType] = []
     private var constraintFrames: [[Id.TypeVariableId: [TrussType.ProtocolType]]] = []
+    private var closureParameterTypes: [[TrussType.TrussType]] = []
     private var nextTypeVariableId: UInt64 = 0
     private var sourceId: Id.SourceId = .init(id: 0)
 
     public init(context: Context) {
         self.context = context
     }
+
     @discardableResult
     public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         sourceId = program.id
@@ -329,11 +331,6 @@ public final class TypeResolver: AST.Visitor {
             visit(statement)
         }
         return nil
-    }
-
-    @discardableResult
-    public override func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
-        nil
     }
 
     private func visitFunctionBody(
@@ -698,7 +695,7 @@ public final class TypeResolver: AST.Visitor {
     }
 
     private func memberOperatorCandidates(
-        _ name: String, in type: TrussType.TrussType?
+        _ name: String, in type: TrussType.TrussType?, isStatic: Bool
     ) -> [Symbol.FunctionSymbol] {
         let base = (type as? TrussType.OptionalType)?.wrapped ?? type
         guard let nominal = base as? TrussType.NominalType, let symbol = nominal.symbol else {
@@ -707,7 +704,11 @@ public final class TypeResolver: AST.Visitor {
         var current: Symbol.NominalTypeSymbol? = symbol
         while let currentType = current {
             if let entries = currentType.scope.values[name] {
-                return entries.compactMap { $0 as? Symbol.FunctionSymbol }
+                let filtered = entries.compactMap { $0 as? Symbol.FunctionSymbol }
+                    .filter { $0.isStatic == isStatic }
+                if !filtered.isEmpty {
+                    return filtered
+                }
             }
             current = (currentType as? Symbol.ClassSymbol)?.superclass
         }
@@ -782,6 +783,18 @@ public final class TypeResolver: AST.Visitor {
         }
         if let function = symbol as? Symbol.FunctionSymbol {
             return function.forallType ?? function.functionType
+        }
+        return nil
+    }
+
+    private func genericArguments(of callee: AST.Expression) -> [AST.Expression]? {
+        if let generic = callee as? AST.GenericApplication {
+            return generic.genericArguments
+        }
+        if let sequential = callee as? AST.SequentialExpression,
+           sequential.genericApplicationGroupCloseIndex() != nil
+        {
+            return Array(sequential.operands.dropFirst())
         }
         return nil
     }
@@ -1129,10 +1142,18 @@ public final class TypeResolver: AST.Visitor {
         switch expression {
         case let call as AST.Call:
             if call.symbol == nil {
-                if let resolved = resolveOverloads(
-                    call.overloads ?? [], arguments: call.arguments, trailingClosures: call.trailingClosures,
-                    expectedReturn: nil, at: token
-                ) {
+                let calleeMemberFailed: Bool = if let member = call.callee as? AST.MemberAccess {
+                    member.ty == nil
+                } else {
+                    false
+                }
+                if !calleeMemberFailed,
+                   let resolved = resolveOverloads(
+                       call.overloads ?? [], arguments: call.arguments,
+                       trailingClosures: call.trailingClosures,
+                       expectedReturn: nil, at: token
+                   )
+                {
                     call.symbol = resolved.symbol
                     if resolved.symbol.name == "init",
                        let calleeVariable = call.callee as? AST.Variable,
@@ -1146,6 +1167,16 @@ public final class TypeResolver: AST.Visitor {
                         )
                     } else {
                         expression.ty = resolved.type.returnType
+                        if let forallType = resolved.symbol.forallType,
+                           let explicit = genericArguments(of: call.callee),
+                           explicit.count != forallType.parameters.count
+                        {
+                            context.emitError(
+                                "wrong number of type arguments: expected "
+                                    + "\(forallType.parameters.count), got \(explicit.count)",
+                                at: token
+                            )
+                        }
                     }
                 }
             } else if expression.ty == nil, let symbol = call.symbol {
@@ -1160,6 +1191,12 @@ public final class TypeResolver: AST.Visitor {
                 expression.ty = valueType(of: symbol)
             } else if variable.overloads?.count == 1, let overload = variable.overloads?.first {
                 expression.ty = overload.forallType ?? overload.functionType
+            } else if let overloads = variable.overloads, overloads.count > 1 {
+                emitAmbiguous(at: variable.name, name: variable.name.value)
+            } else {
+                context.emitError(
+                    "cannot find '\(variable.name.value)' in this scope", at: variable.name
+                )
             }
         case let tupleExpression as AST.TupleExpression:
             var elements: [TrussType.TupleType.Element] = []
@@ -1282,6 +1319,12 @@ public final class TypeResolver: AST.Visitor {
             if memberAccess.isOptional, let ty = expression.ty {
                 expression.ty = TrussType.OptionalType(ty)
             }
+            if expression.ty == nil, let objectType = memberAccess.object.ty {
+                emitNoMember(
+                    at: memberAccess.member, type: typeText(objectType),
+                    member: memberAccess.member.value
+                )
+            }
         case let implicitMemberAccess as AST.ImplicitMemberAccess:
             if let typeId = typeStack.last?.typeId, let selfType = context.typeTable[typeId] {
                 if let member = memberType(of: implicitMemberAccess.name.value, in: selfType) {
@@ -1331,21 +1374,118 @@ public final class TypeResolver: AST.Visitor {
                     expression.ty = TrussType.OptionalType(expression.ty!)
                 }
             }
+        case let sequential as AST.SequentialExpression:
+            for operand in sequential.operands {
+                _ = infer(operand, at: token)
+            }
+            for op in sequential.ops {
+                if lookupOperatorFunctions(op.value).isEmpty {
+                    emitOperatorNoImplementation(at: op, name: op.value)
+                }
+            }
+            expression.ty = sequential.operands.last?.ty
+        case let tryExpression as AST.TryExpression:
+            expression.ty = infer(tryExpression.expression, at: token)
+            if let call = tryExpression.expression as? AST.Call,
+                let symbol = call.symbol,
+                symbol.functionType?.isThrowing == false
+            {
+                context.emitError(
+                    "try used on call to non-throwing function", at: tryExpression.token
+                )
+            }
+        case let awaitExpression as AST.AwaitExpression:
+            expression.ty = infer(awaitExpression.expression, at: token)
+            if let call = awaitExpression.expression as? AST.Call,
+                let symbol = call.symbol,
+                symbol.functionType?.isAsync == false
+            {
+                context.emitError(
+                    "await used on call to non-async function", at: awaitExpression.token
+                )
+            }
+        case let genericApplication as AST.GenericApplication:
+            if let variable = genericApplication.base as? AST.Variable,
+               let typeSymbol = variable.symbol as? Symbol.NominalTypeSymbol,
+               let typeId = typeSymbol.typeId,
+               let nominal = context.typeTable[typeId] as? TrussType.NominalType
+            {
+                var arguments: [TrussType.TrussType] = []
+                var ok = true
+                for argument in genericApplication.genericArguments {
+                    if let argumentVariable = argument as? AST.Variable,
+                       let argumentSymbol = argumentVariable.symbol as? Symbol.NominalTypeSymbol,
+                       let argumentTypeId = argumentSymbol.typeId,
+                       let argumentType = context.typeTable[argumentTypeId]
+                    {
+                        arguments.append(argumentType)
+                    } else if let argumentVariable = argument as? AST.Variable,
+                        argumentVariable.symbol == nil
+                    {
+                        context.emitError(
+                            "cannot find type '\(argumentVariable.name.value)'",
+                            at: argumentVariable.name
+                        )
+                        ok = false
+                        break
+                    } else {
+                        ok = false
+                        break
+                    }
+                }
+                if ok {
+                    expression.ty = TrussType.GenericInstantiation(
+                        base: nominal, arguments: arguments
+                    )
+                }
+            } else if let variable = genericApplication.base as? AST.Variable {
+                context.emitError(
+                    "cannot find type '\(variable.name.value)'", at: variable.name
+                )
+            }
+        case let shorthandArgument as AST.ShorthandArgument:
+            if let parameters = closureParameterTypes.last,
+               shorthandArgument.index < parameters.count
+            {
+                expression.ty = parameters[shorthandArgument.index]
+            } else {
+                context.emitError(
+                    "cannot infer type of '$\(shorthandArgument.index)'",
+                    at: shorthandArgument.dollarToken
+                )
+            }
+        case is AST.SelfTypeExpression:
+            if let typeId = typeStack.last?.typeId {
+                expression.ty = context.typeTable[typeId]
+            } else {
+                context.emitError(
+                    "cannot use 'Self' outside of a type context", at: token
+                )
+            }
+        case let keyPathExpression as AST.KeyPathExpression:
+            if let root = keyPathExpression.root {
+                _ = infer(root, at: token)
+            }
+        case is AST.VoidLiteral:
+            expression.ty = TrussType.VoidType.INSTANCE
         case let binary as AST.Binary:
             _ = infer(binary.left, at: token)
             _ = infer(binary.right, at: token)
             let freeCandidates = lookupOperatorFunctions(binary.operatorToken.value)
-            let leftMemberCandidates = memberOperatorCandidates(
-                binary.operatorToken.value, in: binary.left.ty
+            let leftStaticCandidates = memberOperatorCandidates(
+                binary.operatorToken.value, in: binary.left.ty, isStatic: true
             )
-            let rightMemberCandidates = memberOperatorCandidates(
-                binary.operatorToken.value, in: binary.right.ty
+            let leftInstanceCandidates = memberOperatorCandidates(
+                binary.operatorToken.value, in: binary.left.ty, isStatic: false
+            )
+            let rightStaticCandidates = memberOperatorCandidates(
+                binary.operatorToken.value, in: binary.right.ty, isStatic: true
+            )
+            let rightInstanceCandidates = memberOperatorCandidates(
+                binary.operatorToken.value, in: binary.right.ty, isStatic: false
             )
             let staticCandidates =
-                freeCandidates + leftMemberCandidates.filter(\.isStatic)
-                    + rightMemberCandidates.filter(\.isStatic)
-            let leftInstanceCandidates = leftMemberCandidates.filter { !$0.isStatic }
-            let rightInstanceCandidates = rightMemberCandidates.filter { !$0.isStatic }
+                freeCandidates + leftStaticCandidates + rightStaticCandidates
             guard
                 !staticCandidates.isEmpty || !leftInstanceCandidates.isEmpty
                 || !rightInstanceCandidates.isEmpty
@@ -1416,11 +1556,12 @@ public final class TypeResolver: AST.Visitor {
         case let prefixExpression as AST.Prefix:
             _ = infer(prefixExpression.expression, at: token)
             let freeCandidates = lookupOperatorFunctions(prefixExpression.operatorToken.value)
-            let memberCandidates = memberOperatorCandidates(
-                prefixExpression.operatorToken.value, in: prefixExpression.expression.ty
+            let staticCandidates = freeCandidates + memberOperatorCandidates(
+                prefixExpression.operatorToken.value, in: prefixExpression.expression.ty, isStatic: true
             )
-            let staticCandidates = freeCandidates + memberCandidates.filter(\.isStatic)
-            let instanceCandidates = memberCandidates.filter { !$0.isStatic }
+            let instanceCandidates = memberOperatorCandidates(
+                prefixExpression.operatorToken.value, in: prefixExpression.expression.ty, isStatic: false
+            )
             guard !staticCandidates.isEmpty || !instanceCandidates.isEmpty else {
                 emitOperatorNoImplementation(
                     at: prefixExpression.operatorToken, name: prefixExpression.operatorToken.value
@@ -1459,11 +1600,12 @@ public final class TypeResolver: AST.Visitor {
         case let postfixExpression as AST.Postfix:
             _ = infer(postfixExpression.expression, at: token)
             let freeCandidates = lookupOperatorFunctions(postfixExpression.operatorToken.value)
-            let memberCandidates = memberOperatorCandidates(
-                postfixExpression.operatorToken.value, in: postfixExpression.expression.ty
+            let staticCandidates = freeCandidates + memberOperatorCandidates(
+                postfixExpression.operatorToken.value, in: postfixExpression.expression.ty, isStatic: true
             )
-            let staticCandidates = freeCandidates + memberCandidates.filter(\.isStatic)
-            let instanceCandidates = memberCandidates.filter { !$0.isStatic }
+            let instanceCandidates = memberOperatorCandidates(
+                postfixExpression.operatorToken.value, in: postfixExpression.expression.ty, isStatic: false
+            )
             guard !staticCandidates.isEmpty || !instanceCandidates.isEmpty else {
                 emitOperatorNoImplementation(
                     at: postfixExpression.operatorToken, name: postfixExpression.operatorToken.value
@@ -1546,38 +1688,62 @@ public final class TypeResolver: AST.Visitor {
     ) {
         switch expression {
         case let closure as AST.Closure:
-            guard
-                let functionType = expected as? TrussType.FunctionType,
-                let signature = closure.signature
-            else {
-                _ = infer(expression, at: token)
+            guard let functionType = expected as? TrussType.FunctionType else {
+                if let actual = infer(expression, at: token) {
+                    if !canCoerce(actual, to: expected, at: token) {
+                        emitMismatch(at: token, expected: expected, found: actual)
+                    }
+                }
                 return
             }
             let parameterTypes = functionType.parameters.map(\.type)
-            for (index, parameter) in signature.parameters.enumerated() {
-                guard index < parameterTypes.count else { break }
-                let variable =
-                    closure.scope?.values[parameter.name.value]?.first
-                        as? Symbol.VariableSymbol
-                variable?.type = parameterTypes[index]
+            if let signature = closure.signature {
+                for (index, parameter) in signature.parameters.enumerated() {
+                    guard index < parameterTypes.count else { break }
+                    let variable =
+                        closure.scope?.values[parameter.name.value]?.first
+                            as? Symbol.VariableSymbol
+                    variable?.type = parameterTypes[index]
+                }
             }
+            closureParameterTypes.append(parameterTypes)
+            if let lastStatement = closure.body.last as? AST.ExpressionStatement {
+                check(lastStatement.expression, functionType.returnType, at: token)
+            }
+            closureParameterTypes.removeLast()
             expression.ty = functionType
+        case let tupleExpression as AST.TupleExpression:
+            if let tupleType = expected as? TrussType.TupleType {
+                for (index, element) in tupleExpression.elements.enumerated() {
+                    guard index < tupleType.elements.count else { break }
+                    check(element.value, tupleType.elements[index].type, at: token)
+                }
+            } else {
+                if let actual = infer(expression, at: token) {
+                    if !canCoerce(actual, to: expected, at: token) {
+                        emitMismatch(at: token, expected: expected, found: actual)
+                    }
+                }
+            }
         case let call as AST.Call:
             if call.symbol == nil {
-                var resolved = resolveOverloads(
+                if let resolved = resolveOverloads(
                     call.overloads ?? [], arguments: call.arguments,
-                    trailingClosures: call.trailingClosures, expectedReturn: expected, at: token,
-                    reportErrors: false
-                )
-                if resolved == nil {
-                    resolved = resolveOverloads(
-                        call.overloads ?? [], arguments: call.arguments,
-                        trailingClosures: call.trailingClosures, expectedReturn: nil, at: token
-                    )
-                }
-                if let resolved {
+                    trailingClosures: call.trailingClosures, expectedReturn: expected, at: token
+                ) {
                     call.symbol = resolved.symbol
                     expression.ty = resolved.type.returnType
+                    if resolved.symbol.name != "init",
+                       let forallType = resolved.symbol.forallType,
+                       let explicit = genericArguments(of: call.callee),
+                       explicit.count != forallType.parameters.count
+                    {
+                        context.emitError(
+                            "wrong number of type arguments: expected "
+                                + "\(forallType.parameters.count), got \(explicit.count)",
+                            at: token
+                        )
+                    }
                 }
             }
             if let actual = expression.ty.map({ resolve($0) }) {
@@ -1638,11 +1804,16 @@ public final class TypeResolver: AST.Visitor {
                     check(argument.value, parameterType, at: token)
                 }
             }
-            if ok, let expectedReturn, !canCoerce(ty.returnType, to: expectedReturn, at: token) {
-                ok = false
-            }
             if ok {
                 matched.append((candidate, ty))
+            }
+        }
+        if let expectedReturn {
+            let filtered = matched.filter {
+                canCoerce($0.1.returnType, to: expectedReturn, at: token)
+            }
+            if !filtered.isEmpty {
+                matched = filtered
             }
         }
         let name = candidates.first?.name ?? "<unknown>"
@@ -1801,5 +1972,4 @@ public final class TypeResolver: AST.Visitor {
         }
         return [superclassType] + superclassChain(of: superclassType)
     }
-
 }
