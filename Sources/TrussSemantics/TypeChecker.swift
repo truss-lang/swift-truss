@@ -60,6 +60,10 @@ public final class TypeChecker: AST.Visitor {
         -> Any?
     {
         withTypeContext(structDecl.symbol) {
+            collectConstraints(
+                in: structDecl.symbol?.scope, genericDecl: structDecl.genericDecl,
+                whereClause: structDecl.whereClause
+            )
             super.visitStructDecl(structDecl, additional: additional)
         }
         return nil
@@ -70,6 +74,10 @@ public final class TypeChecker: AST.Visitor {
         -> Any?
     {
         withTypeContext(classDecl.symbol) {
+            collectConstraints(
+                in: classDecl.symbol?.scope, genericDecl: classDecl.genericDecl,
+                whereClause: classDecl.whereClause
+            )
             super.visitClassDecl(classDecl, additional: additional)
         }
         return nil
@@ -80,6 +88,10 @@ public final class TypeChecker: AST.Visitor {
         -> Any?
     {
         withTypeContext(enumDecl.symbol) {
+            collectConstraints(
+                in: enumDecl.symbol?.scope, genericDecl: enumDecl.genericDecl,
+                whereClause: enumDecl.whereClause
+            )
             super.visitEnumDecl(enumDecl, additional: additional)
         }
         return nil
@@ -100,6 +112,10 @@ public final class TypeChecker: AST.Visitor {
         -> Any?
     {
         withTypeContext(actorDecl.symbol) {
+            collectConstraints(
+                in: actorDecl.symbol?.scope, genericDecl: actorDecl.genericDecl,
+                whereClause: actorDecl.whereClause
+            )
             super.visitActorDecl(actorDecl, additional: additional)
         }
         return nil
@@ -134,6 +150,9 @@ public final class TypeChecker: AST.Visitor {
     ) -> Any? {
         guard let symbol = functionDecl.symbol else { return nil }
         withScope(symbol.scope) {
+            collectConstraints(
+                in: symbol.scope, genericDecl: functionDecl.genericDecl, whereClause: nil
+            )
             let parameterTypes = fillParameterTypes(functionDecl.parameters, into: symbol)
             let returnType: TrussType.TrussType =
                 if let typeExpression = functionDecl.returnTypeExpression {
@@ -416,6 +435,53 @@ public final class TypeChecker: AST.Visitor {
         return params
     }
 
+    private func collectConstraints(
+        in scope: Scope?,
+        genericDecl: AST.GenericDecl?,
+        whereClause: [AST.WhereRequirement]?
+    ) {
+        guard let scope, let genericDecl else { return }
+        for generic in genericDecl.generics {
+            guard let symbol = scope.types[generic.name.value]
+                as? Symbol.GenericParamSymbol
+            else {
+                continue
+            }
+            if let constraint = generic.constraint {
+                let type = evaluate(constraint)
+                if !(type is TrussType.ErrorType) {
+                    symbol.constraints.append(
+                        Symbol.GenericParamSymbol.Constraint.conformance(type)
+                    )
+                }
+            }
+        }
+        for requirement in whereClause ?? [] {
+            guard let variable = requirement.left as? AST.Variable,
+                  let symbol = scope.types[variable.name.value]
+                    as? Symbol.GenericParamSymbol
+            else {
+                continue
+            }
+            switch requirement.constraint {
+            case let .conformance(expression):
+                let type = evaluate(expression)
+                if !(type is TrussType.ErrorType) {
+                    symbol.constraints.append(
+                        Symbol.GenericParamSymbol.Constraint.conformance(type)
+                    )
+                }
+            case let .equality(expression):
+                let type = evaluate(expression)
+                if !(type is TrussType.ErrorType) {
+                    symbol.constraints.append(
+                        Symbol.GenericParamSymbol.Constraint.equality(type)
+                    )
+                }
+            }
+        }
+    }
+
     private func functionType(
         labels: [String?],
         parameterTypes: [TrussType.TrussType],
@@ -604,7 +670,12 @@ public final class TypeChecker: AST.Visitor {
             }
             arguments.append(resolved)
         }
-        return TrussType.GenericInstantiation(base: base, arguments: arguments)
+        let result = TrussType.GenericInstantiation(base: base, arguments: arguments)
+        checkGenericArguments(
+            of: base, arguments: arguments,
+            at: syntheticToken(for: genericApplication)
+        )
+        return result
     }
 
     private func resolveTypealias(_ symbol: Symbol.TypeAliasSymbol) -> TrussType.TrussType {
@@ -717,6 +788,9 @@ public final class TypeChecker: AST.Visitor {
 
     private func memberType(of name: String, in type: TrussType.TrussType?) -> TrussType.TrussType? {
         let base = (type as? TrussType.OptionalType)?.wrapped ?? type
+        if let genericParam = base as? TrussType.GenericParamType {
+            return memberType(of: name, in: genericParam)
+        }
         let nominal: TrussType.NominalType
         let genericArguments: [TrussType.TrussType]
         if let generic = base as? TrussType.GenericInstantiation {
@@ -760,6 +834,36 @@ public final class TypeChecker: AST.Visitor {
 
     private func genericParameterNames(of symbol: Symbol.NominalTypeSymbol) -> [String] {
         symbol.scope.types.values.compactMap { $0 as? Symbol.GenericParamSymbol }.map(\.name)
+    }
+
+    private func memberType(
+        of name: String, in genericParam: TrussType.GenericParamType
+    ) -> TrussType.TrussType? {
+        guard let symbol = genericParam.symbol else { return nil }
+        for constraint in symbol.constraints {
+            guard case let .conformance(declared) = constraint else { continue }
+            if let member = memberType(of: name, in: declared) {
+                return member
+            }
+        }
+        return nil
+    }
+
+    private func memberType(
+        of name: String, in declared: TrussType.TrussType
+    ) -> TrussType.TrussType? {
+        if let composition = declared as? TrussType.CompositionType {
+            for member in composition.members {
+                if let type = memberType(of: name, in: member) {
+                    return type
+                }
+            }
+            return nil
+        }
+        if let protocolType = declared as? TrussType.ProtocolType {
+            return memberType(of: name, in: protocolType)
+        }
+        return nil
     }
 
     private func replaceGenericArguments(
@@ -886,6 +990,10 @@ public final class TypeChecker: AST.Visitor {
         switch (a, b) {
         case let (l as TrussType.NominalType, r as TrussType.NominalType):
             return l.id == r.id
+        case let (l as TrussType.GenericInstantiation, r as TrussType.NominalType):
+            return l.arguments.isEmpty && l.base.id == r.id
+        case let (l as TrussType.NominalType, r as TrussType.GenericInstantiation):
+            return r.arguments.isEmpty && l.id == r.base.id
         case let (l as TrussType.TupleType, r as TrussType.TupleType):
             guard l.elements.count == r.elements.count else {
                 return false
@@ -1074,9 +1182,24 @@ public final class TypeChecker: AST.Visitor {
             }
         }
         if let expectedProtocol = expected as? TrussType.ProtocolType,
+           let genericParam = actual as? TrussType.GenericParamType
+        {
+            return satisfiesConformance(genericParam, to: expectedProtocol)
+        }
+        if let expectedProtocol = expected as? TrussType.ProtocolType,
            let actualNominal = actual as? TrussType.NominalType
         {
             return conformsTo(actualNominal, expectedProtocol)
+        }
+        if let expectedComposition = expected as? TrussType.CompositionType,
+           let genericParam = actual as? TrussType.GenericParamType
+        {
+            return expectedComposition.members.allSatisfy { member in
+                guard let protocolType = member as? TrussType.ProtocolType else {
+                    return false
+                }
+                return satisfiesConformance(genericParam, to: protocolType)
+            }
         }
         if let expectedComposition = expected as? TrussType.CompositionType,
            let actualNominal = actual as? TrussType.NominalType
@@ -1089,6 +1212,30 @@ public final class TypeChecker: AST.Visitor {
             }
         }
         return false
+    }
+
+    private func satisfiesConformance(
+        _ genericParam: TrussType.GenericParamType, to required: TrussType.ProtocolType
+    ) -> Bool {
+        guard let symbol = genericParam.symbol else { return false }
+        for constraint in symbol.constraints {
+            guard case let .conformance(declared) = constraint else { continue }
+            if declaredConformance(declared, includes: required) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func declaredConformance(
+        _ declared: TrussType.TrussType, includes required: TrussType.ProtocolType
+    ) -> Bool {
+        if let composition = declared as? TrussType.CompositionType {
+            return composition.members.contains { member in
+                (member as? TrussType.ProtocolType)?.id == required.id
+            }
+        }
+        return (declared as? TrussType.ProtocolType)?.id == required.id
     }
 
     private func emitMismatch(
@@ -1434,6 +1581,9 @@ public final class TypeChecker: AST.Visitor {
                     }
                 }
                 if ok {
+                    checkGenericArguments(
+                        of: nominal, arguments: arguments, at: token
+                    )
                     expression.ty = TrussType.GenericInstantiation(
                         base: nominal, arguments: arguments
                     )
@@ -1772,25 +1922,33 @@ public final class TypeChecker: AST.Visitor {
             AST.LabeledArgument(label: label, value: closure, sourceRange: closure.sourceRange)
         }
         var matched: [(Symbol.FunctionSymbol, TrussType.FunctionType)] = []
+        var constraintFailure: String? = nil
         for candidate in candidates {
+            var typeMapping: [String: TrussType.TypeVariableType] = [:]
+            var genericParameters: [Symbol.GenericParamSymbol] = []
             let ty: TrussType.FunctionType
             if let forallType = candidate.forallType {
-                if let functionType = instantiate(forallType) as? TrussType.FunctionType {
+                genericParameters = forallType.parameters
+                if let functionType = instantiate(forallType, mapping: &typeMapping)
+                    as? TrussType.FunctionType
+                {
                     ty = functionType
                 } else {
                     continue
                 }
             } else if let functionType = candidate.functionType {
-                ty = instantiateGenerics(functionType) as! TrussType.FunctionType
+                genericParameters = genericParamSymbols(in: functionType)
+                ty = instantiateGenerics(functionType, mapping: &typeMapping)
+                    as! TrussType.FunctionType
             } else {
                 continue
             }
-            guard let mapping = mapArguments(allArguments, to: candidate.signature) else {
+            guard let argumentMapping = mapArguments(allArguments, to: candidate.signature) else {
                 continue
             }
             var ok = true
             for (index, argument) in allArguments.enumerated() {
-                let parameterIndex = mapping[index]
+                let parameterIndex = argumentMapping[index]
                 guard parameterIndex < ty.parameters.count else {
                     continue
                 }
@@ -1802,6 +1960,17 @@ public final class TypeChecker: AST.Visitor {
                     }
                 } else {
                     check(argument.value, parameterType, at: token)
+                }
+            }
+            if ok, !genericParameters.isEmpty {
+                let (passed, failure) = checkGenericConstraints(
+                    of: genericParameters, mapping: typeMapping, at: token
+                )
+                if !passed {
+                    ok = false
+                    if constraintFailure == nil {
+                        constraintFailure = failure
+                    }
                 }
             }
             if ok {
@@ -1820,7 +1989,11 @@ public final class TypeChecker: AST.Visitor {
         switch matched.count {
         case 0:
             if reportErrors {
-                emitNoExactMatch(at: token, name: name, candidates: candidates)
+                if let constraintFailure {
+                    context.emitError(constraintFailure, at: token)
+                } else {
+                    emitNoExactMatch(at: token, name: name, candidates: candidates)
+                }
             }
             return nil
         case 1:
@@ -1881,8 +2054,10 @@ public final class TypeChecker: AST.Visitor {
         return mapping
     }
 
-    private func instantiateGenerics(_ type: TrussType.TrussType) -> TrussType.TrussType {
-        var mapping: [String: TrussType.TypeVariableType] = [:]
+    private func instantiateGenerics(
+        _ type: TrussType.TrussType,
+        mapping: inout [String: TrussType.TypeVariableType]
+    ) -> TrussType.TrussType {
         return replacingGenericParam(type) { genericParam in
             if let existing = mapping[genericParam.name] { return existing }
             let fresh = freshTypeVariable()
@@ -1891,8 +2066,10 @@ public final class TypeChecker: AST.Visitor {
         }
     }
 
-    private func instantiate(_ forall: TrussType.ForallType) -> TrussType.TrussType {
-        var mapping: [String: TrussType.TypeVariableType] = [:]
+    private func instantiate(
+        _ forall: TrussType.ForallType,
+        mapping: inout [String: TrussType.TypeVariableType]
+    ) -> TrussType.TrussType {
         for param in forall.parameters {
             mapping[param.name] = freshTypeVariable()
         }
@@ -1941,6 +2118,107 @@ public final class TypeChecker: AST.Visitor {
                 }
             }
         }
+    }
+
+    private func checkGenericArguments(
+        of nominal: TrussType.NominalType,
+        arguments: [TrussType.TrussType],
+        at token: Token
+    ) {
+        guard let symbol = nominal.symbol else { return }
+        let parameters = symbol.scope.types.values.compactMap {
+            $0 as? Symbol.GenericParamSymbol
+        }
+        for (index, argument) in arguments.enumerated() where index < parameters.count {
+            let parameter = parameters[index]
+            guard !parameter.constraints.isEmpty else { continue }
+            for constraint in parameter.constraints {
+                switch constraint {
+                case let .conformance(protocolType):
+                    if !canCoerce(argument, to: protocolType, at: token) {
+                        context.emitError(
+                            "type '\(typeText(argument))' does not conform to protocol "
+                                + "'\(typeText(protocolType))'",
+                            at: token
+                        )
+                    }
+                case let .equality(target):
+                    let instantiated = replacingGenericParam(target) { genericParam in
+                        if let targetIndex = parameters.firstIndex(where: {
+                            $0.name == genericParam.name
+                        }), targetIndex < arguments.count
+                        {
+                            return arguments[targetIndex]
+                        }
+                        return genericParam
+                    }
+                    if !unify(argument, instantiated, at: token) {
+                        emitMismatch(at: token, expected: instantiated, found: argument)
+                    }
+                }
+            }
+        }
+    }
+
+    private func checkGenericConstraints(
+        of parameters: [Symbol.GenericParamSymbol],
+        mapping: [String: TrussType.TypeVariableType],
+        at token: Token
+    ) -> (Bool, String?) {
+        for parameter in parameters {
+            guard let variable = mapping[parameter.name] else { continue }
+            let resolvedBound = resolve(variable)
+            let bound: TrussType.NominalType? =
+                if let nominal = resolvedBound as? TrussType.NominalType {
+                    nominal
+                } else if let generic = resolvedBound as? TrussType.GenericInstantiation {
+                    generic.base
+                } else {
+                    nil
+                }
+            guard let bound else { continue }
+            for constraint in parameter.constraints {
+                switch constraint {
+                case let .conformance(protocolType):
+                    if !canCoerce(bound, to: protocolType, at: token) {
+                        return (
+                            false,
+                            "type '\(typeText(bound))' does not conform to protocol "
+                                + "'\(typeText(protocolType))'"
+                        )
+                    }
+                case let .equality(target):
+                    let instantiated = replacingGenericParam(target) { genericParam in
+                        mapping[genericParam.name] ?? genericParam
+                    }
+                    if !unify(resolvedBound, instantiated, at: token) {
+                        return (
+                            false,
+                            "expected '\(typeText(instantiated))', found '\(typeText(resolvedBound))'"
+                        )
+                    }
+                }
+            }
+        }
+        return (true, nil)
+    }
+
+    private func genericParamSymbols(
+        in type: TrussType.TrussType
+    ) -> [Symbol.GenericParamSymbol] {
+        var seen: Set<ObjectIdentifier> = []
+        var result: [Symbol.GenericParamSymbol] = []
+        _ = replacingGenericParam(type) { genericParam in
+            if let symbol = genericParam.symbol {
+                let identifier = ObjectIdentifier(symbol)
+                if !seen.contains(identifier) {
+                    seen.insert(identifier)
+                    result.append(symbol)
+                }
+            }
+            return genericParam
+        }
+        return result
     }
 
     private func conformsTo(_ type: TrussType.NominalType, _ protocolType: TrussType.ProtocolType)

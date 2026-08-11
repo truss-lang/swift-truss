@@ -84,6 +84,12 @@ public enum Symbol {
     }
 
     public final class GenericParamSymbol: Symbol {
+        public enum Constraint {
+            case conformance(TrussType.TrussType)
+            case equality(TrussType.TrussType)
+        }
+
+        public var constraints: [Constraint] = []
         public init(id: Id.SymbolId, name: String) {
             super.init(id, name)
         }

@@ -652,3 +652,142 @@ import TrussSemantics
     let variableDecl = try #require(statements[0] as? AST.VariableDecl)
     #expect(variableDecl.symbol?.type is TrussType.GenericInstantiation)
 }
+
+@Test func genericFunctionConstraintViolationReportsError() {
+    let (context, _) = runTypeChecker(
+        ["protocol P {}\nstruct S { init() {} }\nfunc f<T: P>(x: T) {}\nfunc main() { f(x: S()) }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func genericFunctionConstraintSatisfied() {
+    let (context, _) = runTypeChecker(
+        ["protocol P {}\nstruct S: P { init() {} }\nfunc f<T: P>(x: T) {}\nfunc main() { f(x: S()) }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func genericTypeArgumentConstraintViolationReportsError() {
+    let (context, _) = runTypeChecker(
+        ["protocol P {}\nstruct S {}\nstruct Box<T: P> { init() {} }\nlet b: Box<S>"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func genericTypeArgumentConstraintSatisfied() {
+    let (context, _) = runTypeChecker(
+        ["protocol P {}\nstruct S: P {}\nstruct Box<T: P> { init() {} }\nlet b: Box<S>"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func genericTypeWhereClauseConstraintChecked() {
+    let (context, _) = runTypeChecker(
+        ["protocol P {}\nstruct S {}\nstruct Box<T> where T: P { init() {} }\nlet b: Box<S>"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func genericParameterBodyMemberAccess() {
+    let (context, _) = runTypeChecker(
+        [
+            "protocol P { func pm() }\nstruct S: P { init() {} func pm() {} }",
+            "func f<T: P>(x: T) { x.pm() }\nfunc main() { f(x: S()) }",
+        ]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func genericParameterConformsToDeclaredProtocol() {
+    let (context, _) = runTypeChecker(
+        ["protocol P {}\nprotocol Q {}\nfunc f<T: P>(x: T) { let y: P = x }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func genericParameterViolatesOtherProtocol() {
+    let (context, _) = runTypeChecker(
+        ["protocol P {}\nprotocol Q {}\nfunc f<T: P>(x: T) { let y: Q = x }"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func genericTypeEqualityConstraintChecked() {
+    let (context, _) = runTypeChecker(
+        ["struct S {}\nstruct T {}\nstruct W<A, B> where A == B { init() {} }\nlet w: W<S, T>"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func genericTypeEqualityConstraintSatisfied() {
+    let (context, _) = runTypeChecker(
+        ["struct S {}\nstruct W<A, B> where A == B { init() {} }\nlet w: W<S, S>"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func genericParameterCompositionConstraintSatisfied() {
+    let (context, _) = runTypeChecker(
+        [
+            "protocol P {}\nprotocol Q {}",
+            "struct S: P, Q { init() {} }",
+            "func f<T: P & Q>(x: T) {}\nfunc main() { f(x: S()) }",
+        ]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func genericParameterCompositionConstraintViolated() {
+    let (context, _) = runTypeChecker(
+        [
+            "protocol P {}\nprotocol Q {}",
+            "struct S: P { init() {} }",
+            "func f<T: P & Q>(x: T) {}\nfunc main() { f(x: S()) }",
+        ]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func multipleGenericParameterConstraints() {
+    let (context, _) = runTypeChecker(
+        [
+            "protocol P {}\nprotocol Q {}",
+            "struct S: P { init() {} }\nstruct T: Q { init() {} }",
+            "func f<A: P, B: Q>(x: A, y: B) {}\nfunc main() { f(x: S(), y: T()) }",
+        ]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func genericConstraintViolationKeepsNonGenericOverload() {
+    let (context, _) = runTypeChecker(
+        [
+            "protocol P {}\nstruct S { init() {} }\nstruct T: P { init() {} }",
+            "func f<A: P>(x: A) -> A { x }\nfunc f(x: S) -> S { x }",
+            "func main() { let a = f(x: S()); let b = f(x: T()) }",
+        ]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func nestedGenericInstantiationConstraintChecked() {
+    let (context, _) = runTypeChecker(
+        [
+            "protocol P {}\nstruct S: P { init() {} }\nstruct T { init() {} }",
+            "struct Box<A: P> { init() {} }",
+            "let good: Box<Box<S>>\nlet bad: Box<Box<T>>",
+        ]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func genericBodyReturnsParameter() {
+    let (context, _) = runTypeChecker(
+        [
+            "protocol P {}\nstruct S: P { init() {} }",
+            "func f<T: P>(x: T) -> T { x }",
+            "func main() { let a = f(x: S()) }",
+        ]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
