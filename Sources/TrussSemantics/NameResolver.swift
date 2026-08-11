@@ -78,6 +78,17 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitFor(_ forStmt: AST.For, additional: Any? = nil) -> Any? {
+        guard let scope = forStmt.scope else {
+            return super.visitFor(forStmt, additional: additional)
+        }
+        scopeStack.append(scope)
+        super.visitFor(forStmt, additional: additional)
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
     public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil)
         -> Any?
     {
@@ -324,13 +335,21 @@ public final class NameResolver: AST.Visitor {
             call.overloads = memberAccess.overloads
         case let genericApplication as AST.GenericApplication:
             if let variable = genericApplication.base as? AST.Variable {
-                call.overloads = variable.overloads
+                if let nominal = variable.symbol as? Symbol.NominalTypeSymbol {
+                    call.overloads = memberResolution("init", in: nominal).1
+                } else {
+                    call.overloads = variable.overloads
+                }
             } else if let memberAccess = genericApplication.base as? AST.MemberAccess {
                 call.overloads = memberAccess.overloads
             }
         case let sequential as AST.SequentialExpression:
             if let variable = sequential.operands.first as? AST.Variable {
-                call.overloads = variable.overloads
+                if let nominal = variable.symbol as? Symbol.NominalTypeSymbol {
+                    call.overloads = memberResolution("init", in: nominal).1
+                } else {
+                    call.overloads = variable.overloads
+                }
             } else if let memberAccess = sequential.operands.first as? AST.MemberAccess {
                 call.overloads = memberAccess.overloads
             }

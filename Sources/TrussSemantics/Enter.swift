@@ -343,10 +343,16 @@ public final class Enter: AST.Visitor {
 
     @discardableResult
     public override func visitFor(_ forStmt: AST.For, additional: Any? = nil) -> Any? {
+        let scope = Scope()
+        forStmt.scope = scope
+        let lastScope = currentScope
+        currentScope = scope
         if let variable = forStmt.pattern as? AST.Variable {
             registerLocal(variable.name)
         }
-        return super.visitFor(forStmt, additional: additional)
+        super.visitFor(forStmt, additional: additional)
+        currentScope = lastScope
+        return nil
     }
 
     @discardableResult
