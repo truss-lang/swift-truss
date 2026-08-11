@@ -110,15 +110,17 @@ public enum Symbol {
         public let scope: Scope
         public var locals: [VariableSymbol]
         public let signature: FunctionSignature
+        public let isStatic: Bool
         public var functionType: TrussType.FunctionType? = nil
         public var forallType: TrussType.ForallType? = nil
         public init(
             id: Id.SymbolId, name: String, locals: [VariableSymbol],
-            scope: Scope, signature: FunctionSignature
+            scope: Scope, signature: FunctionSignature, isStatic: Bool = false
         ) {
             self.locals = locals
             self.scope = scope
             self.signature = signature
+            self.isStatic = isStatic
             super.init(id, name)
 
             for local in locals {

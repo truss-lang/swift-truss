@@ -645,7 +645,7 @@ public extension AST {
         public let left: Expression
         public let right: Expression
         public let operatorToken: Token
-        public let symbol: Symbol.FunctionSymbol? = nil
+        public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ left: Expression, _ right: Expression, _ operatorToken: Token,
             sourceRange: SourceRange
@@ -664,6 +664,7 @@ public extension AST {
     final class Prefix: Expression {
         public let operatorToken: Token
         public let expression: Expression
+        public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ operatorToken: Token, _ expression: Expression, sourceRange: SourceRange
         ) {
@@ -680,6 +681,7 @@ public extension AST {
     final class Postfix: Expression {
         public let expression: Expression
         public let operatorToken: Token
+        public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ expression: Expression, _ operatorToken: Token, sourceRange: SourceRange
         ) {

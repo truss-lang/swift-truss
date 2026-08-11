@@ -181,7 +181,11 @@ public final class Enter: AST.Visitor {
             scope: scope,
             signature: signature(
                 of: functionDecl.parameters, varargToken: functionDecl.varargToken
-            )
+            ),
+            isStatic: functionDecl.modifiers.contains { modifier in
+                if case .Static = modifier.kind { return true }
+                return false
+            }
         )
         context.register(symbol: symbol)
         functionDecl.symbol = symbol
