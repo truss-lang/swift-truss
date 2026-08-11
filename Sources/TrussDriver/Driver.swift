@@ -120,6 +120,12 @@ public final class Driver {
         if !context.diagnositicEngine.hasErrors {
             runPass(TypeChecker(context: context), context: context, programs: programs)
         }
+        if !context.diagnositicEngine.hasErrors {
+            runPass(ModifierChecker(context: context), context: context, programs: programs)
+        }
+        if !context.diagnositicEngine.hasErrors {
+            runPass(AccessChecker(context: context), context: context, programs: programs)
+        }
         var stdout = ""
         if !context.diagnositicEngine.hasErrors || config.dumpOnError {
             if config.dumpAST, !programs.isEmpty {
