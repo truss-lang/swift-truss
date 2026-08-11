@@ -57,10 +57,9 @@ public final class ExpressionFolder: AST.Rewriter {
         if restOps.isEmpty, restOperands.isEmpty {
             return application
         }
-        guard
-            let folded = foldRest(
-                sequence, head: application, ops: restOps, operands: restOperands
-            )
+        guard let folded = foldRest(
+            sequence, head: application, ops: restOps, operands: restOperands
+        )
         else {
             return sequence
         }
@@ -366,7 +365,13 @@ public final class ExpressionFolder: AST.Rewriter {
         let operands = sequence.operands
         let ops = sequence.ops
         guard operands.count >= 2 else { return nil }
-        guard isTypeSymbol(baseSymbol(operands[0])) else { return nil }
+        let base = baseSymbol(operands[0])
+        let functionBase =
+            (operands[0] as? AST.Variable)?.overloads?
+                .allSatisfy { $0 is Symbol.FunctionSymbol } == true
+            || (operands[0] as? AST.MemberAccess)?.overloads?
+                .allSatisfy { $0 is Symbol.FunctionSymbol } == true
+        guard isTypeSymbol(base) || functionBase else { return nil }
 
         var stack: [GenericLevel] = [GenericLevel(base: operands[0])]
         var operandIndex = 1
