@@ -2219,7 +2219,16 @@ public final class TypeChecker: AST.Visitor {
                     implicit, against: subjectType, at: token, reportErrors: reportErrors
                 ) && matched
         case let variable as AST.Variable:
-            if let subjectType, let declared = evaluateVariable(variable) {
+            if let subjectType, let nominal = nominalBase(of: subjectType),
+               let symbol = nominal.symbol,
+               symbol.scope.values[variable.name.value]?
+               .contains(where: { $0 is Symbol.CaseSymbol }) == true
+            {
+                matched =
+                    checkEnumCasePattern(
+                        variable, against: subjectType, at: token, reportErrors: reportErrors
+                    ) && matched
+            } else if let subjectType, let declared = evaluateVariable(variable) {
                 if !canCoerce(subjectType, to: declared, at: token) {
                     if reportErrors {
                         emitMismatch(at: token, expected: declared, found: subjectType)
@@ -2276,6 +2285,10 @@ public final class TypeChecker: AST.Visitor {
                 caseName = member.member.value
                 arguments = call.arguments
                 caseType = evaluate(member.object)
+            } else if let variable = call.callee as? AST.Variable {
+                caseName = variable.name.value
+                arguments = call.arguments
+                caseType = subjectType
             } else {
                 return true
             }
@@ -2284,6 +2297,9 @@ public final class TypeChecker: AST.Visitor {
             caseType = evaluate(member.object)
         case let implicit as AST.ImplicitMemberAccess:
             caseName = implicit.name.value
+            caseType = subjectType
+        case let variable as AST.Variable:
+            caseName = variable.name.value
             caseType = subjectType
         default:
             return true
