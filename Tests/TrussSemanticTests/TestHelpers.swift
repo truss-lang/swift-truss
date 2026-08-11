@@ -1,6 +1,7 @@
 import SwiftBetterDiagnostic
 import Testing
 import TrussCore
+import TrussOperator
 import TrussSemantics
 import TrussSyntax
 
@@ -49,10 +50,18 @@ func runTypeBuilder(_ sources: [String]) -> (Context, [AST.Program]) {
 }
 
 func runTypeResolver(_ sources: [String]) -> (Context, [AST.Program]) {
-    let (context, programs) = runEnter(sources)
+    let (context, initialPrograms) = runEnter(sources)
+    var programs = initialPrograms
     for program in programs {
         NameResolver(context: context).visitProgram(program)
     }
+    let table = OperatorTable()
+    for program in programs {
+        TrussOperator.DeclCollector(table: table, context: context).visitProgram(program)
+    }
+    PrecedenceResolver(table: table, context: context).resolve()
+    let folder = ExpressionFolder(context: context, table: table)
+    programs = programs.map { folder.rewrite($0) }
     for program in programs {
         TypeBuilder(context: context).visitProgram(program)
     }
