@@ -379,7 +379,7 @@ public final class ExpressionFolder: AST.Rewriter {
         let functionBase =
             (operands[0] as? AST.Variable)?.overloads?
                 .allSatisfy { $0 is Symbol.FunctionSymbol } == true
-            || (operands[0] as? AST.MemberAccess)?.overloads?
+                || (operands[0] as? AST.MemberAccess)?.overloads?
                 .allSatisfy { $0 is Symbol.FunctionSymbol } == true
         guard isTypeSymbol(base) || functionBase else { return nil }
 

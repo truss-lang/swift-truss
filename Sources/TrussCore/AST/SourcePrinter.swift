@@ -1215,7 +1215,7 @@ public final class SourcePrinter: AST.Visitor {
     ) -> Any? {
         switch tryExpression.kind {
         case .Try: state.write("try ")
-        case .TryQuestion: state.write("try? ")
+        case .OptionalTry: state.write("try? ")
         case .TryExclamation: state.write("try! ")
         }
         visit(tryExpression.expression)

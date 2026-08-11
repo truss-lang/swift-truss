@@ -1411,7 +1411,7 @@ public extension AST {
             let kindText =
                 switch tryExpression.kind {
                 case .Try: "try"
-                case .TryQuestion: "try?"
+                case .OptionalTry: "try?"
                 case .TryExclamation: "try!"
                 }
             dumpNode(

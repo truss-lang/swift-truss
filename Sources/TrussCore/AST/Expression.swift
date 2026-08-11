@@ -778,7 +778,7 @@ public extension AST {
 
         public enum Kind {
             case Try
-            case TryQuestion
+            case OptionalTry
             case TryExclamation
         }
     }

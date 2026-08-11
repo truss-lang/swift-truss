@@ -802,7 +802,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let expr = firstExpression("try? foo()")
     let tryExpr = expr as? AST.TryExpression
     try #require(tryExpr != nil)
-    #expect(tryExpr!.kind == .TryQuestion)
+    #expect(tryExpr!.kind == .OptionalTry)
     let call = tryExpr!.expression as? AST.Call
     #expect(call != nil)
 }
@@ -834,7 +834,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(vd != nil)
     let tryExpr = vd!.initializer as? AST.TryExpression
     try #require(tryExpr != nil)
-    #expect(tryExpr!.kind == .TryQuestion)
+    #expect(tryExpr!.kind == .OptionalTry)
 }
 
 @Test func parseTryInExpressionStatementWithOperator() throws {

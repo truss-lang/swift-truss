@@ -4316,7 +4316,7 @@ public final class Parser {
         index += 1
         let kind: AST.TryExpression.Kind
         if let t = peek, case .Operator(.QuestionMark) = t.kind {
-            kind = .TryQuestion
+            kind = .OptionalTry
             index += 1
         } else if let t = peek, case .Operator(.Not) = t.kind {
             kind = .TryExclamation
