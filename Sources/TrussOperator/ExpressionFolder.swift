@@ -34,12 +34,12 @@ public final class ExpressionFolder: AST.Rewriter {
     }
 
     @discardableResult
-    public override func visitSequentialExpression(
-        _ sequentialExpression: AST.SequentialExpression, additional: Any? = nil
+    public override func visitSequential(
+        _ sequentialExpression: AST.Sequential, additional: Any? = nil
     ) -> Any? {
         let rewritten =
-            super.visitSequentialExpression(sequentialExpression, additional: additional)
-                as? AST.SequentialExpression ?? sequentialExpression
+            super.visitSequential(sequentialExpression, additional: additional)
+                as? AST.Sequential ?? sequentialExpression
         guard !rewritten.ops.isEmpty, ranks != nil else { return rewritten }
         if rewritten.ops.allSatisfy({ op in
             if case .Operator(.BitAnd) = op.kind { return true }
@@ -53,7 +53,7 @@ public final class ExpressionFolder: AST.Rewriter {
         return folded
     }
 
-    private func foldGeneric(_ sequence: AST.SequentialExpression) -> AST.Expression? {
+    private func foldGeneric(_ sequence: AST.Sequential) -> AST.Expression? {
         guard let extraction = extractGenericApplication(sequence) else { return nil }
         let (application, restOps, restOperands) = extraction
         if restOps.isEmpty, restOperands.isEmpty {
@@ -76,12 +76,12 @@ public final class ExpressionFolder: AST.Rewriter {
         return folded
     }
 
-    private func fold(_ sequence: AST.SequentialExpression) -> AST.Expression? {
+    private func fold(_ sequence: AST.Sequential) -> AST.Expression? {
         foldRest(sequence, head: nil, ops: sequence.ops, operands: sequence.operands)
     }
 
     private func foldRest(
-        _ sequence: AST.SequentialExpression, head initialHead: AST.Expression?,
+        _ sequence: AST.Sequential, head initialHead: AST.Expression?,
         ops: [Token], operands: [AST.Expression]
     ) -> AST.Expression? {
         var opIndex = 0
@@ -110,31 +110,40 @@ public final class ExpressionFolder: AST.Rewriter {
                     }
                     pendingPrefix.append(op)
                 } else {
-                    let info = findOperator(op.value)
-                    let isInfix = info?.kinds.contains(where: {
-                        if case .Infix = $0 { true } else { false }
-                    }) ?? false
-                    let isPostfix = info?.kinds.contains(where: {
-                        if case .Postfix = $0 { true } else { false }
-                    }) ?? false
-                    if info == nil {
-                        context.emitError("unknown operator '\(op.value)'", at: op)
-                        startInfix(op, head: &head, chainOperands: &chainOperands, chainOps: &chainOps)
-                        awaitingOperand = true
-                    } else if isInfix {
-                        startInfix(op, head: &head, chainOperands: &chainOperands, chainOps: &chainOps)
-                        awaitingOperand = true
-                    } else if isPostfix {
-                        let wrapped = makePostfix(chainOperands.last ?? head!, op, in: sequence)
+                    if case .Operator(.Not) = op.kind {
+                        let wrapped = makeForceUnwrap(chainOperands.last ?? head!, op, in: sequence)
                         if chainOps.isEmpty {
                             head = wrapped
                         } else {
                             chainOperands[chainOperands.count - 1] = wrapped
                         }
                     } else {
-                        context.emitError("operator '\(op.value)' is not infix", at: op)
-                        startInfix(op, head: &head, chainOperands: &chainOperands, chainOps: &chainOps)
-                        awaitingOperand = true
+                        let info = findOperator(op.value)
+                        let isInfix = info?.kinds.contains(where: {
+                            if case .Infix = $0 { true } else { false }
+                        }) ?? false
+                        let isPostfix = info?.kinds.contains(where: {
+                            if case .Postfix = $0 { true } else { false }
+                        }) ?? false
+                        if info == nil {
+                            context.emitError("unknown operator '\(op.value)'", at: op)
+                            startInfix(op, head: &head, chainOperands: &chainOperands, chainOps: &chainOps)
+                            awaitingOperand = true
+                        } else if isInfix {
+                            startInfix(op, head: &head, chainOperands: &chainOperands, chainOps: &chainOps)
+                            awaitingOperand = true
+                        } else if isPostfix {
+                            let wrapped = makePostfix(chainOperands.last ?? head!, op, in: sequence)
+                            if chainOps.isEmpty {
+                                head = wrapped
+                            } else {
+                                chainOperands[chainOperands.count - 1] = wrapped
+                            }
+                        } else {
+                            context.emitError("operator '\(op.value)' is not infix", at: op)
+                            startInfix(op, head: &head, chainOperands: &chainOperands, chainOps: &chainOps)
+                            awaitingOperand = true
+                        }
                     }
                 }
             } else {
@@ -176,7 +185,7 @@ public final class ExpressionFolder: AST.Rewriter {
     }
 
     private func foldChain(
-        _ operands: [AST.Expression], _ ops: [Token], in sequence: AST.SequentialExpression
+        _ operands: [AST.Expression], _ ops: [Token], in sequence: AST.Sequential
     ) -> AST.Expression {
         var operandStack: [AST.Expression] = [operands[0]]
         var opStack: [Token] = []
@@ -273,7 +282,7 @@ public final class ExpressionFolder: AST.Rewriter {
 
     private func makeBinary(
         _ left: AST.Expression, _ op: Token, _ right: AST.Expression,
-        in sequence: AST.SequentialExpression
+        in sequence: AST.Sequential
     ) -> AST.Binary {
         AST.Binary(
             left, right, op,
@@ -282,7 +291,7 @@ public final class ExpressionFolder: AST.Rewriter {
     }
 
     private func makePrefix(
-        _ op: Token, _ expr: AST.Expression, in sequence: AST.SequentialExpression
+        _ op: Token, _ expr: AST.Expression, in sequence: AST.Sequential
     ) -> AST.Prefix {
         AST.Prefix(
             op, expr,
@@ -292,8 +301,19 @@ public final class ExpressionFolder: AST.Rewriter {
         )
     }
 
+    private func makeForceUnwrap(
+        _ expr: AST.Expression, _ op: Token, in sequence: AST.Sequential
+    ) -> AST.ForceUnwrap {
+        AST.ForceUnwrap(
+            expr, op,
+            sourceRange: SourceRange(
+                start: expr.sourceRange.start, end: location(of: op, in: sequence)
+            )
+        )
+    }
+
     private func makePostfix(
-        _ expr: AST.Expression, _ op: Token, in sequence: AST.SequentialExpression
+        _ expr: AST.Expression, _ op: Token, in sequence: AST.Sequential
     ) -> AST.Postfix {
         AST.Postfix(
             expr, op,
@@ -303,7 +323,7 @@ public final class ExpressionFolder: AST.Rewriter {
         )
     }
 
-    private func location(of token: Token, in sequence: AST.SequentialExpression) -> SourceLocation {
+    private func location(of token: Token, in sequence: AST.Sequential) -> SourceLocation {
         SourceLocation(
             buffer: sequence.sourceRange.start.buffer, offset: token.pos.pos,
             line: token.pos.line, column: token.pos.col
@@ -369,7 +389,7 @@ public final class ExpressionFolder: AST.Rewriter {
     }
 
     private func extractGenericApplication(
-        _ sequence: AST.SequentialExpression
+        _ sequence: AST.Sequential
     ) -> (AST.GenericApplication, [Token], [AST.Expression])? {
         guard let closeIndex = sequence.genericApplicationGroupCloseIndex() else { return nil }
         let operands = sequence.operands
@@ -484,7 +504,7 @@ public final class ExpressionFolder: AST.Rewriter {
     }
 
     private func closingEnd(
-        of token: Token, in sequence: AST.SequentialExpression
+        of token: Token, in sequence: AST.Sequential
     ) -> SourceLocation {
         SourceLocation(
             buffer: sequence.sourceRange.start.buffer,
@@ -506,6 +526,15 @@ public final class ExpressionFolder: AST.Rewriter {
         }
         if let superExpression = expression as? AST.SuperExpression {
             return superExpression.symbol
+        }
+        if let generic = expression as? AST.GenericApplication {
+            return baseSymbol(generic.base)
+        }
+        if let sequential = expression as? AST.Sequential,
+           sequential.genericApplicationGroupCloseIndex() != nil,
+           let base = sequential.operands.first
+        {
+            return baseSymbol(base)
         }
         return nil
     }
