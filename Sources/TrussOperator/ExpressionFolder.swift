@@ -397,10 +397,8 @@ public final class ExpressionFolder: AST.Rewriter {
         guard operands.count >= 2 else { return nil }
         let base = baseSymbol(operands[0])
         let functionBase =
-            (operands[0] as? AST.Variable)?.overloads?
-                .allSatisfy { $0 is Symbol.FunctionSymbol } == true
-                || (operands[0] as? AST.MemberAccess)?.overloads?
-                .allSatisfy { $0 is Symbol.FunctionSymbol } == true
+            (operands[0] as? AST.Variable)?.overloads != nil
+                || (operands[0] as? AST.MemberAccess)?.overloads != nil
         guard isTypeSymbol(base) || functionBase else { return nil }
 
         var stack: [GenericLevel] = [GenericLevel(base: operands[0])]
