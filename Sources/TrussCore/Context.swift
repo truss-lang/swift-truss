@@ -1,7 +1,7 @@
 import SwiftBetterDiagnostic
 
 public final class Context {
-    public let diagnositicEngine = DiagnosticEngine()
+    public let diagnositicEngine = DiagnosticEngine(deduplicateOnEmit: true)
     public private(set) var sourceTable: [Id.SourceId: Source] = [:]
     public private(set) var id2Symbol: [Id.SymbolId: Symbol.Symbol] = [:]
     public private(set) var name2Package: [String: Symbol.PackageSymbol] = [:]
