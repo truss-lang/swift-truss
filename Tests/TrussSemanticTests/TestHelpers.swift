@@ -70,3 +70,14 @@ func runTypeChecker(_ sources: [String]) -> (Context, [AST.Program]) {
     }
     return (context, programs)
 }
+
+func runChecks(_ sources: [String]) -> (Context, [AST.Program]) {
+    let (context, programs) = runTypeChecker(sources)
+    for program in programs {
+        ModifierChecker(context: context).visitProgram(program)
+    }
+    for program in programs {
+        AccessChecker(context: context).visitProgram(program)
+    }
+    return (context, programs)
+}
