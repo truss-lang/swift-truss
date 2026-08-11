@@ -7,6 +7,13 @@ public enum Symbol {
         public let id: Id.SymbolId
         public let name: String
         public var sourceToken: Token?
+        public var access: AccessLevel = .Internal
+        public var setterAccess: AccessLevel?
+        public var memberOf: Id.SymbolId?
+        public var packageId: Id.SymbolId?
+        public var moduleSymbol: TrussCore.Symbol.ModuleSymbol?
+        public var isAbstract: Bool = false
+        public var isFinal: Bool = false
         @abstractInit
         public init(_ id: Id.SymbolId, _ name: String) {
             self.id = id
