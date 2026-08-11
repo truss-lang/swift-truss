@@ -798,6 +798,7 @@ public extension AST {
         public let beginToken: Token
         public let body: [Statement]
         public let endToken: Token
+        public var scope: Scope? = nil
         public init(
             _ token: Token, _ asyncToken: Token?, _ caseToken: Token?, _ pattern: Expression,
             _ inToken: Token, _ sequence: Expression, _ whereClause: Expression?,

@@ -96,6 +96,8 @@ public enum Symbol {
     }
 
     public final class CaseSymbol: Symbol {
+        public var associatedLabels: [String?] = []
+        public var associatedTypes: [TrussType.TrussType] = []
         public init(id: Id.SymbolId, name: String) {
             super.init(id, name)
         }
