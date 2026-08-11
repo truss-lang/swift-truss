@@ -49,7 +49,7 @@ func runTypeBuilder(_ sources: [String]) -> (Context, [AST.Program]) {
     return (context, programs)
 }
 
-func runTypeResolver(_ sources: [String]) -> (Context, [AST.Program]) {
+func runTypeChecker(_ sources: [String]) -> (Context, [AST.Program]) {
     let (context, initialPrograms) = runEnter(sources)
     var programs = initialPrograms
     for program in programs {
@@ -66,7 +66,7 @@ func runTypeResolver(_ sources: [String]) -> (Context, [AST.Program]) {
         TypeBuilder(context: context).visitProgram(program)
     }
     for program in programs {
-        TypeResolver(context: context).visitProgram(program)
+        TypeChecker(context: context).visitProgram(program)
     }
     return (context, programs)
 }

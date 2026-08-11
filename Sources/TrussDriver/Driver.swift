@@ -118,7 +118,7 @@ public final class Driver {
             runPass(TypeBuilder(context: context), context: context, programs: programs)
         }
         if !context.diagnositicEngine.hasErrors {
-            runPass(TypeResolver(context: context), context: context, programs: programs)
+            runPass(TypeChecker(context: context), context: context, programs: programs)
         }
         var stdout = ""
         if !context.diagnositicEngine.hasErrors || config.dumpOnError {

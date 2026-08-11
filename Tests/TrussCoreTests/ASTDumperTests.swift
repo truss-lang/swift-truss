@@ -420,7 +420,7 @@ import TrussCore
     )
 }
 
-@Test func dumpTypeResolverStructuralAnnotations() {
+@Test func dumpTypeCheckerStructuralAnnotations() {
     #expect(
         dumpProgram(
             """

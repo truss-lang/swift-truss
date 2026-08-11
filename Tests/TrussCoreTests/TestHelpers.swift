@@ -27,7 +27,7 @@ func parseProgram(
         PrecedenceResolver(table: table, context: context).resolve()
         program = ExpressionFolder(context: context, table: table).rewrite(program)
         TypeBuilder(context: context).visitProgram(program)
-        TypeResolver(context: context).visitProgram(program)
+        TypeChecker(context: context).visitProgram(program)
     }
     return program
 }

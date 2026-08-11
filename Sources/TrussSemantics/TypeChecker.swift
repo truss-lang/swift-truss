@@ -1,7 +1,7 @@
 import SwiftBetterDiagnostic
 import TrussCore
 
-public final class TypeResolver: AST.Visitor {
+public final class TypeChecker: AST.Visitor {
     private let context: Context
     private var collectingTypealiases = false
     private var typealiasDecls: [Id.SymbolId: AST.TypeAliasDecl] = [:]

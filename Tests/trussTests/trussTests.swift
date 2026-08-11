@@ -69,7 +69,7 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.contains("func f()"))
 }
 
-@Test func driverTypeResolverStructuralAnnotations() throws {
+@Test func driverTypeCheckerStructuralAnnotations() throws {
     let file = try writeTemp(
         "types.truss",
         """
