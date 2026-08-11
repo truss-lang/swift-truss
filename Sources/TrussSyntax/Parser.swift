@@ -109,15 +109,15 @@ public final class Parser {
     }
 
     private func errorStatement(from startToken: Token, to endToken: Token)
-        -> AST.ErrorStatement
+        -> AST.ErrorExpressionStatement
     {
-        AST.ErrorStatement(sourceRange: SourceRange(from: startToken, to: endToken, in: buffer))
+        AST.ErrorExpressionStatement(sourceRange: SourceRange(from: startToken, to: endToken, in: buffer))
     }
 
     private func errorStatement(from startToken: Token, to endLocation: SourceLocation)
-        -> AST.ErrorStatement
+        -> AST.ErrorExpressionStatement
     {
-        AST.ErrorStatement(
+        AST.ErrorExpressionStatement(
             sourceRange: SourceRange(
                 start: startToken.sourceRange(in: buffer).start, end: endLocation
             )
@@ -3377,7 +3377,7 @@ public final class Parser {
                     } else {
                         SourceRange(location: endOfFile)
                     }
-                let callee = AST.SequentialExpression(ops, operands, sourceRange: range)
+                let callee = AST.Sequential(ops, operands, sourceRange: range)
                 ops = []
                 operands = []
                 let callResult = parseCall(callee)
@@ -3431,7 +3431,7 @@ public final class Parser {
                     } else {
                         SourceRange(location: endOfFile)
                     }
-                let base = AST.SequentialExpression(ops, operands, sourceRange: range)
+                let base = AST.Sequential(ops, operands, sourceRange: range)
                 ops = []
                 operands = []
                 index += 1
@@ -3481,11 +3481,14 @@ public final class Parser {
                  .Keyword(.Is) where lastIsExpression && castDepth == 0:
                 let left = operands.removeLast()
                 index += 1
-                let kind: AST.CastExpression.Kind
+                let kind: AST.Cast.Kind
                 if token.kind == .Keyword(.Is) {
                     kind = .Is
                 } else if peek?.kind == .Operator(.QuestionMark) {
                     kind = .OptionalAs
+                    index += 1
+                } else if peek?.kind == .Operator(.NotNot) {
+                    kind = .AsBitCast
                     index += 1
                 } else if peek?.kind == .Operator(.Not) {
                     kind = .AsExclamation
@@ -3510,7 +3513,7 @@ public final class Parser {
                             )
                         )
                     } else {
-                        AST.CastExpression(
+                        AST.Cast(
                             left, token, right, kind,
                             sourceRange: SourceRange(
                                 start: left.sourceRange.start,
@@ -3664,7 +3667,7 @@ public final class Parser {
             } else {
                 SourceRange(location: endOfFile)
             }
-        return AST.SequentialExpression(ops, operands, sourceRange: range)
+        return AST.Sequential(ops, operands, sourceRange: range)
     }
 
     private func parsePrimary(
@@ -3725,7 +3728,7 @@ public final class Parser {
                 expression = AST.SelfExpression(token, sourceRange: token.sourceRange(in: buffer))
             case .SelfTypeKw:
                 index += 1
-                expression = AST.SelfTypeExpression(
+                expression = AST.SelfType(
                     token,
                     sourceRange: token.sourceRange(in: buffer)
                 )
@@ -3790,7 +3793,7 @@ public final class Parser {
                     )
                     ?? errorExpression(from: token, to: token)
                 let inner: AST.Expression =
-                    if let seq = wrapped as? AST.SequentialExpression,
+                    if let seq = wrapped as? AST.Sequential,
                     !seq.ops.isEmpty,
                     seq.ops.allSatisfy({ op in
                         if case .Operator(.BitAnd) = op.kind { return true }
@@ -3930,7 +3933,7 @@ public final class Parser {
                         } else {
                             emitError("expected ')' after tuple elements", at: endOfFile)
                         }
-                        expression = AST.TupleExpression(
+                        expression = AST.Tuple(
                             elements,
                             sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
                         )
@@ -3941,12 +3944,12 @@ public final class Parser {
                                     "expected ')' after expression, but got '\(t.value)'", at: t
                                 )
                             }
-                            expression = AST.ParentheticalExpression(
+                            expression = AST.Parenthetical(
                                 value, sourceRange: SourceRange(from: token, to: t, in: buffer)
                             )
                         } else {
                             emitError("expected ')' after expression", at: token)
-                            return AST.ParentheticalExpression(
+                            return AST.Parenthetical(
                                 value,
                                 sourceRange: SourceRange(
                                     start: token.sourceRange(in: buffer).start,
@@ -4203,7 +4206,7 @@ public final class Parser {
                 }
             case .Keyword(.Throws), .Keyword(.Async):
                 switch expression {
-                case is AST.ParentheticalExpression, is AST.TupleExpression, is AST.VoidLiteral:
+                case is AST.Parenthetical, is AST.Tuple, is AST.VoidLiteral:
                     guard let parameters = closureTypeParameters(from: expression) else {
                         break _loop
                     }
@@ -4314,7 +4317,7 @@ public final class Parser {
         _ token: Token, _ excepts: [OperatorKind]?, _ isCondition: Bool
     ) -> AST.Expression {
         index += 1
-        let kind: AST.TryExpression.Kind
+        let kind: AST.Try.Kind
         if let t = peek, case .Operator(.QuestionMark) = t.kind {
             kind = .OptionalTry
             index += 1
@@ -4328,7 +4331,7 @@ public final class Parser {
             emitError("expected expression after 'try'", at: locationAfter(token))
             return errorExpression(from: token, to: locationAfter(token))
         }
-        return AST.TryExpression(
+        return AST.Try(
             token, kind, inner,
             sourceRange: SourceRange(
                 start: token.sourceRange(in: buffer).start,
@@ -4345,7 +4348,7 @@ public final class Parser {
             emitError("expected expression after 'await'", at: locationAfter(token))
             return errorExpression(from: token, to: locationAfter(token))
         }
-        return AST.AwaitExpression(
+        return AST.Await(
             token, inner,
             sourceRange: SourceRange(
                 start: token.sourceRange(in: buffer).start,
@@ -4916,14 +4919,14 @@ public final class Parser {
         switch expression {
         case is AST.VoidLiteral:
             []
-        case let parenthetical as AST.ParentheticalExpression:
+        case let parenthetical as AST.Parenthetical:
             [
                 AST.ClosureType.Parameter(
                     label: nil, type: parenthetical.inner,
                     sourceRange: parenthetical.inner.sourceRange
                 ),
             ]
-        case let tuple as AST.TupleExpression:
+        case let tuple as AST.Tuple:
             tuple.elements.map { element in
                 AST.ClosureType.Parameter(
                     label: element.label, type: element.value, sourceRange: element.sourceRange

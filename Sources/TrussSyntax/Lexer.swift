@@ -27,6 +27,7 @@ let operatorTable: [String: OperatorKind] = [
     ".": .Dot,
     "~": .BitNot,
     "!": .Not,
+    "!!": .NotNot,
     "!=": .NotEqual,
     "!==": .NotIdentical,
     "%": .Modulus,
