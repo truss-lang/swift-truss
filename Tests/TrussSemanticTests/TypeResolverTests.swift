@@ -13,7 +13,7 @@ import TrussSemantics
 }
 
 @Test func noAnnotationLeavesTypeNil() {
-    let (_, programs) = runTypeResolver(["let x = unknown"])
+    let (_, programs) = runTypeResolver(["let x"])
     let variableDecl = programs[0].statements[0] as! AST.VariableDecl
     #expect(variableDecl.symbol?.type == nil)
 }
@@ -531,4 +531,124 @@ import TrussSemantics
     let (_, programs) = runTypeResolver(["protocol P {}\nlet x: any P"])
     let variableDecl = programs[0].statements[1] as! AST.VariableDecl
     #expect(variableDecl.symbol?.type is TrussType.ProtocolType)
+}
+
+@Test func tupleElementsCheckedAgainstExpected() {
+    let (context, _) = runTypeResolver(
+        [
+            "struct S { init() {} }\nstruct T { init() {} }\nfunc makeS() -> S { S() }\nfunc makeT() -> T { T() }\nlet s = makeS()\nlet t = makeT()\nlet x: (S, S) = (s, t)",
+        ]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("expected 'S', found 'T'"))
+}
+
+@Test func closureReturnTypeChecked() {
+    let (context, _) = runTypeResolver(
+        [
+            "struct S { init() {} }\nstruct T { init() {} }\nfunc makeT() -> T { T() }\nlet t = makeT()\nlet f: () -> S = { () in t }",
+        ]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("expected 'S', found 'T'"))
+}
+
+@Test func missingMemberReportsError() {
+    let (context, _) = runTypeResolver(
+        ["struct S { init() {} }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet x = s.unknown"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("type 'S' has no member 'unknown'"))
+}
+
+@Test func undefinedVariableReportsError() {
+    let (context, _) = runTypeResolver(["let x = unknown"])
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("cannot find 'unknown' in this scope"))
+}
+
+@Test func sequentialExpressionReportsUnknownOperator() {
+    let (context, _) = runTypeResolver(["func main() { 1 + 2 }"])
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("operator '+' has no function declaration"))
+}
+
+@Test func wrongTypeArgumentCountReportsError() {
+    let (context, _) = runTypeResolver(
+        [
+            "struct S { init() {} }\nfunc id<T>(x: T) -> T { x }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet a = id<S, S>(s)",
+        ]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("wrong number of type arguments: expected 1, got 2"))
+}
+
+@Test func tryExpressionPassesThrough() throws {
+    let (context, programs) = runTypeResolver(
+        ["struct S { init() {} }\nfunc f() throws -> S { S() }\nfunc main() { let x = try f() }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+    let functionDecl = try #require(programs[0].statements[2] as? AST.FunctionDecl)
+    let body = try #require(functionDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let variableDecl = try #require(statements[0] as? AST.VariableDecl)
+    #expect(variableDecl.symbol?.type is TrussType.StructType)
+}
+
+@Test func shorthandArgumentTypeFromExpected() {
+    let (context, _) = runTypeResolver(
+        ["struct S { init() {} }\nfunc main() { let f: (S) -> S = { $0 } }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func selfKeywordTypeIsEnclosing() {
+    let (context, _) = runTypeResolver(
+        ["struct S { init() {} func f() -> S { Self } }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func keyPathExpressionInferred() {
+    let (context, _) = runTypeResolver(
+        ["struct S { init() {} var x: S }\nfunc main() { let kp = \\.x }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func voidLiteralType() throws {
+    let (_, programs) = runTypeResolver(["func main() { let x = () }"])
+    let functionDecl = try #require(programs[0].statements[0] as? AST.FunctionDecl)
+    let body = try #require(functionDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let variableDecl = try #require(statements[0] as? AST.VariableDecl)
+    #expect(variableDecl.symbol?.type is TrussType.VoidType)
+}
+
+
+@Test func genericApplicationValueType() throws {
+    let (context, programs) = runTypeResolver(
+        ["struct Box<T> { init() {} }\nstruct S { init() {} }\nfunc main() { let b = Box<S> }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+    let functionDecl = try #require(programs[0].statements[2] as? AST.FunctionDecl)
+    let body = try #require(functionDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let variableDecl = try #require(statements[0] as? AST.VariableDecl)
+    #expect(variableDecl.symbol?.type is TrussType.GenericInstantiation)
 }

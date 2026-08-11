@@ -203,7 +203,7 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
 @Test func driverFoldsGenericApplication() throws {
     let file = try writeTemp(
         "generic.truss",
-        "struct Box {}\nfunc main() { Box<Int32> }\n"
+        "struct Box {}\nstruct S {}\nfunc main() { Box<S> }\n"
     )
     let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
     #expect(!result.hasErrors)
