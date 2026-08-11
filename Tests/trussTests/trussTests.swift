@@ -188,7 +188,7 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
         "precedencegroup Multiplicative {}\nprefix operator - infix operator -: Multiplicative\n"
             + "infix operator *: Multiplicative\n"
             + "struct S {}\n"
-            + "func -(x: S) -> S { x }\n"
+            + "func -(prefixValue: S) -> S { prefixValue }\n"
             + "func *(lhs: S, rhs: S) -> S { lhs }\n"
             + "let a: S\n"
             + "let b: S\n"

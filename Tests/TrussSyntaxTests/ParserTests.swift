@@ -6401,7 +6401,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 // MARK: - Operator Function Declarations
 
 @Test func parseOperatorFunctionDeclaration() throws {
-    let statements = parseStatements("func +(a: Int32, b: Int32) -> Int32 { a }")
+    let statements = parseStatements("func +(lhs: Int32, rhs: Int32) -> Int32 { lhs }")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -6414,7 +6414,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parsePrefixOperatorFunctionDeclaration() throws {
-    let statements = parseStatements("func -(_ a: Int32) -> Int32 { a }")
+    let statements = parseStatements("func -(prefixValue: Int32) -> Int32 { prefixValue }")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)

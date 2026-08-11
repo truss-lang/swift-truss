@@ -468,7 +468,7 @@ func lex(_ source: String) -> [Token] {
     try #require(tokens.count == 2)
     #expect(tokens[0].kind == .Operator(nil))
     #expect(tokens[0].value == "<>>")
-    #expect(tokens[1].kind == .Operator(nil))
+    #expect(tokens[1].kind == .Operator(.Identical))
     #expect(tokens[1].value == "===")
 }
 

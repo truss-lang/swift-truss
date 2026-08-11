@@ -319,15 +319,15 @@ import TrussCore
             |-ClassDecl Base sym:Base#2
             |-StructDecl S sym:S#3
             | `-Conformance
-            |   `-Variable P1 ty:ProtocolType(P1)#0 sym:P1#1
+            |   `-Variable P1 sym:P1#1
             |-ClassDecl C sym:C#4 super:Base#2
             | |-Conformance
-            | | `-Variable Base ty:ClassType(Base)#1 sym:Base#2
+            | | `-Variable Base sym:Base#2
             | `-Conformance
-            |   `-Variable P1 ty:ProtocolType(P1)#0 sym:P1#1
+            |   `-Variable P1 sym:P1#1
             |-EnumDecl E sym:E#5
             | `-Conformance
-            |   `-Variable P1 ty:ProtocolType(P1)#0 sym:P1#1
+            |   `-Variable P1 sym:P1#1
             `-ActorDecl A sym:A#6
             """
     )
@@ -360,7 +360,7 @@ import TrussCore
             |     `-Variable Int ty:ErrorType
             `-FunctionDecl g sym:g#6
               `-ExpressionStatement
-                `-Call
+                `-Call ty:VoidType overloads:2 [f(a:, b: =), f(xs: ...)]
                   |-Variable f overloads:2 [f(a:, b: =), f(xs: ...)]
                   `-Argument label:a
                     `-IntegerLiteral 1
@@ -405,7 +405,7 @@ import TrussCore
             |   |-ReturnType
             |   | `-Variable Int ty:ErrorType
             |   `-Return
-            |     `-Variable x sym:x#6
+            |     `-Variable x ty:ErrorType sym:x#6
             |-TypeAliasDecl T sym:T#2
             | `-Variable S ty:StructType(S)#0 sym:S#1
             |-ProtocolDecl Q sym:Q#3
@@ -415,7 +415,7 @@ import TrussCore
                 |-Element a sym:a#11
                 `-Element b sym:b#12
                   `-AssociatedValue x:
-                    `-Variable Int
+                    `-Variable Int ty:ErrorType
             """
     )
 }

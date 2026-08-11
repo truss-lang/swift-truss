@@ -13,8 +13,8 @@ import TrussSemantics
 }
 
 @Test func noAnnotationLeavesTypeNil() {
-    let (_, programs) = runTypeResolver(["func f() {}\nlet x = f()"])
-    let variableDecl = programs[0].statements[1] as! AST.VariableDecl
+    let (_, programs) = runTypeResolver(["let x = unknown"])
+    let variableDecl = programs[0].statements[0] as! AST.VariableDecl
     #expect(variableDecl.symbol?.type == nil)
 }
 
@@ -219,12 +219,12 @@ import TrussSemantics
     #expect(typeExpression.ty is TrussType.StructType)
 }
 
-@Test func castRightTypeOnly() throws {
+@Test func castExpressionTypeIsTarget() throws {
     let (_, programs) = runTypeResolver(["struct S {}\nlet x = y as S"])
     let variableDecl = programs[0].statements[1] as! AST.VariableDecl
     let cast = try #require(variableDecl.initializer as? AST.CastExpression)
     #expect(cast.right.ty is TrussType.StructType)
-    #expect(cast.ty == nil)
+    #expect(cast.ty is TrussType.StructType)
 }
 
 @Test func callReturnTypeResolved() throws {
@@ -332,7 +332,7 @@ import TrussSemantics
          _) =
         runTypeResolver(
             [
-                "struct S { init() {} }\nstruct T { init() {} }\nfunc f(x: S) {}\nfunc f(x: T) {}\nfunc makeT() -> T { T() }\nf(makeT())",
+                "struct S { init() {} }\nstruct T { init() {} }\nstruct U { init() {} }\nfunc f(x: S) {}\nfunc f(x: T) {}\nfunc makeU() -> U { U() }\nfunc main() { f(makeU()) }",
             ]
         )
     #expect(context.diagnositicEngine.hasErrors)
