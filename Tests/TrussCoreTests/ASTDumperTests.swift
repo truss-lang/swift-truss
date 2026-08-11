@@ -327,7 +327,7 @@ import TrussCore
             |   `-Variable P1 sym:P1#1
             |-EnumDecl E sym:E#5
             | `-Conformance
-            |   `-Variable P1 sym:P1#1
+            |   `-Variable P1 ty:ProtocolType(P1)#0 sym:P1#1
             `-ActorDecl A sym:A#6
             """
     )
@@ -474,7 +474,7 @@ import TrussCore
             |       `-Variable A ty:StructType(S)#0 sym:A#4
             |-VariableDecl p sym:p#12
             | `-Type
-            |   `-SequentialExpression & ty:Composition(ProtocolType(P)#2 & ProtocolType(Q)#3)
+            |   `-ProtocolCompositionType & ty:Composition(ProtocolType(P)#2 & ProtocolType(Q)#3)
             |     |-Variable P ty:ProtocolType(P)#2 sym:P#5
             |     `-Variable Q ty:ProtocolType(Q)#3 sym:Q#6
             |-ProtocolDecl P sym:P#5

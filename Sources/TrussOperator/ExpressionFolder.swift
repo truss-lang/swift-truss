@@ -44,8 +44,10 @@ public final class ExpressionFolder: AST.Rewriter {
         if rewritten.ops.allSatisfy({ op in
             if case .Operator(.BitAnd) = op.kind { return true }
             return false
-        }) {
-            return rewritten
+        }), rewritten.operands.allSatisfy({ isTypeSymbol(baseSymbol($0)) }) {
+            return AST.ProtocolCompositionType(
+                rewritten.operands, sourceRange: rewritten.sourceRange
+            )
         }
         guard let folded = foldGeneric(rewritten) ?? fold(rewritten) else { return rewritten }
         return folded
@@ -56,6 +58,14 @@ public final class ExpressionFolder: AST.Rewriter {
         let (application, restOps, restOperands) = extraction
         if restOps.isEmpty, restOperands.isEmpty {
             return application
+        }
+        if restOps.allSatisfy({ op in
+            if case .Operator(.BitAnd) = op.kind { return true }
+            return false
+        }), restOperands.allSatisfy({ isTypeSymbol(baseSymbol($0)) }) {
+            return AST.ProtocolCompositionType(
+                [application] + restOperands, sourceRange: sequence.sourceRange
+            )
         }
         guard let folded = foldRest(
             sequence, head: application, ops: restOps, operands: restOperands
