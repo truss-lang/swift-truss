@@ -2057,6 +2057,15 @@ public final class TypeChecker: AST.Visitor {
         case let binary as AST.Binary:
             _ = infer(binary.left, at: token)
             _ = infer(binary.right, at: token)
+            if binary.operatorToken.value == "=" {
+                if let leftType = binary.left.ty, let rightType = binary.right.ty,
+                   !canCoerce(rightType, to: leftType, at: token)
+                {
+                    emitMismatch(at: binary.operatorToken, expected: leftType, found: rightType)
+                }
+                binary.ty = binary.left.ty
+                break
+            }
             let freeCandidates = lookupOperatorFunctions(binary.operatorToken.value)
             let leftStaticCandidates = memberOperatorCandidates(
                 binary.operatorToken.value, in: binary.left.ty, isStatic: true

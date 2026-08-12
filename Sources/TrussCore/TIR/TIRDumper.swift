@@ -102,6 +102,9 @@ public extension TIR {
             if let genericSignature = function.genericSignature {
                 lines.append("  " + signatureText(genericSignature))
             }
+            for argument in function.arguments {
+                lines.append("  " + argument.name + " = argument " + typeText(argument.type))
+            }
             for block in function.blocks {
                 lines.append(block.name + ":")
                 for argument in block.arguments {

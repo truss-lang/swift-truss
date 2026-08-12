@@ -1327,3 +1327,22 @@ import TrussSemantics
     )
     #expect(context.diagnositicEngine.hasErrors)
 }
+
+@Test func assignmentDoesNotRequireOperatorFunction() {
+    let (context, _) = runTypeChecker(
+        [
+            "precedencegroup Assignment { assignment: true }\ninfix operator =: Assignment\nstruct TT { init() {} }\nstruct TS { var x: TT = TT() var y: TT = TT() init() {} }\nfunc f(s: TS) -> TT { s.y = TT() return s.x }",
+        ]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func assignmentMismatchReportsExpectedFound() {
+    let (context, _) = runTypeChecker(
+        [
+            "precedencegroup Assignment { assignment: true }\ninfix operator =: Assignment\nstruct TT { init() {} }\nstruct UU { init() {} }\nstruct TS { var y: TT = TT() init() {} }\nfunc f(s: TS, u: UU) { s.y = u }",
+        ]
+    )
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("expected 'TT', found 'UU'"))
+}

@@ -134,22 +134,30 @@ public final class TIRGen: AST.Visitor {
         guard !decl.accessors.isEmpty, let symbol = decl.symbol else { return }
         let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.TupleType([])
         for accessor in decl.accessors {
-            let kindName: String
+            let (kindName, suffix): (String, String)
             switch accessor.kind {
             case .Get:
                 kindName = "get"
+                suffix = "Getter"
             case .Set:
                 kindName = "set"
-            case .WillSet, .DidSet:
-                continue
+                suffix = "Setter"
+            case .WillSet:
+                kindName = "willSet"
+                suffix = "WillSet"
+            case .DidSet:
+                kindName = "didSet"
+                suffix = "DidSet"
             }
             let function: TIR.Function = if accessor.kind == .Get {
                 createFunction(
-                    nil, name: "\(symbol.name)Getter", returnType: propertyType
+                    nil, name: mangleAccessorName(symbol, suffix: suffix),
+                    returnType: propertyType
                 )
             } else {
                 createFunction(
-                    nil, name: "\(symbol.name)Setter", returnType: TIRType.TupleType([])
+                    nil, name: mangleAccessorName(symbol, suffix: suffix),
+                    returnType: TIRType.TupleType([])
                 )
             }
             accessorFunctions[symbol.id, default: [:]][kindName] = function
@@ -193,7 +201,12 @@ public final class TIRGen: AST.Visitor {
         builder.emit(TIR.Store(selfArgument, to: selfAddress, sourceRange: emptyRange))
         env[typeSymbol.id] = selfAddress
 
-        if accessor.kind == .Set, let parameterName = accessor.parameterName {
+        switch accessor.kind {
+        case .Get:
+            break
+        case .Set, .WillSet, .DidSet:
+            let parameterName = accessor.parameterName?.value
+                ?? (accessor.kind == .DidSet ? "oldValue" : "newValue")
             let newValueArgument = builder.createArgument(
                 type: propertyType, ownership: typeLower.ownership(for: propertyType)
             )
@@ -205,7 +218,7 @@ public final class TIRGen: AST.Visitor {
             builder.emit(
                 TIR.Store(newValueArgument, to: newValueAddress, sourceRange: emptyRange)
             )
-            if let variableSymbol = accessor.scope?.values[parameterName.value]?
+            if let variableSymbol = accessor.scope?.values[parameterName]?
                 .compactMap({ $0 as? Symbol.VariableSymbol }).first
             {
                 env[variableSymbol.id] = newValueAddress
@@ -602,6 +615,22 @@ public final class TIRGen: AST.Visitor {
     private func mangleGlobalName(_ symbol: Symbol.VariableSymbol) -> String {
         let packageName = symbol.packageId.flatMap { context.id2Symbol[$0]?.name } ?? "main"
         return "$t" + mangleIdentifier(packageName) + mangleIdentifier(symbol.name)
+    }
+
+    private func mangleAccessorName(_ symbol: Symbol.VariableSymbol, suffix: String) -> String {
+        var result = "$t"
+        let packageName = symbol.packageId.flatMap { context.id2Symbol[$0]?.name } ?? "main"
+        result += mangleIdentifier(packageName)
+        if let module = symbol.moduleSymbol {
+            result += mangleIdentifier(module.name)
+        }
+        if let memberOf = symbol.memberOf, let owner = context.id2Symbol[memberOf] {
+            result += mangleIdentifier(owner.name)
+        }
+        result += mangleIdentifier(symbol.name)
+        result += suffix
+        result += "F"
+        return result
     }
 
     @discardableResult
@@ -1175,7 +1204,61 @@ public final class TIRGen: AST.Visitor {
             }
             return loaded
         }
+        if let memberOf = symbol.memberOf, let selfAddress = env[memberOf],
+           let property = symbol as? Symbol.VariableSymbol
+        {
+            return loadImplicitProperty(property, selfAddress: selfAddress, at: variable.sourceRange)
+        }
         return nil
+    }
+
+    private func loadImplicitProperty(
+        _ symbol: Symbol.VariableSymbol, selfAddress: TIR.Value, at range: SourceRange
+    ) -> TIR.Value? {
+        guard let builder else { return nil }
+        if let getter = accessorFunctions[symbol.id]?["get"] {
+            let selfValue = loadFrom(selfAddress, range: range) ?? selfAddress
+            let callee = builder.emitWithResult(
+                TIR.FunctionRef(getter, sourceRange: range),
+                type: accessorType(getter, withValue: false), ownership: .Trivial
+            )
+            return builder.emitWithResult(
+                TIR.Apply(
+                    callee: callee, arguments: [selfValue], substitutions: [],
+                    sourceRange: range
+                ),
+                type: getter.returnType, ownership: typeLower.ownership(for: getter.returnType)
+            )
+        }
+        let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        guard let address = implicitPropertyElementAddress(
+            symbol, selfAddress: selfAddress, propertyType: propertyType, range: range
+        ) else {
+            return nil
+        }
+        return loadFrom(address, range: range)
+    }
+
+    private func implicitPropertyElementAddress(
+        _ symbol: Symbol.VariableSymbol, selfAddress: TIR.Value, propertyType: TIRType.TIRType,
+        range: SourceRange
+    ) -> TIR.Value? {
+        guard let builder, let memberOf = symbol.memberOf,
+              let owner = context.id2Symbol[memberOf]
+        else {
+            return nil
+        }
+        let isClass = owner is Symbol.ClassSymbol || owner is Symbol.ActorSymbol
+        return builder.emitWithResult(
+            isClass
+                ? TIR.RefElementAddr(
+                    selfAddress, fieldIndex: 0, fieldName: symbol.name, sourceRange: range
+                )
+                : TIR.StructElementAddr(
+                    selfAddress, fieldIndex: 0, fieldName: symbol.name, sourceRange: range
+                ),
+            type: TIRType.AddressType(propertyType), ownership: .Inout
+        )
     }
 
     private func loadFrom(_ address: TIR.Value, range: SourceRange) -> TIR.Value? {
@@ -1350,6 +1433,15 @@ public final class TIRGen: AST.Visitor {
         )
     }
 
+    private func accessorType(_ function: TIR.Function, withValue: Bool) -> TIRType.TIRType {
+        let selfType = function.arguments.first?.type ?? TIRType.TupleType([])
+        var parameters = [TIRType.FunctionType.Parameter(label: nil, type: selfType)]
+        if withValue, let valueType = function.arguments[safe: 1]?.type {
+            parameters.append(TIRType.FunctionType.Parameter(label: nil, type: valueType))
+        }
+        return TIRType.FunctionType(parameters: parameters, returnType: function.returnType)
+    }
+
     private func functionRefValue(_ symbol: Symbol.FunctionSymbol, at range: SourceRange) -> TIR.Value? {
         guard let builder, let function = functionsBySymbol[symbol.id] else { return nil }
         let functionType = symbol.functionType.map { typeLower.lower($0) } ?? TIRType.TupleType([])
@@ -1463,6 +1555,9 @@ public final class TIRGen: AST.Visitor {
     @discardableResult
     public override func visitBinary(_ binary: AST.Binary, additional: Any? = nil) -> Any? {
         guard let builder else { return nil }
+        if binary.operatorToken.value == "=" {
+            return emitAssignment(binary)
+        }
         let left = visitExpression(binary.left)
         let right = visitExpression(binary.right)
         guard let functionSymbol = binary.symbol, let function = functionsBySymbol[functionSymbol.id]
@@ -1483,6 +1578,148 @@ public final class TIRGen: AST.Visitor {
                 sourceRange: binary.sourceRange
             ),
             type: resultType, ownership: typeLower.ownership(for: resultType)
+        )
+    }
+
+    private func emitAssignment(_ binary: AST.Binary) -> TIR.Value? {
+        guard let builder else { return nil }
+        let range = binary.sourceRange
+        guard let value = visitExpression(binary.right) else { return nil }
+        if let member = binary.left as? AST.MemberAccess,
+           let symbol = member.symbol as? Symbol.VariableSymbol
+        {
+            return emitPropertyAssignment(member, symbol: symbol, value: value, range: range)
+        }
+        if let variable = binary.left as? AST.Variable, let symbol = variable.symbol {
+            if let address = env[symbol.id] {
+                builder.emit(TIR.Store(value, to: address, sourceRange: range))
+                return value
+            }
+            if let memberOf = symbol.memberOf, let selfAddress = env[memberOf],
+               let property = symbol as? Symbol.VariableSymbol
+            {
+                return emitImplicitPropertyAssignment(
+                    property, selfAddress: selfAddress, value: value, range: range
+                )
+            }
+        }
+        return nil
+    }
+
+    private func emitImplicitPropertyAssignment(
+        _ symbol: Symbol.VariableSymbol, selfAddress: TIR.Value, value: TIR.Value,
+        range: SourceRange
+    ) -> TIR.Value? {
+        guard let builder else { return nil }
+        let accessors = accessorFunctions[symbol.id] ?? [:]
+        let selfValue = loadFrom(selfAddress, range: range) ?? selfAddress
+        if let setter = accessors["set"] {
+            emitAccessorCall(setter, arguments: [selfValue, value], range: range)
+            return value
+        }
+        if accessors["get"] != nil {
+            return nil
+        }
+        let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        guard let address = implicitPropertyElementAddress(
+            symbol, selfAddress: selfAddress, propertyType: propertyType, range: range
+        ) else {
+            return nil
+        }
+        if let willSet = accessors["willSet"] {
+            emitAccessorCall(willSet, arguments: [selfValue, value], range: range)
+        }
+        if let didSet = accessors["didSet"] {
+            let oldValue = builder.emitWithResult(
+                TIR.Load(address, sourceRange: range),
+                type: propertyType, ownership: typeLower.ownership(for: propertyType)
+            )
+            builder.emit(TIR.Store(value, to: address, sourceRange: range))
+            emitAccessorCall(didSet, arguments: [selfValue, oldValue], range: range)
+        } else {
+            builder.emit(TIR.Store(value, to: address, sourceRange: range))
+        }
+        return value
+    }
+
+    private func emitPropertyAssignment(
+        _ member: AST.MemberAccess, symbol: Symbol.VariableSymbol, value: TIR.Value,
+        range: SourceRange
+    ) -> TIR.Value? {
+        guard let builder else { return nil }
+        let accessors = accessorFunctions[symbol.id] ?? [:]
+        if accessors["set"] != nil, let object = visitExpression(member.object) {
+            emitAccessorCall(accessors["set"]!, arguments: [object, value], range: range)
+            return value
+        }
+        if accessors["get"] != nil {
+            return nil
+        }
+        guard let object = visitExpression(member.object) else { return nil }
+        let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let base: TIR.Value = if let variable = member.object as? AST.Variable,
+                                 let variableSymbol = variable.symbol,
+                                 let address = env[variableSymbol.id]
+        {
+            address
+        } else {
+            object
+        }
+        guard let address = propertyElementAddress(
+            member, base: base, propertyType: propertyType, range: range
+        ) else {
+            return nil
+        }
+        if let willSet = accessors["willSet"] {
+            emitAccessorCall(willSet, arguments: [object, value], range: range)
+        }
+        if let didSet = accessors["didSet"] {
+            let oldValue = builder.emitWithResult(
+                TIR.Load(address, sourceRange: range),
+                type: propertyType, ownership: typeLower.ownership(for: propertyType)
+            )
+            builder.emit(TIR.Store(value, to: address, sourceRange: range))
+            emitAccessorCall(didSet, arguments: [object, oldValue], range: range)
+        } else {
+            builder.emit(TIR.Store(value, to: address, sourceRange: range))
+        }
+        return value
+    }
+
+    private func emitAccessorCall(
+        _ function: TIR.Function, arguments: [TIR.Value], range: SourceRange
+    ) {
+        guard let builder else { return }
+        let callee = builder.emitWithResult(
+            TIR.FunctionRef(function, sourceRange: range),
+            type: accessorType(function, withValue: !arguments.isEmpty), ownership: .Trivial
+        )
+        builder.emitWithResult(
+            TIR.Apply(
+                callee: callee, arguments: arguments, substitutions: [],
+                sourceRange: range
+            ),
+            type: TIRType.TupleType([]), ownership: .Trivial
+        )
+    }
+
+    private func propertyElementAddress(
+        _ member: AST.MemberAccess, base: TIR.Value, propertyType: TIRType.TIRType,
+        range: SourceRange
+    ) -> TIR.Value? {
+        guard let builder else { return nil }
+        let isClass = isReferenceType(member.object.ty)
+        return builder.emitWithResult(
+            isClass
+                ? TIR.RefElementAddr(
+                    base, fieldIndex: 0, fieldName: member.member.value,
+                    sourceRange: range
+                )
+                : TIR.StructElementAddr(
+                    base, fieldIndex: 0, fieldName: member.member.value,
+                    sourceRange: range
+                ),
+            type: TIRType.AddressType(propertyType), ownership: .Inout
         )
     }
 

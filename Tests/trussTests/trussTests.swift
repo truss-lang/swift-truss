@@ -264,3 +264,29 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.hasErrors)
     #expect(result.stderr.contains("expected 'S', found 'T'"))
 }
+
+@Test func driverAssignmentToPropertyEndToEnd() throws {
+    let file = try writeTemp(
+        "assign.truss",
+        """
+        precedencegroup Assignment { assignment: true }
+        infix operator =: Assignment
+        struct TT {
+            init() {}
+        }
+        struct TS {
+            var x: TT = TT()
+            var y: TT = TT()
+            init() {}
+        }
+        func f(s: TS) -> TT {
+            s.y = TT()
+            return s.x
+        }
+        """
+    )
+    let result = Driver(config: DriverConfig(dumpTIR: true)).run(files: [file])
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("StructElementAddr"))
+    #expect(result.stdout.contains("Store "))
+}
