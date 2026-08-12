@@ -14,6 +14,13 @@ public final class TIRGen: AST.Visitor {
     private var errorTargets: [TIR.BasicBlock] = []
     private var closureParamValues: [[TIR.Value]] = []
     private var closureCounter = 0
+    private var globalsBySymbol: [Id.SymbolId: TIR.GlobalVariable] = [:]
+    private var propertyInitializers: [Id.SymbolId: [(Symbol.VariableSymbol, AST.Expression)]] =
+        [:]
+    private var accessorFunctions: [Id.SymbolId: [String: TIR.Function]] = [:]
+    private var initFunctionsByType: [Id.SymbolId: TIR.Function] = [:]
+    private var collectTypeStack: [Symbol.NominalTypeSymbol] = []
+    private var counter = 0
 
     private struct BreakTarget {
         let label: String?
@@ -49,16 +56,26 @@ public final class TIRGen: AST.Visitor {
                 collectDeinit(decl)
             case let decl as AST.SubscriptDecl:
                 collectSubscript(decl)
+            case let decl as AST.VariableDecl:
+                collectVariable(decl)
             case let decl as AST.ModuleDecl:
                 collectStatements(decl.body)
             case let decl as AST.StructDecl:
+                collectTypeStack.append(decl.symbol ?? Symbol.StructSymbol(id: Id.SymbolId(id: 0), name: ""))
                 collectStatements(decl.body)
+                collectTypeStack.removeLast()
             case let decl as AST.ClassDecl:
+                collectTypeStack.append(decl.symbol ?? Symbol.ClassSymbol(id: Id.SymbolId(id: 0), name: ""))
                 collectStatements(decl.body)
+                collectTypeStack.removeLast()
             case let decl as AST.EnumDecl:
+                collectTypeStack.append(decl.symbol ?? Symbol.EnumSymbol(id: Id.SymbolId(id: 0), name: ""))
                 collectStatements(decl.body)
+                collectTypeStack.removeLast()
             case let decl as AST.ActorDecl:
+                collectTypeStack.append(decl.symbol ?? Symbol.ActorSymbol(id: Id.SymbolId(id: 0), name: ""))
                 collectStatements(decl.body)
+                collectTypeStack.removeLast()
             case let decl as AST.ProtocolDecl:
                 collectStatements(decl.body)
             case let decl as AST.ExtensionDecl:
@@ -85,12 +102,15 @@ public final class TIRGen: AST.Visitor {
     private func collectInit(_ decl: AST.InitDecl) {
         guard let symbol = decl.symbol else { return }
         let throwsTypes = symbol.functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
-        createFunction(
+        let function = createFunction(
             symbol, name: mangleFunctionName(symbol, baseName: "init"),
             returnType: TIRType.TupleType([]),
             isAsync: decl.asyncToken != nil, isThrowing: symbol.functionType?.isThrowing ?? false,
             throwsTypes: throwsTypes
         )
+        if let memberOf = symbol.memberOf {
+            initFunctionsByType[memberOf] = function
+        }
     }
 
     private func collectDeinit(_ decl: AST.DeinitDecl) {
@@ -108,6 +128,111 @@ public final class TIRGen: AST.Visitor {
             isAsync: decl.asyncToken != nil, isThrowing: functionType?.isThrowing ?? false,
             throwsTypes: throwsTypes
         )
+    }
+
+    private func collectVariable(_ decl: AST.VariableDecl) {
+        guard !decl.accessors.isEmpty, let symbol = decl.symbol else { return }
+        let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        for accessor in decl.accessors {
+            let kindName: String
+            switch accessor.kind {
+            case .Get:
+                kindName = "get"
+            case .Set:
+                kindName = "set"
+            case .WillSet, .DidSet:
+                continue
+            }
+            let function: TIR.Function = if accessor.kind == .Get {
+                createFunction(
+                    nil, name: "\(symbol.name)Getter", returnType: propertyType
+                )
+            } else {
+                createFunction(
+                    nil, name: "\(symbol.name)Setter", returnType: TIRType.TupleType([])
+                )
+            }
+            accessorFunctions[symbol.id, default: [:]][kindName] = function
+            lowerAccessorBody(
+                accessor, function: function, propertySymbol: symbol, propertyType: propertyType
+            )
+        }
+    }
+
+    private func lowerAccessorBody(
+        _ accessor: AST.Accessor, function: TIR.Function,
+        propertySymbol: Symbol.VariableSymbol, propertyType: TIRType.TIRType
+    ) {
+        guard let typeSymbol = collectTypeStack.last else { return }
+        let savedBuilder = builder
+        let savedEnv = env
+        let savedCaptured = capturedCells
+        let savedBreak = breakStack
+        let savedDefer = deferStack
+        let savedError = errorTargets
+        let savedClosureParams = closureParamValues
+
+        let builder = TIRBuilder(function: function)
+        self.builder = builder
+        env = [:]
+        capturedCells = []
+        breakStack = []
+        deferStack = []
+        errorTargets = []
+        closureParamValues = []
+
+        let selfType = ownerType(typeSymbol) ?? TIRType.TupleType([])
+        let selfArgument = builder.createArgument(
+            type: selfType, ownership: typeLower.ownership(for: selfType)
+        )
+        function.arguments.append(selfArgument)
+        let selfAddress = builder.emitWithResult(
+            TIR.AllocStack(selfType, sourceRange: emptyRange),
+            type: TIRType.AddressType(selfType), ownership: .Inout
+        )
+        builder.emit(TIR.Store(selfArgument, to: selfAddress, sourceRange: emptyRange))
+        env[typeSymbol.id] = selfAddress
+
+        if accessor.kind == .Set, let parameterName = accessor.parameterName {
+            let newValueArgument = builder.createArgument(
+                type: propertyType, ownership: typeLower.ownership(for: propertyType)
+            )
+            function.arguments.append(newValueArgument)
+            let newValueAddress = builder.emitWithResult(
+                TIR.AllocStack(propertyType, sourceRange: emptyRange),
+                type: TIRType.AddressType(propertyType), ownership: .Inout
+            )
+            builder.emit(
+                TIR.Store(newValueArgument, to: newValueAddress, sourceRange: emptyRange)
+            )
+            if let variableSymbol = accessor.scope?.values[parameterName.value]?
+                .compactMap({ $0 as? Symbol.VariableSymbol }).first
+            {
+                env[variableSymbol.id] = newValueAddress
+            }
+        }
+
+        switch accessor.body {
+        case let .Block(statements):
+            for statement in statements {
+                visit(statement)
+            }
+        case let .Expression(expression):
+            if let value = visitExpression(expression) {
+                emitReturn(value, range: emptyRange)
+            } else {
+                emitReturn(nil, range: emptyRange)
+            }
+        }
+        ensureTerminator(range: emptyRange)
+
+        self.builder = savedBuilder
+        env = savedEnv
+        capturedCells = savedCaptured
+        breakStack = savedBreak
+        deferStack = savedDefer
+        errorTargets = savedError
+        closureParamValues = savedClosureParams
     }
 
     private func mangleFunctionName(_ symbol: Symbol.FunctionSymbol, baseName: String) -> String {
@@ -255,6 +380,9 @@ public final class TIRGen: AST.Visitor {
 
         bindSelfIfNeeded(function: function, symbol: symbol, hasSelf: hasSelf)
         bindParameters(function: function, symbol: symbol, parameters: parameters)
+        initializeStoredProperties(
+            function: function, symbol: symbol, hasSelf: hasSelf, range: range
+        )
 
         switch body {
         case let .Block(statements):
@@ -335,6 +463,44 @@ public final class TIRGen: AST.Visitor {
         return symbol.scope.values[name]?.compactMap { $0 as? Symbol.VariableSymbol }.first
     }
 
+    private func initializeStoredProperties(
+        function: TIR.Function, symbol: Symbol.FunctionSymbol?, hasSelf: Bool, range: SourceRange
+    ) {
+        guard let builder, hasSelf, let symbol, let memberOf = symbol.memberOf,
+              let initializers = propertyInitializers[memberOf], !initializers.isEmpty,
+              let owner = context.id2Symbol[memberOf]
+        else {
+            return
+        }
+        guard let selfAddress = env[memberOf] else { return }
+        let isClass = owner is Symbol.ClassSymbol || owner is Symbol.ActorSymbol
+        for (propertySymbol, initializer) in initializers {
+            let propertyType = propertySymbol.type.map { typeLower.lower($0) }
+                ?? (initializer.ty).map { typeLower.lower($0) }
+                ?? TIRType.TupleType([])
+            let fieldAddress: TIR.Value = if isClass {
+                builder.emitWithResult(
+                    TIR.RefElementAddr(
+                        selfAddress, fieldIndex: 0, fieldName: propertySymbol.name,
+                        sourceRange: range
+                    ),
+                    type: TIRType.AddressType(propertyType), ownership: .Inout
+                )
+            } else {
+                builder.emitWithResult(
+                    TIR.StructElementAddr(
+                        selfAddress, fieldIndex: 0, fieldName: propertySymbol.name,
+                        sourceRange: range
+                    ),
+                    type: TIRType.AddressType(propertyType), ownership: .Inout
+                )
+            }
+            if let value = visitExpression(initializer) {
+                builder.emit(TIR.Store(value, to: fieldAddress, sourceRange: range))
+            }
+        }
+    }
+
     private func ownerType(_ owner: Symbol.Symbol) -> TIRType.TIRType? {
         guard let nominal = owner as? Symbol.NominalTypeSymbol, let typeId = nominal.typeId,
               let type = context.typeTable[typeId]
@@ -371,7 +537,20 @@ public final class TIRGen: AST.Visitor {
     public override func visitVariableDecl(
         _ variableDecl: AST.VariableDecl, additional: Any? = nil
     ) -> Any? {
-        guard let builder, let symbol = variableDecl.symbol else { return nil }
+        guard let symbol = variableDecl.symbol else { return nil }
+        if builder == nil {
+            if symbol.memberOf != nil {
+                if let initializer = variableDecl.initializer {
+                    propertyInitializers[symbol.memberOf!, default: []].append(
+                        (symbol, initializer)
+                    )
+                }
+                return nil
+            }
+            lowerGlobalVariable(variableDecl, symbol: symbol)
+            return nil
+        }
+        guard let builder else { return nil }
         let type = symbol.type.map { typeLower.lower($0) }
             ?? (variableDecl.initializer?.ty).map { typeLower.lower($0) }
             ?? TIRType.TupleType([])
@@ -384,6 +563,45 @@ public final class TIRGen: AST.Visitor {
             builder.emit(TIR.Store(value, to: address, sourceRange: variableDecl.sourceRange))
         }
         return nil
+    }
+
+    private func lowerGlobalVariable(
+        _ variableDecl: AST.VariableDecl, symbol: Symbol.VariableSymbol
+    ) {
+        let type = symbol.type.map { typeLower.lower($0) }
+            ?? (variableDecl.initializer?.ty).map { typeLower.lower($0) }
+            ?? TIRType.TupleType([])
+        let global = TIR.GlobalVariable(name: mangleGlobalName(symbol), type: type)
+        global.symbol = symbol
+        module.globals.append(global)
+        globalsBySymbol[symbol.id] = global
+        guard let initializer = variableDecl.initializer else { return }
+        let initFunction = TIR.Function(
+            name: "global-init-\(counter)", returnType: type
+        )
+        counter += 1
+        let savedBuilder = builder
+        let savedEnv = env
+        let initBuilder = TIRBuilder(function: initFunction)
+        builder = initBuilder
+        env = [:]
+        if let value = visitExpression(initializer) {
+            let address = initBuilder.emitWithResult(
+                TIR.GlobalAddr(global, sourceRange: variableDecl.sourceRange),
+                type: TIRType.AddressType(type), ownership: .Inout
+            )
+            initBuilder.emit(
+                TIR.Store(value, to: address, sourceRange: variableDecl.sourceRange)
+            )
+        }
+        global.initializer = initFunction.entryBlock.instructions
+        builder = savedBuilder
+        env = savedEnv
+    }
+
+    private func mangleGlobalName(_ symbol: Symbol.VariableSymbol) -> String {
+        let packageName = symbol.packageId.flatMap { context.id2Symbol[$0]?.name } ?? "main"
+        return "$t" + mangleIdentifier(packageName) + mangleIdentifier(symbol.name)
     }
 
     @discardableResult
@@ -642,7 +860,7 @@ public final class TIRGen: AST.Visitor {
             builder.emit(TIR.Branch(successBlock, sourceRange: range))
         case let member as AST.ImplicitMemberAccess:
             guard let caseSymbol = member.symbol as? Symbol.CaseSymbol,
-                  let enumType = enumTypeValue(for: caseSymbol)
+                  enumTypeValue(for: caseSymbol) != nil
             else {
                 builder.emit(TIR.Branch(failBlock, sourceRange: range))
                 return
@@ -660,7 +878,7 @@ public final class TIRGen: AST.Visitor {
             let calleeSymbol = (call.callee as? AST.ImplicitMemberAccess)?.symbol
                 ?? (call.callee as? AST.Variable)?.symbol
             guard let caseSymbol = calleeSymbol as? Symbol.CaseSymbol,
-                  let enumType = enumTypeValue(for: caseSymbol)
+                  enumTypeValue(for: caseSymbol) != nil
             else {
                 builder.emit(TIR.Branch(failBlock, sourceRange: range))
                 return
@@ -939,6 +1157,13 @@ public final class TIRGen: AST.Visitor {
         if let caseSymbol = symbol as? Symbol.CaseSymbol {
             return enumValue(caseSymbol, payload: nil, at: variable.sourceRange)
         }
+        if let global = globalsBySymbol[symbol.id] {
+            let address = builder.emitWithResult(
+                TIR.GlobalAddr(global, sourceRange: variable.sourceRange),
+                type: TIRType.AddressType(global.type), ownership: .Inout
+            )
+            return loadFrom(address, range: variable.sourceRange)
+        }
         if let address = env[symbol.id] {
             let loaded = loadFrom(address, range: variable.sourceRange)
             if capturedCells.contains(symbol.id) {
@@ -966,7 +1191,6 @@ public final class TIRGen: AST.Visitor {
     public override func visitSelfExpression(
         _ selfExpression: AST.SelfExpression, additional: Any? = nil
     ) -> Any? {
-        guard let builder else { return nil }
         if let symbol = selfExpression.symbol, let address = env[symbol.id] {
             return loadFrom(address, range: selfExpression.sourceRange)
         }
@@ -1081,6 +1305,14 @@ public final class TIRGen: AST.Visitor {
             {
                 return functionRefValue(functionSymbol, at: range)
             }
+            if let typeSymbol = variable.symbol as? Symbol.NominalTypeSymbol,
+               let initFunction = initFunctionsByType[typeSymbol.id]
+            {
+                return builder?.emitWithResult(
+                    TIR.FunctionRef(initFunction, sourceRange: range),
+                    type: TIRType.TupleType([]), ownership: .Trivial
+                )
+            }
             return visitExpression(callee)
         case let member as AST.MemberAccess:
             if let functionSymbol = member.symbol as? Symbol.FunctionSymbol
@@ -1108,6 +1340,14 @@ public final class TIRGen: AST.Visitor {
 
     private func methodType(_ symbol: Symbol.FunctionSymbol) -> TIRType.TIRType {
         symbol.functionType.map { typeLower.lower($0) } ?? TIRType.TupleType([])
+    }
+
+    private func getterType(_ getter: TIR.Function) -> TIRType.TIRType {
+        let selfType = getter.arguments.first?.type ?? TIRType.TupleType([])
+        return TIRType.FunctionType(
+            parameters: [TIRType.FunctionType.Parameter(label: nil, type: selfType)],
+            returnType: getter.returnType
+        )
     }
 
     private func functionRefValue(_ symbol: Symbol.FunctionSymbol, at range: SourceRange) -> TIR.Value? {
@@ -1140,6 +1380,21 @@ public final class TIRGen: AST.Visitor {
             return enumValue(caseSymbol, payload: nil, at: memberAccess.sourceRange)
         }
         guard let object = visitExpression(memberAccess.object) else { return nil }
+        if let variableSymbol = symbol as? Symbol.VariableSymbol,
+           let getter = accessorFunctions[variableSymbol.id]?["get"]
+        {
+            let callee = builder.emitWithResult(
+                TIR.FunctionRef(getter, sourceRange: memberAccess.sourceRange),
+                type: getterType(getter), ownership: .Trivial
+            )
+            return builder.emitWithResult(
+                TIR.Apply(
+                    callee: callee, arguments: [object], substitutions: [],
+                    sourceRange: memberAccess.sourceRange
+                ),
+                type: getter.returnType, ownership: typeLower.ownership(for: getter.returnType)
+            )
+        }
         let memberType = variableSymbolType(symbol) ?? TIRType.TupleType([])
         let isClass = isReferenceType(memberAccess.object.ty)
         let address: TIR.Value = if isClass {
