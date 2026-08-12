@@ -51,6 +51,10 @@ public enum TIRType {
         }
     }
 
+    public final class VoidType: TIRType {
+        public override init() {}
+    }
+
     public final class TupleType: TIRType {
         public struct Element {
             public let label: String?
@@ -62,9 +66,6 @@ public enum TIRType {
         }
 
         public let elements: [Element]
-        public override init() {
-            elements = []
-        }
 
         public init(_ elements: [Element]) {
             self.elements = elements

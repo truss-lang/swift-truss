@@ -181,7 +181,7 @@ import Testing
     try #require(setterBlock.contains("Store "))
 }
 
-@Test func dumpShowsFunctionArguments() throws {
+@Test func dumpShowsFunctionSignature() throws {
     let tir = dumpTIR(
         """
         struct S {}
@@ -190,5 +190,5 @@ import Testing
         }
         """
     )
-    try #require(tir.contains("= argument"))
+    try #require(tir.contains("function $t4main1f1a1SF (t4main1S#0) -> t4main1S#0"))
 }

@@ -15,8 +15,7 @@ public final class TIRGen: AST.Visitor {
     private var closureParamValues: [[TIR.Value]] = []
     private var closureCounter = 0
     private var globalsBySymbol: [Id.SymbolId: TIR.GlobalVariable] = [:]
-    private var propertyInitializers: [Id.SymbolId: [(Symbol.VariableSymbol, AST.Expression)]] =
-        [:]
+    private var propertyInitializers: [Id.SymbolId: [(Symbol.VariableSymbol, AST.Expression)]] = [:]
     private var accessorFunctions: [Id.SymbolId: [String: TIR.Function]] = [:]
     private var initFunctionsByType: [Id.SymbolId: TIR.Function] = [:]
     private var collectTypeStack: [Symbol.NominalTypeSymbol] = []
@@ -89,7 +88,7 @@ public final class TIRGen: AST.Visitor {
     private func collectFunction(_ decl: AST.FunctionDecl) {
         guard let symbol = decl.symbol else { return }
         let functionType = symbol.functionType
-        let returnType = functionType.map { typeLower.lower($0.returnType) } ?? TIRType.TupleType([])
+        let returnType = functionType.map { typeLower.lower($0.returnType) } ?? TIRType.VoidType()
         let throwsTypes = functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
         createFunction(
             symbol, name: mangleFunctionName(symbol, baseName: decl.name.value),
@@ -104,7 +103,7 @@ public final class TIRGen: AST.Visitor {
         let throwsTypes = symbol.functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
         let function = createFunction(
             symbol, name: mangleFunctionName(symbol, baseName: "init"),
-            returnType: TIRType.TupleType([]),
+            returnType: TIRType.VoidType(),
             isAsync: decl.asyncToken != nil, isThrowing: symbol.functionType?.isThrowing ?? false,
             throwsTypes: throwsTypes
         )
@@ -114,13 +113,13 @@ public final class TIRGen: AST.Visitor {
     }
 
     private func collectDeinit(_ decl: AST.DeinitDecl) {
-        createFunction(nil, name: "deinit", returnType: TIRType.TupleType([]))
+        createFunction(nil, name: "deinit", returnType: TIRType.VoidType())
     }
 
     private func collectSubscript(_ decl: AST.SubscriptDecl) {
         guard let symbol = decl.symbol else { return }
         let functionType = symbol.functionType
-        let returnType = functionType.map { typeLower.lower($0.returnType) } ?? TIRType.TupleType([])
+        let returnType = functionType.map { typeLower.lower($0.returnType) } ?? TIRType.VoidType()
         let throwsTypes = functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
         createFunction(
             symbol, name: mangleFunctionName(symbol, baseName: "subscript"),
@@ -132,7 +131,7 @@ public final class TIRGen: AST.Visitor {
 
     private func collectVariable(_ decl: AST.VariableDecl) {
         guard !decl.accessors.isEmpty, let symbol = decl.symbol else { return }
-        let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.VoidType()
         for accessor in decl.accessors {
             let (kindName, suffix): (String, String)
             switch accessor.kind {
@@ -157,7 +156,7 @@ public final class TIRGen: AST.Visitor {
             } else {
                 createFunction(
                     nil, name: mangleAccessorName(symbol, suffix: suffix),
-                    returnType: TIRType.TupleType([])
+                    returnType: TIRType.VoidType()
                 )
             }
             accessorFunctions[symbol.id, default: [:]][kindName] = function
@@ -189,7 +188,7 @@ public final class TIRGen: AST.Visitor {
         errorTargets = []
         closureParamValues = []
 
-        let selfType = ownerType(typeSymbol) ?? TIRType.TupleType([])
+        let selfType = ownerType(typeSymbol) ?? TIRType.VoidType()
         let selfArgument = builder.createArgument(
             type: selfType, ownership: typeLower.ownership(for: selfType)
         )
@@ -427,7 +426,7 @@ public final class TIRGen: AST.Visitor {
         else {
             return
         }
-        let selfType = ownerType(owner) ?? TIRType.TupleType([])
+        let selfType = ownerType(owner) ?? TIRType.VoidType()
         let argument = builder.createArgument(type: selfType, ownership: typeLower.ownership(for: selfType))
         function.arguments.append(argument)
         let address = builder.emitWithResult(
@@ -445,7 +444,7 @@ public final class TIRGen: AST.Visitor {
         guard let builder else { return }
         let paramTypes: [TIRType.TIRType] = parameters.enumerated().map { index, parameter in
             let type = symbol?.functionType?.parameters[safe: index].map { typeLower.lower($0.type) }
-            return type ?? (parameter.type?.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+            return type ?? (parameter.type?.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         }
         var values: [TIR.Value] = []
         for (index, parameter) in parameters.enumerated() {
@@ -490,7 +489,7 @@ public final class TIRGen: AST.Visitor {
         for (propertySymbol, initializer) in initializers {
             let propertyType = propertySymbol.type.map { typeLower.lower($0) }
                 ?? (initializer.ty).map { typeLower.lower($0) }
-                ?? TIRType.TupleType([])
+                ?? TIRType.VoidType()
             let fieldAddress: TIR.Value = if isClass {
                 builder.emitWithResult(
                     TIR.RefElementAddr(
@@ -566,7 +565,7 @@ public final class TIRGen: AST.Visitor {
         guard let builder else { return nil }
         let type = symbol.type.map { typeLower.lower($0) }
             ?? (variableDecl.initializer?.ty).map { typeLower.lower($0) }
-            ?? TIRType.TupleType([])
+            ?? TIRType.VoidType()
         let address = builder.emitWithResult(
             TIR.AllocStack(type, sourceRange: variableDecl.sourceRange),
             type: TIRType.AddressType(type), ownership: .Inout
@@ -583,7 +582,7 @@ public final class TIRGen: AST.Visitor {
     ) {
         let type = symbol.type.map { typeLower.lower($0) }
             ?? (variableDecl.initializer?.ty).map { typeLower.lower($0) }
-            ?? TIRType.TupleType([])
+            ?? TIRType.VoidType()
         let global = TIR.GlobalVariable(name: mangleGlobalName(symbol), type: type)
         global.symbol = symbol
         module.globals.append(global)
@@ -930,16 +929,16 @@ public final class TIRGen: AST.Visitor {
                 )
                 let elementAddress = builder.emitWithResult(
                     TIR.TupleElementAddr(payload, index: 0, sourceRange: range),
-                    type: TIRType.AddressType(TIRType.TupleType([])), ownership: .Inout
+                    type: TIRType.AddressType(TIRType.VoidType()), ownership: .Inout
                 )
                 _ = elementAddress
                 for (index, argument) in call.arguments.enumerated() {
                     let element = builder.emitWithResult(
                         TIR.TupleElementAddr(payload, index: index, sourceRange: range),
-                        type: TIRType.AddressType(TIRType.TupleType([])), ownership: .Inout
+                        type: TIRType.AddressType(TIRType.VoidType()), ownership: .Inout
                     )
                     let elementValue = builder.emitWithResult(
-                        TIR.Load(element, sourceRange: range), type: TIRType.TupleType([]),
+                        TIR.Load(element, sourceRange: range), type: TIRType.VoidType(),
                         ownership: .Trivial
                     )
                     emitPatternMatch(
@@ -962,10 +961,10 @@ public final class TIRGen: AST.Visitor {
             for (index, element) in tuple.elements.enumerated() {
                 let elementAddress = builder.emitWithResult(
                     TIR.TupleElementAddr(tupleAddress, index: index, sourceRange: range),
-                    type: TIRType.AddressType(TIRType.TupleType([])), ownership: .Inout
+                    type: TIRType.AddressType(TIRType.VoidType()), ownership: .Inout
                 )
                 let elementValue = builder.emitWithResult(
-                    TIR.Load(elementAddress, sourceRange: range), type: TIRType.TupleType([]),
+                    TIR.Load(elementAddress, sourceRange: range), type: TIRType.VoidType(),
                     ownership: .Trivial
                 )
                 emitPatternMatch(
@@ -978,7 +977,7 @@ public final class TIRGen: AST.Visitor {
             }
         case let isPattern as AST.IsPattern:
             let targetType = (isPattern.typeExpression.ty).map { typeLower.lower($0) }
-                ?? TIRType.TupleType([])
+                ?? TIRType.VoidType()
             _ = builder.emitWithResult(
                 TIR.UncheckedRefCast(subject, to: targetType, sourceRange: range),
                 type: targetType, ownership: .Trivial
@@ -1008,7 +1007,7 @@ public final class TIRGen: AST.Visitor {
         if let first = caseSymbol.associatedTypes.first {
             return typeLower.lower(first)
         }
-        return TIRType.TupleType([])
+        return TIRType.VoidType()
     }
 
     private func bindPatternValue(name: String, value: TIR.Value, at range: SourceRange) {
@@ -1097,7 +1096,7 @@ public final class TIRGen: AST.Visitor {
         _ integerLiteral: AST.IntegerLiteral, additional: Any? = nil
     ) -> Any? {
         guard let builder else { return nil }
-        let type = (integerLiteral.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let type = (integerLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.IntegerLiteral(Int64(integerLiteral.value), type: type, sourceRange: integerLiteral.sourceRange),
             type: type, ownership: .Trivial
@@ -1109,7 +1108,7 @@ public final class TIRGen: AST.Visitor {
         _ floatLiteral: AST.FloatLiteral, additional: Any? = nil
     ) -> Any? {
         guard let builder else { return nil }
-        let type = (floatLiteral.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let type = (floatLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.FloatLiteral(floatLiteral.value, type: type, sourceRange: floatLiteral.sourceRange),
             type: type, ownership: .Trivial
@@ -1121,7 +1120,7 @@ public final class TIRGen: AST.Visitor {
         _ stringLiteral: AST.StringLiteral, additional: Any? = nil
     ) -> Any? {
         guard let builder else { return nil }
-        let type = (stringLiteral.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let type = (stringLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.StringLiteral(stringLiteral.token.value, sourceRange: stringLiteral.sourceRange),
             type: type, ownership: .Owned
@@ -1133,7 +1132,7 @@ public final class TIRGen: AST.Visitor {
         _ charLiteral: AST.CharLiteral, additional: Any? = nil
     ) -> Any? {
         guard let builder else { return nil }
-        let type = (charLiteral.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let type = (charLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.CharLiteral(charLiteral.value, sourceRange: charLiteral.sourceRange),
             type: type, ownership: .Trivial
@@ -1145,7 +1144,7 @@ public final class TIRGen: AST.Visitor {
         _ boolLiteral: AST.BoolLiteral, additional: Any? = nil
     ) -> Any? {
         guard let builder else { return nil }
-        let type = (boolLiteral.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let type = (boolLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.BoolLiteral(boolLiteral.value, sourceRange: boolLiteral.sourceRange),
             type: type, ownership: .Trivial
@@ -1157,7 +1156,7 @@ public final class TIRGen: AST.Visitor {
         _ nullLiteral: AST.NullLiteral, additional: Any? = nil
     ) -> Any? {
         guard let builder else { return nil }
-        let type = (nullLiteral.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let type = (nullLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.NullLiteral(type: type, sourceRange: nullLiteral.sourceRange),
             type: type, ownership: .Trivial
@@ -1169,7 +1168,7 @@ public final class TIRGen: AST.Visitor {
         _ voidLiteral: AST.VoidLiteral, additional: Any? = nil
     ) -> Any? {
         guard let builder else { return nil }
-        let type = TIRType.TupleType([])
+        let type = TIRType.VoidType()
         return builder.emitWithResult(
             TIR.VoidLiteral(voidLiteral.sourceRange), type: type, ownership: .Trivial
         )
@@ -1230,7 +1229,7 @@ public final class TIRGen: AST.Visitor {
                 type: getter.returnType, ownership: typeLower.ownership(for: getter.returnType)
             )
         }
-        let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.VoidType()
         guard let address = implicitPropertyElementAddress(
             symbol, selfAddress: selfAddress, propertyType: propertyType, range: range
         ) else {
@@ -1263,7 +1262,7 @@ public final class TIRGen: AST.Visitor {
 
     private func loadFrom(_ address: TIR.Value, range: SourceRange) -> TIR.Value? {
         guard let builder else { return nil }
-        let pointee = (address.type as? TIRType.AddressType)?.pointee ?? TIRType.TupleType([])
+        let pointee = (address.type as? TIRType.AddressType)?.pointee ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.Load(address, sourceRange: range), type: pointee,
             ownership: typeLower.ownership(for: pointee)
@@ -1303,7 +1302,7 @@ public final class TIRGen: AST.Visitor {
     public override func visitTuple(_ tuple: AST.Tuple, additional: Any? = nil) -> Any? {
         guard let builder else { return nil }
         let elements = tuple.elements.compactMap { visitExpression($0.value) }
-        let type = (tuple.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let type = (tuple.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.TupleValue(elements: elements, sourceRange: tuple.sourceRange), type: type,
             ownership: .Trivial
@@ -1320,6 +1319,15 @@ public final class TIRGen: AST.Visitor {
         guard let calleeValue = lowerCallee(call.callee, at: call.sourceRange) else { return nil }
         let resolvedSymbol = call.symbol ?? call.overloads?.first
         var arguments: [TIR.Value] = []
+        if let initFunction = initFunctionFor(call, resolvedSymbol: resolvedSymbol),
+           let selfType = initFunction.arguments.first?.type
+        {
+            let selfAddress = builder.emitWithResult(
+                TIR.AllocStack(selfType, sourceRange: call.sourceRange),
+                type: TIRType.AddressType(selfType), ownership: .Inout
+            )
+            arguments.append(selfAddress)
+        }
         if let member = call.callee as? AST.MemberAccess, let functionSymbol = resolvedSymbol,
            !functionSymbol.isStatic, let object = visitExpression(member.object),
            !isReferenceType(member.object.ty)
@@ -1333,7 +1341,7 @@ public final class TIRGen: AST.Visitor {
             }
         }
         let substitutions = substitutionsFor(call)
-        let resultType = (call.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let resultType = (call.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         let resultOwnership = typeLower.ownership(for: resultType)
         if let errorBlock = tryErrorBlock, resolvedSymbol?.functionType?.isThrowing == true {
             let successBlock = builder.createBlock()
@@ -1362,7 +1370,7 @@ public final class TIRGen: AST.Visitor {
 
     private func errorArgumentType(_ symbol: Symbol.FunctionSymbol?) -> TIRType.TIRType {
         guard let symbol, let first = symbol.functionType?.throwsTypes.first else {
-            return TIRType.TupleType([])
+            return TIRType.VoidType()
         }
         return typeLower.lower(first)
     }
@@ -1393,7 +1401,7 @@ public final class TIRGen: AST.Visitor {
             {
                 return builder?.emitWithResult(
                     TIR.FunctionRef(initFunction, sourceRange: range),
-                    type: TIRType.TupleType([]), ownership: .Trivial
+                    type: initFunctionType(initFunction), ownership: .Trivial
                 )
             }
             return visitExpression(callee)
@@ -1422,11 +1430,11 @@ public final class TIRGen: AST.Visitor {
     }
 
     private func methodType(_ symbol: Symbol.FunctionSymbol) -> TIRType.TIRType {
-        symbol.functionType.map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        symbol.functionType.map { typeLower.lower($0) } ?? TIRType.VoidType()
     }
 
     private func getterType(_ getter: TIR.Function) -> TIRType.TIRType {
-        let selfType = getter.arguments.first?.type ?? TIRType.TupleType([])
+        let selfType = getter.arguments.first?.type ?? TIRType.VoidType()
         return TIRType.FunctionType(
             parameters: [TIRType.FunctionType.Parameter(label: nil, type: selfType)],
             returnType: getter.returnType
@@ -1434,7 +1442,7 @@ public final class TIRGen: AST.Visitor {
     }
 
     private func accessorType(_ function: TIR.Function, withValue: Bool) -> TIRType.TIRType {
-        let selfType = function.arguments.first?.type ?? TIRType.TupleType([])
+        let selfType = function.arguments.first?.type ?? TIRType.VoidType()
         var parameters = [TIRType.FunctionType.Parameter(label: nil, type: selfType)]
         if withValue, let valueType = function.arguments[safe: 1]?.type {
             parameters.append(TIRType.FunctionType.Parameter(label: nil, type: valueType))
@@ -1442,9 +1450,27 @@ public final class TIRGen: AST.Visitor {
         return TIRType.FunctionType(parameters: parameters, returnType: function.returnType)
     }
 
+    private func initFunctionFor(
+        _ call: AST.Call, resolvedSymbol: Symbol.FunctionSymbol?
+    ) -> TIR.Function? {
+        guard resolvedSymbol?.name == "init", let symbol = resolvedSymbol,
+              let function = functionsBySymbol[symbol.id], !function.arguments.isEmpty
+        else {
+            return nil
+        }
+        return function
+    }
+
+    private func initFunctionType(_ function: TIR.Function) -> TIRType.TIRType {
+        let parameters = function.arguments.map {
+            TIRType.FunctionType.Parameter(label: nil, type: $0.type)
+        }
+        return TIRType.FunctionType(parameters: parameters, returnType: function.returnType)
+    }
+
     private func functionRefValue(_ symbol: Symbol.FunctionSymbol, at range: SourceRange) -> TIR.Value? {
         guard let builder, let function = functionsBySymbol[symbol.id] else { return nil }
-        let functionType = symbol.functionType.map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let functionType = symbol.functionType.map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.FunctionRef(function, sourceRange: range), type: functionType, ownership: .Trivial
         )
@@ -1487,7 +1513,7 @@ public final class TIRGen: AST.Visitor {
                 type: getter.returnType, ownership: typeLower.ownership(for: getter.returnType)
             )
         }
-        let memberType = variableSymbolType(symbol) ?? TIRType.TupleType([])
+        let memberType = variableSymbolType(symbol) ?? TIRType.VoidType()
         let isClass = isReferenceType(memberAccess.object.ty)
         let address: TIR.Value = if isClass {
             builder.emitWithResult(
@@ -1568,7 +1594,7 @@ public final class TIRGen: AST.Visitor {
             TIR.FunctionRef(function, sourceRange: binary.sourceRange),
             type: methodType(functionSymbol), ownership: .Trivial
         )
-        let resultType = (binary.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let resultType = (binary.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         var arguments: [TIR.Value] = []
         if let left { arguments.append(left) }
         if let right { arguments.append(right) }
@@ -1620,7 +1646,7 @@ public final class TIRGen: AST.Visitor {
         if accessors["get"] != nil {
             return nil
         }
-        let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.VoidType()
         guard let address = implicitPropertyElementAddress(
             symbol, selfAddress: selfAddress, propertyType: propertyType, range: range
         ) else {
@@ -1656,7 +1682,7 @@ public final class TIRGen: AST.Visitor {
             return nil
         }
         guard let object = visitExpression(member.object) else { return nil }
-        let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.VoidType()
         let base: TIR.Value = if let variable = member.object as? AST.Variable,
                                  let variableSymbol = variable.symbol,
                                  let address = env[variableSymbol.id]
@@ -1699,7 +1725,7 @@ public final class TIRGen: AST.Visitor {
                 callee: callee, arguments: arguments, substitutions: [],
                 sourceRange: range
             ),
-            type: TIRType.TupleType([]), ownership: .Trivial
+            type: TIRType.VoidType(), ownership: .Trivial
         )
     }
 
@@ -1735,7 +1761,7 @@ public final class TIRGen: AST.Visitor {
             TIR.FunctionRef(function, sourceRange: prefix.sourceRange),
             type: methodType(functionSymbol), ownership: .Trivial
         )
-        let resultType = (prefix.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let resultType = (prefix.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         var arguments: [TIR.Value] = []
         if let operand { arguments.append(operand) }
         return builder.emitWithResult(
@@ -1759,7 +1785,7 @@ public final class TIRGen: AST.Visitor {
             TIR.FunctionRef(function, sourceRange: postfix.sourceRange),
             type: methodType(functionSymbol), ownership: .Trivial
         )
-        let resultType = (postfix.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let resultType = (postfix.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         var arguments: [TIR.Value] = []
         if let operand { arguments.append(operand) }
         return builder.emitWithResult(
@@ -1777,7 +1803,7 @@ public final class TIRGen: AST.Visitor {
     ) -> Any? {
         guard let builder else { return nil }
         let elements = arrayLiteral.elements.compactMap { visitExpression($0) }
-        let type = (arrayLiteral.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let type = (arrayLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.ArrayValue(elements: elements, sourceRange: arrayLiteral.sourceRange), type: type,
             ownership: typeLower.ownership(for: type)
@@ -1796,7 +1822,7 @@ public final class TIRGen: AST.Visitor {
             }
             return TIR.DictionaryValue.Entry(key: key, value: value)
         }
-        let type = (dictionaryLiteral.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let type = (dictionaryLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.DictionaryValue(entries: entries, sourceRange: dictionaryLiteral.sourceRange),
             type: type, ownership: typeLower.ownership(for: type)
@@ -1809,7 +1835,7 @@ public final class TIRGen: AST.Visitor {
         guard let value = visitExpression(cast.left) else { return nil }
         let targetType = (cast.right.ty).map { typeLower.lower($0) }
             ?? (cast.ty).map { typeLower.lower($0) }
-            ?? TIRType.TupleType([])
+            ?? TIRType.VoidType()
         switch cast.kind {
         case .As:
             if cast.right.ty is TrussType.ProtocolType
@@ -1842,7 +1868,7 @@ public final class TIRGen: AST.Visitor {
                 type: targetType, ownership: .Trivial
             )
         case .Is:
-            let type = (cast.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+            let type = (cast.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
             return builder.emitWithResult(
                 TIR.BoolLiteral(true, sourceRange: cast.sourceRange), type: type,
                 ownership: .Trivial
@@ -1887,7 +1913,7 @@ public final class TIRGen: AST.Visitor {
             contentsOf: subscriptExpression.arguments.compactMap { visitExpression($0.value) }
         )
         let resultType = (subscriptExpression.ty).map { typeLower.lower($0) }
-            ?? TIRType.TupleType([])
+            ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.Apply(
                 callee: callee, arguments: arguments, substitutions: [],
@@ -1902,7 +1928,7 @@ public final class TIRGen: AST.Visitor {
         _ forceUnwrap: AST.ForceUnwrap, additional: Any? = nil
     ) -> Any? {
         guard let builder, let value = visitExpression(forceUnwrap.expression) else { return nil }
-        let resultType = (forceUnwrap.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let resultType = (forceUnwrap.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.UncheckedEnumData(value, caseName: "some", sourceRange: forceUnwrap.sourceRange),
             type: resultType, ownership: .Trivial
@@ -1925,8 +1951,8 @@ public final class TIRGen: AST.Visitor {
                 captureCells.append(cell)
             }
         }
-        let closureType = (closure.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
-        let returnType = (closureType as? TIRType.FunctionType)?.returnType ?? TIRType.TupleType([])
+        let closureType = (closure.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
+        let returnType = (closureType as? TIRType.FunctionType)?.returnType ?? TIRType.VoidType()
         let isThrowing = (closureType as? TIRType.FunctionType)?.isThrowing ?? false
         let throwsTypes = (closureType as? TIRType.FunctionType)?.throwsTypes ?? []
         let name = "closure-\(closureCounter)"
@@ -1965,7 +1991,7 @@ public final class TIRGen: AST.Visitor {
         var paramValues: [TIR.Value] = []
         for (index, parameter) in parameters.enumerated() {
             let paramType = (parameter.type?.ty).map { typeLower.lower($0) }
-                ?? TIRType.TupleType([])
+                ?? TIRType.VoidType()
             let argument = builder.createArgument(
                 type: paramType, ownership: typeLower.ownership(for: paramType)
             )
@@ -2063,7 +2089,7 @@ public final class TIRGen: AST.Visitor {
         case let variable as AST.Variable:
             if let symbol = variable.symbol, env[symbol.id] != nil, !seen.contains(symbol.id) {
                 seen.insert(symbol.id)
-                let type = (variable.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+                let type = (variable.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
                 result.append((symbol, type))
             }
         case let parenthetical as AST.Parenthetical:
@@ -2170,7 +2196,7 @@ public final class TIRGen: AST.Visitor {
                 _ = visitExpression(expression)
             }
         }
-        let type = (interpolation.ty).map { typeLower.lower($0) } ?? TIRType.TupleType([])
+        let type = (interpolation.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.StringLiteral(text, sourceRange: interpolation.sourceRange), type: type,
             ownership: .Owned

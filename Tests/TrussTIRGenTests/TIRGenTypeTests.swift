@@ -160,3 +160,20 @@ import Testing
         try #require(tir.contains("Apply "))
     }
 }
+
+@Test func initCallPassesSelfArgument() throws {
+    let tir = dumpTIR(
+        """
+        struct S {
+            init() {}
+        }
+        func f() -> S {
+            return S()
+        }
+        """
+    )
+    try #require(tir.contains("4initF : $("))
+    let fBlock = tir.components(separatedBy: "function ").last
+        ?? ""
+    try #require(fBlock.range(of: #"Apply %\d+\(%\d+\)"#, options: .regularExpression) != nil)
+}

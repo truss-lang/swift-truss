@@ -12,7 +12,7 @@ final class TypeLower {
     func lower(_ type: TrussType.TrussType) -> TIRType.TIRType {
         switch type {
         case is TrussType.VoidType, is TrussType.NeverType, is TrussType.ErrorType:
-            return TIRType.TupleType([])
+            return TIRType.VoidType()
         case let nominal as TrussType.NominalType:
             return nominalType(nominal)
         case let optional as TrussType.OptionalType:
@@ -41,7 +41,7 @@ final class TypeLower {
             if let binding = variable.binding {
                 return lower(binding)
             }
-            return TIRType.TupleType([])
+            return TIRType.VoidType()
         case let forall as TrussType.ForallType:
             return lower(forall.body)
         case let genericParam as TrussType.GenericParamType:
@@ -52,7 +52,7 @@ final class TypeLower {
             archetypes[genericParam.name] = archetype
             return archetype
         default:
-            return TIRType.TupleType([])
+            return TIRType.VoidType()
         }
     }
 

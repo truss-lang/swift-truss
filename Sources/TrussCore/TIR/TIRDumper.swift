@@ -98,12 +98,9 @@ public extension TIR {
 
         public func dump(_ function: TIR.Function) -> String {
             var lines: [String] = []
-            lines.append("function \(function.name)")
+            lines.append("function \(function.name) " + functionSignatureText(function))
             if let genericSignature = function.genericSignature {
                 lines.append("  " + signatureText(genericSignature))
-            }
-            for argument in function.arguments {
-                lines.append("  " + argument.name + " = argument " + typeText(argument.type))
             }
             for block in function.blocks {
                 lines.append(block.name + ":")
@@ -117,6 +114,18 @@ public extension TIR {
                 }
             }
             return lines.joined(separator: "\n")
+        }
+
+        private func functionSignatureText(_ function: TIR.Function) -> String {
+            let args = function.arguments.map { innerTypeText($0.type) }.joined(separator: ", ")
+            return "(\(args)) -> " + functionReturnTypeText(function.returnType)
+        }
+
+        private func functionReturnTypeText(_ type: TIRType.TIRType) -> String {
+            if type is TIRType.VoidType {
+                return "()"
+            }
+            return innerTypeText(type)
         }
 
         private func signatureText(_ signature: TIRType.GenericSignature) -> String {
@@ -327,6 +336,8 @@ public extension TIR {
 
         public func typeText(_ type: TIRType.TIRType) -> String {
             switch type {
+            case is TIRType.VoidType:
+                return "void"
             case let nominal as TIRType.NominalType:
                 return nominal.name + "#" + String(nominal.id.id)
             case let tuple as TIRType.TupleType:
