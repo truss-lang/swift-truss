@@ -316,6 +316,26 @@ import TrussTIRGen
         try #require(tir.contains("Store"))
     }
 
+    @Test func memberFunctionDoesNotReinitializeProperties() throws {
+        let tir = dumpTIR(
+            """
+            struct S {
+                init() {}
+            }
+            class C {
+                var x: S = S()
+                init() {}
+                func f() {
+                }
+            }
+            """
+        )
+        let fBlock = tir.components(separatedBy: "function ")
+            .first(where: { $0.contains("1C_1f_") }) ?? ""
+        try #require(!fBlock.contains("RefElementAddr"))
+        try #require(fBlock.contains("Return"))
+    }
+
     @Test func accessorGetterCalled() throws {
         let tir = dumpTIR(
             """

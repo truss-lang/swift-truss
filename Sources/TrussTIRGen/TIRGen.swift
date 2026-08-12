@@ -443,7 +443,8 @@ public final class TIRGen: AST.Visitor {
         }
         generateBody(
             .Block(initDecl.body), function: function, symbol: symbol,
-            parameters: initDecl.parameters, hasSelf: true, range: initDecl.sourceRange
+            parameters: initDecl.parameters, hasSelf: true, initializeProperties: true,
+            range: initDecl.sourceRange
         )
         return nil
     }
@@ -478,7 +479,8 @@ public final class TIRGen: AST.Visitor {
     private func generateBody(
         _ body: AST.FunctionDecl.Body, function: TIR.Function, symbol: Symbol.FunctionSymbol?,
         parameters: [AST.FunctionDecl.Parameter], hasSelf: Bool,
-        owner: Symbol.NominalTypeSymbol? = nil, range: SourceRange
+        owner: Symbol.NominalTypeSymbol? = nil, initializeProperties: Bool = false,
+        range: SourceRange
     ) {
         let savedBuilder = builder
         let savedEnv = env
@@ -498,9 +500,11 @@ public final class TIRGen: AST.Visitor {
 
         bindSelfIfNeeded(function: function, symbol: symbol, hasSelf: hasSelf, owner: owner)
         bindParameters(function: function, symbol: symbol, parameters: parameters)
-        initializeStoredProperties(
-            function: function, symbol: symbol, hasSelf: hasSelf, range: range
-        )
+        if initializeProperties {
+            initializeStoredProperties(
+                function: function, symbol: symbol, hasSelf: hasSelf, range: range
+            )
+        }
 
         switch body {
         case let .Block(statements):
