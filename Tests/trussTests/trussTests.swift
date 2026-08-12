@@ -215,7 +215,7 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     let file = try writeTemp("unknown-op.truss", "func main() { 1 + 2 }\n")
     let result = Driver(config: DriverConfig()).run(files: [file])
     #expect(result.hasErrors)
-    #expect(result.stderr.contains("unknown operator '+'"))
+    #expect(result.stderr.contains("operator '+' has no function declaration"))
 }
 
 @Test func driverOperatorFunctionResolution() throws {

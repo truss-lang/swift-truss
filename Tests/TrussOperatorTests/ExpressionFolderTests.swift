@@ -161,10 +161,10 @@ func variable(_ expr: AST.Expression?, _ name: String) -> Bool {
 }
 
 @Test func unknownOperatorReportsError() {
-    let (context, _, programs) = runFolded(["func main() { 1 + 2 }"])
+    let (context, _, programs) = runFolded(["func main() { 1 % 2 }"])
     #expect(context.diagnositicEngine.hasErrors)
-    #expect(messages(context).contains("unknown operator '+'"))
-    #expect(binary(firstBodyExpression(programs[0]), op: "+") != nil)
+    #expect(messages(context).contains("unknown operator '%'"))
+    #expect(binary(firstBodyExpression(programs[0]), op: "%") != nil)
 }
 
 @Test func ungroupedOperatorReportsError() {
@@ -186,12 +186,12 @@ func variable(_ expr: AST.Expression?, _ name: String) -> Bool {
 
 @Test func notPrefixOperatorReportsError() {
     let (context, _, programs) = runFolded([
-        "infix operator * func main() { *1 }",
+        "infix operator % func main() { %1 }",
     ])
     #expect(context.diagnositicEngine.hasErrors)
-    #expect(messages(context).contains("operator '*' is not prefix"))
+    #expect(messages(context).contains("operator '%' is not prefix"))
     let expr = firstBodyExpression(programs[0]) as? AST.Prefix
-    #expect(expr?.operatorToken.value == "*")
+    #expect(expr?.operatorToken.value == "%")
     #expect(integer(expr?.expression, "1"))
 }
 
@@ -307,10 +307,10 @@ func variable(_ expr: AST.Expression?, _ name: String) -> Bool {
 
 @Test func moduleIsolationReportsUnknownOperator() {
     let (context, _, _) = runFolded([
-        "module M { infix operator +: P precedencegroup P {} } func main() { 1 + 2 }",
+        "module M { infix operator %: P precedencegroup P {} } func main() { 1 % 2 }",
     ])
     #expect(context.diagnositicEngine.hasErrors)
-    #expect(messages(context).contains("unknown operator '+'"))
+    #expect(messages(context).contains("unknown operator '%'"))
 }
 
 @Test func cycleSkipsFolding() {

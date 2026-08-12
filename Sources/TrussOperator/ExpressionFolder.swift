@@ -126,9 +126,14 @@ public final class ExpressionFolder: AST.Rewriter {
                             if case .Postfix = $0 { true } else { false }
                         }) ?? false
                         if info == nil {
-                            context.emitError("unknown operator '\(op.value)'", at: op)
-                            startInfix(op, head: &head, chainOperands: &chainOperands, chainOps: &chainOps)
-                            awaitingOperand = true
+                            if isBuiltinPointerOperator(op.value) {
+                                startInfix(op, head: &head, chainOperands: &chainOperands, chainOps: &chainOps)
+                                awaitingOperand = true
+                            } else {
+                                context.emitError("unknown operator '\(op.value)'", at: op)
+                                startInfix(op, head: &head, chainOperands: &chainOperands, chainOps: &chainOps)
+                                awaitingOperand = true
+                            }
                         } else if isInfix {
                             startInfix(op, head: &head, chainOperands: &chainOperands, chainOps: &chainOps)
                             awaitingOperand = true
@@ -278,6 +283,10 @@ public final class ExpressionFolder: AST.Rewriter {
             chain.removeLast()
         }
         return table.root.operators[name]
+    }
+
+    private func isBuiltinPointerOperator(_ name: String) -> Bool {
+        ["+", "-", "==", "!=", "<", "<=", ">", ">=", "="].contains(name)
     }
 
     private func makeBinary(
