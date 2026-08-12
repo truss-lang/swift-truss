@@ -10,7 +10,7 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function f"))
+        try #require(tir.contains("function $t4main1f1a1SF"))
         try #require(tir.contains("entry:"))
         try #require(tir.contains("AllocStack"))
         try #require(tir.contains("Load"))

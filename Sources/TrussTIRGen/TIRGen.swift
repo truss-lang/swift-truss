@@ -75,7 +75,8 @@ public final class TIRGen: AST.Visitor {
         let returnType = functionType.map { typeLower.lower($0.returnType) } ?? TIRType.TupleType([])
         let throwsTypes = functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
         createFunction(
-            symbol, name: decl.name.value, returnType: returnType,
+            symbol, name: mangleFunctionName(symbol, baseName: decl.name.value),
+            returnType: returnType,
             isAsync: decl.asyncToken != nil, isThrowing: functionType?.isThrowing ?? false,
             throwsTypes: throwsTypes
         )
@@ -85,7 +86,8 @@ public final class TIRGen: AST.Visitor {
         guard let symbol = decl.symbol else { return }
         let throwsTypes = symbol.functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
         createFunction(
-            symbol, name: "init", returnType: TIRType.TupleType([]),
+            symbol, name: mangleFunctionName(symbol, baseName: "init"),
+            returnType: TIRType.TupleType([]),
             isAsync: decl.asyncToken != nil, isThrowing: symbol.functionType?.isThrowing ?? false,
             throwsTypes: throwsTypes
         )
@@ -101,10 +103,57 @@ public final class TIRGen: AST.Visitor {
         let returnType = functionType.map { typeLower.lower($0.returnType) } ?? TIRType.TupleType([])
         let throwsTypes = functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
         createFunction(
-            symbol, name: "subscript", returnType: returnType,
+            symbol, name: mangleFunctionName(symbol, baseName: "subscript"),
+            returnType: returnType,
             isAsync: decl.asyncToken != nil, isThrowing: functionType?.isThrowing ?? false,
             throwsTypes: throwsTypes
         )
+    }
+
+    private func mangleFunctionName(_ symbol: Symbol.FunctionSymbol, baseName: String) -> String {
+        var result = "$t"
+        let packageName = symbol.packageId.flatMap { context.id2Symbol[$0]?.name } ?? "main"
+        result += mangleIdentifier(packageName)
+        if let module = symbol.moduleSymbol {
+            result += mangleIdentifier(module.name)
+        }
+        if let memberOf = symbol.memberOf, let owner = context.id2Symbol[memberOf] {
+            result += mangleIdentifier(owner.name)
+        }
+        result += mangleIdentifier(baseName)
+        if let functionType = symbol.functionType {
+            let labels = symbol.signature.labels
+            for (index, parameter) in functionType.parameters.enumerated() {
+                let label = index < labels.count ? labels[index] : nil
+                result += mangleIdentifier(label ?? "_")
+                result += mangleIdentifier(typeName(parameter.type))
+            }
+        }
+        result += "F"
+        return result
+    }
+
+    private func mangleIdentifier(_ name: String) -> String {
+        "\(name.count)\(name)"
+    }
+
+    private func typeName(_ type: TrussType.TrussType) -> String {
+        switch type {
+        case is TrussType.VoidType:
+            "y"
+        case let nominal as TrussType.NominalType:
+            nominal.name
+        case is TrussType.OptionalType:
+            "O"
+        case let generic as TrussType.GenericParamType:
+            generic.name
+        case is TrussType.FunctionType:
+            "F"
+        case is TrussType.TupleType:
+            "T"
+        default:
+            "x"
+        }
     }
 
     @discardableResult
@@ -592,8 +641,9 @@ public final class TIRGen: AST.Visitor {
             bindPatternValue(name: variable.name.value, value: subject, at: variable.sourceRange)
             builder.emit(TIR.Branch(successBlock, sourceRange: range))
         case let member as AST.ImplicitMemberAccess:
-            let caseName = member.name.value
-            guard let enumType = subject.type as? TIRType.EnumType else {
+            guard let caseSymbol = member.symbol as? Symbol.CaseSymbol,
+                  let enumType = enumTypeValue(for: caseSymbol)
+            else {
                 builder.emit(TIR.Branch(failBlock, sourceRange: range))
                 return
             }
@@ -601,15 +651,17 @@ public final class TIRGen: AST.Visitor {
                 TIR.SwitchEnum(
                     subject,
                     cases: [
-                        TIR.EnumCaseBranch(caseName: caseName, block: successBlock),
+                        TIR.EnumCaseBranch(caseName: caseSymbol.name, block: successBlock),
                     ],
                     defaultBlock: failBlock, sourceRange: range
                 )
             )
         case let call as AST.Call:
-            let caseName = (call.callee as? AST.ImplicitMemberAccess)?.name.value
-                ?? (call.callee as? AST.Variable)?.name.value
-            guard let enumType = subject.type as? TIRType.EnumType, let caseName else {
+            let calleeSymbol = (call.callee as? AST.ImplicitMemberAccess)?.symbol
+                ?? (call.callee as? AST.Variable)?.symbol
+            guard let caseSymbol = calleeSymbol as? Symbol.CaseSymbol,
+                  let enumType = enumTypeValue(for: caseSymbol)
+            else {
                 builder.emit(TIR.Branch(failBlock, sourceRange: range))
                 return
             }
@@ -618,7 +670,7 @@ public final class TIRGen: AST.Visitor {
                 TIR.SwitchEnum(
                     subject,
                     cases: [
-                        TIR.EnumCaseBranch(caseName: caseName, block: payloadBlock),
+                        TIR.EnumCaseBranch(caseName: caseSymbol.name, block: payloadBlock),
                     ],
                     defaultBlock: failBlock, sourceRange: range
                 )
@@ -626,8 +678,8 @@ public final class TIRGen: AST.Visitor {
             builder.switchToBlock(payloadBlock)
             if !call.arguments.isEmpty {
                 let payload = builder.emitWithResult(
-                    TIR.UncheckedEnumData(subject, caseName: caseName, sourceRange: range),
-                    type: payloadType(caseName), ownership: .Trivial
+                    TIR.UncheckedEnumData(subject, caseName: caseSymbol.name, sourceRange: range),
+                    type: payloadType(caseSymbol), ownership: .Trivial
                 )
                 let elementAddress = builder.emitWithResult(
                     TIR.TupleElementAddr(payload, index: 0, sourceRange: range),
@@ -705,8 +757,11 @@ public final class TIRGen: AST.Visitor {
         }
     }
 
-    private func payloadType(_ caseName: String) -> TIRType.TIRType {
-        TIRType.TupleType([])
+    private func payloadType(_ caseSymbol: Symbol.CaseSymbol) -> TIRType.TIRType {
+        if let first = caseSymbol.associatedTypes.first {
+            return typeLower.lower(first)
+        }
+        return TIRType.TupleType([])
     }
 
     private func bindPatternValue(name: String, value: TIR.Value, at range: SourceRange) {
