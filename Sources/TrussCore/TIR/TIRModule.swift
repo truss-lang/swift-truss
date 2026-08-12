@@ -17,8 +17,20 @@ public enum TIR {
     }
 
     public final class Module {
+        public var globals: [GlobalVariable] = []
         public var functions: [Function] = []
         public init() {}
+    }
+
+    public final class GlobalVariable {
+        public var symbol: Symbol.VariableSymbol?
+        public var name: String
+        public var type: TIRType.TIRType
+        public var initializer: [Instruction] = []
+        public init(name: String, type: TIRType.TIRType) {
+            self.name = name
+            self.type = type
+        }
     }
 
     public final class Function {

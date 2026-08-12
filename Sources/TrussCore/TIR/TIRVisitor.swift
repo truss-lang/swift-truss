@@ -58,6 +58,9 @@ extension TIR {
         { nil }
 
         @discardableResult
+        open func visitGlobalAddr(_ instruction: GlobalAddr, additional: Any? = nil) -> Any? { nil }
+
+        @discardableResult
         open func visitCopyValue(_ instruction: CopyValue, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult

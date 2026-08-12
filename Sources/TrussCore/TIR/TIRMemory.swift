@@ -173,4 +173,16 @@ public extension TIR {
             visitor.visitAddressToPointer(self, additional: additional)
         }
     }
+
+    final class GlobalAddr: Instruction {
+        public let global: GlobalVariable
+        public init(_ global: GlobalVariable, sourceRange: SourceRange) {
+            self.global = global
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitGlobalAddr(self, additional: additional)
+        }
+    }
 }
