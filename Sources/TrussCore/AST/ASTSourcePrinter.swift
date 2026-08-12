@@ -970,7 +970,7 @@ public final class SourcePrinter: AST.Visitor {
         _ memberAccess: AST.MemberAccess, additional: Any? = nil
     ) -> Any? {
         visit(memberAccess.object)
-        state.write(memberAccess.viaPointer ? "->" : memberAccess.token.value)
+        state.write(memberAccess.token.value)
         state.write(memberAccess.member.value)
         return nil
     }

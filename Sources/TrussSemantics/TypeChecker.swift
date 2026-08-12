@@ -1951,24 +1951,7 @@ public final class TypeChecker: AST.Visitor {
             doThrownTypeStack.removeLast()
         case let memberAccess as AST.MemberAccess:
             _ = infer(memberAccess.object, at: token)
-            let objectType: TrussType.TrussType?
-            if memberAccess.viaPointer {
-                if let pointer = memberAccess.object.ty.flatMap({ resolve($0) as? TrussType.PointerType }) {
-                    objectType = pointer.pointee
-                } else if let objectTy = memberAccess.object.ty,
-                          !(objectTy is TrussType.ErrorType)
-                {
-                    context.emitError(
-                        "cannot use '->' on non-pointer type '\(typeText(objectTy))'",
-                        at: memberAccess.token
-                    )
-                    objectType = nil
-                } else {
-                    objectType = nil
-                }
-            } else {
-                objectType = memberAccess.object.ty
-            }
+            let objectType = memberAccess.object.ty
             if let ty = memberType(of: memberAccess.member.value, in: objectType) {
                 expression.ty = ty
                 if memberAccess.symbol == nil {

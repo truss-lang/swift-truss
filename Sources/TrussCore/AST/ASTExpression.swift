@@ -337,18 +337,16 @@ public extension AST {
         public let token: Token
         public let member: Token
         public let isOptional: Bool
-        public let viaPointer: Bool
         public var symbol: Symbol.Symbol? = nil
         public var overloads: [Symbol.FunctionSymbol]? = nil
         public init(
             _ object: Expression, _ token: Token, _ member: Token, isOptional: Bool = false,
-            viaPointer: Bool = false, sourceRange: SourceRange
+            sourceRange: SourceRange
         ) {
             self.object = object
             self.token = token
             self.member = member
             self.isOptional = isOptional
-            self.viaPointer = viaPointer
             super.init(sourceRange)
         }
 

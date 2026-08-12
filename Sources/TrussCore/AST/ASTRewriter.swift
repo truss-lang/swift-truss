@@ -1205,7 +1205,7 @@ extension AST {
             if object === memberAccess.object { return memberAccess }
             let newMemberAccess = AST.MemberAccess(
                 object, memberAccess.token, memberAccess.member,
-                isOptional: memberAccess.isOptional, viaPointer: memberAccess.viaPointer,
+                isOptional: memberAccess.isOptional,
                 sourceRange: memberAccess.sourceRange
             )
             return newMemberAccess

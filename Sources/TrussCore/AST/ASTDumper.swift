@@ -1149,7 +1149,6 @@ public extension AST {
         ) -> Any? {
             var text = "MemberAccess \(memberAccess.member.value)"
             if memberAccess.isOptional { text += " ?" }
-            if memberAccess.viaPointer { text += " ->" }
             dumpNode(
                 text + tyText(memberAccess.ty) + symText(memberAccess.symbol)
                     + overloadsText(memberAccess.overloads),

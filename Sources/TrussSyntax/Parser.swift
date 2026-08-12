@@ -4382,27 +4382,7 @@ public final class Parser {
                     )
                 )
             case .Separator(.Arrow):
-                if inPatternContext { break _loop }
-                index += 1
-                guard let member = peek else {
-                    emitError("expected member name after '->'", at: endOfFile)
-                    break _loop
-                }
-                switch member.kind {
-                case .Identifier, .Keyword:
-                    index += 1
-                default:
-                    emitError(
-                        "expected identifier after '->', but got '\(member.value)'", at: member
-                    )
-                }
-                expression = AST.MemberAccess(
-                    expression, t, member, viaPointer: true,
-                    sourceRange: SourceRange(
-                        start: expression.sourceRange.start,
-                        end: member.sourceRange(in: buffer).end
-                    )
-                )
+                break _loop
             default:
                 break _loop
             }
@@ -4595,35 +4575,12 @@ public final class Parser {
                 switch kind {
                 case .Arrow:
                     if inPatternContext { break _loop }
-                    if let parameters = closureTypeParameters(from: expression) {
-                        expression = parseClosureType(
-                            parameters, nil, nil, excepts, startRange: expression.sourceRange
-                        )
-                    } else if isTypeContext {
+                    guard let parameters = closureTypeParameters(from: expression) else {
                         break _loop
-                    } else {
-                        index += 1
-                        guard let member = peek else {
-                            emitError("expected member name after '->'", at: endOfFile)
-                            break _loop
-                        }
-                        switch member.kind {
-                        case .Identifier, .Keyword:
-                            index += 1
-                        default:
-                            emitError(
-                                "expected identifier after '->', but got '\(member.value)'",
-                                at: member
-                            )
-                        }
-                        expression = AST.MemberAccess(
-                            expression, t, member, viaPointer: true,
-                            sourceRange: SourceRange(
-                                start: expression.sourceRange.start,
-                                end: member.sourceRange(in: buffer).end
-                            )
-                        )
                     }
+                    expression = parseClosureType(
+                        parameters, nil, nil, excepts, startRange: expression.sourceRange
+                    )
                 default: break _loop
                 }
             case .Keyword(.Throws), .Keyword(.Async):
