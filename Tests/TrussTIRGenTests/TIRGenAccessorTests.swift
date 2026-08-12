@@ -190,5 +190,5 @@ import Testing
         }
         """
     )
-    try #require(tir.contains("function $t4main1f1a1SF (t4main1S#0) -> t4main1S#0"))
+    try #require(tir.contains("function $t4main1f1a1SF (%0 t4main1S#0) -> t4main1S#0"))
 }
