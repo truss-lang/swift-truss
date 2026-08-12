@@ -97,6 +97,36 @@ public extension AST {
         }
     }
 
+    enum OperatorImportSelector {
+        case Wildcard(Token)
+        case Operator(Token)
+        case List([OperatorImportItem])
+    }
+
+    enum OperatorImportItem {
+        case Operator(Token)
+        case Submodule(Token, OperatorImportSelector)
+    }
+
+    final class OperatorImport: Statement {
+        public let token: Token
+        public let path: [Token]
+        public let selector: OperatorImportSelector
+        public init(
+            _ token: Token, _ path: [Token], _ selector: OperatorImportSelector,
+            sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.path = path
+            self.selector = selector
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitOperatorImport(self, additional: additional)
+        }
+    }
+
     final class ExternDecl: Decl {
         public let token: Token
         public let convention: Token

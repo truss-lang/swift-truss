@@ -365,6 +365,31 @@ public extension AST {
             return nil
         }
 
+        public override func visitOperatorImport(
+            _ operatorImport: OperatorImport, additional: Any? = nil
+        ) -> Any? {
+            var text = "OperatorImport "
+            text += operatorImport.path.map(\.value).joined(separator: ".")
+            text += renderOperatorSelector(operatorImport.selector)
+            dumpNode(text)
+            return nil
+        }
+
+        private func renderOperatorSelector(_ selector: OperatorImportSelector) -> String {
+            switch selector {
+            case let .Wildcard(token): ".\(token.value)"
+            case let .Operator(token): ".\(token.value)"
+            case let .List(items): ".{\(items.map(renderOperatorItem).joined(separator: ", "))}"
+            }
+        }
+
+        private func renderOperatorItem(_ item: OperatorImportItem) -> String {
+            switch item {
+            case let .Operator(token): token.value
+            case let .Submodule(name, selector): "\(name.value)\(renderOperatorSelector(selector))"
+            }
+        }
+
         @discardableResult
         public override func visitExternDecl(_ externDecl: ExternDecl, additional: Any? = nil)
             -> Any?

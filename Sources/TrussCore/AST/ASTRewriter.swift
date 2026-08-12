@@ -361,6 +361,13 @@ extension AST {
         }
 
         @discardableResult
+        open override func visitOperatorImport(
+            _ operatorImport: AST.OperatorImport, additional: Any? = nil
+        ) -> Any? {
+            operatorImport
+        }
+
+        @discardableResult
         open override func visitExternDecl(
             _ externDecl: AST.ExternDecl, additional: Any? = nil
         ) -> Any? {

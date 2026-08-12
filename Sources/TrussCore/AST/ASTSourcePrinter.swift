@@ -248,6 +248,42 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitOperatorImport(
+        _ operatorImport: AST.OperatorImport, additional: Any? = nil
+    ) -> Any? {
+        state.write("import operator ")
+        for (index, component) in operatorImport.path.enumerated() {
+            if index > 0 { state.write(".") }
+            state.write(component.value)
+        }
+        writeOperatorSelector(operatorImport.selector)
+        return nil
+    }
+
+    private func writeOperatorSelector(_ selector: AST.OperatorImportSelector) {
+        switch selector {
+        case let .Wildcard(token): state.write("." + token.value)
+        case let .Operator(token): state.write("." + token.value)
+        case let .List(items):
+            state.write(".{")
+            for (index, item) in items.enumerated() {
+                if index > 0 { state.write(", ") }
+                writeOperatorItem(item)
+            }
+            state.write("}")
+        }
+    }
+
+    private func writeOperatorItem(_ item: AST.OperatorImportItem) {
+        switch item {
+        case let .Operator(token): state.write(token.value)
+        case let .Submodule(name, selector):
+            state.write(name.value)
+            writeOperatorSelector(selector)
+        }
+    }
+
+    @discardableResult
     public override func visitExternDecl(_ externDecl: AST.ExternDecl, additional: Any? = nil)
         -> Any?
     {

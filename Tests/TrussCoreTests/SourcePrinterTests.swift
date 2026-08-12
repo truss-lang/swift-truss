@@ -342,3 +342,34 @@ import TrussCore
 @Test func roundTripBitCast() {
     assertRoundTrip("let x = s as!! T")
 }
+
+@Test func roundTripOperatorImport() {
+    for source in [
+        "import operator Pkg.*",
+        "import operator Pkg.+",
+        "import operator Pkg.{+, -}",
+        "import operator Pkg.{+, module.-}",
+        "import operator Pkg.{+, module.{-, *}}",
+        "import operator Pkg.sub.+",
+        "import operator Pkg.{*, +}",
+        "import operator Pkg.{module.*}",
+        "import operator module.+",
+    ] {
+        assertRoundTrip(source)
+    }
+}
+
+@Test func printOperatorImport() {
+    #expect(printProgram("import operator Pkg.+") == "import operator Pkg.+")
+    #expect(printProgram("import operator Pkg.*") == "import operator Pkg.*")
+    #expect(printProgram("import operator Pkg.{+, -}") == "import operator Pkg.{+, -}")
+    #expect(
+        printProgram("import operator Pkg.{+, module.-}")
+            == "import operator Pkg.{+, module.-}"
+    )
+    #expect(
+        printProgram("import operator Pkg.{+, module.{-, *}}")
+            == "import operator Pkg.{+, module.{-, *}}"
+    )
+    #expect(printProgram("import operator Pkg.sub.+") == "import operator Pkg.sub.+")
+}

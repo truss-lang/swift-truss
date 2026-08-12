@@ -323,6 +323,10 @@ public final class Parser {
 
     private func parseImport() -> AST.Statement {
         let token = next!
+        if let operatorToken = peek, case .Keyword(.Operator) = operatorToken.kind {
+            index += 1
+            return parseOperatorImport(token)
+        }
         var components: [AST.PathComponent] = []
         guard let first = peek else {
             emitError("expected module path after 'import'", at: endOfFile)
@@ -470,6 +474,203 @@ public final class Parser {
             token, AST.ImportPath(components), selector!,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
+    }
+
+    private func parseOperatorImport(_ importToken: Token) -> AST.Statement {
+        var path: [Token] = []
+        guard let first = peek else {
+            emitError("expected module name after 'import operator', but got end of file", at: endOfFile)
+            return errorStatement(from: importToken, to: endOfFile)
+        }
+        switch first.kind {
+        case .Identifier, .Keyword(.Module):
+            index += 1
+            path.append(first)
+        case .Keyword(.SelfKw), .Keyword(.SelfTypeKw):
+            emitError(
+                "'\(first.value)' is not allowed in operator import path", at: first
+            )
+            index += 1
+            path.append(first)
+        default:
+            emitError(
+                "expected module name after 'import operator', but got '\(first.value)'",
+                at: first
+            )
+            return errorStatement(from: importToken, to: first)
+        }
+        var endToken: Token = first
+        var selector: AST.OperatorImportSelector? = nil
+        var failedAfterDot = false
+        _pathLoop: while let dotToken = peek, case .Operator(.Dot) = dotToken.kind {
+            index += 1
+            guard let afterDot = peek else {
+                emitError(
+                    "expected operator name, '*', or '{' after '.', but got end of file",
+                    at: endOfFile
+                )
+                failedAfterDot = true
+                break _pathLoop
+            }
+            if case .Identifier = afterDot.kind {
+                index += 1
+                path.append(afterDot)
+                endToken = afterDot
+                continue
+            }
+            if case .Keyword(.Module) = afterDot.kind {
+                index += 1
+                path.append(afterDot)
+                endToken = afterDot
+                continue
+            }
+            if let result = parseOperatorSelector() {
+                selector = result.0
+                endToken = result.1
+            } else {
+                failedAfterDot = true
+            }
+            break _pathLoop
+        }
+        if let asToken = peek, case .Keyword(.As) = asToken.kind {
+            emitError("operator imports cannot have an alias", at: asToken)
+            index += 1
+            if let aliasToken = peek, case .Identifier = aliasToken.kind {
+                index += 1
+                endToken = aliasToken
+            }
+        }
+        if selector == nil, !failedAfterDot {
+            if let t = peek {
+                emitError(
+                    "expected '.', '*', or '{' after module path in operator import, but got '\(t.value)'",
+                    at: t
+                )
+            } else {
+                emitError(
+                    "expected '.', '*', or '{' after module path in operator import, but got end of file",
+                    at: endOfFile
+                )
+            }
+            return errorStatement(from: importToken, to: endToken)
+        }
+        if let selector {
+            return AST.OperatorImport(
+                importToken, path, selector,
+                sourceRange: SourceRange(from: importToken, to: endToken, in: buffer)
+            )
+        }
+        return errorStatement(from: importToken, to: endToken)
+    }
+
+    private func parseOperatorSelector() -> (AST.OperatorImportSelector, Token)? {
+        guard let t = peek else {
+            emitError(
+                "expected operator name, '*', or '{' after '.', but got end of file",
+                at: endOfFile
+            )
+            return nil
+        }
+        switch t.kind {
+        case .Operator(.Multiply):
+            index += 1
+            return (.Wildcard(t), t)
+        case .Operator:
+            index += 1
+            return (.Operator(t), t)
+        case .Separator(.OpenBrace):
+            index += 1
+            return parseOperatorList(t)
+        default:
+            emitError(
+                "expected operator name, '*', or '{' after '.', but got '\(t.value)'", at: t
+            )
+            index += 1
+            return nil
+        }
+    }
+
+    private func parseOperatorList(_ openBrace: Token) -> (AST.OperatorImportSelector, Token)? {
+        var items: [AST.OperatorImportItem] = []
+        var endToken: Token = openBrace
+        var itemFailed = false
+        var closed = false
+        _itemLoop: while let t = peek {
+            if case .Separator(.CloseBrace) = t.kind {
+                index += 1
+                endToken = t
+                closed = true
+                break _itemLoop
+            }
+            guard let item = parseOperatorImportItem() else {
+                itemFailed = true
+                if let closeToken = peek, case .Separator(.CloseBrace) = closeToken.kind {
+                    index += 1
+                    endToken = closeToken
+                    closed = true
+                }
+                break _itemLoop
+            }
+            items.append(item)
+            if let lastComp = peek, case .Separator(.CloseBrace) = lastComp.kind {
+                index += 1
+                endToken = lastComp
+                closed = true
+                break _itemLoop
+            }
+            if let comma = peek, case .Separator(.Comma) = comma.kind {
+                index += 1
+            } else {
+                break _itemLoop
+            }
+        }
+        if items.isEmpty, !itemFailed {
+            emitError("expected operator name or submodule after '{'", at: openBrace)
+        }
+        if !closed, !itemFailed {
+            emitError("expected '}' after operator import items", at: endOfFile)
+        }
+        return (.List(items), endToken)
+    }
+
+    private func parseOperatorImportItem() -> AST.OperatorImportItem? {
+        guard let t = peek else {
+            emitError("expected operator name or submodule name, but got end of file", at: endOfFile)
+            return nil
+        }
+        switch t.kind {
+        case .Operator:
+            index += 1
+            return .Operator(t)
+        case .Identifier, .Keyword(.Module):
+            index += 1
+            let moduleToken = t
+            guard let dotToken = peek, case .Operator(.Dot) = dotToken.kind else {
+                if let current = peek {
+                    emitError(
+                        "expected '.', '*', or '{' after submodule name '\(moduleToken.value)', but got '\(current.value)'",
+                        at: current
+                    )
+                } else {
+                    emitError(
+                        "expected '.', '*', or '{' after submodule name '\(moduleToken.value)', but got end of file",
+                        at: endOfFile
+                    )
+                }
+                return nil
+            }
+            index += 1
+            guard let result = parseOperatorSelector() else {
+                return nil
+            }
+            return .Submodule(t, result.0)
+        default:
+            emitError(
+                "expected operator name or submodule name, but got '\(t.value)'", at: t
+            )
+            index += 1
+            return nil
+        }
     }
 
     private func parseImportItem() -> AST.ImportItem {

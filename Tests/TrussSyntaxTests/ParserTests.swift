@@ -7343,6 +7343,263 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(moduleDecl!.body[1] is AST.ExtensionDecl)
 }
 
+@Test func parseOperatorImportWildcard() throws {
+    let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.*")
+    #expect(diagnostics.isEmpty)
+    let statements = program.statements
+    try #require(statements.count == 1)
+    let decl = statements[0] as? AST.OperatorImport
+    try #require(decl != nil)
+    try #require(decl!.path.count == 1)
+    #expect(decl!.path[0].value == "Pkg")
+    if case .Wildcard = decl!.selector {
+    } else {
+        Issue.record("expected wildcard selector")
+    }
+}
+
+@Test func parseOperatorImportSingleOperator() throws {
+    let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.+")
+    #expect(diagnostics.isEmpty)
+    let statements = program.statements
+    try #require(statements.count == 1)
+    let decl = statements[0] as? AST.OperatorImport
+    try #require(decl != nil)
+    try #require(decl!.path.count == 1)
+    #expect(decl!.path[0].value == "Pkg")
+    if case let .Operator(token) = decl!.selector {
+        #expect(token.value == "+")
+    } else {
+        Issue.record("expected operator selector")
+    }
+}
+
+@Test func parseOperatorImportList() throws {
+    let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.{+, -}")
+    #expect(diagnostics.isEmpty)
+    let statements = program.statements
+    try #require(statements.count == 1)
+    let decl = statements[0] as? AST.OperatorImport
+    try #require(decl != nil)
+    if case let .List(items) = decl!.selector {
+        try #require(items.count == 2)
+        if case let .Operator(token) = items[0] {
+            #expect(token.value == "+")
+        } else {
+            Issue.record("expected operator item")
+        }
+        if case let .Operator(token) = items[1] {
+            #expect(token.value == "-")
+        } else {
+            Issue.record("expected operator item")
+        }
+    } else {
+        Issue.record("expected list selector")
+    }
+}
+
+@Test func parseOperatorImportSubmodule() throws {
+    let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.{+, module.-}")
+    #expect(diagnostics.isEmpty)
+    let statements = program.statements
+    try #require(statements.count == 1)
+    let decl = statements[0] as? AST.OperatorImport
+    try #require(decl != nil)
+    if case let .List(items) = decl!.selector {
+        try #require(items.count == 2)
+        if case let .Operator(token) = items[0] {
+            #expect(token.value == "+")
+        } else {
+            Issue.record("expected operator item")
+        }
+        if case let .Submodule(name, selector) = items[1] {
+            #expect(name.value == "module")
+            if case let .Operator(token) = selector {
+                #expect(token.value == "-")
+            } else {
+                Issue.record("expected operator selector")
+            }
+        } else {
+            Issue.record("expected submodule item")
+        }
+    } else {
+        Issue.record("expected list selector")
+    }
+}
+
+@Test func parseOperatorImportNestedList() throws {
+    let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.{+, module.{-,*}}")
+    #expect(diagnostics.isEmpty)
+    let statements = program.statements
+    try #require(statements.count == 1)
+    let decl = statements[0] as? AST.OperatorImport
+    try #require(decl != nil)
+    if case let .List(items) = decl!.selector {
+        try #require(items.count == 2)
+        if case let .Submodule(name, selector) = items[1] {
+            #expect(name.value == "module")
+            if case let .List(nested) = selector {
+                try #require(nested.count == 2)
+                if case let .Operator(token) = nested[0] {
+                    #expect(token.value == "-")
+                } else {
+                    Issue.record("expected operator item")
+                }
+                if case let .Operator(token) = nested[1] {
+                    #expect(token.value == "*")
+                } else {
+                    Issue.record("expected operator item for '*'")
+                }
+            } else {
+                Issue.record("expected nested list selector")
+            }
+        } else {
+            Issue.record("expected submodule item")
+        }
+    } else {
+        Issue.record("expected list selector")
+    }
+}
+
+@Test func parseOperatorImportMultilevelPath() throws {
+    let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.sub.+")
+    #expect(diagnostics.isEmpty)
+    let statements = program.statements
+    try #require(statements.count == 1)
+    let decl = statements[0] as? AST.OperatorImport
+    try #require(decl != nil)
+    try #require(decl!.path.count == 2)
+    #expect(decl!.path[0].value == "Pkg")
+    #expect(decl!.path[1].value == "sub")
+    if case .Operator = decl!.selector {
+    } else {
+        Issue.record("expected operator selector")
+    }
+}
+
+@Test func parseOperatorImportStarInListIsOperator() throws {
+    let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.{*, +}")
+    #expect(diagnostics.isEmpty)
+    let statements = program.statements
+    try #require(statements.count == 1)
+    let decl = statements[0] as? AST.OperatorImport
+    try #require(decl != nil)
+    if case let .List(items) = decl!.selector {
+        try #require(items.count == 2)
+        if case let .Operator(token) = items[0] {
+            #expect(token.value == "*")
+        } else {
+            Issue.record("expected operator item for '*'")
+        }
+    } else {
+        Issue.record("expected list selector")
+    }
+}
+
+@Test func parseOperatorImportNestedWildcard() throws {
+    let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.{+, module.*}")
+    #expect(diagnostics.isEmpty)
+    let statements = program.statements
+    try #require(statements.count == 1)
+    let decl = statements[0] as? AST.OperatorImport
+    try #require(decl != nil)
+    if case let .List(items) = decl!.selector {
+        try #require(items.count == 2)
+        if case let .Submodule(name, selector) = items[1] {
+            #expect(name.value == "module")
+            if case .Wildcard = selector {
+            } else {
+                Issue.record("expected wildcard selector")
+            }
+        } else {
+            Issue.record("expected submodule item")
+        }
+    } else {
+        Issue.record("expected list selector")
+    }
+}
+
+@Test func parseOperatorImportBarePathReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("import operator Pkg")
+    #expect(
+        diagnostics.contains {
+            $0.message.contains("expected '.', '*', or '{' after module path in operator import")
+        }
+    )
+}
+
+@Test func parseOperatorImportMissingPathReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("import operator")
+    #expect(
+        diagnostics.contains {
+            $0.message.contains("expected module name after 'import operator'")
+        }
+    )
+}
+
+@Test func parseOperatorImportMissingSelectorReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("import operator Pkg.")
+    #expect(
+        diagnostics.contains {
+            $0.message.contains("expected operator name, '*', or '{' after '.'")
+        }
+    )
+}
+
+@Test func parseOperatorImportBareSubmoduleReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("import operator Pkg.{module}")
+    #expect(
+        diagnostics.contains {
+            $0.message.contains("expected '.', '*', or '{' after submodule name 'module'")
+        }
+    )
+}
+
+@Test func parseOperatorImportEmptyListReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("import operator Pkg.{}")
+    #expect(
+        diagnostics.contains {
+            $0.message.contains("expected operator name or submodule after '{'")
+        }
+    )
+}
+
+@Test func parseOperatorImportMissingBraceReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("import operator Pkg.{+")
+    #expect(
+        diagnostics.contains {
+            $0.message.contains("expected '}' after operator import items")
+        }
+    )
+}
+
+@Test func parseOperatorImportAliasReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("import operator Pkg.+ as x")
+    #expect(
+        diagnostics.contains {
+            $0.message.contains("operator imports cannot have an alias")
+        }
+    )
+}
+
+@Test func parseOperatorImportInvalidPathReportsError() throws {
+    let (_, diagnostics) = parseWithDiagnostics("import operator 123")
+    #expect(
+        diagnostics.contains {
+            $0.message.contains("expected module name after 'import operator'")
+        }
+    )
+}
+
+@Test func parseOperatorImportOnlyAtTopLevel() throws {
+    let (_, diagnostics) = parseWithDiagnostics("module M { import operator Pkg.+ }")
+    #expect(
+        diagnostics.contains {
+            $0.message.contains("import is only allowed at top level")
+        }
+    )
+}
+
 @Test func parseCastAsBitCastExpression() {
     let expr = firstExpression("x as!! Int32")
     let cast = expr as? AST.Cast

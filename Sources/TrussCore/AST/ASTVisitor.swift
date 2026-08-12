@@ -72,6 +72,13 @@ extension AST {
         }
 
         @discardableResult
+        open func visitOperatorImport(
+            _ operatorImport: AST.OperatorImport, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
+
+        @discardableResult
         open func visitExternDecl(
             _ externDecl: AST.ExternDecl, additional: Any? = nil
         ) -> Any? {
