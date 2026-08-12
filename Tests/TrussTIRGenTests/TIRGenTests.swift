@@ -10,7 +10,7 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function $t4main1f1a1SF"))
+        try #require(tir.contains("function $t4main_1f_1a1S_1S"))
         try #require(tir.contains("entry:"))
         try #require(tir.contains("AllocStack"))
         try #require(tir.contains("Load"))
@@ -121,5 +121,71 @@ import Testing
         )
         try #require(tir.contains("xGetter"))
         try #require(tir.contains("Apply"))
+    }
+
+    @Test func nestedModuleFunctionMangled() throws {
+        let tir = dumpTIR(
+            """
+            struct S {}
+            module A.B {
+                func f(a: S) -> S {
+                    return a
+                }
+            }
+            """
+        )
+        try #require(tir.contains("function $t4main1A1B_1f_1a1S_1S"))
+        try #require(!tir.contains("function $t4main_1f_1a1S_1S"))
+    }
+
+    @Test func nestedModuleGlobalMangled() throws {
+        let tir = dumpTIR(
+            """
+            struct S {
+                init() {}
+            }
+            module A.B {
+                var g: S = S()
+            }
+            """
+        )
+        try #require(tir.contains("global $t4main1A1B_1g"))
+        try #require(tir.contains("GlobalAddr $t4main1A1B_1g"))
+    }
+
+    @Test func nestedModuleAccessorMangled() throws {
+        let tir = dumpTIR(
+            """
+            struct S {}
+            module A.B {
+                struct T {
+                    var x: S {
+                        get { return y }
+                    }
+                    var y: S = S()
+                    init() {}
+                }
+            }
+            """
+        )
+        try #require(tir.contains("function $t4main1A1B_1T_1xGetter_1S"))
+    }
+
+    @Test func nestedModuleDoesNotCollideWithTopLevel() throws {
+        let tir = dumpTIR(
+            """
+            struct S {}
+            func f(a: S) -> S {
+                return a
+            }
+            module A.B {
+                func f(a: S) -> S {
+                    return a
+                }
+            }
+            """
+        )
+        try #require(tir.contains("function $t4main_1f_1a1S_1S"))
+        try #require(tir.contains("function $t4main1A1B_1f_1a1S_1S"))
     }
 }

@@ -141,7 +141,7 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function $t4main1T9subscript1i1SF"))
+        try #require(tir.contains("function $t4main_1T_9subscript_1i1S_1S"))
     }
 
     @Test func initCallLowered() throws {
@@ -155,8 +155,8 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function $t4main1S4initF"))
-        try #require(tir.contains("FunctionRef $t4main1S4initF"))
+        try #require(tir.contains("function $t4main_1S_4init_4Void"))
+        try #require(tir.contains("FunctionRef $t4main_1S_4init_4Void"))
         try #require(tir.contains("Apply "))
     }
 }
@@ -172,7 +172,7 @@ import Testing
         }
         """
     )
-    try #require(tir.contains("4initF : $("))
+    try #require(tir.contains("4init_4Void : $("))
     let fBlock = tir.components(separatedBy: "function ").last
         ?? ""
     try #require(fBlock.range(of: #"Apply %\d+\(%\d+\)"#, options: .regularExpression) != nil)
@@ -209,7 +209,7 @@ import Testing
         """
     )
     let getterBlock = tir.components(separatedBy: "function ")
-        .first(where: { $0.contains("xGetterF") }) ?? ""
+        .first(where: { $0.contains("1xGetter_") }) ?? ""
     try #require(getterBlock.range(of: #"Return %\d+"#, options: .regularExpression) != nil)
 }
 

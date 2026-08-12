@@ -15,8 +15,8 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function $t4main1T1xGetterF"))
-        try #require(tir.contains("function $t4main1T1xSetterF"))
+        try #require(tir.contains("function $t4main_1T_1xGetter_1S"))
+        try #require(tir.contains("function $t4main_1T_1xSetter_4Void"))
     }
 
     @Test func observerFunctionsMangled() throws {
@@ -32,8 +32,8 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function $t4main1T1xWillSetF"))
-        try #require(tir.contains("function $t4main1T1xDidSetF"))
+        try #require(tir.contains("function $t4main_1T_1xWillSet_4Void"))
+        try #require(tir.contains("function $t4main_1T_1xDidSet_4Void"))
     }
 
     @Test func assignmentCallsSetter() throws {
@@ -58,7 +58,7 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("FunctionRef $t4main1T1xSetterF"))
+        try #require(tir.contains("FunctionRef $t4main_1T_1xSetter_4Void"))
         try #require(tir.contains("Apply "))
     }
 
@@ -85,9 +85,9 @@ import Testing
         )
         let fBlock = tir.components(separatedBy: "function ").last
             ?? ""
-        let willSet = try #require(fBlock.range(of: "FunctionRef $t4main1T1xWillSetF"))
+        let willSet = try #require(fBlock.range(of: "FunctionRef $t4main_1T_1xWillSet_4Void"))
         let store = try #require(fBlock.range(of: "Store ", options: .backwards))
-        let didSet = try #require(fBlock.range(of: "FunctionRef $t4main1T1xDidSetF"))
+        let didSet = try #require(fBlock.range(of: "FunctionRef $t4main_1T_1xDidSet_4Void"))
         try #require(willSet.lowerBound < store.lowerBound)
         try #require(store.lowerBound < didSet.lowerBound)
     }
@@ -112,7 +112,7 @@ import Testing
         )
         try #require(tir.contains("StructElementAddr"))
         try #require(tir.contains("Store "))
-        try #require(!tir.contains("xSetterF"))
+        try #require(!tir.contains("xSetter_"))
     }
 
     @Test func assignmentStoresToLocalVariable() throws {
@@ -152,7 +152,7 @@ import Testing
         """
     )
     let getterBlock = tir.components(separatedBy: "function ")
-        .first(where: { $0.contains("xGetterF") }) ?? ""
+        .first(where: { $0.contains("1xGetter_") }) ?? ""
     try #require(getterBlock.contains("StructElementAddr"))
     try #require(getterBlock.contains("Load "))
 }
@@ -176,7 +176,7 @@ import Testing
         """
     )
     let setterBlock = tir.components(separatedBy: "function ")
-        .first(where: { $0.contains("xSetterF") }) ?? ""
+        .first(where: { $0.contains("1xSetter_") }) ?? ""
     try #require(setterBlock.contains("StructElementAddr"))
     try #require(setterBlock.contains("Store "))
 }
@@ -190,5 +190,5 @@ import Testing
         }
         """
     )
-    try #require(tir.contains("function $t4main1f1a1SF (%0 t4main1S#0) -> t4main1S#0"))
+    try #require(tir.contains("function $t4main_1f_1a1S_1S (%0 t4main1S#0) -> t4main1S#0"))
 }

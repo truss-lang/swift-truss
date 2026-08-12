@@ -15,8 +15,8 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function $t4main1+3lhs1S3rhs1SF"))
-        try #require(tir.contains("FunctionRef $t4main1+3lhs1S3rhs1SF"))
+        try #require(tir.contains("function $t4main_1+_3lhs1S_3rhs1S_1S"))
+        try #require(tir.contains("FunctionRef $t4main_1+_3lhs1S_3rhs1S_1S"))
         try #require(tir.contains("Apply "))
     }
 
@@ -34,7 +34,7 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function $t4main1-11prefixValue1SF"))
+        try #require(tir.contains("function $t4main_1-_11prefixValue1S_1S"))
         try #require(tir.contains("Apply "))
     }
 
@@ -115,9 +115,9 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("global $t4main1g"))
-        try #require(tir.contains("GlobalAddr $t4main1g"))
-        try #require(tir.contains("FunctionRef $t4main1S4initF"))
+        try #require(tir.contains("global $t4main_1g"))
+        try #require(tir.contains("GlobalAddr $t4main_1g"))
+        try #require(tir.contains("FunctionRef $t4main_1S_4init_4Void"))
         try #require(tir.contains("Store "))
     }
 
@@ -135,8 +135,8 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function $t4main1S4makeF"))
-        try #require(tir.contains("FunctionRef $t4main1S4makeF"))
+        try #require(tir.contains("function $t4main_1S_4make_1S"))
+        try #require(tir.contains("FunctionRef $t4main_1S_4make_1S"))
         try #require(tir.contains("Apply "))
     }
 }

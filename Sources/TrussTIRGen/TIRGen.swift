@@ -15,10 +15,12 @@ public final class TIRGen: AST.Visitor {
     private var closureParamValues: [[TIR.Value]] = []
     private var closureCounter = 0
     private var globalsBySymbol: [Id.SymbolId: TIR.GlobalVariable] = [:]
+    private var globalNamesBySymbol: [Id.SymbolId: String] = [:]
     private var propertyInitializers: [Id.SymbolId: [(Symbol.VariableSymbol, AST.Expression)]] = [:]
     private var accessorFunctions: [Id.SymbolId: [String: TIR.Function]] = [:]
     private var initFunctionsByType: [Id.SymbolId: TIR.Function] = [:]
     private var collectTypeStack: [Symbol.NominalTypeSymbol] = []
+    private var modulePathStack: [Symbol.ModuleSymbol] = []
     private var counter = 0
 
     private struct BreakTarget {
@@ -35,6 +37,7 @@ public final class TIRGen: AST.Visitor {
     public func generate(_ program: AST.Program) -> TIR.Module {
         module = TIR.Module()
         functionsBySymbol = [:]
+        globalNamesBySymbol = [:]
         collectFunctions(in: program)
         visitProgram(program)
         return module
@@ -58,7 +61,13 @@ public final class TIRGen: AST.Visitor {
             case let decl as AST.VariableDecl:
                 collectVariable(decl)
             case let decl as AST.ModuleDecl:
+                if let moduleSymbol = decl.symbol {
+                    modulePathStack.append(moduleSymbol)
+                }
                 collectStatements(decl.body)
+                if decl.symbol != nil {
+                    modulePathStack.removeLast()
+                }
             case let decl as AST.StructDecl:
                 collectTypeStack.append(decl.symbol ?? Symbol.StructSymbol(id: Id.SymbolId(id: 0), name: ""))
                 collectStatements(decl.body)
@@ -91,7 +100,10 @@ public final class TIRGen: AST.Visitor {
         let returnType = functionType.map { typeLower.lower($0.returnType) } ?? TIRType.VoidType()
         let throwsTypes = functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
         createFunction(
-            symbol, name: mangleFunctionName(symbol, baseName: decl.name.value),
+            symbol, name: mangleFunctionName(
+                symbol, baseName: decl.name.value,
+                returnType: functionType?.returnType ?? TrussType.VoidType.INSTANCE
+            ),
             returnType: returnType,
             isAsync: decl.asyncToken != nil, isThrowing: functionType?.isThrowing ?? false,
             throwsTypes: throwsTypes
@@ -102,7 +114,7 @@ public final class TIRGen: AST.Visitor {
         guard let symbol = decl.symbol else { return }
         let throwsTypes = symbol.functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
         let function = createFunction(
-            symbol, name: mangleFunctionName(symbol, baseName: "init"),
+            symbol, name: mangleFunctionName(symbol, baseName: "init", returnType: TrussType.VoidType.INSTANCE),
             returnType: TIRType.VoidType(),
             isAsync: decl.asyncToken != nil, isThrowing: symbol.functionType?.isThrowing ?? false,
             throwsTypes: throwsTypes
@@ -122,7 +134,10 @@ public final class TIRGen: AST.Visitor {
         let returnType = functionType.map { typeLower.lower($0.returnType) } ?? TIRType.VoidType()
         let throwsTypes = functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
         createFunction(
-            symbol, name: mangleFunctionName(symbol, baseName: "subscript"),
+            symbol, name: mangleFunctionName(
+                symbol, baseName: "subscript",
+                returnType: functionType?.returnType ?? TrussType.VoidType.INSTANCE
+            ),
             returnType: returnType,
             isAsync: decl.asyncToken != nil, isThrowing: functionType?.isThrowing ?? false,
             throwsTypes: throwsTypes
@@ -130,7 +145,11 @@ public final class TIRGen: AST.Visitor {
     }
 
     private func collectVariable(_ decl: AST.VariableDecl) {
-        guard !decl.accessors.isEmpty, let symbol = decl.symbol else { return }
+        guard let symbol = decl.symbol else { return }
+        if symbol.memberOf == nil, decl.accessors.isEmpty {
+            globalNamesBySymbol[symbol.id] = mangleGlobalName(symbol)
+        }
+        guard !decl.accessors.isEmpty else { return }
         let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.VoidType()
         for accessor in decl.accessors {
             let (kindName, suffix): (String, String)
@@ -150,12 +169,14 @@ public final class TIRGen: AST.Visitor {
             }
             let function: TIR.Function = if accessor.kind == .Get {
                 createFunction(
-                    nil, name: mangleAccessorName(symbol, suffix: suffix),
+                    nil, name: mangleAccessorName(
+                        symbol, suffix: suffix, returnType: symbol.type ?? TrussType.VoidType.INSTANCE
+                    ),
                     returnType: propertyType
                 )
             } else {
                 createFunction(
-                    nil, name: mangleAccessorName(symbol, suffix: suffix),
+                    nil, name: mangleAccessorName(symbol, suffix: suffix, returnType: TrussType.VoidType.INSTANCE),
                     returnType: TIRType.VoidType()
                 )
             }
@@ -245,26 +266,32 @@ public final class TIRGen: AST.Visitor {
         closureParamValues = savedClosureParams
     }
 
-    private func mangleFunctionName(_ symbol: Symbol.FunctionSymbol, baseName: String) -> String {
+    private func mangleFunctionName(
+        _ symbol: Symbol.FunctionSymbol, baseName: String, returnType: TrussType.TrussType
+    ) -> String {
         var result = "$t"
         let packageName = symbol.packageId.flatMap { context.id2Symbol[$0]?.name } ?? "main"
         result += mangleIdentifier(packageName)
-        if let module = symbol.moduleSymbol {
-            result += mangleIdentifier(module.name)
+        for moduleSymbol in modulePathStack {
+            result += mangleIdentifier(moduleSymbol.name)
         }
         if let memberOf = symbol.memberOf, let owner = context.id2Symbol[memberOf] {
+            result += "_"
             result += mangleIdentifier(owner.name)
         }
+        result += "_"
         result += mangleIdentifier(baseName)
         if let functionType = symbol.functionType {
             let labels = symbol.signature.labels
             for (index, parameter) in functionType.parameters.enumerated() {
                 let label = index < labels.count ? labels[index] : nil
+                result += "_"
                 result += mangleIdentifier(label ?? "_")
                 result += mangleIdentifier(typeName(parameter.type))
             }
         }
-        result += "F"
+        result += "_"
+        result += mangleIdentifier(typeName(returnType))
         return result
     }
 
@@ -275,7 +302,7 @@ public final class TIRGen: AST.Visitor {
     private func typeName(_ type: TrussType.TrussType) -> String {
         switch type {
         case is TrussType.VoidType:
-            "y"
+            "Void"
         case let nominal as TrussType.NominalType:
             nominal.name
         case is TrussType.OptionalType:
@@ -581,7 +608,9 @@ public final class TIRGen: AST.Visitor {
         let type = symbol.type.map { typeLower.lower($0) }
             ?? (variableDecl.initializer?.ty).map { typeLower.lower($0) }
             ?? TIRType.VoidType()
-        let global = TIR.GlobalVariable(name: mangleGlobalName(symbol), type: type)
+        let global = TIR.GlobalVariable(
+            name: globalNamesBySymbol[symbol.id] ?? mangleGlobalName(symbol), type: type
+        )
         global.symbol = symbol
         module.globals.append(global)
         globalsBySymbol[symbol.id] = global
@@ -611,22 +640,33 @@ public final class TIRGen: AST.Visitor {
 
     private func mangleGlobalName(_ symbol: Symbol.VariableSymbol) -> String {
         let packageName = symbol.packageId.flatMap { context.id2Symbol[$0]?.name } ?? "main"
-        return "$t" + mangleIdentifier(packageName) + mangleIdentifier(symbol.name)
+        var result = "$t" + mangleIdentifier(packageName)
+        for moduleSymbol in modulePathStack {
+            result += mangleIdentifier(moduleSymbol.name)
+        }
+        result += "_"
+        result += mangleIdentifier(symbol.name)
+        return result
     }
 
-    private func mangleAccessorName(_ symbol: Symbol.VariableSymbol, suffix: String) -> String {
+    private func mangleAccessorName(
+        _ symbol: Symbol.VariableSymbol, suffix: String, returnType: TrussType.TrussType
+    ) -> String {
         var result = "$t"
         let packageName = symbol.packageId.flatMap { context.id2Symbol[$0]?.name } ?? "main"
         result += mangleIdentifier(packageName)
-        if let module = symbol.moduleSymbol {
-            result += mangleIdentifier(module.name)
+        for moduleSymbol in modulePathStack {
+            result += mangleIdentifier(moduleSymbol.name)
         }
         if let memberOf = symbol.memberOf, let owner = context.id2Symbol[memberOf] {
+            result += "_"
             result += mangleIdentifier(owner.name)
         }
+        result += "_"
         result += mangleIdentifier(symbol.name)
         result += suffix
-        result += "F"
+        result += "_"
+        result += mangleIdentifier(typeName(returnType))
         return result
     }
 
