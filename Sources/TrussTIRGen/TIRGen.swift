@@ -103,7 +103,14 @@ public final class TIRGen: AST.Visitor {
         let functionType = symbol.functionType
         let returnType = functionType.map { typeLower.lower($0.returnType) } ?? TIRType.VoidType()
         let throwsTypes = functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
-        let name = functionName(for: decl, symbol: symbol, functionType: functionType)
+        let name = if let cname = cname(decl.attributes) {
+            cname
+        } else {
+            mangleFunctionName(
+                symbol, baseName: decl.name.value,
+                returnType: functionType?.returnType ?? TrussType.VoidType.INSTANCE
+            )
+        }
         createFunction(
             symbol, name: name,
             returnType: returnType,
@@ -115,8 +122,16 @@ public final class TIRGen: AST.Visitor {
     private func collectInit(_ decl: AST.InitDecl) {
         guard let symbol = decl.symbol else { return }
         let throwsTypes = symbol.functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
+        let name = if let cname = cname(decl.attributes) {
+            cname
+        } else {
+            mangleFunctionName(
+                symbol, baseName: "init",
+                returnType: TrussType.VoidType.INSTANCE
+            )
+        }
         let function = createFunction(
-            symbol, name: mangleFunctionName(symbol, baseName: "init", returnType: TrussType.VoidType.INSTANCE),
+            symbol, name: name,
             returnType: TIRType.VoidType(),
             isAsync: decl.asyncToken != nil, isThrowing: symbol.functionType?.isThrowing ?? false,
             throwsTypes: throwsTypes
@@ -128,8 +143,13 @@ public final class TIRGen: AST.Visitor {
 
     private func collectDeinit(_ decl: AST.DeinitDecl) {
         guard let owner = collectTypeStack.last else { return }
+        let name = if let cname = cname(decl.attributes) {
+            cname
+        } else {
+            mangleDeinitName(owner)
+        }
         let function = createFunction(
-            nil, name: mangleDeinitName(owner), returnType: TIRType.VoidType()
+            nil, name: name, returnType: TIRType.VoidType()
         )
         deinitFunctions[ObjectIdentifier(decl)] = function
         deinitOwners[ObjectIdentifier(decl)] = owner
@@ -155,11 +175,16 @@ public final class TIRGen: AST.Visitor {
         let functionType = symbol.functionType
         let returnType = functionType.map { typeLower.lower($0.returnType) } ?? TIRType.VoidType()
         let throwsTypes = functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
-        createFunction(
-            symbol, name: mangleFunctionName(
+        let name = if let cname = cname(decl.attributes) {
+            cname
+        } else {
+            mangleFunctionName(
                 symbol, baseName: "subscript",
                 returnType: functionType?.returnType ?? TrussType.VoidType.INSTANCE
-            ),
+            )
+        }
+        createFunction(
+            symbol, name: name,
             returnType: returnType,
             isAsync: decl.asyncToken != nil, isThrowing: functionType?.isThrowing ?? false,
             throwsTypes: throwsTypes
@@ -1510,10 +1535,17 @@ public final class TIRGen: AST.Visitor {
         if let initFunction = initFunctionFor(call, resolvedSymbol: resolvedSymbol),
            let selfType = initFunction.arguments.first?.type
         {
-            let selfAddress = builder.emitWithResult(
-                TIR.AllocStack(selfType, sourceRange: call.sourceRange),
-                type: TIRType.AddressType(selfType), ownership: .MutableBorrowing
-            )
+            let selfAddress = if let refType = selfType as? TIRType.ReferenceType {
+                builder.emitWithResult(
+                    TIR.AllocRef(refType, sourceRange: call.sourceRange),
+                    type: TIRType.AddressType(selfType), ownership: .MutableBorrowing
+                )
+            } else {
+                builder.emitWithResult(
+                    TIR.AllocStack(selfType, sourceRange: call.sourceRange),
+                    type: TIRType.AddressType(selfType), ownership: .MutableBorrowing
+                )
+            }
             arguments.append(selfAddress)
         }
         if let member = call.callee as? AST.MemberAccess, let functionSymbol = resolvedSymbol,
