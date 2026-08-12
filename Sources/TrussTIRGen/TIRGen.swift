@@ -894,39 +894,79 @@ public final class TIRGen: AST.Visitor {
         let thenBlock = builder.createBlock()
         let elseBlock = builder.createBlock()
         let joinBlock = builder.createBlock()
+        var incomings: [(TIR.Value, TIR.BasicBlock)] = []
         visitCondition(
             ifExpression.condition, trueBlock: thenBlock, falseBlock: elseBlock,
             range: ifExpression.sourceRange
         )
         builder.switchToBlock(thenBlock)
-        for statement in ifExpression.then {
-            visit(statement)
-        }
-        builder.emit(TIR.Branch(joinBlock, sourceRange: ifExpression.sourceRange))
+        emitBranchValue(
+            ifExpression.then, incomings: &incomings, joinBlock: joinBlock,
+            range: ifExpression.sourceRange
+        )
         builder.switchToBlock(elseBlock)
         if let elseKind = ifExpression.elseKind {
             switch elseKind {
             case let .Block(statements):
-                for statement in statements {
-                    visit(statement)
-                }
-                builder.emit(TIR.Branch(joinBlock, sourceRange: ifExpression.sourceRange))
+                emitBranchValue(
+                    statements, incomings: &incomings, joinBlock: joinBlock,
+                    range: ifExpression.sourceRange
+                )
             case let .If(nested):
-                visitIf(nested)
+                if let value = visitIf(nested) as? TIR.Value {
+                    incomings.append((value, builder.currentBlock))
+                }
                 builder.emit(TIR.Branch(joinBlock, sourceRange: ifExpression.sourceRange))
             }
         } else {
             builder.emit(TIR.Branch(joinBlock, sourceRange: ifExpression.sourceRange))
+            incomings = []
         }
         builder.switchToBlock(joinBlock)
-        return nil
+        return emitPhi(incomings, range: ifExpression.sourceRange)
+    }
+
+    private func emitBranchValue(
+        _ statements: [AST.Statement], incomings: inout [(TIR.Value, TIR.BasicBlock)],
+        joinBlock: TIR.BasicBlock, range: SourceRange
+    ) {
+        guard let builder else { return }
+        if let last = statements.last as? AST.ExpressionStatement {
+            for statement in statements.dropLast() {
+                visit(statement)
+            }
+            if let value = visitExpression(last.expression) {
+                incomings.append((value, builder.currentBlock))
+            }
+        } else {
+            for statement in statements {
+                visit(statement)
+            }
+        }
+        builder.emit(TIR.Branch(joinBlock, sourceRange: range))
+    }
+
+    private func emitPhi(
+        _ incomings: [(TIR.Value, TIR.BasicBlock)], range: SourceRange
+    ) -> TIR.Value? {
+        guard let builder, let first = incomings.first else { return nil }
+        return builder.emitWithResult(
+            TIR.Phi(incomings: incomings, sourceRange: range),
+            type: first.0.type, ownership: typeLower.ownership(for: first.0.type)
+        )
     }
 
     @discardableResult
     public override func visitMatch(_ matchExpression: AST.Match, additional: Any? = nil) -> Any? {
+        visitMatch(matchExpression, implicitReturn: false)
+        return nil
+    }
+
+    private func visitMatch(_ matchExpression: AST.Match, implicitReturn: Bool) -> TIR.Value? {
         guard let builder, let subject = visitExpression(matchExpression.subject) else { return nil }
         let joinBlock = builder.createBlock()
         var testBlock = builder.currentBlock
+        var incomings: [(TIR.Value, TIR.BasicBlock)] = []
         for matchCase in matchExpression.cases {
             let caseBody = builder.createBlock()
             builder.switchToBlock(testBlock)
@@ -940,15 +980,30 @@ public final class TIRGen: AST.Visitor {
             }
             testBlock = builder.currentBlock
             builder.switchToBlock(caseBody)
-            for statement in matchCase.body {
-                visit(statement)
+            let statements = matchCase.body
+            if let last = statements.last as? AST.ExpressionStatement {
+                for statement in statements.dropLast() {
+                    visit(statement)
+                }
+                if implicitReturn {
+                    visitImplicitReturnExpression(last.expression, range: last.sourceRange)
+                } else {
+                    if let value = visitExpression(last.expression) {
+                        incomings.append((value, builder.currentBlock))
+                    }
+                    builder.emit(TIR.Branch(joinBlock, sourceRange: matchCase.sourceRange))
+                }
+            } else {
+                for statement in statements {
+                    visit(statement)
+                }
+                builder.emit(TIR.Branch(joinBlock, sourceRange: matchCase.sourceRange))
             }
-            builder.emit(TIR.Branch(joinBlock, sourceRange: matchExpression.sourceRange))
         }
         builder.switchToBlock(testBlock)
         builder.emit(TIR.Unreachable(matchExpression.sourceRange))
         builder.switchToBlock(joinBlock)
-        return nil
+        return emitPhi(incomings, range: matchExpression.sourceRange)
     }
 
     private func emitPatternMatch(
@@ -1110,9 +1165,20 @@ public final class TIRGen: AST.Visitor {
         guard let builder else { return nil }
         let joinBlock = builder.createBlock()
         let errorBlock = builder.createBlock()
+        var incomings: [(TIR.Value, TIR.BasicBlock)] = []
         errorTargets.append(errorBlock)
-        for statement in doExpression.body {
-            visit(statement)
+        let bodyStatements = doExpression.body
+        if let last = bodyStatements.last as? AST.ExpressionStatement {
+            for statement in bodyStatements.dropLast() {
+                visit(statement)
+            }
+            if let value = visitExpression(last.expression) {
+                incomings.append((value, builder.currentBlock))
+            }
+        } else {
+            for statement in bodyStatements {
+                visit(statement)
+            }
         }
         errorTargets.removeLast()
         builder.emit(TIR.Branch(joinBlock, sourceRange: doExpression.sourceRange))
@@ -1141,8 +1207,18 @@ public final class TIRGen: AST.Visitor {
                 }
                 testBlock = builder.currentBlock
                 builder.switchToBlock(catchBody)
-                for statement in catchClause.body {
-                    visit(statement)
+                let catchStatements = catchClause.body
+                if let last = catchStatements.last as? AST.ExpressionStatement {
+                    for statement in catchStatements.dropLast() {
+                        visit(statement)
+                    }
+                    if let value = visitExpression(last.expression) {
+                        incomings.append((value, builder.currentBlock))
+                    }
+                } else {
+                    for statement in catchStatements {
+                        visit(statement)
+                    }
                 }
                 builder.emit(TIR.Branch(joinBlock, sourceRange: doExpression.sourceRange))
             }
@@ -1158,7 +1234,7 @@ public final class TIRGen: AST.Visitor {
         } else {
             builder.switchToBlock(joinBlock)
         }
-        return nil
+        return emitPhi(incomings, range: doExpression.sourceRange)
     }
 
     @discardableResult
@@ -2328,13 +2404,22 @@ public final class TIRGen: AST.Visitor {
     private func visitBodyStatements(_ statements: [AST.Statement], implicitReturn: Bool) {
         for (index, statement) in statements.enumerated() {
             if implicitReturn, index == statements.count - 1,
-               let expressionStatement = statement as? AST.ExpressionStatement,
-               let value = visitExpression(expressionStatement.expression)
+               let expressionStatement = statement as? AST.ExpressionStatement
             {
-                emitReturn(value, range: expressionStatement.sourceRange)
+                visitImplicitReturnExpression(
+                    expressionStatement.expression, range: expressionStatement.sourceRange
+                )
                 return
             }
             visit(statement)
+        }
+    }
+
+    private func visitImplicitReturnExpression(_ expression: AST.Expression, range: SourceRange) {
+        if let match = expression as? AST.Match {
+            visitMatch(match, implicitReturn: true)
+        } else if let value = visitExpression(expression) {
+            emitReturn(value, range: range)
         }
     }
 

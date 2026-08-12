@@ -132,4 +132,25 @@ public extension TIR {
             visitor.visitTrap(self, additional: additional)
         }
     }
+
+    struct PhiIncoming {
+        public let value: Value
+        public let block: BasicBlock
+        public init(value: Value, block: BasicBlock) {
+            self.value = value
+            self.block = block
+        }
+    }
+
+    final class Phi: Instruction {
+        public let incomings: [PhiIncoming]
+        public init(incomings: [(Value, BasicBlock)], sourceRange: SourceRange) {
+            self.incomings = incomings.map { PhiIncoming(value: $0.0, block: $0.1) }
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitPhi(self, additional: additional)
+        }
+    }
 }

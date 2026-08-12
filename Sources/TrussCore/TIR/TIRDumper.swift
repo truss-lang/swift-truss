@@ -271,6 +271,13 @@ public extension TIR {
                 return "Unreachable"
             case is Trap:
                 return "Trap"
+            case let instruction as Phi:
+                var text = result + "Phi"
+                for (index, incoming) in instruction.incomings.enumerated() {
+                    if index > 0 { text += "," }
+                    text += " [" + incoming.value.name + ", " + incoming.block.name + "]"
+                }
+                return text
             case let instruction as IntegerLiteral:
                 return result + "IntegerLiteral " + String(instruction.value)
             case let instruction as FloatLiteral:

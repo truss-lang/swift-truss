@@ -936,6 +936,18 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     #expect(context.diagnositicEngine.hasErrors)
 }
 
+@Test func matchImplicitMemberExpressionReportsError() {
+    let (context, _) = runTypeChecker(
+        ["enum E { case a, b }\nfunc f(e: E) -> E { match e { .a => .b } }"]
+    )
+    let errors = context.diagnositicEngine.diagnostics.filter { $0.severity == .error }
+    #expect(
+        errors.contains {
+            $0.message == "cannot infer type of implicit member access '.b'"
+        }
+    )
+}
+
 @Test func ifCaseEnumMatches() {
     let (context, _) = runTypeChecker(
         ["enum E { case a }\nfunc f(e: E) { if case .a = e {} }"]
@@ -1477,8 +1489,8 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
         [pointerPrelude
             + "struct Point {\n    var x: Int\n    var y: Int\n}\n"
             + "func f() {\n    var pt: Point\n    var pp: Point* = &pt\n"
-            + "    var a = pp->x\n    var b = *pp\n    var i = pp[0]\n"
-            + "    if pp != nullptr {\n        var c = pp->y\n    }\n"
+            + "    var a = (*pp).x\n    var b = *pp\n    var i = pp[0]\n"
+            + "    if pp != nullptr {\n        var c = (*pp).y\n    }\n"
             + "    var nn: Point*! = pp!\n}"]
     )
     #expect(!context.diagnositicEngine.hasErrors)

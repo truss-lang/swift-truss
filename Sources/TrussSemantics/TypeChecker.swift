@@ -1986,16 +1986,10 @@ public final class TypeChecker: AST.Visitor {
                 )
             }
         case let implicitMemberAccess as AST.ImplicitMemberAccess:
-            if let typeId = typeStack.last?.typeId, let selfType = context.typeTable[typeId] {
-                if let member = memberType(of: implicitMemberAccess.name.value, in: selfType) {
-                    expression.ty = member
-                } else {
-                    emitNoMember(
-                        at: implicitMemberAccess.token, type: typeText(selfType),
-                        member: implicitMemberAccess.name.value
-                    )
-                }
-            }
+            context.emitError(
+                "cannot infer type of implicit member access '.\(implicitMemberAccess.name.value)'",
+                at: implicitMemberAccess.token
+            )
         case let subscriptExpression as AST.Subscript:
             _ = infer(subscriptExpression.base, at: token)
             if let pointer = subscriptExpression.base.ty.flatMap({

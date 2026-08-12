@@ -5075,11 +5075,15 @@ public final class Parser {
                     emitError("expected '}' after block", at: endOfFile)
                 }
             default:
-                if let expr = parseExpression() {
-                    body.append(AST.ExpressionStatement(expr))
-                } else {
+                guard let expr = parseExpression() else {
                     emitError("expected expression after '=>'", at: locationAfter(arrowToken))
                     return nil
+                }
+                body.append(AST.ExpressionStatement(expr))
+                if let comma = peek, comma.kind == .Separator(.Comma) {
+                    index += 1
+                } else if let close = peek, close.kind != .Separator(.CloseBrace) {
+                    emitError("expected ',' after match case expression", at: close)
                 }
             }
             return AST.Match.Case(

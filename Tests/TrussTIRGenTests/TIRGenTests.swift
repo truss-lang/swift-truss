@@ -37,6 +37,195 @@ import TrussTIRGen
         try #require(tir.contains("Unreachable"))
     }
 
+    @Test func matchImplicitReturnInFunction() throws {
+        let tir = dumpTIR(
+            """
+            enum E {
+                case A
+                case B
+            }
+            func f(e: E) -> E {
+                match e {
+                .A => { e }
+                .B => { e }
+                }
+            }
+            """
+        )
+        let fBlock = tir.components(separatedBy: "function ").last ?? ""
+        let returns = fBlock.components(separatedBy: "\n")
+            .filter { $0.range(of: #"Return %\d+"#, options: .regularExpression) != nil }
+        try #require(returns.count == 2)
+    }
+
+    @Test func matchImplicitReturnInGetter() throws {
+        let tir = dumpTIR(
+            """
+            enum E {
+                case A
+                case B
+            }
+            struct S {
+                var e: E
+                var mirrored: E {
+                    get {
+                        match e {
+                        .A => { e }
+                        .B => { e }
+                        }
+                    }
+                }
+            }
+            """
+        )
+        let getterBlock = tir.components(separatedBy: "function ")
+            .first(where: { $0.contains("mirroredGetter_") }) ?? ""
+        let returns = getterBlock.components(separatedBy: "\n")
+            .filter { $0.range(of: #"Return %\d+"#, options: .regularExpression) != nil }
+        try #require(returns.count == 2)
+    }
+
+    @Test func matchImplicitReturnInClosure() throws {
+        let tir = dumpTIR(
+            """
+            enum E {
+                case A
+                case B
+            }
+            func f(e: E) -> () -> E {
+                { () -> E in
+                    match e {
+                    .A => { e }
+                    .B => { e }
+                    }
+                }
+            }
+            """
+        )
+        let closureBlock = tir.components(separatedBy: "function ")
+            .first(where: { $0.hasPrefix("closure-0") }) ?? ""
+        let returns = closureBlock.components(separatedBy: "\n")
+            .filter { $0.range(of: #"Return %\d+"#, options: .regularExpression) != nil }
+        try #require(returns.count == 2)
+    }
+
+    @Test func matchExpressionLowersToPhi() throws {
+        let tir = dumpTIR(
+            """
+            enum E {
+                case A
+                case B
+            }
+            struct S {
+                init() {}
+            }
+            func f(e: E) -> S {
+                let x = match e {
+                .A => S(),
+                .B => S()
+                }
+                return x
+            }
+            """
+        )
+        try #require(tir.contains("Phi"))
+        try #require(tir
+            .range(of: #"Phi \[%[0-9]+, bb[0-9]+\], \[%[0-9]+, bb[0-9]+\]"#, options: .regularExpression) != nil)
+    }
+
+    @Test func ifExpressionLowersToPhi() throws {
+        let tir = dumpTIR(
+            """
+            struct S {
+                init() {}
+            }
+            func f(c: Builtin.Bool) -> S {
+                let y = if c {
+                    S()
+                } else {
+                    S()
+                }
+                return y
+            }
+            """,
+            installBuiltin: true
+        )
+        try #require(tir.contains("Phi"))
+        try #require(tir
+            .range(of: #"Phi \[%[0-9]+, bb[0-9]+\], \[%[0-9]+, bb[0-9]+\]"#, options: .regularExpression) != nil)
+    }
+
+    @Test func implicitReturnIfLowersToPhiReturn() throws {
+        let tir = dumpTIR(
+            """
+            struct S {
+                init() {}
+            }
+            func f(c: Builtin.Bool) -> S {
+                if c {
+                    S()
+                } else {
+                    S()
+                }
+            }
+            """,
+            installBuiltin: true
+        )
+        let fBlock = tir.components(separatedBy: "function ").last ?? ""
+        try #require(fBlock.range(
+            of: #"Phi \[%[0-9]+, bb[0-9]+\], \[%[0-9]+, bb[0-9]+\]"#,
+            options: .regularExpression
+        ) != nil)
+        try #require(fBlock.range(of: #"Return %[0-9]+"#, options: .regularExpression) != nil)
+    }
+
+    @Test func doExpressionLowersToPhi() throws {
+        let tir = dumpTIR(
+            """
+            struct E {}
+            struct S {
+                init() {}
+            }
+            func f() -> S {
+                let x = do {
+                    S()
+                } catch E {
+                    S()
+                }
+                return x
+            }
+            """
+        )
+        try #require(tir.range(
+            of: #"Phi \[%[0-9]+, (?:bb[0-9]+|entry)\], \[%[0-9]+, (?:bb[0-9]+|entry)\]"#,
+            options: .regularExpression
+        ) != nil)
+    }
+
+    @Test func implicitReturnDoLowersToPhiReturn() throws {
+        let tir = dumpTIR(
+            """
+            struct E {}
+            struct S {
+                init() {}
+            }
+            func f() -> S {
+                do {
+                    S()
+                } catch {
+                    S()
+                }
+            }
+            """
+        )
+        let fBlock = tir.components(separatedBy: "function ").last ?? ""
+        try #require(fBlock.range(
+            of: #"Phi \[%[0-9]+, (?:bb[0-9]+|entry)\], \[%[0-9]+, (?:bb[0-9]+|entry)\]"#,
+            options: .regularExpression
+        ) != nil)
+        try #require(fBlock.range(of: #"Return %[0-9]+"#, options: .regularExpression) != nil)
+    }
+
     @Test func closureCapture() throws {
         let tir = dumpTIR(
             """

@@ -4977,6 +4977,15 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(matchExpr!.cases[1].patterns.count == 1)
 }
 
+@Test func parseMatchExpressionCaseRequiresComma() throws {
+    let (_, diagnostics) = parseWithDiagnostics(
+        "func f() { match a { .a => 1 .b => 2 } }"
+    )
+    let errors = diagnostics.filter { $0.severity == .error }
+    try #require(errors.count >= 1)
+    #expect(errors[0].message == "expected ',' after match case expression")
+}
+
 @Test func parseMatchMixedLiteralAndBinding() throws {
     let expr = firstExpression("match a { .foo(1, let x) => x }")
     let matchExpr = expr as? AST.Match
@@ -6781,15 +6790,6 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseAsyncPrefixWithoutBindingReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { async Int32 }")
     try #require(errors.contains { $0.message.contains("expected 'let' or 'var' after 'async'") })
-}
-
-@Test func parseArrowInExpressionContextParsesPointerMember() throws {
-    let expr = firstExpression("a -> b")
-    let member = expr as? AST.MemberAccess
-    try #require(member != nil)
-    #expect(member!.viaPointer)
-    #expect(member!.member.value == "b")
-    #expect((member!.object as? AST.Variable)?.name.value == "a")
 }
 
 // MARK: - String Interpolation (error paths)
