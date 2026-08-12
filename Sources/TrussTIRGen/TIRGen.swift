@@ -19,6 +19,7 @@ public final class TIRGen: AST.Visitor {
     private var propertyInitializers: [Id.SymbolId: [(Symbol.VariableSymbol, AST.Expression)]] = [:]
     private var accessorFunctions: [Id.SymbolId: [String: TIR.Function]] = [:]
     private var initFunctionsByType: [Id.SymbolId: TIR.Function] = [:]
+    private var staticVariableSymbols: Set<Id.SymbolId> = []
     private var collectTypeStack: [Symbol.NominalTypeSymbol] = []
     private var modulePathStack: [Symbol.ModuleSymbol] = []
     private var counter = 0
@@ -38,6 +39,7 @@ public final class TIRGen: AST.Visitor {
         module = TIR.Module()
         functionsBySymbol = [:]
         globalNamesBySymbol = [:]
+        staticVariableSymbols = []
         collectFunctions(in: program)
         visitProgram(program)
         return module
@@ -144,8 +146,15 @@ public final class TIRGen: AST.Visitor {
 
     private func collectVariable(_ decl: AST.VariableDecl) {
         guard let symbol = decl.symbol else { return }
-        if symbol.memberOf == nil, decl.accessors.isEmpty {
-            globalNamesBySymbol[symbol.id] = mangleGlobalName(symbol)
+        let isStatic = decl.modifiers.contains { modifier in
+            if case .Static = modifier.kind { return true }
+            return false
+        }
+        if isStatic {
+            staticVariableSymbols.insert(symbol.id)
+        }
+        if symbol.memberOf == nil || isStatic, decl.accessors.isEmpty {
+            globalNamesBySymbol[symbol.id] = cname(decl.attributes) ?? mangleGlobalName(symbol)
         }
         guard !decl.accessors.isEmpty else { return }
         let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.VoidType()
@@ -264,18 +273,25 @@ public final class TIRGen: AST.Visitor {
         closureParamValues = savedClosureParams
     }
 
+    private func cname(_ attributes: [AST.Attribute]) -> String? {
+        guard let attribute = attributes.first(where: { $0.name.value == "cname" }) else {
+            return nil
+        }
+        guard attribute.arguments.count == 1 else {
+            context.emitError(
+                "cname attribute expects exactly one argument", at: attribute.name
+            )
+            return "unknown"
+        }
+        return attribute.arguments.first!.first?.value ?? "unknown"
+    }
+
     private func functionName(
         for decl: AST.FunctionDecl, symbol: Symbol.FunctionSymbol,
         functionType: TrussType.FunctionType?
     ) -> String {
-        if let cnameAttribute = decl.attributes.filter({ $0.name.value == "cname" }).first {
-            if cnameAttribute.arguments.count == 1 {
-                return cnameAttribute.arguments.first!.first?.value ?? "unknown"
-            }
-            context.emitError(
-                "cname attribute expects exactly one argument", at: cnameAttribute.name
-            )
-            return "unknown"
+        if let cname = cname(decl.attributes) {
+            return cname
         }
         return mangleFunctionName(
             symbol, baseName: decl.name.value,
@@ -594,6 +610,10 @@ public final class TIRGen: AST.Visitor {
         guard let symbol = variableDecl.symbol else { return nil }
         if builder == nil {
             if symbol.memberOf != nil {
+                if staticVariableSymbols.contains(symbol.id) {
+                    lowerGlobalVariable(variableDecl, symbol: symbol)
+                    return nil
+                }
                 if let initializer = variableDecl.initializer {
                     propertyInitializers[symbol.memberOf!, default: []].append(
                         (symbol, initializer)
@@ -660,6 +680,10 @@ public final class TIRGen: AST.Visitor {
         var result = "$t" + mangleIdentifier(packageName)
         for moduleSymbol in modulePathStack {
             result += mangleIdentifier(moduleSymbol.name)
+        }
+        if let memberOf = symbol.memberOf, let owner = context.id2Symbol[memberOf] {
+            result += "_"
+            result += mangleIdentifier(owner.name)
         }
         result += "_"
         result += mangleIdentifier(symbol.name)
@@ -1552,6 +1576,16 @@ public final class TIRGen: AST.Visitor {
         if let caseSymbol = symbol as? Symbol.CaseSymbol {
             return enumValue(caseSymbol, payload: nil, at: memberAccess.sourceRange)
         }
+        if let variableSymbol = symbol as? Symbol.VariableSymbol,
+           staticVariableSymbols.contains(variableSymbol.id)
+        {
+            guard let global = globalsBySymbol[variableSymbol.id] else { return nil }
+            let address = builder.emitWithResult(
+                TIR.GlobalAddr(global, sourceRange: memberAccess.sourceRange),
+                type: TIRType.AddressType(global.type), ownership: .Inout
+            )
+            return loadFrom(address, range: memberAccess.sourceRange)
+        }
         guard let object = visitExpression(memberAccess.object) else { return nil }
         if let variableSymbol = symbol as? Symbol.VariableSymbol,
            let getter = accessorFunctions[variableSymbol.id]?["get"]
@@ -1728,6 +1762,15 @@ public final class TIRGen: AST.Visitor {
         range: SourceRange
     ) -> TIR.Value? {
         guard let builder else { return nil }
+        if staticVariableSymbols.contains(symbol.id) {
+            guard let global = globalsBySymbol[symbol.id] else { return nil }
+            let address = builder.emitWithResult(
+                TIR.GlobalAddr(global, sourceRange: range),
+                type: TIRType.AddressType(global.type), ownership: .Inout
+            )
+            builder.emit(TIR.Store(value, to: address, sourceRange: range))
+            return value
+        }
         let accessors = accessorFunctions[symbol.id] ?? [:]
         if accessors["set"] != nil, let object = visitExpression(member.object) {
             emitAccessorCall(accessors["set"]!, arguments: [object, value], range: range)

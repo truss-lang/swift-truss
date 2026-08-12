@@ -27,8 +27,8 @@ import TrussTIRGen
             }
             func f(e: E) {
                 match e {
-                .A -> { return }
-                .B -> { return }
+                .A => { return }
+                .B => { return }
                 }
             }
             """
@@ -205,6 +205,83 @@ import TrussTIRGen
             """
             #[cname("a", "b")]
             func f() {}
+            """
+        )
+        _ = TIRGen(context: context).generate(program)
+        #expect(
+            context.diagnositicEngine.diagnostics.contains {
+                $0.message.contains("cname attribute expects exactly one argument")
+            }
+        )
+    }
+
+    @Test func globalVarCnameOverridesMangledName() throws {
+        let tir = dumpTIR(
+            """
+            struct T {
+                init() {}
+            }
+            #[cname("g_name")]
+            var g: T = T()
+            func f() -> T {
+                return g
+            }
+            """
+        )
+        try #require(tir.contains("global g_name"))
+        try #require(tir.contains("GlobalAddr g_name"))
+    }
+
+    @Test func staticVarLoweredWithMangledName() throws {
+        let tir = dumpTIR(
+            """
+            struct T {
+                init() {}
+            }
+            struct S {
+                static var s: T = T()
+            }
+            func f() -> T {
+                return S.s
+            }
+            """
+        )
+        try #require(tir.contains("global $t4main_1S_1s"))
+        try #require(tir.contains("GlobalAddr $t4main_1S_1s"))
+    }
+
+    @Test func staticVarCnameOverridesMangledName() throws {
+        let tir = dumpTIR(
+            """
+            precedencegroup Assignment { assignment: true }
+            infix operator =: Assignment
+            struct T {
+                init() {}
+            }
+            struct S {
+                #[cname("s_name")]
+                static var s: T = T()
+            }
+            func f() {
+                S.s = T()
+                let x = S.s
+            }
+            """
+        )
+        try #require(tir.contains("global s_name"))
+        try #require(tir.contains("GlobalAddr s_name"))
+        try #require(tir.contains("Store "))
+        try #require(tir.contains("Load "))
+    }
+
+    @Test func variableCnameWithWrongArgumentCountReportsError() {
+        let (context, program) = runPipeline(
+            """
+            struct T {
+                init() {}
+            }
+            #[cname("a", "b")]
+            var g: T = T()
             """
         )
         _ = TIRGen(context: context).generate(program)
