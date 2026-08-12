@@ -1714,44 +1714,6 @@ public final class TypeChecker: AST.Visitor {
         context.emitError("operator '\(name)' has no function declaration", at: token)
     }
 
-    private func inferBuiltinPointerBinary(
-        _ binary: AST.Binary, leftResolved: TrussType.TrussType?,
-        rightResolved: TrussType.TrussType?, at token: Token
-    ) -> Bool {
-        let leftPointer = leftResolved as? TrussType.PointerType
-        let rightPointer = rightResolved as? TrussType.PointerType
-        guard leftPointer != nil || rightPointer != nil else { return false }
-        let pointerType = leftPointer ?? rightPointer!
-        switch binary.operatorToken.value {
-        case "+":
-            if leftPointer != nil, rightPointer != nil {
-                context.emitError("cannot add two pointers", at: binary.operatorToken)
-                return true
-            }
-            binary.ty = pointerType
-            return true
-        case "-":
-            if rightPointer != nil {
-                binary.ty = TrussType.BuiltinType("Int")
-            } else {
-                binary.ty = pointerType
-            }
-            return true
-        case "==", "!=", "<", "<=", ">", ">=":
-            let leftIsPtrOrNull =
-                leftPointer != nil || leftResolved is TrussType.TypeVariableType
-            let rightIsPtrOrNull =
-                rightPointer != nil || rightResolved is TrussType.TypeVariableType
-            if leftIsPtrOrNull, rightIsPtrOrNull {
-                binary.ty = TrussType.BuiltinType("Bool")
-                return true
-            }
-            return false
-        default:
-            return false
-        }
-    }
-
     private func infer(_ expression: AST.Expression, at token: Token) -> TrussType.TrussType? {
         switch expression {
         case let call as AST.Call:
@@ -2274,15 +2236,6 @@ public final class TypeChecker: AST.Visitor {
                 }
                 binary.ty = binary.left.ty
                 break
-            }
-            let leftResolved = binary.left.ty.map { resolve($0) }
-            let rightResolved = binary.right.ty.map { resolve($0) }
-            if leftResolved is TrussType.PointerType || rightResolved is TrussType.PointerType {
-                if inferBuiltinPointerBinary(
-                    binary, leftResolved: leftResolved, rightResolved: rightResolved, at: token
-                ) {
-                    break
-                }
             }
             let freeCandidates = lookupOperatorFunctions(binary.operatorToken.value)
             let leftStaticCandidates = memberOperatorCandidates(

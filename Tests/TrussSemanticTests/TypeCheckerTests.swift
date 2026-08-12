@@ -2,6 +2,46 @@ import Testing
 import TrussCore
 import TrussSemantics
 
+private let pointerPrelude = """
+struct Int {}
+struct Bool {}
+
+precedencegroup Add { associativity: left }
+infix operator +: Add
+infix operator -: Add
+precedencegroup Cmp { associativity: none }
+infix operator ==: Cmp
+infix operator !=: Cmp
+infix operator <: Cmp
+infix operator <=: Cmp
+infix operator >: Cmp
+infix operator >=: Cmp
+precedencegroup Assignment { assignment: true }
+infix operator =: Assignment
+
+#[builtin]
+func + <T>(lhs: T*, rhs: Int) -> T*
+#[builtin]
+func + <T>(lhs: Int, rhs: T*) -> T*
+#[builtin]
+func - <T>(lhs: T*, rhs: Int) -> T*
+#[builtin]
+func - <T>(lhs: T*, rhs: T*) -> Int
+#[builtin]
+func == <T>(lhs: T*, rhs: T*) -> Bool
+#[builtin]
+func != <T>(lhs: T*, rhs: T*) -> Bool
+#[builtin]
+func < <T>(lhs: T*, rhs: T*) -> Bool
+#[builtin]
+func <= <T>(lhs: T*, rhs: T*) -> Bool
+#[builtin]
+func > <T>(lhs: T*, rhs: T*) -> Bool
+#[builtin]
+func >= <T>(lhs: T*, rhs: T*) -> Bool
+
+"""
+
 @Test func variableAnnotationType() throws {
     let (context, programs) = runTypeChecker(["struct S {}\nlet x: S"])
     let variableDecl = programs[0].statements[1] as! AST.VariableDecl
@@ -1434,7 +1474,7 @@ import TrussSemantics
 
 @Test func pointerDereferenceAndMember() {
     let (context, _) = runTypeChecker(
-        ["struct Int {} \n"
+        [pointerPrelude
             + "struct Point {\n    var x: Int\n    var y: Int\n}\n"
             + "func f() {\n    var pt: Point\n    var pp: Point* = &pt\n"
             + "    var a = pp->x\n    var b = *pp\n    var i = pp[0]\n"
@@ -1456,7 +1496,7 @@ import TrussSemantics
 
 @Test func pointerArithmeticAndComparison() {
     let (context, _) = runTypeChecker(
-        ["struct Int {} \n"
+        [pointerPrelude
             + "func f() {\n    var v: Int\n    var p: Int* = &v\n"
             + "    var s = p + 1\n    var d = (p + 2) - p\n"
             + "    var eq = p == p\n    var lt = p < p\n}"]
@@ -1464,14 +1504,14 @@ import TrussSemantics
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func addTwoPointersReportsError() {
+@Test func pointerArithmeticRequiresDeclaredOperator() {
     let (context, _) = runTypeChecker(
         ["struct Int {} \n"
             + "func f() {\n    var v: Int\n    var p: Int* = &v\n    var x = p + p\n}"]
     )
     #expect(context.diagnositicEngine.hasErrors)
     let messages = context.diagnositicEngine.diagnostics.map(\.message)
-    #expect(messages.contains { $0.contains("cannot add two pointers") })
+    #expect(messages.contains { $0.contains("unknown operator '+'") })
 }
 
 @Test func addressOfNonLValueReportsError() {
