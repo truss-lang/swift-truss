@@ -29,21 +29,37 @@ public final class TypeChecker: AST.Visitor {
 
     @discardableResult
     public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
-        sourceId = program.id
-        collectingTypealiases = true
-        withScope(program.packageSymbol?.scope) {
-            super.visitProgram(program, additional: additional)
-        }
-        collectingTypealiases = false
-        collectFunctionSignatures = true
-        withScope(program.packageSymbol?.scope) {
-            super.visitProgram(program, additional: additional)
-        }
-        collectFunctionSignatures = false
-        withScope(program.packageSymbol?.scope) {
-            super.visitProgram(program, additional: additional)
-        }
+        checkProgram(program, collectingTypealiases: true)
+        checkProgram(program, collectFunctionSignatures: true)
+        checkProgram(program)
         return nil
+    }
+
+    public func checkAll(_ programs: [AST.Program]) {
+        for program in programs {
+            checkProgram(program, collectingTypealiases: true)
+            if context.diagnositicEngine.hasErrors { return }
+        }
+        for program in programs {
+            checkProgram(program, collectFunctionSignatures: true)
+            if context.diagnositicEngine.hasErrors { return }
+        }
+        for program in programs {
+            checkProgram(program)
+            if context.diagnositicEngine.hasErrors { return }
+        }
+    }
+
+    private func checkProgram(
+        _ program: AST.Program, collectingTypealiases: Bool = false,
+        collectFunctionSignatures: Bool = false
+    ) {
+        sourceId = program.id
+        self.collectingTypealiases = collectingTypealiases
+        self.collectFunctionSignatures = collectFunctionSignatures
+        withScope(program.packageSymbol?.scope) {
+            super.visitProgram(program, additional: nil)
+        }
     }
 
     @discardableResult

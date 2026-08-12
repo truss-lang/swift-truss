@@ -124,7 +124,8 @@ public final class Driver {
             runPass(TypeBuilder(context: context), context: context, programs: programs)
         }
         if !context.diagnositicEngine.hasErrors {
-            runPass(TypeChecker(context: context), context: context, programs: programs)
+            let checker = TypeChecker(context: context)
+            checker.checkAll(programs)
         }
         if !context.diagnositicEngine.hasErrors {
             runPass(ModifierChecker(context: context), context: context, programs: programs)
@@ -135,7 +136,7 @@ public final class Driver {
         var tirModules: [TIR.Module] = []
         if !context.diagnositicEngine.hasErrors {
             let tirGen = TIRGen(context: context)
-            tirModules = programs.map { tirGen.generate($0) }
+            tirModules = tirGen.generateAll(programs)
         }
         var stdout = ""
         if !context.diagnositicEngine.hasErrors || config.dumpOnError {

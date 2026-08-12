@@ -35,6 +35,74 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.contains("sum"))
 }
 
+@Test func driverResolvesCrossFileFunctionCall() throws {
+    let a = try writeTemp(
+        "a.truss",
+        "func makeB() -> B {\n    b()\n}\n"
+    )
+    let b = try writeTemp(
+        "b.truss",
+        "struct B {\n    init() {}\n}\nfunc b() -> B {\n    B()\n}\n"
+    )
+    let result = Driver(config: DriverConfig(dumpTIR: true)).run(files: [a, b])
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("FunctionRef $t4main_1b_1B"))
+}
+
+@Test func driverResolvesCircularTypeReferencesAcrossFiles() throws {
+    let a = try writeTemp(
+        "a.truss",
+        "struct A {\n    var b: B\n    init() {}\n}\n"
+    )
+    let b = try writeTemp(
+        "b.truss",
+        "struct B {\n    var a: A\n    init() {}\n}\n"
+    )
+    let result = Driver(config: DriverConfig(dumpTIR: true)).run(files: [a, b])
+    #expect(!result.hasErrors)
+}
+
+@Test func driverReportsCrossFilePrivateAccess() throws {
+    let a = try writeTemp(
+        "a.truss",
+        "func f() {\n    helper()\n}\n"
+    )
+    let b = try writeTemp(
+        "b.truss",
+        "private func helper() {\n}\n"
+    )
+    let result = Driver(config: DriverConfig()).run(files: [a, b])
+    #expect(result.hasErrors)
+}
+
+@Test func driverResolvesCrossFileGlobalVariable() throws {
+    let a = try writeTemp(
+        "a.truss",
+        "func getG() -> S {\n    g\n}\n"
+    )
+    let b = try writeTemp(
+        "b.truss",
+        "struct S {\n    init() {}\n}\nvar g: S = S()\n"
+    )
+    let result = Driver(config: DriverConfig(dumpTIR: true)).run(files: [a, b])
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("GlobalAddr $t4main_1g"))
+}
+
+@Test func driverResolvesCrossFileGlobalInitializerDependency() throws {
+    let a = try writeTemp(
+        "a.truss",
+        "var x: S = g\n"
+    )
+    let b = try writeTemp(
+        "b.truss",
+        "struct S {\n    init() {}\n}\nvar g: S = S()\n"
+    )
+    let result = Driver(config: DriverConfig(dumpTIR: true)).run(files: [a, b])
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("global $t4main_1x"))
+}
+
 @Test func driverDefineActivatesConditional() throws {
     let file = try writeTemp("cond.truss", "#if FLAG\nfunc f() {}\n#endif\n")
     let on = Driver(config: DriverConfig(defines: ["FLAG": "1"], dumpAST: true))

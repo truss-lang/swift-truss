@@ -37,13 +37,65 @@ public final class TIRGen: AST.Visitor {
     }
 
     public func generate(_ program: AST.Program) -> TIR.Module {
-        module = TIR.Module()
+        generateAll([program])[0]
+    }
+
+    public func generateAll(_ programs: [AST.Program]) -> [TIR.Module] {
         functionsBySymbol = [:]
         globalNamesBySymbol = [:]
         staticVariableSymbols = []
-        collectFunctions(in: program)
-        visitProgram(program)
-        return module
+        var modules: [TIR.Module] = []
+        for program in programs {
+            let programModule = TIR.Module()
+            modules.append(programModule)
+            module = programModule
+            collectFunctions(in: program)
+        }
+        for _ in 0 ..< 2 {
+            for (index, program) in programs.enumerated() {
+                module = modules[index]
+                collectGlobalInitializers(in: program)
+            }
+        }
+        for (index, program) in programs.enumerated() {
+            module = modules[index]
+            builder = nil
+            env = [:]
+            capturedCells = []
+            breakStack = []
+            deferStack = []
+            errorTargets = []
+            closureParamValues = []
+            visitProgram(program)
+        }
+        return modules
+    }
+
+    private func collectGlobalInitializers(in program: AST.Program) {
+        for statement in program.statements {
+            collectGlobalInitializerStatements([statement])
+        }
+    }
+
+    private func collectGlobalInitializerStatements(_ statements: [AST.Statement]) {
+        for statement in statements {
+            switch statement {
+            case let decl as AST.VariableDecl:
+                if let symbol = decl.symbol {
+                    let isStatic = decl.modifiers.contains { modifier in
+                        if case .Static = modifier.kind { return true }
+                        return false
+                    }
+                    if symbol.memberOf == nil || isStatic {
+                        lowerGlobalInitializer(decl, symbol: symbol)
+                    }
+                }
+            case let decl as AST.ModuleDecl:
+                collectGlobalInitializerStatements(decl.body)
+            default:
+                break
+            }
+        }
     }
 
     private func collectFunctions(in program: AST.Program) {
@@ -63,6 +115,15 @@ public final class TIRGen: AST.Visitor {
                 collectSubscript(decl)
             case let decl as AST.VariableDecl:
                 collectVariable(decl)
+                if let symbol = decl.symbol {
+                    let isStatic = decl.modifiers.contains { modifier in
+                        if case .Static = modifier.kind { return true }
+                        return false
+                    }
+                    if symbol.memberOf == nil || isStatic {
+                        createGlobal(decl, symbol: symbol)
+                    }
+                }
             case let decl as AST.ModuleDecl:
                 if let moduleSymbol = decl.symbol {
                     modulePathStack.append(moduleSymbol)
@@ -673,7 +734,8 @@ public final class TIRGen: AST.Visitor {
         if builder == nil {
             if symbol.memberOf != nil {
                 if staticVariableSymbols.contains(symbol.id) {
-                    lowerGlobalVariable(variableDecl, symbol: symbol)
+                    createGlobal(variableDecl, symbol: symbol)
+                    lowerGlobalInitializer(variableDecl, symbol: symbol)
                     return nil
                 }
                 if let initializer = variableDecl.initializer {
@@ -683,7 +745,8 @@ public final class TIRGen: AST.Visitor {
                 }
                 return nil
             }
-            lowerGlobalVariable(variableDecl, symbol: symbol)
+            createGlobal(variableDecl, symbol: symbol)
+            lowerGlobalInitializer(variableDecl, symbol: symbol)
             return nil
         }
         guard let builder else { return nil }
@@ -701,9 +764,8 @@ public final class TIRGen: AST.Visitor {
         return nil
     }
 
-    private func lowerGlobalVariable(
-        _ variableDecl: AST.VariableDecl, symbol: Symbol.VariableSymbol
-    ) {
+    private func createGlobal(_ variableDecl: AST.VariableDecl, symbol: Symbol.VariableSymbol) {
+        guard globalsBySymbol[symbol.id] == nil else { return }
         let type = symbol.type.map { typeLower.lower($0) }
             ?? (variableDecl.initializer?.ty).map { typeLower.lower($0) }
             ?? TIRType.VoidType()
@@ -713,9 +775,15 @@ public final class TIRGen: AST.Visitor {
         global.symbol = symbol
         module.globals.append(global)
         globalsBySymbol[symbol.id] = global
+    }
+
+    private func lowerGlobalInitializer(
+        _ variableDecl: AST.VariableDecl, symbol: Symbol.VariableSymbol
+    ) {
+        guard let global = globalsBySymbol[symbol.id], global.initializer.isEmpty else { return }
         guard let initializer = variableDecl.initializer else { return }
         let initFunction = TIR.Function(
-            name: mangleGlobalName(symbol) + "_" + mangleIdentifier("init"), returnType: type
+            name: mangleGlobalName(symbol) + "_" + mangleIdentifier("init"), returnType: global.type
         )
         let savedBuilder = builder
         let savedEnv = env
@@ -725,7 +793,7 @@ public final class TIRGen: AST.Visitor {
         if let value = visitExpression(initializer) {
             let address = initBuilder.emitWithResult(
                 TIR.GlobalAddr(global, sourceRange: variableDecl.sourceRange),
-                type: TIRType.AddressType(type), ownership: .MutableBorrowing
+                type: TIRType.AddressType(global.type), ownership: .MutableBorrowing
             )
             initBuilder.emit(
                 TIR.Store(value, to: address, sourceRange: variableDecl.sourceRange)

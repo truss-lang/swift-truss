@@ -300,6 +300,13 @@ public final class AccessChecker: AST.Visitor {
         for (_, closure) in call.trailingClosures {
             visit(closure, additional: additional)
         }
+        if let symbol = call.symbol,
+           !(symbol is Symbol.ModuleSymbol),
+           !(symbol is Symbol.PackageSymbol),
+           let token = tokenOf(call)
+        {
+            checkAccess(of: symbol, at: token)
+        }
         if let variable = call.callee as? AST.Variable,
            let symbol = variable.symbol as? Symbol.ClassSymbol,
            symbol.isAbstract
