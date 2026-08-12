@@ -1380,3 +1380,106 @@ import TrussSemantics
     let messages = context.diagnositicEngine.diagnostics.map(\.message)
     #expect(messages.contains { $0.contains("expected 'S'") })
 }
+
+@Test func pointerTypeAnnotation() throws {
+    let (_, programs) = runTypeChecker(
+        ["struct Int {} \nlet p: Int*"]
+    )
+    let variableDecl = programs[0].statements[1] as! AST.VariableDecl
+    let type = try #require(variableDecl.symbol?.type as? TrussType.PointerType)
+    #expect(type.pointee is TrussType.StructType)
+    #expect(!type.isNonnull)
+}
+
+@Test func nonnullPointerTypeAnnotation() throws {
+    let (_, programs) = runTypeChecker(
+        ["struct Int {} \nlet p: Int*!"]
+    )
+    let variableDecl = programs[0].statements[1] as! AST.VariableDecl
+    let type = try #require(variableDecl.symbol?.type as? TrussType.PointerType)
+    #expect(type.pointee is TrussType.StructType)
+    #expect(type.isNonnull)
+}
+
+@Test func nullptrRejectsNonnullPointer() {
+    let (context, _) = runTypeChecker(
+        ["struct Int {} \n"
+            + "func f() {\n    var n: Int*! = nullptr\n}"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains { $0.contains("nullptr cannot be used with non-null pointer type") })
+    #expect(!messages.contains { $0.hasPrefix("expected 'Int*!'") })
+}
+
+@Test func nullptrRequiresPointerType() {
+    let (context, _) = runTypeChecker(
+        ["struct Int {} \n"
+            + "func f() {\n    var x: Int = nullptr\n}"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains { $0.contains("nullptr requires a pointer type") })
+}
+
+@Test func nonnullPointerAcceptsNullableAssignment() {
+    let (context, _) = runTypeChecker(
+        ["struct Int {} \n"
+            + "func f() {\n    var v: Int\n"
+            + "    var p: Int*! = &v\n"
+            + "    var q: Int* = p\n}"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func pointerDereferenceAndMember() {
+    let (context, _) = runTypeChecker(
+        ["struct Int {} \n"
+            + "struct Point {\n    var x: Int\n    var y: Int\n}\n"
+            + "func f() {\n    var pt: Point\n    var pp: Point* = &pt\n"
+            + "    var a = pp->x\n    var b = *pp\n    var i = pp[0]\n"
+            + "    if pp != nullptr {\n        var c = pp->y\n    }\n"
+            + "    var nn: Point*! = pp!\n}"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func dereferenceNonPointerReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct Int {} \n"
+            + "func f() {\n    var v: Int\n    var x = *v\n}"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains { $0.contains("cannot dereference non-pointer type") })
+}
+
+@Test func pointerArithmeticAndComparison() {
+    let (context, _) = runTypeChecker(
+        ["struct Int {} \n"
+            + "func f() {\n    var v: Int\n    var p: Int* = &v\n"
+            + "    var s = p + 1\n    var d = (p + 2) - p\n"
+            + "    var eq = p == p\n    var lt = p < p\n}"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func addTwoPointersReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct Int {} \n"
+            + "func f() {\n    var v: Int\n    var p: Int* = &v\n    var x = p + p\n}"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains { $0.contains("cannot add two pointers") })
+}
+
+@Test func addressOfNonLValueReportsError() {
+    let (context, _) = runTypeChecker(
+        ["struct Int {} \n"
+            + "func f() {\n    var x = &42\n}"]
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains { $0.contains("cannot take address of non-lvalue") })
+}

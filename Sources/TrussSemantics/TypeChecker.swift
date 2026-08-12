@@ -18,6 +18,10 @@ public final class TypeChecker: AST.Visitor {
     private var rawTypeStack: [TrussType.TrussType?] = []
     private var nextTypeVariableId: UInt64 = 0
     private var sourceId: Id.SourceId = .init(id: 0)
+    private var nullablePointerConstraints: Set<ObjectIdentifier> = []
+    private var narrowedPointerTypes: [Id.SymbolId: TrussType.PointerType] = [:]
+    private var nullptrLiteralTokens: [ObjectIdentifier: Token] = [:]
+    private var reportedNullptrBindings: Set<ObjectIdentifier> = []
 
     public init(context: Context) {
         self.context = context
@@ -738,6 +742,12 @@ public final class TypeChecker: AST.Visitor {
             result =
                 wrapped is TrussType.ErrorType
                     ? TrussType.ErrorType.INSTANCE : TrussType.OptionalType(wrapped)
+        case let pointerType as AST.PointerType:
+            let pointee = evaluate(pointerType.wrappedType)
+            result =
+                pointee is TrussType.ErrorType
+                    ? TrussType.ErrorType.INSTANCE
+                    : TrussType.PointerType(pointee, isNonnull: pointerType.isNonnull)
         case let variadicType as AST.VariadicType:
             let base = evaluate(variadicType.base)
             result =
@@ -1269,6 +1279,8 @@ public final class TypeChecker: AST.Visitor {
             return "Builtin.\(builtin.name)"
         case let optional as TrussType.OptionalType:
             return "\(typeText(optional.wrapped))?"
+        case let pointer as TrussType.PointerType:
+            return "\(typeText(pointer.pointee))*\(pointer.isNonnull ? "!" : "")"
         case let variable as TrussType.TypeVariableType:
             if let binding = variable.binding {
                 return typeText(resolve(binding))
@@ -1312,12 +1324,18 @@ public final class TypeChecker: AST.Visitor {
                 emitMismatch(at: token, expected: a, found: b)
                 return false
             }
+            if !checkNullptrBinding(variable, to: b, at: token) {
+                return false
+            }
             variable.binding = b
             return true
         }
         if let variable = b as? TrussType.TypeVariableType {
             guard !occurs(variable, in: a) else {
                 emitMismatch(at: token, expected: a, found: b)
+                return false
+            }
+            if !checkNullptrBinding(variable, to: a, at: token) {
                 return false
             }
             variable.binding = a
@@ -1371,6 +1389,11 @@ public final class TypeChecker: AST.Visitor {
             return true
         case let (l as TrussType.OptionalType, r as TrussType.OptionalType):
             return unify(l.wrapped, r.wrapped, at: token)
+        case let (l as TrussType.PointerType, r as TrussType.PointerType):
+            guard l.isNonnull == r.isNonnull else {
+                return false
+            }
+            return unify(l.pointee, r.pointee, at: token)
         case let (l as TrussType.GenericInstantiation, r as TrussType.GenericInstantiation):
             guard unify(l.base, r.base, at: token) else {
                 return false
@@ -1402,6 +1425,44 @@ public final class TypeChecker: AST.Visitor {
         }
     }
 
+    private func checkNullptrBinding(
+        _ variable: TrussType.TypeVariableType, to type: TrussType.TrussType, at token: Token
+    ) -> Bool {
+        guard nullablePointerConstraints.contains(ObjectIdentifier(variable)) else {
+            return true
+        }
+        let resolved = resolve(type)
+        let errorToken = nullptrLiteralTokens[ObjectIdentifier(variable)] ?? token
+        if let pointer = resolved as? TrussType.PointerType {
+            if pointer.isNonnull {
+                context.emitError(
+                    "nullptr cannot be used with non-null pointer type '\(typeText(resolved))'",
+                    at: errorToken
+                )
+                reportedNullptrBindings.insert(ObjectIdentifier(variable))
+                return false
+            }
+            return true
+        }
+        if resolved is TrussType.TypeVariableType || resolved is TrussType.ErrorType {
+            return true
+        }
+        context.emitError(
+            "nullptr requires a pointer type, found '\(typeText(resolved))'", at: errorToken
+        )
+        reportedNullptrBindings.insert(ObjectIdentifier(variable))
+        return false
+    }
+
+    private func isLValue(_ expression: AST.Expression) -> Bool {
+        switch expression {
+        case is AST.Variable, is AST.Dereference, is AST.MemberAccess, is AST.Subscript:
+            true
+        default:
+            false
+        }
+    }
+
     private func occurs(
         _ variable: TrussType.TypeVariableType, in type: TrussType.TrussType
     ) -> Bool {
@@ -1412,6 +1473,8 @@ public final class TypeChecker: AST.Visitor {
         switch resolved {
         case let optional as TrussType.OptionalType:
             return occurs(variable, in: optional.wrapped)
+        case let pointer as TrussType.PointerType:
+            return occurs(variable, in: pointer.pointee)
         case let tuple as TrussType.TupleType:
             return tuple.elements.contains { occurs(variable, in: $0.type) }
         case let function as TrussType.FunctionType:
@@ -1440,6 +1503,10 @@ public final class TypeChecker: AST.Visitor {
             replace(genericParam)
         case let optional as TrussType.OptionalType:
             TrussType.OptionalType(replacingGenericParam(optional.wrapped, replace))
+        case let pointer as TrussType.PointerType:
+            TrussType.PointerType(
+                replacingGenericParam(pointer.pointee, replace), isNonnull: pointer.isNonnull
+            )
         case let tuple as TrussType.TupleType:
             TrussType.TupleType(
                 tuple.elements.map { element in
@@ -1501,6 +1568,12 @@ public final class TypeChecker: AST.Visitor {
         }
         if actual is TrussType.NeverType {
             return true
+        }
+        if let expectedPointer = expected as? TrussType.PointerType,
+           let actualPointer = actual as? TrussType.PointerType,
+           !expectedPointer.isNonnull, actualPointer.isNonnull
+        {
+            return canCoerce(actualPointer.pointee, to: expectedPointer.pointee, at: token)
         }
         if let optional = expected as? TrussType.OptionalType {
             return canCoerce(actual, to: optional.wrapped, at: token)
@@ -1587,6 +1660,16 @@ public final class TypeChecker: AST.Visitor {
     private func emitMismatch(
         at token: Token, expected: TrussType.TrussType?, found: TrussType.TrussType?
     ) {
+        if let foundVariable = found as? TrussType.TypeVariableType,
+           reportedNullptrBindings.contains(ObjectIdentifier(foundVariable))
+        {
+            return
+        }
+        if let expectedVariable = expected as? TrussType.TypeVariableType,
+           reportedNullptrBindings.contains(ObjectIdentifier(expectedVariable))
+        {
+            return
+        }
         context.emitError(
             "expected '\(typeText(expected))', found '\(typeText(found))'", at: token
         )
@@ -1629,6 +1712,44 @@ public final class TypeChecker: AST.Visitor {
 
     private func emitOperatorNoImplementation(at token: Token, name: String) {
         context.emitError("operator '\(name)' has no function declaration", at: token)
+    }
+
+    private func inferBuiltinPointerBinary(
+        _ binary: AST.Binary, leftResolved: TrussType.TrussType?,
+        rightResolved: TrussType.TrussType?, at token: Token
+    ) -> Bool {
+        let leftPointer = leftResolved as? TrussType.PointerType
+        let rightPointer = rightResolved as? TrussType.PointerType
+        guard leftPointer != nil || rightPointer != nil else { return false }
+        let pointerType = leftPointer ?? rightPointer!
+        switch binary.operatorToken.value {
+        case "+":
+            if leftPointer != nil, rightPointer != nil {
+                context.emitError("cannot add two pointers", at: binary.operatorToken)
+                return true
+            }
+            binary.ty = pointerType
+            return true
+        case "-":
+            if rightPointer != nil {
+                binary.ty = TrussType.BuiltinType("Int")
+            } else {
+                binary.ty = pointerType
+            }
+            return true
+        case "==", "!=", "<", "<=", ">", ">=":
+            let leftIsPtrOrNull =
+                leftPointer != nil || leftResolved is TrussType.TypeVariableType
+            let rightIsPtrOrNull =
+                rightPointer != nil || rightResolved is TrussType.TypeVariableType
+            if leftIsPtrOrNull, rightIsPtrOrNull {
+                binary.ty = TrussType.BuiltinType("Bool")
+                return true
+            }
+            return false
+        default:
+            return false
+        }
     }
 
     private func infer(_ expression: AST.Expression, at token: Token) -> TrussType.TrussType? {
@@ -1701,7 +1822,11 @@ public final class TypeChecker: AST.Visitor {
             return expression.ty.map { resolve($0) }
         case let variable as AST.Variable:
             if let symbol = variable.symbol {
-                expression.ty = valueType(of: symbol)
+                if let narrowed = narrowedPointerTypes[symbol.id] {
+                    expression.ty = narrowed
+                } else {
+                    expression.ty = valueType(of: symbol)
+                }
             } else if variable.overloads?.count == 1, let overload = variable.overloads?.first {
                 expression.ty = overload.forallType ?? overload.functionType
             } else if let overloads = variable.overloads, overloads.count > 1 {
@@ -1728,8 +1853,27 @@ public final class TypeChecker: AST.Visitor {
             expression.ty = TrussType.TupleType(elements)
         case let ifExpression as AST.If:
             _ = infer(ifExpression.condition, at: token)
+            let narrowed: (id: Id.SymbolId, type: TrussType.PointerType)? =
+                if let binary = ifExpression.condition as? AST.Binary,
+                binary.operatorToken.value == "!=",
+                binary.right is AST.NullPointerLiteral,
+                let variable = binary.left as? AST.Variable,
+                let symbol = variable.symbol,
+                let pointer = binary.left.ty.map({ resolve($0) })
+                as? TrussType.PointerType,
+                !pointer.isNonnull {
+                    (symbol.id, TrussType.PointerType(pointer.pointee, isNonnull: true))
+                } else {
+                    nil
+                }
+            if let narrowed {
+                narrowedPointerTypes[narrowed.id] = narrowed.type
+            }
             for statement in ifExpression.then {
                 visit(statement)
+            }
+            if let narrowed {
+                narrowedPointerTypes[narrowed.id] = nil
             }
             let thenType: TrussType.TrussType =
                 if let expressionStatement = ifExpression.then.last as? AST.ExpressionStatement,
@@ -1845,11 +1989,29 @@ public final class TypeChecker: AST.Visitor {
             doThrownTypeStack.removeLast()
         case let memberAccess as AST.MemberAccess:
             _ = infer(memberAccess.object, at: token)
-            if let ty = memberType(of: memberAccess.member.value, in: memberAccess.object.ty) {
+            let objectType: TrussType.TrussType?
+            if memberAccess.viaPointer {
+                if let pointer = memberAccess.object.ty.flatMap({ resolve($0) as? TrussType.PointerType }) {
+                    objectType = pointer.pointee
+                } else if let objectTy = memberAccess.object.ty,
+                          !(objectTy is TrussType.ErrorType)
+                {
+                    context.emitError(
+                        "cannot use '->' on non-pointer type '\(typeText(objectTy))'",
+                        at: memberAccess.token
+                    )
+                    objectType = nil
+                } else {
+                    objectType = nil
+                }
+            } else {
+                objectType = memberAccess.object.ty
+            }
+            if let ty = memberType(of: memberAccess.member.value, in: objectType) {
                 expression.ty = ty
                 if memberAccess.symbol == nil {
                     memberAccess.symbol = memberSymbol(
-                        of: memberAccess.member.value, in: memberAccess.object.ty
+                        of: memberAccess.member.value, in: objectType
                     )
                 }
             } else if let symbol = memberAccess.symbol {
@@ -1860,7 +2022,7 @@ public final class TypeChecker: AST.Visitor {
                 expression.ty = overload.forallType ?? overload.functionType
             }
             if memberAccess.isOptional {
-                if let objectType = memberAccess.object.ty,
+                if let objectType,
                    !(objectType is TrussType.OptionalType),
                    !(objectType is TrussType.ErrorType)
                 {
@@ -1872,7 +2034,7 @@ public final class TypeChecker: AST.Visitor {
                     expression.ty = TrussType.OptionalType(ty)
                 }
             }
-            if expression.ty == nil, let objectType = memberAccess.object.ty {
+            if expression.ty == nil, let objectType {
                 emitNoMember(
                     at: memberAccess.member, type: typeText(objectType),
                     member: memberAccess.member.value
@@ -1891,6 +2053,13 @@ public final class TypeChecker: AST.Visitor {
             }
         case let subscriptExpression as AST.Subscript:
             _ = infer(subscriptExpression.base, at: token)
+            if let pointer = subscriptExpression.base.ty.flatMap({
+                resolve($0) as? TrussType.PointerType
+            }), subscriptExpression.arguments.count == 1 {
+                _ = infer(subscriptExpression.arguments[0].value, at: token)
+                expression.ty = pointer.pointee
+                return expression.ty.map { resolve($0) }
+            }
             if subscriptExpression.symbol == nil {
                 if let resolved = resolveOverloads(
                     subscriptExpression.overloads ?? [], arguments: subscriptExpression.arguments, trailingClosures: [],
@@ -2037,6 +2206,10 @@ public final class TypeChecker: AST.Visitor {
             if let inner = infer(forceUnwrap.expression, at: token) {
                 if let optional = inner as? TrussType.OptionalType {
                     expression.ty = optional.wrapped
+                } else if let pointer = resolve(inner) as? TrussType.PointerType,
+                          !pointer.isNonnull
+                {
+                    expression.ty = TrussType.PointerType(pointer.pointee, isNonnull: true)
                 } else if !(inner is TrussType.ErrorType) {
                     context.emitError(
                         "cannot force unwrap value of non-optional type '\(typeText(inner))'",
@@ -2044,6 +2217,32 @@ public final class TypeChecker: AST.Visitor {
                     )
                 }
             }
+        case let dereference as AST.Dereference:
+            if let inner = infer(dereference.expression, at: token) {
+                if let pointer = resolve(inner) as? TrussType.PointerType {
+                    expression.ty = pointer.pointee
+                } else if !(inner is TrussType.ErrorType) {
+                    context.emitError(
+                        "cannot dereference non-pointer type '\(typeText(inner))'",
+                        at: dereference.operatorToken
+                    )
+                }
+            }
+        case let addressOf as AST.AddressOf:
+            if !isLValue(addressOf.expression) {
+                context.emitError(
+                    "cannot take address of non-lvalue expression",
+                    at: addressOf.operatorToken
+                )
+            }
+            if let inner = infer(addressOf.expression, at: token) {
+                expression.ty = TrussType.PointerType(inner, isNonnull: true)
+            }
+        case let nullPointer as AST.NullPointerLiteral:
+            let variable = freshTypeVariable("nullptr")
+            nullablePointerConstraints.insert(ObjectIdentifier(variable))
+            nullptrLiteralTokens[ObjectIdentifier(variable)] = nullPointer.token
+            expression.ty = variable
         case is AST.VoidLiteral:
             expression.ty = TrussType.VoidType.INSTANCE
         case let interpolation as AST.StringInterpolation:
@@ -2075,6 +2274,15 @@ public final class TypeChecker: AST.Visitor {
                 }
                 binary.ty = binary.left.ty
                 break
+            }
+            let leftResolved = binary.left.ty.map { resolve($0) }
+            let rightResolved = binary.right.ty.map { resolve($0) }
+            if leftResolved is TrussType.PointerType || rightResolved is TrussType.PointerType {
+                if inferBuiltinPointerBinary(
+                    binary, leftResolved: leftResolved, rightResolved: rightResolved, at: token
+                ) {
+                    break
+                }
             }
             let freeCandidates = lookupOperatorFunctions(binary.operatorToken.value)
             let leftStaticCandidates = memberOperatorCandidates(
