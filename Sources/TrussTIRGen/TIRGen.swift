@@ -99,11 +99,9 @@ public final class TIRGen: AST.Visitor {
         let functionType = symbol.functionType
         let returnType = functionType.map { typeLower.lower($0.returnType) } ?? TIRType.VoidType()
         let throwsTypes = functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
+        let name = functionName(for: decl, symbol: symbol, functionType: functionType)
         createFunction(
-            symbol, name: mangleFunctionName(
-                symbol, baseName: decl.name.value,
-                returnType: functionType?.returnType ?? TrussType.VoidType.INSTANCE
-            ),
+            symbol, name: name,
             returnType: returnType,
             isAsync: decl.asyncToken != nil, isThrowing: functionType?.isThrowing ?? false,
             throwsTypes: throwsTypes
@@ -264,6 +262,25 @@ public final class TIRGen: AST.Visitor {
         deferStack = savedDefer
         errorTargets = savedError
         closureParamValues = savedClosureParams
+    }
+
+    private func functionName(
+        for decl: AST.FunctionDecl, symbol: Symbol.FunctionSymbol,
+        functionType: TrussType.FunctionType?
+    ) -> String {
+        if let cnameAttribute = decl.attributes.filter({ $0.name.value == "cname" }).first {
+            if cnameAttribute.arguments.count == 1 {
+                return cnameAttribute.arguments.first!.first?.value ?? "unknown"
+            }
+            context.emitError(
+                "cname attribute expects exactly one argument", at: cnameAttribute.name
+            )
+            return "unknown"
+        }
+        return mangleFunctionName(
+            symbol, baseName: decl.name.value,
+            returnType: functionType?.returnType ?? TrussType.VoidType.INSTANCE
+        )
     }
 
     private func mangleFunctionName(

@@ -124,6 +124,18 @@ func tokenValues(_ tokens: [Token]) -> [String] {
     #expect(tokenValues(tokens) == ["foo", "bar"])
 }
 
+@Test func ppSharpAttributeNotDirective() {
+    let (tokens, diagnostics) = preprocessWithDiagnostics("#[cname(\"x\")]\nfunc f() {}")
+    #expect(diagnostics.isEmpty)
+    #expect(tokenValues(tokens).contains("#"))
+    #expect(tokenValues(tokens).contains("cname"))
+}
+
+@Test func ppSharpAttributeSkippedWhenInactive() {
+    let tokens = preprocess("#if 0\n#[cname(\"x\")]\n#endif\n1")
+    #expect(tokenValues(tokens) == ["1"])
+}
+
 @Test func ppBadConditionToken() {
     let (tokens, diagnostics) = preprocessWithDiagnostics("#if \"str\"\n1\n#else\n2\n#endif")
     #expect(diagnostics.contains { $0.message.contains("unexpected token") })

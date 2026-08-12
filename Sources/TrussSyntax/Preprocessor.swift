@@ -108,6 +108,18 @@ public final class Preprocessor {
         while index < tokens.count {
             let token = tokens[index]
             if token.kind == .Separator(.Sharp) {
+                if index + 1 < tokens.count,
+                   tokens[index + 1].kind == .Separator(.OpenBracket)
+                {
+                    if active {
+                        let result = expandToken(token, tokens: tokens, at: index)
+                        output.append(contentsOf: result.tokens)
+                        index = result.nextIndex
+                    } else {
+                        index += 1
+                    }
+                    continue
+                }
                 if let directiveOutput = handleDirective(
                     tokens: tokens, currentDir: currentDir
                 ) {

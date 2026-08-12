@@ -146,6 +146,25 @@ import TrussCore
     #expect(printProgram("func f() = 1") == "func f() = 1")
 }
 
+@Test func printFunctionAttributeOnOwnLine() {
+    #expect(
+        printProgram(
+            """
+            #[cname("has_cname")]
+            func f() {}
+
+            public func g() {}
+            """
+        )
+            == """
+            #[cname(has_cname)]
+            func f() {}
+
+            public func g() {}
+            """
+    )
+}
+
 @Test func printVarargParameter() {
     #expect(printProgram("func f(xs: Int...) {}") == "func f(xs: Int...) {}")
 }

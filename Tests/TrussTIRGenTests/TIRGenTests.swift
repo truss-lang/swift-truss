@@ -1,4 +1,5 @@
 import Testing
+import TrussTIRGen
 
 @Suite struct TIRGenTests {
     @Test func basicFunction() throws {
@@ -187,5 +188,30 @@ import Testing
         )
         try #require(tir.contains("function $t4main_1f_1a1S_1S"))
         try #require(tir.contains("function $t4main1A1B_1f_1a1S_1S"))
+    }
+
+    @Test func cnameOverridesMangledName() throws {
+        let tir = dumpTIR(
+            """
+            #[cname("my_name")]
+            func f() {}
+            """
+        )
+        try #require(tir.contains("function my_name"))
+    }
+
+    @Test func cnameWithWrongArgumentCountReportsError() {
+        let (context, program) = runPipeline(
+            """
+            #[cname("a", "b")]
+            func f() {}
+            """
+        )
+        _ = TIRGen(context: context).generate(program)
+        #expect(
+            context.diagnositicEngine.diagnostics.contains {
+                $0.message.contains("cname attribute expects exactly one argument")
+            }
+        )
     }
 }

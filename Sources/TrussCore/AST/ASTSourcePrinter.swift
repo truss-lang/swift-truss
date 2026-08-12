@@ -486,7 +486,18 @@ public final class SourcePrinter: AST.Visitor {
     public override func visitFunctionDecl(
         _ functionDecl: AST.FunctionDecl, additional: Any? = nil
     ) -> Any? {
-        state.write(annotations(functionDecl.modifiers, functionDecl.attributes))
+        let attributes = attributesText(functionDecl.attributes)
+        let modifiers = modifiersText(functionDecl.modifiers)
+        if !attributes.isEmpty {
+            state.write(attributes)
+            state.write("\n")
+            state.write(state.indentPrefix())
+            if !modifiers.isEmpty {
+                state.write(modifiers + " ")
+            }
+        } else if !modifiers.isEmpty {
+            state.write(modifiers + " ")
+        }
         state.write("func " + functionDecl.name.value)
         if let genericDecl = functionDecl.genericDecl { state.write(genericDeclText(genericDecl)) }
         state.write(

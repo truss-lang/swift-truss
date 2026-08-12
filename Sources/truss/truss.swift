@@ -70,6 +70,10 @@ struct truss {
             EXPAND(DEFER2(A)())
             // 1 + 2 && 3*4 - 5/6 >= 7
             let ss = SS<S>()
+            hasCName()
+        }
+        #[cname("has_cname")]
+        func hasCName() {
         }
         """
         let result = Driver(
