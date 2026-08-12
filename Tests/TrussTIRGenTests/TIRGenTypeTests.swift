@@ -269,7 +269,7 @@ import Testing
         """
     )
     let closureBlock = tir.components(separatedBy: "function ")
-        .first(where: { $0.hasPrefix("closure-0") }) ?? ""
+        .first(where: { $0.hasPrefix("$t4main_1f_4Void_closure_0") }) ?? ""
     try #require(closureBlock.range(of: #"Return %\d+"#, options: .regularExpression) != nil)
 }
 

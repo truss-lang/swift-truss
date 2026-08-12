@@ -98,8 +98,8 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function closure-0"))
-        try #require(tir.contains("Closure closure-0"))
+        try #require(tir.contains("function $t4main_1f_4Void_closure_0"))
+        try #require(tir.contains("Closure $t4main_1f_4Void_closure_0"))
         try #require(tir.contains("Return "))
     }
 

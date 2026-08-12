@@ -125,7 +125,7 @@ import TrussTIRGen
             """
         )
         let closureBlock = tir.components(separatedBy: "function ")
-            .first(where: { $0.hasPrefix("closure-0") }) ?? ""
+            .first(where: { $0.hasPrefix("$t4main_1f_1e1E_1F_closure_0") }) ?? ""
         let returns = closureBlock.components(separatedBy: "\n")
             .filter { $0.range(of: #"Return %\d+"#, options: .regularExpression) != nil }
         try #require(returns.count == 2)
@@ -262,7 +262,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("closure-0"))
+        try #require(tir.contains("$t4main_1f_4Void_closure_0"))
         try #require(tir.contains("AllocCell"))
         try #require(tir.contains("Closure"))
     }

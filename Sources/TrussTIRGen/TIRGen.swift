@@ -24,7 +24,6 @@ public final class TIRGen: AST.Visitor {
     private var staticVariableSymbols: Set<Id.SymbolId> = []
     private var collectTypeStack: [Symbol.NominalTypeSymbol] = []
     private var modulePathStack: [Symbol.ModuleSymbol] = []
-    private var counter = 0
 
     private struct BreakTarget {
         let label: String?
@@ -716,9 +715,8 @@ public final class TIRGen: AST.Visitor {
         globalsBySymbol[symbol.id] = global
         guard let initializer = variableDecl.initializer else { return }
         let initFunction = TIR.Function(
-            name: "global-init-\(counter)", returnType: type
+            name: mangleGlobalName(symbol) + "_" + mangleIdentifier("init"), returnType: type
         )
-        counter += 1
         let savedBuilder = builder
         let savedEnv = env
         let initBuilder = TIRBuilder(function: initFunction)
@@ -2198,7 +2196,8 @@ public final class TIRGen: AST.Visitor {
         let returnType = (closureType as? TIRType.FunctionType)?.returnType ?? TIRType.VoidType()
         let isThrowing = (closureType as? TIRType.FunctionType)?.isThrowing ?? false
         let throwsTypes = (closureType as? TIRType.FunctionType)?.throwsTypes ?? []
-        let name = "closure-\(closureCounter)"
+        let ownerName = builder.function.name
+        let name = ownerName + "_closure_" + String(closureCounter)
         closureCounter += 1
         let function = createFunction(
             nil, name: name, returnType: returnType, isAsync: false, isThrowing: isThrowing,
