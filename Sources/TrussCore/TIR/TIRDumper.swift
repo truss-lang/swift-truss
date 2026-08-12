@@ -6,7 +6,94 @@ public extension TIR {
         public init() {}
 
         public func dump(_ module: TIR.Module) -> String {
-            module.functions.map { dump($0) }.joined(separator: "\n")
+            var lines: [String] = []
+            let types = collectTypes(module)
+            if !types.isEmpty {
+                lines.append("types:")
+                for type in types {
+                    lines.append("  " + type.name + "#" + String(type.id.id)
+                        + nominalDefinition(type))
+                }
+                lines.append("")
+            }
+            for global in module.globals {
+                lines.append("global \(global.name) : \(typeText(global.type))")
+                for instruction in global.initializer {
+                    lines.append("  " + instructionText(instruction))
+                }
+            }
+            if !module.globals.isEmpty, !module.functions.isEmpty {
+                lines.append("")
+            }
+            lines.append(contentsOf: module.functions.map { dump($0) })
+            return lines.joined(separator: "\n")
+        }
+
+        private func collectTypes(_ module: TIR.Module) -> [TIRType.NominalType] {
+            var seen = Set<UInt64>()
+            var result: [TIRType.NominalType] = []
+            func visit(_ type: TIRType.TIRType) {
+                switch type {
+                case let nominal as TIRType.NominalType:
+                    if seen.insert(nominal.id.id).inserted {
+                        result.append(nominal)
+                    }
+                case let optional as TIRType.OptionalType:
+                    visit(optional.wrapped)
+                case let tuple as TIRType.TupleType:
+                    for element in tuple.elements {
+                        visit(element.type)
+                    }
+                case let function as TIRType.FunctionType:
+                    for parameter in function.parameters {
+                        visit(parameter.type)
+                    }
+                    for throwsType in function.throwsTypes {
+                        visit(throwsType)
+                    }
+                    visit(function.returnType)
+                case let address as TIRType.AddressType:
+                    visit(address.pointee)
+                case let metatype as TIRType.MetatypeType:
+                    visit(metatype.instance)
+                case let existential as TIRType.ExistentialType:
+                    for protocolType in existential.protocolTypes {
+                        visit(protocolType)
+                    }
+                case let pointer as TIRType.PointerType:
+                    visit(pointer.pointee)
+                default:
+                    break
+                }
+            }
+            for global in module.globals {
+                visit(global.type)
+                for instruction in global.initializer {
+                    if let value = instruction.result {
+                        visit(value.type)
+                    }
+                }
+            }
+            for function in module.functions {
+                visit(function.returnType)
+                for throwsType in function.throwsTypes {
+                    visit(throwsType)
+                }
+                for argument in function.arguments {
+                    visit(argument.type)
+                }
+                for block in function.blocks {
+                    for argument in block.arguments {
+                        visit(argument.type)
+                    }
+                    for instruction in block.instructions {
+                        if let value = instruction.result {
+                            visit(value.type)
+                        }
+                    }
+                }
+            }
+            return result.sorted { $0.id.id < $1.id.id }
         }
 
         public func dump(_ function: TIR.Function) -> String {
@@ -49,6 +136,14 @@ public extension TIR {
         }
 
         private func instructionText(_ instruction: Instruction) -> String {
+            let text = instructionBodyText(instruction)
+            if let value = instruction.result {
+                return text + " : " + typeText(value.type)
+            }
+            return text
+        }
+
+        private func instructionBodyText(_ instruction: Instruction) -> String {
             let result = instruction.result.map { $0.name + " = " } ?? ""
             switch instruction {
             case let instruction as AllocStack:
@@ -80,6 +175,8 @@ public extension TIR {
                     + String(instruction.index)
             case let instruction as AddressToPointer:
                 return result + "AddressToPointer " + instruction.address.name
+            case let instruction as GlobalAddr:
+                return result + "GlobalAddr " + instruction.global.name
             case let instruction as CopyValue:
                 return result + "CopyValue " + instruction.value.name
             case let instruction as DestroyValue:
@@ -163,11 +260,9 @@ public extension TIR {
             case is Trap:
                 return "Trap"
             case let instruction as IntegerLiteral:
-                return result + "IntegerLiteral " + String(instruction.value) + " : "
-                    + typeText(instruction.literalType)
+                return result + "IntegerLiteral " + String(instruction.value)
             case let instruction as FloatLiteral:
-                return result + "FloatLiteral " + String(instruction.value) + " : "
-                    + typeText(instruction.literalType)
+                return result + "FloatLiteral " + String(instruction.value)
             case let instruction as StringLiteral:
                 return result + "StringLiteral \"" + instruction.value + "\""
             case let instruction as CharLiteral:
@@ -175,7 +270,7 @@ public extension TIR {
             case let instruction as BoolLiteral:
                 return result + "BoolLiteral " + String(instruction.value)
             case let instruction as NullLiteral:
-                return result + "NullLiteral : " + typeText(instruction.literalType)
+                return result + "NullLiteral"
             case is VoidLiteral:
                 return result + "VoidLiteral"
             case let instruction as ArrayValue:
@@ -230,45 +325,112 @@ public extension TIR {
         public func typeText(_ type: TIRType.TIRType) -> String {
             switch type {
             case let nominal as TIRType.NominalType:
-                return "$" + nominal.name + "#" + String(nominal.id.id)
+                return nominal.name + "#" + String(nominal.id.id)
             case let tuple as TIRType.TupleType:
                 return "$(" + tuple.elements.map { element in
                     if let label = element.label {
-                        return label + ": " + typeText(element.type)
+                        return label + ": " + innerTypeText(element.type)
                     }
-                    return typeText(element.type)
+                    return innerTypeText(element.type)
                 }.joined(separator: ", ") + ")"
             case let optional as TIRType.OptionalType:
                 return typeText(optional.wrapped) + "?"
             case let function as TIRType.FunctionType:
                 var text = "$(" + function.parameters.map { parameter in
                     if let label = parameter.label {
-                        return label + ": " + typeText(parameter.type)
+                        return label + ": " + innerTypeText(parameter.type)
                     }
-                    return typeText(parameter.type)
+                    return innerTypeText(parameter.type)
                 }.joined(separator: ", ") + ")"
                 if function.isAsync { text += " async" }
                 if function.isThrowing {
                     text += " throws"
                     if !function.throwsTypes.isEmpty {
-                        text += "(" + function.throwsTypes.map(typeText).joined(separator: ", ")
+                        text += "(" + function.throwsTypes.map(innerTypeText).joined(separator: ", ")
                             + ")"
                     }
                 }
-                text += " -> " + typeText(function.returnType)
+                text += " -> " + innerTypeText(function.returnType)
                 return text
             case let address as TIRType.AddressType:
-                return "$*" + typeText(address.pointee)
+                return "$*" + innerTypeText(address.pointee)
             case let metatype as TIRType.MetatypeType:
                 return typeText(metatype.instance) + ".Type"
             case let existential as TIRType.ExistentialType:
-                return "$any " + existential.protocolTypes.map(typeText).joined(separator: " & ")
+                return "$any " + existential.protocolTypes.map(innerTypeText).joined(separator: " & ")
             case let archetype as TIRType.ArchetypeType:
                 return "$<" + archetype.name + ">"
             case let pointer as TIRType.PointerType:
-                return "$ptr " + typeText(pointer.pointee)
+                return "$ptr " + innerTypeText(pointer.pointee)
             default:
                 return "$?"
+            }
+        }
+
+        private func innerTypeText(_ type: TIRType.TIRType) -> String {
+            String(typeText(type).dropFirst())
+        }
+
+        private func nominalDefinition(_ nominal: TIRType.NominalType) -> String {
+            guard let symbol = nominal.symbol else { return "" }
+            var members: [String] = []
+            for (name, entries) in symbol.scope.values.sorted(by: { $0.key < $1.key }) {
+                for entry in entries {
+                    switch entry {
+                    case let variable as Symbol.VariableSymbol:
+                        members.append("\(name): " + trussTypeText(variable.type))
+                    case let caseSymbol as Symbol.CaseSymbol:
+                        if caseSymbol.associatedTypes.isEmpty {
+                            members.append(".\(name)")
+                        } else {
+                            members.append(
+                                ".\(name)("
+                                    + caseSymbol.associatedTypes.map(trussTypeText)
+                                    .joined(separator: ", ") + ")"
+                            )
+                        }
+                    case let function as Symbol.FunctionSymbol:
+                        members.append("\(name)()")
+                    default:
+                        break
+                    }
+                }
+            }
+            for (name, _) in symbol.scope.types.sorted(by: { $0.key < $1.key }) {
+                members.append("type \(name)")
+            }
+            if members.isEmpty {
+                return ""
+            }
+            return " { " + members.joined(separator: ", ") + " }"
+        }
+
+        private func trussTypeText(_ type: TrussType.TrussType?) -> String {
+            guard let type else { return "?" }
+            switch type {
+            case is TrussType.VoidType:
+                return "Void"
+            case let nominal as TrussType.NominalType:
+                return nominal.name + "#" + String(nominal.id.id)
+            case let optional as TrussType.OptionalType:
+                return trussTypeText(optional.wrapped) + "?"
+            case let generic as TrussType.GenericParamType:
+                return generic.name
+            case let instantiation as TrussType.GenericInstantiation:
+                return trussTypeText(instantiation.base) + "<"
+                    + instantiation.arguments.map(trussTypeText).joined(separator: ", ") + ">"
+            case let function as TrussType.FunctionType:
+                var text = "("
+                    + function.parameters.map { parameter in
+                        trussTypeText(parameter.type)
+                    }.joined(separator: ", ") + ") -> "
+                    + trussTypeText(function.returnType)
+                return text
+            case let tuple as TrussType.TupleType:
+                return "(" + tuple.elements.map { trussTypeText($0.type) }.joined(separator: ", ")
+                    + ")"
+            default:
+                return "?"
             }
         }
     }

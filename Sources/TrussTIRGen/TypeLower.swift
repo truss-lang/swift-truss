@@ -60,23 +60,40 @@ final class TypeLower {
         if let cached = cache[type.id] {
             return cached
         }
+        let mangledName = mangleTypeName(type)
         let lowered: TIRType.NominalType = switch type {
         case is TrussType.StructType:
-            TIRType.StructType(type.id, type.name)
+            TIRType.StructType(type.id, mangledName)
         case is TrussType.ClassType:
-            TIRType.ReferenceType(type.id, type.name)
+            TIRType.ReferenceType(type.id, mangledName)
         case is TrussType.EnumType:
-            TIRType.EnumType(type.id, type.name)
+            TIRType.EnumType(type.id, mangledName)
         case is TrussType.ProtocolType:
-            TIRType.ProtocolType(type.id, type.name)
+            TIRType.ProtocolType(type.id, mangledName)
         case is TrussType.ActorType:
-            TIRType.ReferenceType(type.id, type.name)
+            TIRType.ReferenceType(type.id, mangledName)
         default:
-            TIRType.ReferenceType(type.id, type.name)
+            TIRType.ReferenceType(type.id, mangledName)
         }
         lowered.symbol = type.symbol
         cache[type.id] = lowered
         return lowered
+    }
+
+    private func mangleTypeName(_ type: TrussType.NominalType) -> String {
+        guard let symbol = type.symbol else { return type.name }
+        var result = "$t"
+        let packageName = symbol.packageId.flatMap { context.id2Symbol[$0]?.name } ?? "main"
+        result += mangleIdentifier(packageName)
+        if let module = symbol.moduleSymbol {
+            result += mangleIdentifier(module.name)
+        }
+        result += mangleIdentifier(type.name)
+        return result
+    }
+
+    private func mangleIdentifier(_ name: String) -> String {
+        "\(name.count)\(name)"
     }
 
     func ownership(for type: TIRType.TIRType) -> TIRType.Ownership {

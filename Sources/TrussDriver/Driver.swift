@@ -142,7 +142,7 @@ public final class Driver {
                 stdout += programs.map { dumper.dump($0) }.joined(separator: "\n") + "\n"
             }
             if config.dumpSymbols, let first = programs.first {
-                stdout += Symbol.Dumper(context: context).dump(first) + "\n"
+                stdout += Symbol.Dumper(context: context).dump(first)
             }
             if config.dumpTIR, !tirModules.isEmpty {
                 let dumper = TIR.Dumper()
