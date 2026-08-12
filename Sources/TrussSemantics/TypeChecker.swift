@@ -4,6 +4,7 @@ import TrussCore
 public final class TypeChecker: AST.Visitor {
     private let context: Context
     private var collectingTypealiases = false
+    private var collectFunctionSignatures = false
     private var typealiasDecls: [Id.SymbolId: AST.TypeAliasDecl] = [:]
     private var resolvingTypealiases: Set<Id.SymbolId> = []
     private var scopeStack: [Scope] = []
@@ -30,6 +31,11 @@ public final class TypeChecker: AST.Visitor {
             super.visitProgram(program, additional: additional)
         }
         collectingTypealiases = false
+        collectFunctionSignatures = true
+        withScope(program.packageSymbol?.scope) {
+            super.visitProgram(program, additional: additional)
+        }
+        collectFunctionSignatures = false
         withScope(program.packageSymbol?.scope) {
             super.visitProgram(program, additional: additional)
         }
@@ -176,11 +182,50 @@ public final class TypeChecker: AST.Visitor {
         return super.visitEnumCaseDecl(enumCaseDecl, additional: additional)
     }
 
-    @discardableResult
+    private func fillFunctionSignature(
+        parameters: [AST.FunctionDecl.Parameter], asyncToken: Token?,
+        throwsClause: AST.ThrowsClause?, returnType: TrussType.TrussType,
+        genericDecl: AST.GenericDecl?, symbol: Symbol.FunctionSymbol
+    ) {
+        let parameterTypes = fillParameterTypes(parameters, into: symbol)
+        let functionType = functionType(
+            labels: parameters.map { $0.label?.value },
+            parameterTypes: parameterTypes,
+            asyncToken: asyncToken,
+            throwsClause: throwsClause,
+            returnType: returnType
+        )
+        if let genericDecl, !genericDecl.generics.isEmpty {
+            symbol.forallType = TrussType.ForallType(
+                parameters: genericParams(of: genericDecl), body: functionType
+            )
+        }
+        symbol.functionType = functionType
+    }
+
     public override func visitFunctionDecl(
         _ functionDecl: AST.FunctionDecl, additional: Any? = nil
     ) -> Any? {
         guard let symbol = functionDecl.symbol else { return nil }
+        if collectingTypealiases || collectFunctionSignatures {
+            withScope(symbol.scope) {
+                collectConstraints(
+                    in: symbol.scope, genericDecl: functionDecl.genericDecl, whereClause: nil
+                )
+                let returnType: TrussType.TrussType =
+                    if let typeExpression = functionDecl.returnTypeExpression {
+                        evaluate(typeExpression)
+                    } else {
+                        TrussType.VoidType.INSTANCE
+                    }
+                fillFunctionSignature(
+                    parameters: functionDecl.parameters, asyncToken: functionDecl.asyncToken,
+                    throwsClause: functionDecl.throwsClause, returnType: returnType,
+                    genericDecl: functionDecl.genericDecl, symbol: symbol
+                )
+            }
+            return nil
+        }
         withScope(symbol.scope) {
             collectConstraints(
                 in: symbol.scope, genericDecl: functionDecl.genericDecl, whereClause: nil
@@ -225,6 +270,20 @@ public final class TypeChecker: AST.Visitor {
         guard let symbol = initDecl.symbol else {
             return super.visitInitDecl(initDecl, additional: additional)
         }
+        if collectingTypealiases || collectFunctionSignatures {
+            withScope(symbol.scope) {
+                collectConstraints(
+                    in: symbol.scope, genericDecl: initDecl.genericDecl, whereClause: nil
+                )
+                fillFunctionSignature(
+                    parameters: initDecl.parameters, asyncToken: initDecl.asyncToken,
+                    throwsClause: initDecl.throwsClause,
+                    returnType: TrussType.VoidType.INSTANCE,
+                    genericDecl: initDecl.genericDecl, symbol: symbol
+                )
+            }
+            return nil
+        }
         withScope(symbol.scope) {
             collectConstraints(
                 in: symbol.scope, genericDecl: initDecl.genericDecl, whereClause: nil
@@ -260,6 +319,17 @@ public final class TypeChecker: AST.Visitor {
     ) -> Any? {
         guard let symbol = subscriptDecl.symbol else {
             return super.visitSubscriptDecl(subscriptDecl, additional: additional)
+        }
+        if collectingTypealiases || collectFunctionSignatures {
+            withScope(symbol.scope) {
+                fillFunctionSignature(
+                    parameters: subscriptDecl.parameters, asyncToken: subscriptDecl.asyncToken,
+                    throwsClause: subscriptDecl.throwsClause,
+                    returnType: evaluate(subscriptDecl.returnType),
+                    genericDecl: subscriptDecl.genericDecl, symbol: symbol
+                )
+            }
+            return nil
         }
         withScope(symbol.scope) {
             let parameterTypes = fillParameterTypes(subscriptDecl.parameters, into: symbol)
@@ -298,6 +368,17 @@ public final class TypeChecker: AST.Visitor {
     public override func visitVariableDecl(
         _ variableDecl: AST.VariableDecl, additional: Any? = nil
     ) -> Any? {
+        if collectingTypealiases || collectFunctionSignatures {
+            if let typeExpression = variableDecl.typeExpression {
+                variableDecl.symbol?.type = evaluate(typeExpression)
+            } else if let initializer = variableDecl.initializer {
+                let inferred = infer(initializer, at: variableDecl.name)
+                if let inferred, isResolved(inferred) {
+                    variableDecl.symbol?.type = inferred
+                }
+            }
+            return nil
+        }
         let type: TrussType.TrussType? =
             if let typeExpr = variableDecl.typeExpression {
                 evaluate(typeExpr)
@@ -467,20 +548,25 @@ public final class TypeChecker: AST.Visitor {
             }
             switch accessor.kind {
             case .Get:
-                switch accessor.body {
-                case let .Block(statements):
-                    for statement in statements {
-                        visit(statement)
+                withFunctionReturnType(type) {
+                    switch accessor.body {
+                    case let .Block(statements):
+                        for statement in statements {
+                            visit(statement)
+                        }
+                        if let last = statements.last as? AST.ExpressionStatement {
+                            check(last.expression, type, at: accessor.token ?? token)
+                        } else if !(statements.last is AST.Return),
+                                  !(statements.last is AST.Throw),
+                                  join([TrussType.VoidType.INSTANCE, type], at: token) == nil
+                        {
+                            emitMismatch(
+                                at: token, expected: type, found: TrussType.VoidType.INSTANCE
+                            )
+                        }
+                    case let .Expression(expression):
+                        check(expression, type, at: accessor.token ?? token)
                     }
-                    if let last = statements.last as? AST.ExpressionStatement {
-                        check(last.expression, type, at: accessor.token ?? token)
-                    } else if join([TrussType.VoidType.INSTANCE, type], at: token) == nil {
-                        emitMismatch(
-                            at: token, expected: type, found: TrussType.VoidType.INSTANCE
-                        )
-                    }
-                case let .Expression(expression):
-                    check(expression, type, at: accessor.token ?? token)
                 }
             case .Set, .WillSet, .DidSet:
                 visitAccessorStatements(accessor, at: token)
@@ -1000,6 +1086,30 @@ public final class TypeChecker: AST.Visitor {
             return memberFunctionSymbols(of: name, in: protocolType)
         }
         return []
+    }
+
+    private func memberSymbol(of name: String, in type: TrussType.TrussType?) -> Symbol.Symbol? {
+        let base = (type as? TrussType.OptionalType)?.wrapped ?? type
+        let nominal: TrussType.NominalType
+        if let generic = base as? TrussType.GenericInstantiation {
+            nominal = generic.base
+        } else if let plain = base as? TrussType.NominalType {
+            nominal = plain
+        } else {
+            return nil
+        }
+        guard let symbol = nominal.symbol else { return nil }
+        var current: Symbol.NominalTypeSymbol? = symbol
+        while let currentType = current {
+            if let typeEntry = currentType.scope.types[name] {
+                return typeEntry
+            }
+            if let entries = currentType.scope.values[name], let first = entries.first {
+                return first
+            }
+            current = (currentType as? Symbol.ClassSymbol)?.superclass
+        }
+        return nil
     }
 
     private func memberType(of name: String, in type: TrussType.TrussType?) -> TrussType.TrussType? {
@@ -1530,7 +1640,8 @@ public final class TypeChecker: AST.Visitor {
                    let resolved = resolveOverloads(
                        overloads, arguments: call.arguments,
                        trailingClosures: call.trailingClosures,
-                       expectedReturn: nil, at: token
+                       expectedReturn: nil, at: token,
+                       fallbackName: callTargetName(call.callee)
                    )
                 {
                     call.symbol = resolved.symbol
@@ -1724,14 +1835,19 @@ public final class TypeChecker: AST.Visitor {
             doThrownTypeStack.removeLast()
         case let memberAccess as AST.MemberAccess:
             _ = infer(memberAccess.object, at: token)
-            if let symbol = memberAccess.symbol {
+            if let ty = memberType(of: memberAccess.member.value, in: memberAccess.object.ty) {
+                expression.ty = ty
+                if memberAccess.symbol == nil {
+                    memberAccess.symbol = memberSymbol(
+                        of: memberAccess.member.value, in: memberAccess.object.ty
+                    )
+                }
+            } else if let symbol = memberAccess.symbol {
                 expression.ty = valueType(of: symbol)
             } else if let overloads = memberAccess.overloads, overloads.count == 1,
                       let overload = overloads.first
             {
                 expression.ty = overload.forallType ?? overload.functionType
-            } else if let ty = memberType(of: memberAccess.member.value, in: memberAccess.object.ty) {
-                expression.ty = ty
             }
             if memberAccess.isOptional {
                 if let objectType = memberAccess.object.ty,
@@ -1768,7 +1884,7 @@ public final class TypeChecker: AST.Visitor {
             if subscriptExpression.symbol == nil {
                 if let resolved = resolveOverloads(
                     subscriptExpression.overloads ?? [], arguments: subscriptExpression.arguments, trailingClosures: [],
-                    expectedReturn: nil, at: token
+                    expectedReturn: nil, at: token, fallbackName: "subscript"
                 ) {
                     subscriptExpression.symbol = resolved.symbol
                     expression.ty = resolved.type.returnType
@@ -2470,10 +2586,23 @@ public final class TypeChecker: AST.Visitor {
             if call.symbol == nil {
                 if let resolved = resolveOverloads(
                     call.overloads ?? [], arguments: call.arguments,
-                    trailingClosures: call.trailingClosures, expectedReturn: expected, at: token
+                    trailingClosures: call.trailingClosures, expectedReturn: expected,
+                    at: token, fallbackName: callTargetName(call.callee)
                 ) {
                     call.symbol = resolved.symbol
-                    expression.ty = resolved.type.returnType
+                    if resolved.symbol.name == "init",
+                       let typeSymbol = resolvedSymbol(call.callee)
+                       as? Symbol.NominalTypeSymbol,
+                       let typeId = typeSymbol.typeId,
+                       let nominal = context.typeTable[typeId] as? TrussType.NominalType
+                    {
+                        let arguments = resolved.type.parameters.map { resolve($0.type) }
+                        expression.ty = TrussType.GenericInstantiation(
+                            base: nominal, arguments: arguments
+                        )
+                    } else {
+                        expression.ty = resolved.type.returnType
+                    }
                     if resolved.symbol.name != "init",
                        let forallType = resolved.symbol.forallType,
                        let explicit = genericArguments(of: call.callee),
@@ -2501,13 +2630,52 @@ public final class TypeChecker: AST.Visitor {
         }
     }
 
+    private func callTargetName(_ expression: AST.Expression) -> String? {
+        switch expression {
+        case let variable as AST.Variable:
+            variable.name.value
+        case let member as AST.MemberAccess:
+            member.member.value
+        case let implicit as AST.ImplicitMemberAccess:
+            implicit.name.value
+        case let application as AST.GenericApplication:
+            callTargetName(application.base)
+        default:
+            nil
+        }
+    }
+
+    private func isResolved(_ type: TrussType.TrussType) -> Bool {
+        switch type {
+        case is TrussType.TypeVariableType, is TrussType.GenericParamType:
+            false
+        case let optional as TrussType.OptionalType:
+            isResolved(optional.wrapped)
+        case let tuple as TrussType.TupleType:
+            tuple.elements.allSatisfy { isResolved($0.type) }
+        case let function as TrussType.FunctionType:
+            function.parameters.allSatisfy { isResolved($0.type) }
+                && isResolved(function.returnType)
+        case let instantiation as TrussType.GenericInstantiation:
+            isResolved(instantiation.base)
+                && instantiation.arguments.allSatisfy { isResolved($0) }
+        case let composition as TrussType.CompositionType:
+            composition.members.allSatisfy { isResolved($0) }
+        case let variadic as TrussType.VariadicType:
+            isResolved(variadic.base)
+        default:
+            true
+        }
+    }
+
     private func resolveOverloads(
         _ candidates: [Symbol.FunctionSymbol],
         arguments: [AST.LabeledArgument],
         trailingClosures: [(Token?, AST.Closure)],
         expectedReturn: TrussType.TrussType?,
         at token: Token,
-        reportErrors: Bool = true
+        reportErrors: Bool = true,
+        fallbackName: String? = nil
     ) -> (symbol: Symbol.FunctionSymbol, type: TrussType.FunctionType)? {
         let allArguments = arguments + trailingClosures.map { label, closure in
             AST.LabeledArgument(label: label, value: closure, sourceRange: closure.sourceRange)
@@ -2591,7 +2759,7 @@ public final class TypeChecker: AST.Visitor {
                 matched = nonGeneric
             }
         }
-        let name = candidates.first?.name ?? "<unknown>"
+        let name = candidates.first?.name ?? fallbackName ?? "<unknown>"
         switch matched.count {
         case 0:
             if reportErrors {
