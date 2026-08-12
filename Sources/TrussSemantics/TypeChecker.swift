@@ -2276,32 +2276,39 @@ public final class TypeChecker: AST.Visitor {
         let caseName: String?
         var arguments: [AST.LabeledArgument] = []
         var caseType: TrussType.TrussType? = nil
+        var symbolTarget: AST.Expression? = nil
         switch pattern {
         case let call as AST.Call:
             if let implicit = call.callee as? AST.ImplicitMemberAccess {
                 caseName = implicit.name.value
                 arguments = call.arguments
                 caseType = subjectType
+                symbolTarget = implicit
             } else if let member = call.callee as? AST.MemberAccess {
                 caseName = member.member.value
                 arguments = call.arguments
                 caseType = evaluate(member.object)
+                symbolTarget = member
             } else if let variable = call.callee as? AST.Variable {
                 caseName = variable.name.value
                 arguments = call.arguments
                 caseType = subjectType
+                symbolTarget = variable
             } else {
                 return true
             }
         case let member as AST.MemberAccess:
             caseName = member.member.value
             caseType = evaluate(member.object)
+            symbolTarget = member
         case let implicit as AST.ImplicitMemberAccess:
             caseName = implicit.name.value
             caseType = subjectType
+            symbolTarget = implicit
         case let variable as AST.Variable:
             caseName = variable.name.value
             caseType = subjectType
+            symbolTarget = variable
         default:
             return true
         }
@@ -2326,6 +2333,18 @@ public final class TypeChecker: AST.Visitor {
                 emitNoMember(at: token, type: typeText(nominal), member: caseName)
             }
             return false
+        }
+        symbolTarget.map { target in
+            switch target {
+            case let implicit as AST.ImplicitMemberAccess:
+                implicit.symbol = caseSymbol
+            case let member as AST.MemberAccess:
+                member.symbol = caseSymbol
+            case let variable as AST.Variable:
+                variable.symbol = caseSymbol
+            default:
+                break
+            }
         }
         let expectedTypes = caseSymbol.associatedTypes
         let expectedLabels = caseSymbol.associatedLabels

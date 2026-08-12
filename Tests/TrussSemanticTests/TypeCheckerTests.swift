@@ -805,11 +805,28 @@ import TrussSemantics
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func matchUnknownCaseReportsError() {
-    let (context, _) = runTypeChecker(
-        ["enum E { case a }\nfunc f(e: E) { match e { .c -> 1 } }"]
+@Test func matchPatternResolvesCaseSymbol() throws {
+    let (_, programs) = runTypeChecker(
+        ["enum E { case a; case b }\nfunc f(e: E) { match e { .a -> { 1 } .b -> { 2 } } }"]
     )
-    #expect(context.diagnositicEngine.hasErrors)
+    let functionDecl = try #require(programs[0].statements[1] as? AST.FunctionDecl)
+    let body = try #require(functionDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let statement = try #require(statements[0] as? AST.ExpressionStatement)
+    let matchExpression = try #require(statement.expression as? AST.Match)
+    let pattern = try #require(matchExpression.cases[0].patterns[0] as? AST.ImplicitMemberAccess)
+    let symbol = try #require(pattern.symbol)
+    #expect(symbol is Symbol.CaseSymbol)
+    #expect(symbol.name == "a")
+}
+
+@Test func matchUnknownCaseReportsError() { let (context, _) = runTypeChecker(
+    ["enum E { case a }\nfunc f(e: E) { match e { .c -> 1 } }"]
+)
+#expect(context.diagnositicEngine.hasErrors)
 }
 
 @Test func matchAssociatedValueBindsPatternType() throws {
