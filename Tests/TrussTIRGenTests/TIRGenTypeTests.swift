@@ -124,7 +124,51 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function deinit"))
+        try #require(tir.contains("function $t4main_1C_6deinit_4Void"))
+    }
+
+    @Test func deinitBindsSelfAndAccessesMembers() throws {
+        let tir = dumpTIR(
+            """
+            precedencegroup Assignment { assignment: true }
+            infix operator =: Assignment
+            struct S {
+                init() {}
+            }
+            class C {
+                var x: S = S()
+                init() {}
+                deinit {
+                    x = S()
+                }
+            }
+            """
+        )
+        try #require(tir.contains("function $t4main_1C_6deinit_4Void"))
+        try #require(tir.contains("RefElementAddr"))
+        try #require(tir.contains("Store "))
+    }
+
+    @Test func deinitPerClassMangledSeparately() throws {
+        let tir = dumpTIR(
+            """
+            struct S {
+                init() {}
+            }
+            class C {
+                init() {}
+                deinit {
+                }
+            }
+            class D {
+                init() {}
+                deinit {
+                }
+            }
+            """
+        )
+        try #require(tir.contains("function $t4main_1C_6deinit_4Void"))
+        try #require(tir.contains("function $t4main_1D_6deinit_4Void"))
     }
 
     @Test func subscriptDeclLoweredToFunction() throws {

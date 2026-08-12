@@ -19,6 +19,8 @@ public final class TIRGen: AST.Visitor {
     private var propertyInitializers: [Id.SymbolId: [(Symbol.VariableSymbol, AST.Expression)]] = [:]
     private var accessorFunctions: [Id.SymbolId: [String: TIR.Function]] = [:]
     private var initFunctionsByType: [Id.SymbolId: TIR.Function] = [:]
+    private var deinitFunctions: [ObjectIdentifier: TIR.Function] = [:]
+    private var deinitOwners: [ObjectIdentifier: Symbol.NominalTypeSymbol] = [:]
     private var staticVariableSymbols: Set<Id.SymbolId> = []
     private var collectTypeStack: [Symbol.NominalTypeSymbol] = []
     private var modulePathStack: [Symbol.ModuleSymbol] = []
@@ -125,7 +127,27 @@ public final class TIRGen: AST.Visitor {
     }
 
     private func collectDeinit(_ decl: AST.DeinitDecl) {
-        createFunction(nil, name: "deinit", returnType: TIRType.VoidType())
+        guard let owner = collectTypeStack.last else { return }
+        let function = createFunction(
+            nil, name: mangleDeinitName(owner), returnType: TIRType.VoidType()
+        )
+        deinitFunctions[ObjectIdentifier(decl)] = function
+        deinitOwners[ObjectIdentifier(decl)] = owner
+    }
+
+    private func mangleDeinitName(_ owner: Symbol.NominalTypeSymbol) -> String {
+        var result = "$t"
+        result += mangleIdentifier("main")
+        for moduleSymbol in modulePathStack {
+            result += mangleIdentifier(moduleSymbol.name)
+        }
+        result += "_"
+        result += mangleIdentifier(owner.name)
+        result += "_"
+        result += mangleIdentifier("deinit")
+        result += "_"
+        result += mangleIdentifier("Void")
+        return result
     }
 
     private func collectSubscript(_ decl: AST.SubscriptDecl) {
@@ -403,13 +425,13 @@ public final class TIRGen: AST.Visitor {
 
     @discardableResult
     public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil) -> Any? {
-        guard let function = module.functions.first(where: { $0.name == "deinit" && $0.symbol == nil })
-        else {
+        let key = ObjectIdentifier(deinitDecl)
+        guard let function = deinitFunctions[key], let owner = deinitOwners[key] else {
             return nil
         }
         generateBody(
             .Block(deinitDecl.body), function: function, symbol: nil, parameters: [],
-            hasSelf: true, range: deinitDecl.sourceRange
+            hasSelf: true, owner: owner, range: deinitDecl.sourceRange
         )
         return nil
     }
@@ -430,7 +452,8 @@ public final class TIRGen: AST.Visitor {
 
     private func generateBody(
         _ body: AST.FunctionDecl.Body, function: TIR.Function, symbol: Symbol.FunctionSymbol?,
-        parameters: [AST.FunctionDecl.Parameter], hasSelf: Bool, range: SourceRange
+        parameters: [AST.FunctionDecl.Parameter], hasSelf: Bool,
+        owner: Symbol.NominalTypeSymbol? = nil, range: SourceRange
     ) {
         let savedBuilder = builder
         let savedEnv = env
@@ -448,7 +471,7 @@ public final class TIRGen: AST.Visitor {
         errorTargets = []
         closureParamValues = []
 
-        bindSelfIfNeeded(function: function, symbol: symbol, hasSelf: hasSelf)
+        bindSelfIfNeeded(function: function, symbol: symbol, hasSelf: hasSelf, owner: owner)
         bindParameters(function: function, symbol: symbol, parameters: parameters)
         initializeStoredProperties(
             function: function, symbol: symbol, hasSelf: hasSelf, range: range
@@ -477,23 +500,34 @@ public final class TIRGen: AST.Visitor {
         closureParamValues = savedClosureParams
     }
 
-    private func bindSelfIfNeeded(function: TIR.Function, symbol: Symbol.FunctionSymbol?, hasSelf: Bool) {
+    private func bindSelfIfNeeded(
+        function: TIR.Function, symbol: Symbol.FunctionSymbol?, hasSelf: Bool,
+        owner: Symbol.NominalTypeSymbol? = nil
+    ) {
         guard let builder else { return }
-        guard hasSelf, let symbol, let memberOf = symbol.memberOf,
-              let owner = context.id2Symbol[memberOf]
-        else {
+        guard hasSelf else { return }
+        let ownerSymbol: Symbol.Symbol
+        if let owner {
+            ownerSymbol = owner
+        } else if let symbol, let memberOf = symbol.memberOf,
+                  let resolved = context.id2Symbol[memberOf]
+        {
+            ownerSymbol = resolved
+        } else {
             return
         }
-        let selfType = ownerType(owner) ?? TIRType.VoidType()
+        let selfType = ownerType(ownerSymbol) ?? TIRType.VoidType()
         let argument = builder.createArgument(type: selfType, ownership: typeLower.ownership(for: selfType))
         function.arguments.append(argument)
         let address = builder.emitWithResult(
             TIR.AllocStack(selfType, sourceRange: emptyRange),
-            type: TIRType.AddressType(selfType), ownership: .Inout
+            type: TIRType.AddressType(selfType), ownership: .MutableBorrowing
         )
         builder.emit(TIR.Store(argument, to: address, sourceRange: emptyRange))
-        env[symbol.id] = address
-        env[memberOf] = address
+        if let symbol {
+            env[symbol.id] = address
+        }
+        env[ownerSymbol.id] = address
     }
 
     private func bindParameters(
