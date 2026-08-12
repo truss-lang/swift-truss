@@ -4705,7 +4705,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 // MARK: - Match with Bindings
 
 @Test func parseMatchAtBindingPattern() throws {
-    let expr = firstExpression("match a { let x @ .some -> x }")
+    let expr = firstExpression("match a { let x @ .some => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let binding = matchExpr!.cases[0].patterns[0] as? AST.BindingPattern
@@ -4717,7 +4717,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseMatchAtBindingWithArguments() throws {
-    let expr = firstExpression("match a { let x @ .some(let y) -> x }")
+    let expr = firstExpression("match a { let x @ .some(let y) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let binding = matchExpr!.cases[0].patterns[0] as? AST.BindingPattern
@@ -4744,7 +4744,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseNestedAtBindingPattern() throws {
-    let expr = firstExpression("match a { .foo(let x @ .some) -> x }")
+    let expr = firstExpression("match a { .foo(let x @ .some) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let call = matchExpr!.cases[0].patterns[0] as? AST.Call
@@ -4758,7 +4758,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseWildcardAtBindingPattern() throws {
-    let expr = firstExpression("match a { _ @ .some -> 1 }")
+    let expr = firstExpression("match a { _ @ .some => 1 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let subpattern = matchExpr!.cases[0].patterns[0] as? AST.ImplicitMemberAccess
@@ -4767,7 +4767,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseBindingPatternWithoutSubpattern() throws {
-    let expr = firstExpression("match a { .some(let x) -> x }")
+    let expr = firstExpression("match a { .some(let x) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let call = matchExpr!.cases[0].patterns[0] as? AST.Call
@@ -4779,7 +4779,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 // MARK: - Typed Binding in Patterns
 
 @Test func parseNestedTypedBindingPattern() throws {
-    let expr = firstExpression("match a { .foo(let x: Int) -> x }")
+    let expr = firstExpression("match a { .foo(let x: Int) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let call = matchExpr!.cases[0].patterns[0] as? AST.Call
@@ -4793,7 +4793,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseMatchTypedBindingPattern() throws {
-    let expr = firstExpression("match a { let x: Int -> x }")
+    let expr = firstExpression("match a { let x: Int => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let binding = matchExpr!.cases[0].patterns[0] as? AST.BindingPattern
@@ -4844,7 +4844,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseTypedBindingWithAtSubpattern() throws {
-    let expr = firstExpression("match a { let x: Int @ .some -> x }")
+    let expr = firstExpression("match a { let x: Int @ .some => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let binding = matchExpr!.cases[0].patterns[0] as? AST.BindingPattern
@@ -4858,7 +4858,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseBindingPatternWithoutType() throws {
-    let expr = firstExpression("match a { .some(let x) -> x }")
+    let expr = firstExpression("match a { .some(let x) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let call = matchExpr!.cases[0].patterns[0] as? AST.Call
@@ -4870,7 +4870,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 // MARK: - As Binding in Patterns
 
 @Test func parseMatchAsBindingPattern() throws {
-    let expr = firstExpression("match a { let x as Int32 -> x }")
+    let expr = firstExpression("match a { let x as Int32 => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let asPattern = matchExpr!.cases[0].patterns[0] as? AST.AsPattern
@@ -4898,7 +4898,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseWildcardAsBindingPattern() throws {
-    let expr = firstExpression("match a { _ as Int32 -> 1 }")
+    let expr = firstExpression("match a { _ as Int32 => 1 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let asPattern = matchExpr!.cases[0].patterns[0] as? AST.AsPattern
@@ -4915,7 +4915,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseAsQuestionInPatternStaysCast() throws {
-    let expr = firstExpression("match a { let x as? Int32 -> x }")
+    let expr = firstExpression("match a { let x as? Int32 => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let cast = matchExpr!.cases[0].patterns[0] as? AST.Cast
@@ -4924,7 +4924,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseMatchWithBinding() throws {
-    let expr = firstExpression("match a { .some(let x) -> x, .none -> 0 }")
+    let expr = firstExpression("match a { .some(let x) => x, .none => 0 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     try #require(matchExpr!.cases.count == 2)
@@ -4940,7 +4940,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseMatchWithPartialBinding() throws {
-    let expr = firstExpression("match a { .foo(let x, _) -> x }")
+    let expr = firstExpression("match a { .foo(let x, _) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let case0 = matchExpr!.cases[0]
@@ -4955,7 +4955,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseMatchWithNestedBinding() throws {
-    let expr = firstExpression("match a { .some(.some(let x)) -> x }")
+    let expr = firstExpression("match a { .some(.some(let x)) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let case0 = matchExpr!.cases[0]
@@ -4969,7 +4969,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseMatchWithMultiplePatterns() throws {
-    let expr = firstExpression("match a { .a, .b -> 1, .c -> 2 }")
+    let expr = firstExpression("match a { .a, .b => 1, .c => 2 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     try #require(matchExpr!.cases.count == 2)
@@ -4978,7 +4978,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseMatchMixedLiteralAndBinding() throws {
-    let expr = firstExpression("match a { .foo(1, let x) -> x }")
+    let expr = firstExpression("match a { .foo(1, let x) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let case0 = matchExpr!.cases[0]
@@ -4993,7 +4993,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseMatchWithWildcardCatchAll() throws {
-    let expr = firstExpression("match a { _ -> 42 }")
+    let expr = firstExpression("match a { _ => 42 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     try #require(matchExpr!.cases.count == 1)
@@ -5022,7 +5022,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 // MARK: - Range Operators in Patterns
 
 @Test func parseMatchRangePatternClosed() throws {
-    let expr = firstExpression("match x { 1...5 -> 1 }")
+    let expr = firstExpression("match x { 1...5 => 1 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     try #require(matchExpr!.cases.count == 1)
@@ -5040,7 +5040,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseMatchRangePatternHalfOpen() throws {
-    let expr = firstExpression("match x { 1..<5 -> 1 }")
+    let expr = firstExpression("match x { 1..<5 => 1 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let seq = matchExpr!.cases[0].patterns[0] as? AST.Sequential
@@ -5049,7 +5049,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseMatchRangePatternDotDot() throws {
-    let expr = firstExpression("match x { 1..5 -> 1 }")
+    let expr = firstExpression("match x { 1..5 => 1 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     let seq = matchExpr!.cases[0].patterns[0] as? AST.Sequential
@@ -5058,7 +5058,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseMatchMultipleRangePatterns() throws {
-    let expr = firstExpression("match x { 1...5, 10...20 -> 1, 30...40 -> 2 }")
+    let expr = firstExpression("match x { 1...5, 10...20 => 1, 30...40 => 2 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
     try #require(matchExpr!.cases.count == 2)
@@ -5564,7 +5564,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseTuplePattern() throws {
-    let body = parseBlockStatements("func main() { match x { (a, b) -> a } }")
+    let body = parseBlockStatements("func main() { match x { (a, b) => a } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
     let match = exprStmt!.expression as? AST.Match
@@ -5584,7 +5584,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func parseTuplePatternWithBinding() throws {
-    let body = parseBlockStatements("func main() { match x { (a, let b) -> b } }")
+    let body = parseBlockStatements("func main() { match x { (a, let b) => b } }")
     let exprStmt = body[0] as? AST.ExpressionStatement
     let match = exprStmt!.expression as? AST.Match
     let tuple = match!.cases[0].patterns[0] as? AST.Tuple
@@ -5598,7 +5598,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 // MARK: - IsPattern
 
 @Test func parseIsPatternInMatch() throws {
-    let body = parseBlockStatements("func main() { match x { is Int -> \"int\" } }")
+    let body = parseBlockStatements("func main() { match x { is Int => \"int\" } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
     let match = exprStmt!.expression as? AST.Match
@@ -7090,7 +7090,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 @Test func sourceRangeMatchExpression() {
-    let expr = firstExpression("match x { 1 -> 2 }")
+    let expr = firstExpression("match x { 1 => 2 }")
     let range = expr.sourceRange
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 32)

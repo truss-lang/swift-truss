@@ -4649,7 +4649,7 @@ public final class Parser {
         inPatternContext = true
         _loop: while let t = peek {
             switch t.kind {
-            case .Separator(.Arrow):
+            case .Separator(.RightArrow):
                 break _loop
             case .Separator(.Comma):
                 index += 1
@@ -4666,7 +4666,7 @@ public final class Parser {
             emitError("expected '=>' after match case pattern", at: endOfFile)
             return nil
         }
-        guard case .Separator(.Arrow) = arrowToken.kind else {
+        guard case .Separator(.RightArrow) = arrowToken.kind else {
             emitError(
                 "expected '=>' after match case pattern, but got '\(arrowToken.value)'",
                 at: arrowToken

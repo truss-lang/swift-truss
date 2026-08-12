@@ -13,8 +13,8 @@ import Testing
             }
             func f(e: E) {
                 match e {
-                .B(let s) -> { let x = s }
-                _ -> { return }
+                .B(let s) => { let x = s }
+                _ => { return }
                 }
             }
             """

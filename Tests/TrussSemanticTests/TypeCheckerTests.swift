@@ -807,14 +807,14 @@ import TrussSemantics
 
 @Test func matchEnumCaseMatches() {
     let (context, _) = runTypeChecker(
-        ["enum E { case a; case b }\nfunc f(e: E) { match e { .a -> { 1 } .b -> { 2 } } }"]
+        ["enum E { case a; case b }\nfunc f(e: E) { match e { .a => { 1 } .b => { 2 } } }"]
     )
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
 @Test func matchPatternResolvesCaseSymbol() throws {
     let (_, programs) = runTypeChecker(
-        ["enum E { case a; case b }\nfunc f(e: E) { match e { .a -> { 1 } .b -> { 2 } } }"]
+        ["enum E { case a; case b }\nfunc f(e: E) { match e { .a => { 1 } .b => { 2 } } }"]
     )
     let functionDecl = try #require(programs[0].statements[1] as? AST.FunctionDecl)
     let body = try #require(functionDecl.body)
@@ -831,14 +831,14 @@ import TrussSemantics
 }
 
 @Test func matchUnknownCaseReportsError() { let (context, _) = runTypeChecker(
-    ["enum E { case a }\nfunc f(e: E) { match e { .c -> 1 } }"]
+    ["enum E { case a }\nfunc f(e: E) { match e { .c => 1 } }"]
 )
 #expect(context.diagnositicEngine.hasErrors)
 }
 
 @Test func matchAssociatedValueBindsPatternType() throws {
     let (_, programs) = runTypeChecker(
-        ["struct S { init() {} }\nenum R { case ok(S) }\nfunc f(r: R) { match r { .ok(let x) -> x } }"]
+        ["struct S { init() {} }\nenum R { case ok(S) }\nfunc f(r: R) { match r { .ok(let x) => x } }"]
     )
     let functionDecl = try #require(programs[0].statements[2] as? AST.FunctionDecl)
     let body = try #require(functionDecl.body)
@@ -858,14 +858,14 @@ import TrussSemantics
 
 @Test func matchAssociatedValueCountMismatchReportsError() {
     let (context, _) = runTypeChecker(
-        ["struct S { init() {} }\nenum R { case ok(S) }\nfunc f(r: R) { match r { .ok() -> 1 } }"]
+        ["struct S { init() {} }\nenum R { case ok(S) }\nfunc f(r: R) { match r { .ok() => 1 } }"]
     )
     #expect(context.diagnositicEngine.hasErrors)
 }
 
 @Test func matchNonEnumSubjectReportsError() {
     let (context, _) = runTypeChecker(
-        ["struct S { init() {} }\nfunc f(s: S) { match s { .a -> 1 } }"]
+        ["struct S { init() {} }\nfunc f(s: S) { match s { .a => 1 } }"]
     )
     #expect(context.diagnositicEngine.hasErrors)
 }
@@ -1309,21 +1309,21 @@ import TrussSemantics
 
 @Test func matchVariableCalleeCasePattern() {
     let (context, _) = runTypeChecker(
-        ["struct S { init() {} }\nenum E { case foo(S) }\nfunc f(e: E) { match e { foo(let x) -> { x } } }"]
+        ["struct S { init() {} }\nenum E { case foo(S) }\nfunc f(e: E) { match e { foo(let x) => { x } } }"]
     )
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
 @Test func matchBareCaseNamePattern() {
     let (context, _) = runTypeChecker(
-        ["struct S { init() {} }\nenum E { case foo(S) }\nfunc f(e: E) { match e { foo(let x) -> { x } } }"]
+        ["struct S { init() {} }\nenum E { case foo(S) }\nfunc f(e: E) { match e { foo(let x) => { x } } }"]
     )
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
 @Test func matchBareCaseNameArgumentCountChecked() {
     let (context, _) = runTypeChecker(
-        ["struct S { init() {} }\nenum E { case foo(S) }\nfunc f(e: E) { match e { foo() -> { S() } } }"]
+        ["struct S { init() {} }\nenum E { case foo(S) }\nfunc f(e: E) { match e { foo() => { S() } } }"]
     )
     #expect(context.diagnositicEngine.hasErrors)
 }

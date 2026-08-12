@@ -72,8 +72,28 @@ struct truss {
             let ss = SS<S>()
             hasCName()
         }
+        enum En {
+            case SomeCase
+            case OtherCase
+        }
         #[cname("has_cname")]
         func hasCName() {
+            match 1 {
+                2 => {
+                    let a = 1
+                }
+                3 => {
+                    let b = 2
+                }
+            }
+            match En.SomeCase {
+                .SomeCase => {
+
+                }
+                .OtherCase => {
+
+                }
+            }
         }
         """
         let result = Driver(

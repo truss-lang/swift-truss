@@ -42,7 +42,6 @@ let operatorTable: [String: OperatorKind] = [
     "+=": .PlusAssign,
     "-": .Minus,
     "--": .Dec,
-    "=>": .RightArrow,
     "-=": .MinusAssign,
     "/": .Divide,
     "/=": .DivideAssign,
@@ -215,7 +214,15 @@ public final class Lexer {
             } else {
                 return parseOperator()
             }
-        case "~", "!", "%", "&", "*", "+", "<", ">", "=", "^", "|", ".":
+        case "=":
+            if input.peek2 == ">" {
+                input.incrementPosition()
+                input.incrementPosition()
+                return singleCharToken(.Separator(.RightArrow), "=>")
+            } else {
+                return parseOperator()
+            }
+        case "~", "!", "%", "&", "*", "+", "<", ">", "^", "|", ".":
             return parseOperator()
         case "/":
             let next = input.peek2
@@ -845,8 +852,7 @@ public final class Lexer {
         }
         let value = String(chars)
         let pos = makePosition(begin)
-        let kind = operatorTable[value]
-        return Token(value: value, kind: .Operator(kind), pos: pos, id: input.id)
+        return Token(value: value, kind: .Operator(operatorTable[value]), pos: pos, id: input.id)
     }
 
     private func skipLineComment() {
