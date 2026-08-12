@@ -3371,7 +3371,7 @@ public final class Parser {
                 justClosedAngle = false
                 let callee = operands.removeLast()
                 let callResult = parseCall(callee)
-                let postfixed = parsePostfix(callResult, excepts: excepts)
+                let postfixed = parsePostfix(callResult, excepts: excepts, isTypeContext: isTypeContext)
                 operands.append(postfixed)
                 lastIsExpression = true
             case .Separator(.OpenParen) where justClosedAngle:
@@ -3387,7 +3387,7 @@ public final class Parser {
                 ops = []
                 operands = []
                 let callResult = parseCall(callee)
-                let postfixed = parsePostfix(callResult, excepts: excepts)
+                let postfixed = parsePostfix(callResult, excepts: excepts, isTypeContext: isTypeContext)
                 operands.append(postfixed)
                 lastIsExpression = true
             case .Separator(.OpenBracket) where lastIsExpression:
@@ -3395,7 +3395,7 @@ public final class Parser {
                 justClosedAngle = false
                 let base = operands.removeLast()
                 let subscriptResult = parseSubscript(base)
-                let postfixed = parsePostfix(subscriptResult, excepts: excepts)
+                let postfixed = parsePostfix(subscriptResult, excepts: excepts, isTypeContext: isTypeContext)
                 operands.append(postfixed)
                 lastIsExpression = true
             case .Operator(.Dot) where lastIsExpression,
@@ -3423,7 +3423,7 @@ public final class Parser {
                         end: member.sourceRange(in: buffer).end
                     )
                 )
-                let postfixed = parsePostfix(memberAccess, excepts: excepts)
+                let postfixed = parsePostfix(memberAccess, excepts: excepts, isTypeContext: isTypeContext)
                 operands.append(postfixed)
                 lastIsExpression = true
                 justClosedAngle = false
@@ -3462,13 +3462,56 @@ public final class Parser {
                         end: member.sourceRange(in: buffer).end
                     )
                 )
-                let postfixed = parsePostfix(memberAccess, excepts: excepts)
+                let postfixed = parsePostfix(memberAccess, excepts: excepts, isTypeContext: isTypeContext)
                 operands.append(postfixed)
                 lastIsExpression = true
             case .Separator(.Comma) where angleDepth > 0:
                 ops.append(token)
                 index += 1
                 lastIsExpression = false
+                justClosedAngle = false
+            case .Operator(.Multiply) where lastIsExpression && isTypeContext:
+                let base = operands.removeLast()
+                index += 1
+                var isNonnull = false
+                var endToken = token
+                if let t = peek, t.kind == .Operator(.Not) {
+                    isNonnull = true
+                    endToken = t
+                    index += 1
+                }
+                let pointer = AST.PointerType(
+                    base, token, isNonnull: isNonnull,
+                    sourceRange: SourceRange(
+                        start: base.sourceRange.start,
+                        end: endToken.sourceRange(in: buffer).end
+                    )
+                )
+                let postfixed = parsePostfix(pointer, excepts: excepts, isTypeContext: isTypeContext)
+                operands.append(postfixed)
+                lastIsExpression = true
+                justClosedAngle = false
+            case .Operator(.Multiply) where !lastIsExpression && ops.isEmpty && !isTypeContext:
+                guard
+                    let operand = parseUnaryExpression(
+                        excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                    )
+                else {
+                    break _loop
+                }
+                operands.append(operand)
+                lastIsExpression = true
+                justClosedAngle = false
+            case .Operator(.BitAnd) where !lastIsExpression && ops.isEmpty && !isTypeContext:
+                guard
+                    let operand = parseUnaryExpression(
+                        excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                    )
+                else {
+                    break _loop
+                }
+                operands.append(operand)
+                lastIsExpression = true
                 justClosedAngle = false
             case .Operator(.QuestionMark) where lastIsExpression:
                 let base = operands.removeLast()
@@ -3479,7 +3522,7 @@ public final class Parser {
                         end: token.sourceRange(in: buffer).end
                     )
                 )
-                let postfixed = parsePostfix(optional, excepts: excepts)
+                let postfixed = parsePostfix(optional, excepts: excepts, isTypeContext: isTypeContext)
                 operands.append(postfixed)
                 index += 1
                 lastIsExpression = true
@@ -3527,7 +3570,7 @@ public final class Parser {
                             )
                         )
                     }
-                let postfixed = parsePostfix(result, excepts: excepts)
+                let postfixed = parsePostfix(result, excepts: excepts, isTypeContext: isTypeContext)
                 operands.append(postfixed)
                 lastIsExpression = true
             case .Operator(.Dollar) where !lastIsExpression:
@@ -3585,7 +3628,7 @@ public final class Parser {
                     callee: callee, arguments: args, trailingClosures: trailing,
                     sourceRange: range
                 )
-                let postfixed = parsePostfix(call, excepts: excepts)
+                let postfixed = parsePostfix(call, excepts: excepts, isTypeContext: isTypeContext)
                 operands.append(postfixed)
                 lastIsExpression = true
             case .Operator(.DotDotDot) where lastIsExpression && isTypeContext:
@@ -3597,13 +3640,18 @@ public final class Parser {
                         end: token.sourceRange(in: buffer).end
                     )
                 )
-                let postfixed = parsePostfix(variadic, excepts: excepts)
+                let postfixed = parsePostfix(variadic, excepts: excepts, isTypeContext: isTypeContext)
                 operands.append(postfixed)
                 index += 1
                 lastIsExpression = true
                 justClosedAngle = false
             case let .Operator(kind) where kind != .Dot:
                 if let excepts, let kind, excepts.contains(kind) {
+                    break _loop
+                }
+                if let kind, kind == .Multiply || kind == .BitAnd,
+                   lastIsExpression, last != nil, token.pos.line != last!.pos.line
+                {
                     break _loop
                 }
                 ops.append(token)
@@ -3727,6 +3775,11 @@ public final class Parser {
         case .NullLiteral:
             index += 1
             expression = AST.NullLiteral(token, sourceRange: token.sourceRange(in: buffer))
+        case .NullptrLiteral:
+            index += 1
+            expression = AST.NullPointerLiteral(
+                token, sourceRange: token.sourceRange(in: buffer)
+            )
         case let .Keyword(kind):
             switch kind {
             case .SelfKw:
@@ -4016,7 +4069,144 @@ public final class Parser {
             }
         default: return nil
         }
-        return parsePostfix(expression, excepts: excepts)
+        return parsePostfix(expression, excepts: excepts, isTypeContext: isTypeContext)
+    }
+
+    private func parseUnaryExpression(
+        _ excepts: [OperatorKind]?, isCondition: Bool, isTypeContext: Bool
+    ) -> AST.Expression? {
+        guard let token = peek else { return nil }
+        switch token.kind {
+        case .Operator(.Multiply):
+            index += 1
+            guard
+                let operand = parseUnaryExpression(
+                    excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                )
+            else {
+                emitError("expected expression after '*'", at: locationAfter(token))
+                return nil
+            }
+            return appendUnaryPostfix(
+                AST.Dereference(
+                    token, operand,
+                    sourceRange: SourceRange(
+                        start: token.sourceRange(in: buffer).start,
+                        end: operand.sourceRange.end
+                    )
+                ),
+                excepts
+            )
+        case .Operator(.BitAnd):
+            index += 1
+            guard
+                let operand = parseUnaryExpression(
+                    excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                )
+            else {
+                emitError("expected expression after '&'", at: locationAfter(token))
+                return nil
+            }
+            return appendUnaryPostfix(
+                AST.AddressOf(
+                    token, operand,
+                    sourceRange: SourceRange(
+                        start: token.sourceRange(in: buffer).start,
+                        end: operand.sourceRange.end
+                    )
+                ),
+                excepts
+            )
+        default:
+            guard
+                let primary = parsePrimary(
+                    excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                )
+            else {
+                return nil
+            }
+            return appendUnaryPostfix(primary, excepts)
+        }
+    }
+
+    private func appendUnaryPostfix(
+        _ expression: AST.Expression, _ excepts: [OperatorKind]?
+    ) -> AST.Expression {
+        var expression = expression
+        _loop: while let t = peek {
+            switch t.kind {
+            case .Operator(.Dot), .Operator(.QuestionMarkDot):
+                index += 1
+                guard let member = peek else {
+                    emitError("expected member name after '\(t.value)'", at: endOfFile)
+                    break _loop
+                }
+                switch member.kind {
+                case .Identifier, .IntegerLiteral, .Keyword:
+                    index += 1
+                default:
+                    emitError(
+                        "expected identifier or keyword or integer literal after '\(t.value)', but got '\(member.value)'",
+                        at: member
+                    )
+                }
+                let isOpt = t.kind == .Operator(.QuestionMarkDot)
+                expression = AST.MemberAccess(
+                    expression, t, member, isOptional: isOpt,
+                    sourceRange: SourceRange(
+                        start: expression.sourceRange.start,
+                        end: member.sourceRange(in: buffer).end
+                    )
+                )
+            case .Separator(.OpenBracket):
+                expression = parseSubscript(expression)
+            case .Separator(.OpenParen):
+                expression = parseCall(expression)
+            case .Operator(.QuestionMark):
+                index += 1
+                expression = AST.OptionalType(
+                    expression, t,
+                    sourceRange: SourceRange(
+                        start: expression.sourceRange.start,
+                        end: t.sourceRange(in: buffer).end
+                    )
+                )
+            case .Operator(.Not):
+                index += 1
+                expression = AST.ForceUnwrap(
+                    expression, t,
+                    sourceRange: SourceRange(
+                        start: expression.sourceRange.start,
+                        end: t.sourceRange(in: buffer).end
+                    )
+                )
+            case .Separator(.Arrow):
+                if inPatternContext { break _loop }
+                index += 1
+                guard let member = peek else {
+                    emitError("expected member name after '->'", at: endOfFile)
+                    break _loop
+                }
+                switch member.kind {
+                case .Identifier, .Keyword:
+                    index += 1
+                default:
+                    emitError(
+                        "expected identifier after '->', but got '\(member.value)'", at: member
+                    )
+                }
+                expression = AST.MemberAccess(
+                    expression, t, member, viaPointer: true,
+                    sourceRange: SourceRange(
+                        start: expression.sourceRange.start,
+                        end: member.sourceRange(in: buffer).end
+                    )
+                )
+            default:
+                break _loop
+            }
+        }
+        return expression
     }
 
     private func parseKeyPath(_ backslashToken: Token) -> AST.Expression {
@@ -4192,7 +4382,9 @@ public final class Parser {
         }
     }
 
-    private func parsePostfix(_ expression: AST.Expression, excepts: [OperatorKind]?)
+    private func parsePostfix(
+        _ expression: AST.Expression, excepts: [OperatorKind]?, isTypeContext: Bool = false
+    )
         -> AST.Expression
     {
         var expression = expression
@@ -4202,12 +4394,35 @@ public final class Parser {
                 switch kind {
                 case .Arrow:
                     if inPatternContext { break _loop }
-                    guard let parameters = closureTypeParameters(from: expression) else {
+                    if let parameters = closureTypeParameters(from: expression) {
+                        expression = parseClosureType(
+                            parameters, nil, nil, excepts, startRange: expression.sourceRange
+                        )
+                    } else if isTypeContext {
                         break _loop
+                    } else {
+                        index += 1
+                        guard let member = peek else {
+                            emitError("expected member name after '->'", at: endOfFile)
+                            break _loop
+                        }
+                        switch member.kind {
+                        case .Identifier, .Keyword:
+                            index += 1
+                        default:
+                            emitError(
+                                "expected identifier after '->', but got '\(member.value)'",
+                                at: member
+                            )
+                        }
+                        expression = AST.MemberAccess(
+                            expression, t, member, viaPointer: true,
+                            sourceRange: SourceRange(
+                                start: expression.sourceRange.start,
+                                end: member.sourceRange(in: buffer).end
+                            )
+                        )
                     }
-                    expression = parseClosureType(
-                        parameters, nil, nil, excepts, startRange: expression.sourceRange
-                    )
                 default: break _loop
                 }
             case .Keyword(.Throws), .Keyword(.Async):

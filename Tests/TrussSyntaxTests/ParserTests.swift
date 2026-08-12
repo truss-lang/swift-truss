@@ -6783,9 +6783,13 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(errors.contains { $0.message.contains("expected 'let' or 'var' after 'async'") })
 }
 
-@Test func parseArrowInExpressionContextReportsError() throws {
-    let (_, errors) = parseWithDiagnostics("func main() { let x = a -> b }")
-    try #require(!errors.isEmpty)
+@Test func parseArrowInExpressionContextParsesPointerMember() throws {
+    let expr = firstExpression("a -> b")
+    let member = expr as? AST.MemberAccess
+    try #require(member != nil)
+    #expect(member!.viaPointer)
+    #expect(member!.member.value == "b")
+    #expect((member!.object as? AST.Variable)?.name.value == "a")
 }
 
 // MARK: - String Interpolation (error paths)

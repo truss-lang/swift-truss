@@ -208,17 +208,25 @@ public final class Lexer {
             return parseQuestion()
         case "-":
             if input.peek2 == ">" {
+                let begin = input.currentPosition
                 input.incrementPosition()
                 input.incrementPosition()
-                return singleCharToken(.Separator(.Arrow), "->")
+                return Token(
+                    value: "->", kind: .Separator(.Arrow),
+                    pos: makePosition(begin), id: input.id
+                )
             } else {
                 return parseOperator()
             }
         case "=":
             if input.peek2 == ">" {
+                let begin = input.currentPosition
                 input.incrementPosition()
                 input.incrementPosition()
-                return singleCharToken(.Separator(.RightArrow), "=>")
+                return Token(
+                    value: "=>", kind: .Separator(.RightArrow),
+                    pos: makePosition(begin), id: input.id
+                )
             } else {
                 return parseOperator()
             }
@@ -849,6 +857,11 @@ public final class Lexer {
             }
             chars.append(c)
             input.incrementPosition()
+            if chars == ["*"] || chars == ["&"], let next = input.peek, next != "=",
+               next != "&"
+            {
+                break
+            }
         }
         let value = String(chars)
         let pos = makePosition(begin)
