@@ -1,6 +1,15 @@
 {
-  "originHash" : "b3402f3e78bf6c07ee925fe84df98226c9bbf5622905b4b784e7994732ce18a4",
+  "originHash" : "dd7c26d9d3fe46199dc2e6aae3f65b25082fc4b429c5491757ea8c82d4b6fc61",
   "pins" : [
+    {
+      "identity" : "llvm-swift-binding",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/xiaoli-white/llvm-swift-binding",
+      "state" : {
+        "revision" : "d55a45639b7b0bfe566423e90afb3dc90f558195",
+        "version" : "1.0.1"
+      }
+    },
     {
       "identity" : "swift-abstract",
       "kind" : "remoteSourceControl",
