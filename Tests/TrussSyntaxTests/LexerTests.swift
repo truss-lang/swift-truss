@@ -518,8 +518,6 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[4].kind == .FloatLiteral(3.14))
 }
 
-// MARK: - Edge Cases
-
 @Test func lexUnterminatedStringLiteral() throws {
     let tokens = lex("\"abc")
     try #require(tokens.count == 1)

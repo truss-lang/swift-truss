@@ -117,7 +117,7 @@ public extension TIR {
         }
 
         private func functionSignatureText(_ function: TIR.Function) -> String {
-            let args = function.arguments.map { innerTypeText($0.type) }.joined(separator: ", ")
+            let args = function.arguments.map { "\($0.name) \(innerTypeText($0.type))" }.joined(separator: ", ")
             return "(\(args)) -> " + functionReturnTypeText(function.returnType)
         }
 
@@ -364,7 +364,7 @@ public extension TIR {
                             + ")"
                     }
                 }
-                text += " -> " + innerTypeText(function.returnType)
+                text += " -> " + functionReturnTypeText(function.returnType)
                 return text
             case let address as TIRType.AddressType:
                 return "$*" + innerTypeText(address.pointee)

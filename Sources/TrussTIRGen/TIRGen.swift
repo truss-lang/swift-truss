@@ -226,9 +226,7 @@ public final class TIRGen: AST.Visitor {
 
         switch accessor.body {
         case let .Block(statements):
-            for statement in statements {
-                visit(statement)
-            }
+            visitBodyStatements(statements, implicitReturn: accessor.kind == .Get)
         case let .Expression(expression):
             if let value = visitExpression(expression) {
                 emitReturn(value, range: emptyRange)
@@ -398,9 +396,9 @@ public final class TIRGen: AST.Visitor {
 
         switch body {
         case let .Block(statements):
-            for statement in statements {
-                visit(statement)
-            }
+            visitBodyStatements(
+                statements, implicitReturn: shouldImplicitReturn(symbol?.functionType?.returnType)
+            )
         case let .Expression(expression):
             if let value = visitExpression(expression) {
                 emitReturn(value, range: range)
@@ -2012,9 +2010,8 @@ public final class TIRGen: AST.Visitor {
         if !paramValues.isEmpty {
             closureParamValues.append(paramValues)
         }
-        for statement in closure.body {
-            visit(statement)
-        }
+        let implicitReturn = !(returnType is TIRType.VoidType)
+        visitBodyStatements(closure.body, implicitReturn: implicitReturn)
         ensureTerminator(range: closure.sourceRange)
 
         self.builder = savedBuilder
@@ -2226,6 +2223,24 @@ public final class TIRGen: AST.Visitor {
         _ errorExpression: AST.ErrorExpression, additional: Any? = nil
     ) -> Any? {
         nil
+    }
+
+    private func visitBodyStatements(_ statements: [AST.Statement], implicitReturn: Bool) {
+        for (index, statement) in statements.enumerated() {
+            if implicitReturn, index == statements.count - 1,
+               let expressionStatement = statement as? AST.ExpressionStatement,
+               let value = visitExpression(expressionStatement.expression)
+            {
+                emitReturn(value, range: expressionStatement.sourceRange)
+                return
+            }
+            visit(statement)
+        }
+    }
+
+    private func shouldImplicitReturn(_ type: TrussType.TrussType?) -> Bool {
+        guard let type else { return false }
+        return !(type is TrussType.VoidType)
     }
 
     private func emitReturn(_ value: TIR.Value?, range: SourceRange) {

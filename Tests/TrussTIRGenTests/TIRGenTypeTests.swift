@@ -177,3 +177,54 @@ import Testing
         ?? ""
     try #require(fBlock.range(of: #"Apply %\d+\(%\d+\)"#, options: .regularExpression) != nil)
 }
+
+@Test func implicitReturnInFunctionBody() throws {
+    let tir = dumpTIR(
+        """
+        struct S {
+            init() {}
+        }
+        func f() -> S {
+            S()
+        }
+        """
+    )
+    let fBlock = tir.components(separatedBy: "function ").last
+        ?? ""
+    try #require(fBlock.range(of: #"Return %\d+"#, options: .regularExpression) != nil)
+}
+
+@Test func implicitReturnInGetter() throws {
+    let tir = dumpTIR(
+        """
+        struct S {
+            init() {}
+        }
+        struct T {
+            var x: S {
+                get { S() }
+            }
+            init() {}
+        }
+        """
+    )
+    let getterBlock = tir.components(separatedBy: "function ")
+        .first(where: { $0.contains("xGetterF") }) ?? ""
+    try #require(getterBlock.range(of: #"Return %\d+"#, options: .regularExpression) != nil)
+}
+
+@Test func implicitReturnInClosure() throws {
+    let tir = dumpTIR(
+        """
+        struct S {}
+        func f() {
+            let g = { (s: S) -> S in
+                s
+            }
+        }
+        """
+    )
+    let closureBlock = tir.components(separatedBy: "function ")
+        .first(where: { $0.hasPrefix("closure-0") }) ?? ""
+    try #require(closureBlock.range(of: #"Return %\d+"#, options: .regularExpression) != nil)
+}

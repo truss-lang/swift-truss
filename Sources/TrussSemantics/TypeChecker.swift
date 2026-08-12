@@ -525,6 +525,11 @@ public final class TypeChecker: AST.Visitor {
             for statement in statements {
                 visit(statement)
             }
+            if let expectedReturn, !(expectedReturn is TrussType.VoidType),
+               let last = statements.last as? AST.ExpressionStatement
+            {
+                check(last.expression, expectedReturn, at: token)
+            }
         case let .Expression(expression):
             if let expectedReturn {
                 check(expression, expectedReturn, at: token)

@@ -18,7 +18,7 @@ struct truss {
         infix operator *: Multiplication
         infix operator /: Multiplication
         func f() {
-            f2()
+            // f2()
             M.f3()
         }
         module M {
@@ -29,13 +29,15 @@ struct truss {
         protocol P2: P {}
         struct S: P2 {
             public func m() {
-                let t: Result = .None
+                // let t: Result = .None
             }
         }
         struct S3<E, each T> {
         }
         struct SS<T> {
+            init() {
 
+            }
         }
         typealias SSS = (SS<S>) -> S
         typealias TA = (S)
@@ -44,11 +46,30 @@ struct truss {
         #define DEFER2(A) A EMPTY()
         #define A() 123
         #define EXPAND(x) x
+        class TT {
+            init() {}
+        }
+        class TS {
+            var x: TT {
+                get { y }
+            }
+            var t: TT = TT()
+            var y: TT = TT() {
+                willSet {
+
+                }
+            }
+        }
+        func f(s: TS) -> TT {
+            s.y = TT()
+            return s.x
+        }
         func tf() {
             DEFER1(A)()
-            DEFER2(A)()
+            // DEFER2(A)()
             EXPAND(DEFER2(A)())
-            1 + 2 && 3*4 - 5/6 >= 7
+            // 1 + 2 && 3*4 - 5/6 >= 7
+            let ss = SS<S>()
         }
         """
         let result = Driver(

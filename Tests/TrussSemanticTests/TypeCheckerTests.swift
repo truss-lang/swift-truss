@@ -1346,3 +1346,11 @@ import TrussSemantics
     let messages = context.diagnositicEngine.diagnostics.map(\.message)
     #expect(messages.contains("expected 'TT', found 'UU'"))
 }
+
+@Test func implicitReturnTypeChecked() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nstruct T { init() {} }\nfunc f() -> S { T() }"]
+    )
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains { $0.contains("expected 'S'") })
+}
