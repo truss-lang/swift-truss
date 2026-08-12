@@ -1170,6 +1170,15 @@ public final class TypeChecker: AST.Visitor {
                         of: symbol, with: genericArguments
                     )
                 }
+                if let caseSymbol = entries.first as? Symbol.CaseSymbol,
+                   let memberOf = caseSymbol.memberOf,
+                   let enumSymbol = context.id2Symbol[memberOf] as? Symbol.EnumSymbol,
+                   let typeId = enumSymbol.typeId, let enumType = context.typeTable[typeId]
+                {
+                    return replaceGenericArguments(
+                        enumType, of: symbol, with: genericArguments
+                    )
+                }
             }
             current = (currentType as? Symbol.ClassSymbol)?.superclass
         }
@@ -1952,7 +1961,13 @@ public final class TypeChecker: AST.Visitor {
         case let memberAccess as AST.MemberAccess:
             _ = infer(memberAccess.object, at: token)
             let objectType = memberAccess.object.ty
-            if let ty = memberType(of: memberAccess.member.value, in: objectType) {
+            if let caseSymbol = memberAccess.symbol as? Symbol.CaseSymbol,
+               let memberOf = caseSymbol.memberOf,
+               let enumSymbol = context.id2Symbol[memberOf] as? Symbol.EnumSymbol,
+               let typeId = enumSymbol.typeId, let enumType = context.typeTable[typeId]
+            {
+                expression.ty = enumType
+            } else if let ty = memberType(of: memberAccess.member.value, in: objectType) {
                 expression.ty = ty
                 if memberAccess.symbol == nil {
                     memberAccess.symbol = memberSymbol(

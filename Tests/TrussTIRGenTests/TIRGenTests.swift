@@ -37,6 +37,28 @@ import TrussTIRGen
         try #require(tir.contains("Unreachable"))
     }
 
+    @Test func matchCaseMemberSubjectLowersToSwitchEnum() throws {
+        let tir = dumpTIR(
+            """
+            enum En {
+                case SomeCase
+                case OtherCase
+            }
+            func has_cname() {
+                match En.SomeCase {
+                .SomeCase => {
+                }
+                .OtherCase => {
+                }
+                }
+            }
+            """
+        )
+        try #require(tir.contains("EnumValue"))
+        try #require(tir.contains("SwitchEnum"))
+        try #require(tir.contains("Unreachable"))
+    }
+
     @Test func matchImplicitReturnInFunction() throws {
         let tir = dumpTIR(
             """
