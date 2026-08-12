@@ -92,6 +92,13 @@ let package = Package(
             name: "trussTests",
             dependencies: ["truss", "TrussDriver"]
         ),
+        .testTarget(
+            name: "TrussTIRGenTests",
+            dependencies: [
+                "TrussTIRGen", "TrussSyntax", "TrussSemantics", "TrussOperator", "TrussCore",
+                .product(name: "SwiftBetterDiagnostic", package: "swift-better-diagnostic"),
+            ]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )

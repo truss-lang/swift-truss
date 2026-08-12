@@ -31,6 +31,9 @@ struct Trussc: ParsableCommand {
     @Flag(help: "Print the symbol table dump.")
     var dumpSymbols = false
 
+    @Flag(help: "Print the TIR dump.")
+    var dumpTIR = false
+
     @Flag(help: "Print the round-tripped source.")
     var dumpSource = false
 
@@ -49,6 +52,7 @@ struct Trussc: ParsableCommand {
             defines: defineMap,
             dumpAST: dumpAST,
             dumpSymbols: dumpSymbols,
+            dumpTIR: dumpTIR,
             dumpSource: dumpSource
         )
         let result = Driver(config: config).run(files: files)

@@ -4,6 +4,7 @@ import TrussCore
 import TrussOperator
 import TrussSemantics
 import TrussSyntax
+import TrussTIRGen
 
 public struct DriverConfig {
     public static let hostTarget: String = TargetTriple.host
@@ -12,6 +13,7 @@ public struct DriverConfig {
     public var defines: [String: String]
     public var dumpAST: Bool
     public var dumpSymbols: Bool
+    public var dumpTIR: Bool
     public var dumpSource: Bool
     public var dumpOnError: Bool
 
@@ -20,6 +22,7 @@ public struct DriverConfig {
         defines: [String: String] = [:],
         dumpAST: Bool = false,
         dumpSymbols: Bool = false,
+        dumpTIR: Bool = false,
         dumpSource: Bool = false,
         dumpOnError: Bool = false
     ) {
@@ -27,6 +30,7 @@ public struct DriverConfig {
         self.defines = defines
         self.dumpAST = dumpAST
         self.dumpSymbols = dumpSymbols
+        self.dumpTIR = dumpTIR
         self.dumpSource = dumpSource
         self.dumpOnError = dumpOnError
     }
@@ -126,6 +130,11 @@ public final class Driver {
         if !context.diagnositicEngine.hasErrors {
             runPass(AccessChecker(context: context), context: context, programs: programs)
         }
+        var tirModules: [TIR.Module] = []
+        if !context.diagnositicEngine.hasErrors {
+            let tirGen = TIRGen(context: context)
+            tirModules = programs.map { tirGen.generate($0) }
+        }
         var stdout = ""
         if !context.diagnositicEngine.hasErrors || config.dumpOnError {
             if config.dumpAST, !programs.isEmpty {
@@ -134,6 +143,10 @@ public final class Driver {
             }
             if config.dumpSymbols, let first = programs.first {
                 stdout += Symbol.Dumper(context: context).dump(first) + "\n"
+            }
+            if config.dumpTIR, !tirModules.isEmpty {
+                let dumper = TIR.Dumper()
+                stdout += tirModules.map { dumper.dump($0) }.joined(separator: "\n") + "\n"
             }
             if config.dumpSource, !programs.isEmpty {
                 let printer = SourcePrinter()

@@ -53,7 +53,8 @@ struct truss {
         """
         let result = Driver(
             config: DriverConfig(
-                dumpAST: true, dumpSymbols: true, dumpSource: true, dumpOnError: true
+                dumpAST: true, dumpSymbols: true, dumpTIR: true, dumpSource: true,
+                dumpOnError: true
             )
         ).runString(source)
         if !result.stdout.isEmpty {
