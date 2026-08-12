@@ -959,9 +959,9 @@ public final class TIRGen: AST.Visitor {
     @discardableResult
     public override func visitMatch(_ matchExpression: AST.Match, additional: Any? = nil) -> Any? {
         visitMatch(matchExpression, implicitReturn: false)
-        return nil
     }
 
+    @discardableResult
     private func visitMatch(_ matchExpression: AST.Match, implicitReturn: Bool) -> TIR.Value? {
         guard let builder, let subject = visitExpression(matchExpression.subject) else { return nil }
         let joinBlock = builder.createBlock()
@@ -1061,15 +1061,14 @@ public final class TIRGen: AST.Visitor {
                     TIR.UncheckedEnumData(subject, caseName: caseSymbol.name, sourceRange: range),
                     type: payloadType(caseSymbol), ownership: .Trivial
                 )
-                let elementAddress = builder.emitWithResult(
+                _ = builder.emitWithResult(
                     TIR.TupleElementAddr(payload, index: 0, sourceRange: range),
-                    type: TIRType.AddressType(TIRType.VoidType()), ownership: .Inout
+                    type: TIRType.AddressType(TIRType.VoidType()), ownership: .MutableBorrowing
                 )
-                _ = elementAddress
                 for (index, argument) in call.arguments.enumerated() {
                     let element = builder.emitWithResult(
                         TIR.TupleElementAddr(payload, index: index, sourceRange: range),
-                        type: TIRType.AddressType(TIRType.VoidType()), ownership: .Inout
+                        type: TIRType.AddressType(TIRType.VoidType()), ownership: .MutableBorrowing
                     )
                     let elementValue = builder.emitWithResult(
                         TIR.Load(element, sourceRange: range), type: TIRType.VoidType(),

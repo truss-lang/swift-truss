@@ -288,7 +288,7 @@ public extension TIR {
                 return result + "CharLiteral \"" + String(instruction.value) + "\""
             case let instruction as BoolLiteral:
                 return result + "BoolLiteral " + String(instruction.value)
-            case let instruction as NullLiteral:
+            case is NullLiteral:
                 return result + "NullLiteral"
             case is VoidLiteral:
                 return result + "VoidLiteral"
@@ -421,7 +421,7 @@ public extension TIR {
                                     .joined(separator: ", ") + ")"
                             )
                         }
-                    case let function as Symbol.FunctionSymbol:
+                    case is Symbol.FunctionSymbol:
                         members.append("\(name)()")
                     default:
                         break
@@ -454,7 +454,7 @@ public extension TIR {
                 return trussTypeText(instantiation.base) + "<"
                     + instantiation.arguments.map(trussTypeText).joined(separator: ", ") + ">"
             case let function as TrussType.FunctionType:
-                var text = "("
+                let text = "("
                     + function.parameters.map { parameter in
                         trussTypeText(parameter.type)
                     }.joined(separator: ", ") + ") -> "
