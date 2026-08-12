@@ -73,3 +73,53 @@ import Testing
         try #require(tir.contains("error:"))
     }
 }
+
+@Suite struct GlobalVarTests {
+    @Test func globalVariableLowered() throws {
+        let tir = dumpTIR(
+            """
+            struct S {}
+            var g: S
+            func f() -> S {
+                return g
+            }
+            """
+        )
+        try #require(tir.contains("global "))
+        try #require(tir.contains("GlobalAddr"))
+        try #require(tir.contains("Load"))
+    }
+
+    @Test func propertyInitializerInInit() throws {
+        let tir = dumpTIR(
+            """
+            struct T {}
+            struct S {
+                var x: T = T()
+                init() {}
+            }
+            """
+        )
+        try #require(tir.contains("StructElementAddr"))
+        try #require(tir.contains("Store"))
+    }
+
+    @Test func accessorGetterCalled() throws {
+        let tir = dumpTIR(
+            """
+            struct T {}
+            struct S {
+                var x: T {
+                    get { return y }
+                }
+                var y: T = T()
+            }
+            func f(s: S) -> T {
+                return s.x
+            }
+            """
+        )
+        try #require(tir.contains("xGetter"))
+        try #require(tir.contains("Apply"))
+    }
+}

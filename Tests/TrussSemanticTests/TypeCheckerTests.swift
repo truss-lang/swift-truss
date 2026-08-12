@@ -798,6 +798,13 @@ import TrussSemantics
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
+@Test func forwardModuleFunctionCallMatches() {
+    let (context, _) = runTypeChecker(
+        ["func f() { M.g() }\nmodule M { func g() {} }"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
 @Test func matchEnumCaseMatches() {
     let (context, _) = runTypeChecker(
         ["enum E { case a; case b }\nfunc f(e: E) { match e { .a -> { 1 } .b -> { 2 } } }"]
