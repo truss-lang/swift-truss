@@ -223,7 +223,7 @@ public final class TIRGen: AST.Visitor {
         function.arguments.append(selfArgument)
         let selfAddress = builder.emitWithResult(
             TIR.AllocStack(selfType, sourceRange: emptyRange),
-            type: TIRType.AddressType(selfType), ownership: .Inout
+            type: TIRType.AddressType(selfType), ownership: .MutableBorrowing
         )
         builder.emit(TIR.Store(selfArgument, to: selfAddress, sourceRange: emptyRange))
         env[typeSymbol.id] = selfAddress
@@ -240,7 +240,7 @@ public final class TIRGen: AST.Visitor {
             function.arguments.append(newValueArgument)
             let newValueAddress = builder.emitWithResult(
                 TIR.AllocStack(propertyType, sourceRange: emptyRange),
-                type: TIRType.AddressType(propertyType), ownership: .Inout
+                type: TIRType.AddressType(propertyType), ownership: .MutableBorrowing
             )
             builder.emit(
                 TIR.Store(newValueArgument, to: newValueAddress, sourceRange: emptyRange)
@@ -513,7 +513,7 @@ public final class TIRGen: AST.Visitor {
             function.arguments.append(argument)
             let address = builder.emitWithResult(
                 TIR.AllocStack(paramType, sourceRange: parameter.sourceRange),
-                type: TIRType.AddressType(paramType), ownership: .Inout
+                type: TIRType.AddressType(paramType), ownership: .MutableBorrowing
             )
             builder.emit(TIR.Store(argument, to: address, sourceRange: parameter.sourceRange))
             if let variableSymbol = parameterVariableSymbol(symbol, parameter.name.value) {
@@ -554,7 +554,7 @@ public final class TIRGen: AST.Visitor {
                         selfAddress, fieldIndex: 0, fieldName: propertySymbol.name,
                         sourceRange: range
                     ),
-                    type: TIRType.AddressType(propertyType), ownership: .Inout
+                    type: TIRType.AddressType(propertyType), ownership: .MutableBorrowing
                 )
             } else {
                 builder.emitWithResult(
@@ -562,7 +562,7 @@ public final class TIRGen: AST.Visitor {
                         selfAddress, fieldIndex: 0, fieldName: propertySymbol.name,
                         sourceRange: range
                     ),
-                    type: TIRType.AddressType(propertyType), ownership: .Inout
+                    type: TIRType.AddressType(propertyType), ownership: .MutableBorrowing
                 )
             }
             if let value = visitExpression(initializer) {
@@ -630,7 +630,7 @@ public final class TIRGen: AST.Visitor {
             ?? TIRType.VoidType()
         let address = builder.emitWithResult(
             TIR.AllocStack(type, sourceRange: variableDecl.sourceRange),
-            type: TIRType.AddressType(type), ownership: .Inout
+            type: TIRType.AddressType(type), ownership: .MutableBorrowing
         )
         env[symbol.id] = address
         if let initializer = variableDecl.initializer, let value = visitExpression(initializer) {
@@ -664,7 +664,7 @@ public final class TIRGen: AST.Visitor {
         if let value = visitExpression(initializer) {
             let address = initBuilder.emitWithResult(
                 TIR.GlobalAddr(global, sourceRange: variableDecl.sourceRange),
-                type: TIRType.AddressType(type), ownership: .Inout
+                type: TIRType.AddressType(type), ownership: .MutableBorrowing
             )
             initBuilder.emit(
                 TIR.Store(value, to: address, sourceRange: variableDecl.sourceRange)
@@ -1089,13 +1089,13 @@ public final class TIRGen: AST.Visitor {
         case let tuple as AST.Tuple:
             let tupleAddress = builder.emitWithResult(
                 TIR.AllocStack(subject.type, sourceRange: range),
-                type: TIRType.AddressType(subject.type), ownership: .Inout
+                type: TIRType.AddressType(subject.type), ownership: .MutableBorrowing
             )
             builder.emit(TIR.Store(subject, to: tupleAddress, sourceRange: range))
             for (index, element) in tuple.elements.enumerated() {
                 let elementAddress = builder.emitWithResult(
                     TIR.TupleElementAddr(tupleAddress, index: index, sourceRange: range),
-                    type: TIRType.AddressType(TIRType.VoidType()), ownership: .Inout
+                    type: TIRType.AddressType(TIRType.VoidType()), ownership: .MutableBorrowing
                 )
                 let elementValue = builder.emitWithResult(
                     TIR.Load(elementAddress, sourceRange: range), type: TIRType.VoidType(),
@@ -1148,7 +1148,7 @@ public final class TIRGen: AST.Visitor {
         guard let builder else { return }
         let address = builder.emitWithResult(
             TIR.AllocStack(value.type, sourceRange: range),
-            type: TIRType.AddressType(value.type), ownership: .Inout
+            type: TIRType.AddressType(value.type), ownership: .MutableBorrowing
         )
         builder.emit(TIR.Store(value, to: address, sourceRange: range))
         if let variableSymbol = currentScopeVariable(named: name) {
@@ -1343,7 +1343,7 @@ public final class TIRGen: AST.Visitor {
         if let global = globalsBySymbol[symbol.id] {
             let address = builder.emitWithResult(
                 TIR.GlobalAddr(global, sourceRange: variable.sourceRange),
-                type: TIRType.AddressType(global.type), ownership: .Inout
+                type: TIRType.AddressType(global.type), ownership: .MutableBorrowing
             )
             return loadFrom(address, range: variable.sourceRange)
         }
@@ -1352,7 +1352,7 @@ public final class TIRGen: AST.Visitor {
             if capturedCells.contains(symbol.id) {
                 let projected = builder.emitWithResult(
                     TIR.ProjectCell(address, sourceRange: variable.sourceRange),
-                    type: address.type, ownership: .Inout
+                    type: address.type, ownership: .MutableBorrowing
                 )
                 return loadFrom(projected, range: variable.sourceRange)
             }
@@ -1411,7 +1411,7 @@ public final class TIRGen: AST.Visitor {
                 : TIR.StructElementAddr(
                     selfAddress, fieldIndex: 0, fieldName: symbol.name, sourceRange: range
                 ),
-            type: TIRType.AddressType(propertyType), ownership: .Inout
+            type: TIRType.AddressType(propertyType), ownership: .MutableBorrowing
         )
     }
 
@@ -1479,7 +1479,7 @@ public final class TIRGen: AST.Visitor {
         {
             let selfAddress = builder.emitWithResult(
                 TIR.AllocStack(selfType, sourceRange: call.sourceRange),
-                type: TIRType.AddressType(selfType), ownership: .Inout
+                type: TIRType.AddressType(selfType), ownership: .MutableBorrowing
             )
             arguments.append(selfAddress)
         }
@@ -1658,7 +1658,7 @@ public final class TIRGen: AST.Visitor {
             guard let global = globalsBySymbol[variableSymbol.id] else { return nil }
             let address = builder.emitWithResult(
                 TIR.GlobalAddr(global, sourceRange: memberAccess.sourceRange),
-                type: TIRType.AddressType(global.type), ownership: .Inout
+                type: TIRType.AddressType(global.type), ownership: .MutableBorrowing
             )
             return loadFrom(address, range: memberAccess.sourceRange)
         }
@@ -1686,7 +1686,7 @@ public final class TIRGen: AST.Visitor {
                     object, fieldIndex: 0, fieldName: memberAccess.member.value,
                     sourceRange: memberAccess.sourceRange
                 ),
-                type: TIRType.AddressType(memberType), ownership: .Inout
+                type: TIRType.AddressType(memberType), ownership: .MutableBorrowing
             )
         } else {
             builder.emitWithResult(
@@ -1694,7 +1694,7 @@ public final class TIRGen: AST.Visitor {
                     object, fieldIndex: 0, fieldName: memberAccess.member.value,
                     sourceRange: memberAccess.sourceRange
                 ),
-                type: TIRType.AddressType(memberType), ownership: .Inout
+                type: TIRType.AddressType(memberType), ownership: .MutableBorrowing
             )
         }
         return loadFrom(address, range: memberAccess.sourceRange)
@@ -1842,7 +1842,7 @@ public final class TIRGen: AST.Visitor {
             guard let global = globalsBySymbol[symbol.id] else { return nil }
             let address = builder.emitWithResult(
                 TIR.GlobalAddr(global, sourceRange: range),
-                type: TIRType.AddressType(global.type), ownership: .Inout
+                type: TIRType.AddressType(global.type), ownership: .MutableBorrowing
             )
             builder.emit(TIR.Store(value, to: address, sourceRange: range))
             return value
@@ -1919,7 +1919,7 @@ public final class TIRGen: AST.Visitor {
                     base, fieldIndex: 0, fieldName: member.member.value,
                     sourceRange: range
                 ),
-            type: TIRType.AddressType(propertyType), ownership: .Inout
+            type: TIRType.AddressType(propertyType), ownership: .MutableBorrowing
         )
     }
 
@@ -2118,7 +2118,7 @@ public final class TIRGen: AST.Visitor {
             if let value = env[symbol.id] {
                 let cell = builder.emitWithResult(
                     TIR.AllocCell(type, sourceRange: closure.sourceRange),
-                    type: TIRType.AddressType(type), ownership: .Inout
+                    type: TIRType.AddressType(type), ownership: .MutableBorrowing
                 )
                 let loaded = loadFrom(value, range: closure.sourceRange) ?? value
                 builder.emit(TIR.Store(loaded, to: cell, sourceRange: closure.sourceRange))
@@ -2154,7 +2154,7 @@ public final class TIRGen: AST.Visitor {
         for (index, (symbol, type)) in captured.enumerated() {
             if index < captureCells.count {
                 let cellArgument = builder.createArgument(
-                    type: TIRType.AddressType(type), ownership: .Inout
+                    type: TIRType.AddressType(type), ownership: .MutableBorrowing
                 )
                 function.arguments.append(cellArgument)
                 env[symbol.id] = cellArgument
@@ -2172,7 +2172,7 @@ public final class TIRGen: AST.Visitor {
             function.arguments.append(argument)
             let address = builder.emitWithResult(
                 TIR.AllocStack(paramType, sourceRange: parameter.sourceRange),
-                type: TIRType.AddressType(paramType), ownership: .Inout
+                type: TIRType.AddressType(paramType), ownership: .MutableBorrowing
             )
             builder.emit(TIR.Store(argument, to: address, sourceRange: parameter.sourceRange))
             paramValues.append(argument)

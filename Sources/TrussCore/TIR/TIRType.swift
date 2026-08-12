@@ -4,9 +4,9 @@ import SwiftBetterDiagnostic
 public enum TIRType {
     public enum Ownership {
         case Owned
-        case Guaranteed
+        case Borrowing
         case Trivial
-        case Inout
+        case MutableBorrowing
     }
 
     @abstractClass
