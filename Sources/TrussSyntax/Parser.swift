@@ -238,7 +238,7 @@ public final class Parser {
         return AST.Program(lexerResult.id, packageName, statements, sourceRange: programRange)
     }
 
-    private func parseBasicStatement() -> AST.Statement? {
+    private func parseBasicStatement(allowImport: Bool = true) -> AST.Statement? {
         let startToken = peek
         let (modifiers, attributes) = parseAnnotations()
         guard let t = peek else {
@@ -270,6 +270,12 @@ public final class Parser {
         switch t.kind {
         case let .Keyword(keywordKind):
             switch keywordKind {
+            case .Import:
+                if allowImport {
+                    return parseImport()
+                }
+                emitError("import is only allowed at top level", at: t)
+                return parseImport()
             case .TypeAlias: return parseTypeAliasDecl(modifiers, attributes)
             case .Module: return parseModuleDecl(modifiers, attributes)
             case .PrecedenceGroup: return parsePrecedenceGroupDecl(modifiers, attributes)
@@ -671,7 +677,7 @@ public final class Parser {
         }
         var body: [AST.Statement] = []
         while peek != nil {
-            if let statement = parseBasicStatement() {
+            if let statement = parseBasicStatement(allowImport: false) {
                 body.append(statement)
             } else {
                 break

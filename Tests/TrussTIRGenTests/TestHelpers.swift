@@ -17,8 +17,11 @@ func parseProgram(_ source: String) -> AST.Program {
     return Parser(context: context, packageName: "main", preprocessed).parse()
 }
 
-func runPipeline(_ source: String) -> (Context, AST.Program) {
+func runPipeline(_ source: String, installBuiltin: Bool = false) -> (Context, AST.Program) {
     let context = Context()
+    if installBuiltin {
+        Builtin.install(context: context)
+    }
     let src = Source(id: context.nextSourceId, filepath: "<test>", content: source)
     context.register(source: src)
     let lexerResult = Lexer(input: CharStream(content: source, id: src.id)).parse()
@@ -42,8 +45,8 @@ func runPipeline(_ source: String) -> (Context, AST.Program) {
     return (context, program)
 }
 
-func dumpTIR(_ source: String) -> String {
-    let (context, program) = runPipeline(source)
+func dumpTIR(_ source: String, installBuiltin: Bool = false) -> String {
+    let (context, program) = runPipeline(source, installBuiltin: installBuiltin)
     let module = TIRGen(context: context).generate(program)
     return TIR.Dumper().dump(module)
 }

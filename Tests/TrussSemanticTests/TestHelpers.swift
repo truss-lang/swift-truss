@@ -5,8 +5,11 @@ import TrussOperator
 import TrussSemantics
 import TrussSyntax
 
-func runEnter(_ sources: [String]) -> (Context, [AST.Program]) {
+func runEnter(_ sources: [String], installBuiltin: Bool = false) -> (Context, [AST.Program]) {
     let context = Context()
+    if installBuiltin {
+        Builtin.install(context: context)
+    }
     var programs: [AST.Program] = []
     for source in sources {
         let src = Source(id: context.nextSourceId, filepath: "<test>", content: source)
@@ -38,8 +41,10 @@ func parseProgram(_ source: String) -> AST.Program {
     return programs[0]
 }
 
-func runTypeBuilder(_ sources: [String]) -> (Context, [AST.Program]) {
-    let (context, programs) = runEnter(sources)
+func runTypeBuilder(_ sources: [String], installBuiltin: Bool = false)
+    -> (Context, [AST.Program])
+{
+    let (context, programs) = runEnter(sources, installBuiltin: installBuiltin)
     for program in programs {
         NameResolver(context: context).visitProgram(program)
     }
@@ -49,8 +54,10 @@ func runTypeBuilder(_ sources: [String]) -> (Context, [AST.Program]) {
     return (context, programs)
 }
 
-func runTypeChecker(_ sources: [String]) -> (Context, [AST.Program]) {
-    let (context, initialPrograms) = runEnter(sources)
+func runTypeChecker(_ sources: [String], installBuiltin: Bool = false)
+    -> (Context, [AST.Program])
+{
+    let (context, initialPrograms) = runEnter(sources, installBuiltin: installBuiltin)
     var programs = initialPrograms
     for program in programs {
         NameResolver(context: context).visitProgram(program)

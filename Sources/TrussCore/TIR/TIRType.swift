@@ -51,6 +51,22 @@ public enum TIRType {
         }
     }
 
+    public enum PrimitiveKind: Sendable {
+        case Signed
+        case Unsigned
+        case Float
+        case Bool
+    }
+
+    public final class PrimitiveType: TIRType {
+        public let kind: PrimitiveKind
+        public let bitWidth: Int
+        public init(kind: PrimitiveKind, bitWidth: Int) {
+            self.kind = kind
+            self.bitWidth = bitWidth
+        }
+    }
+
     public final class VoidType: TIRType {
         public override init() {}
     }

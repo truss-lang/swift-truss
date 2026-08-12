@@ -43,6 +43,32 @@ import TrussSemantics
     #expect((type as! TrussType.StructType).name == "Inner")
 }
 
+@Test func builtinTypeAnnotation() throws {
+    let (_, programs) = runTypeChecker(["let x: Builtin.Int64"], installBuiltin: true)
+    let variableDecl = programs[0].statements[0] as! AST.VariableDecl
+    let type = try #require(variableDecl.symbol?.type as? TrussType.BuiltinType)
+    #expect(type.name == "Int64")
+}
+
+@Test func builtinUnqualifiedNameStillErrors() throws {
+    let (context, programs) = runTypeChecker(["let x: Int64"], installBuiltin: true)
+    let variableDecl = programs[0].statements[0] as! AST.VariableDecl
+    #expect(variableDecl.symbol?.type is TrussType.ErrorType)
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("cannot find type 'Int64'"))
+}
+
+@Test func structWrappingBuiltinStorage() throws {
+    let (_, programs) = runTypeChecker(
+        ["struct Int {\n    var value: Builtin.Int64\n}"], installBuiltin: true
+    )
+    let structDecl = programs[0].statements[0] as! AST.StructDecl
+    let member = try #require(structDecl.body.first as? AST.VariableDecl)
+    let type = try #require(member.symbol?.type as? TrussType.BuiltinType)
+    #expect(type.name == "Int64")
+}
+
 @Test func optionalAnnotation() throws {
     let (_, programs) = runTypeChecker(["struct S {}\nlet x: S?"])
     let variableDecl = programs[0].statements[1] as! AST.VariableDecl

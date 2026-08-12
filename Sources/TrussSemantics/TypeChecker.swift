@@ -873,6 +873,9 @@ public final class TypeChecker: AST.Visitor {
         if let nominal = symbol as? Symbol.NominalTypeSymbol {
             return nominal.typeId.flatMap { context.typeTable[$0] }
         }
+        if let builtin = symbol as? Symbol.BuiltinTypeSymbol {
+            return TrussType.BuiltinType(builtin.name)
+        }
         if let typeAlias = symbol as? Symbol.TypeAliasSymbol {
             return resolveTypealias(typeAlias)
         }
@@ -1262,6 +1265,8 @@ public final class TypeChecker: AST.Visitor {
         case is TrussType.ErrorType: return "_"
         case let nominal as TrussType.NominalType:
             return nominal.name
+        case let builtin as TrussType.BuiltinType:
+            return "Builtin.\(builtin.name)"
         case let optional as TrussType.OptionalType:
             return "\(typeText(optional.wrapped))?"
         case let variable as TrussType.TypeVariableType:

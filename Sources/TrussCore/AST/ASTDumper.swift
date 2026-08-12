@@ -101,6 +101,8 @@ public extension AST {
             case is TrussType.ErrorType: return "ErrorType"
             case let nominal as TrussType.NominalType:
                 return "\(nominalKind(nominal))(\(nominal.name))#\(nominal.id.id)"
+            case let builtin as TrussType.BuiltinType:
+                return "Builtin.\(builtin.name)"
             case let optional as TrussType.OptionalType:
                 return "Optional(\(typeText(optional.wrapped)))"
             case let tuple as TrussType.TupleType:

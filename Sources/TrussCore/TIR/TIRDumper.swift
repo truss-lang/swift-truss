@@ -338,6 +338,8 @@ public extension TIR {
             switch type {
             case is TIRType.VoidType:
                 return "void"
+            case let primitive as TIRType.PrimitiveType:
+                return primitiveKindText(primitive.kind) + String(primitive.bitWidth)
             case let nominal as TIRType.NominalType:
                 return nominal.name + "#" + String(nominal.id.id)
             case let tuple as TIRType.TupleType:
@@ -385,6 +387,15 @@ public extension TIR {
             String(typeText(type).dropFirst())
         }
 
+        private func primitiveKindText(_ kind: TIRType.PrimitiveKind) -> String {
+            switch kind {
+            case .Signed: "i"
+            case .Unsigned: "u"
+            case .Float: "f"
+            case .Bool: "b"
+            }
+        }
+
         private func nominalDefinition(_ nominal: TIRType.NominalType) -> String {
             guard let symbol = nominal.symbol else { return "" }
             var members: [String] = []
@@ -424,6 +435,8 @@ public extension TIR {
             switch type {
             case is TrussType.VoidType:
                 return "Void"
+            case let builtin as TrussType.BuiltinType:
+                return "Builtin.\(builtin.name)"
             case let nominal as TrussType.NominalType:
                 return nominal.name + "#" + String(nominal.id.id)
             case let optional as TrussType.OptionalType:

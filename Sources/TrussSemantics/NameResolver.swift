@@ -384,6 +384,8 @@ public final class NameResolver: AST.Visitor {
             (symbol, overloads) = memberResolution(memberAccess.member.value, in: typeSymbol)
         } else if let moduleSymbol = objectSymbol as? Symbol.ModuleSymbol {
             (symbol, overloads) = memberResolution(memberAccess.member.value, in: moduleSymbol.scope)
+        } else if let packageSymbol = objectSymbol as? Symbol.PackageSymbol {
+            (symbol, overloads) = memberResolution(memberAccess.member.value, in: packageSymbol.scope)
         } else {
             return nil
         }
@@ -529,6 +531,7 @@ public final class NameResolver: AST.Visitor {
             guard let object = resolveBase(memberAccess.object) else { return nil }
             let scope = (object as? Symbol.NominalTypeSymbol)?.scope
                 ?? (object as? Symbol.ModuleSymbol)?.scope
+                ?? (object as? Symbol.PackageSymbol)?.scope
             return scope?.types[memberAccess.member.value]
         case let genericApplication as AST.GenericApplication:
             return resolveBase(genericApplication.base)
@@ -556,6 +559,9 @@ public final class NameResolver: AST.Visitor {
             if let symbol = scope.modules[name] {
                 return (scope, [symbol])
             }
+        }
+        if let package = context.name2Package[name] {
+            return (package.scope, [package])
         }
         return nil
     }

@@ -13,6 +13,11 @@ final class TypeLower {
         switch type {
         case is TrussType.VoidType, is TrussType.NeverType, is TrussType.ErrorType:
             return TIRType.VoidType()
+        case let builtin as TrussType.BuiltinType:
+            if let info = Builtin.typeInfos.first(where: { $0.name == builtin.name }) {
+                return TIRType.PrimitiveType(kind: info.kind, bitWidth: info.bitWidth)
+            }
+            return TIRType.VoidType()
         case let nominal as TrussType.NominalType:
             return nominalType(nominal)
         case let optional as TrussType.OptionalType:

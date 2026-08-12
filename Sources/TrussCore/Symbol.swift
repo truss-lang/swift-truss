@@ -90,6 +90,12 @@ public enum Symbol {
         }
     }
 
+    public final class BuiltinTypeSymbol: Symbol {
+        public init(id: Id.SymbolId, name: String) {
+            super.init(id, name)
+        }
+    }
+
     public final class GenericParamSymbol: Symbol {
         public enum Constraint {
             case conformance(TrussType.TrussType)
@@ -262,6 +268,7 @@ public enum Symbol {
             case is ActorSymbol: "actor"
             case is AssociatedTypeSymbol: "associated-type"
             case is TypeAliasSymbol: "typealias"
+            case is BuiltinTypeSymbol: "builtin"
             case is GenericParamSymbol: "generic-param"
             case is CaseSymbol: "case"
             case is FunctionSymbol: "function"

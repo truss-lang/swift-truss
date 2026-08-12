@@ -228,3 +228,27 @@ import Testing
         .first(where: { $0.hasPrefix("closure-0") }) ?? ""
     try #require(closureBlock.range(of: #"Return %\d+"#, options: .regularExpression) != nil)
 }
+
+@Test func builtinTypeLowersToPrimitive() throws {
+    let tir = dumpTIR(
+        """
+        func f() {
+            var v: Builtin.Int64 = 1
+        }
+        """,
+        installBuiltin: true
+    )
+    try #require(tir.contains("i64"))
+}
+
+@Test func builtinBoolLowersToPrimitive() throws {
+    let tir = dumpTIR(
+        """
+        func f() {
+            var b: Builtin.Bool = true
+        }
+        """,
+        installBuiltin: true
+    )
+    try #require(tir.contains("b1"))
+}

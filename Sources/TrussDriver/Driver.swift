@@ -51,6 +51,7 @@ public final class Driver {
 
     public func run(files: [String]) -> DriverResult {
         let context = Context()
+        Builtin.install(context: context)
         var programs: [AST.Program] = []
         for file in files {
             guard let content = try? String(contentsOfFile: file, encoding: .utf8) else {
@@ -71,6 +72,7 @@ public final class Driver {
 
     public func runString(_ source: String, filename: String = "<main>") -> DriverResult {
         let context = Context()
+        Builtin.install(context: context)
         var programs: [AST.Program] = []
         parseSource(
             source, filepath: filename, workingDirectory: "",

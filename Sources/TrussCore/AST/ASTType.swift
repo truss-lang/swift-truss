@@ -170,4 +170,11 @@ public enum TrussType {
             self.symbol = symbol
         }
     }
+
+    public final class BuiltinType: TrussType {
+        public let name: String
+        public init(_ name: String) {
+            self.name = name
+        }
+    }
 }
