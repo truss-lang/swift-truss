@@ -520,6 +520,13 @@ extension AST {
         }
 
         @discardableResult
+        open func visitNullPointerLiteral(
+            _ nullPointerLiteral: AST.NullPointerLiteral, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
+
+        @discardableResult
         open func visitVoidLiteral(
             _ voidLiteral: AST.VoidLiteral, additional: Any? = nil
         ) -> Any? {
@@ -683,6 +690,13 @@ extension AST {
         }
 
         @discardableResult
+        open func visitPointerType(_ pointerType: AST.PointerType, additional: Any? = nil)
+            -> Any?
+        {
+            visit(pointerType.wrappedType, additional: additional)
+        }
+
+        @discardableResult
         open func visitVariadicType(
             _ variadicType: AST.VariadicType, additional: Any? = nil
         ) -> Any? {
@@ -765,6 +779,20 @@ extension AST {
             _ postfixExpression: AST.Postfix, additional: Any? = nil
         ) -> Any? {
             visit(postfixExpression.expression, additional: additional)
+        }
+
+        @discardableResult
+        open func visitDereference(
+            _ dereference: AST.Dereference, additional: Any? = nil
+        ) -> Any? {
+            visit(dereference.expression, additional: additional)
+        }
+
+        @discardableResult
+        open func visitAddressOf(
+            _ addressOf: AST.AddressOf, additional: Any? = nil
+        ) -> Any? {
+            visit(addressOf.expression, additional: additional)
         }
 
         @discardableResult

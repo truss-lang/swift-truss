@@ -77,6 +77,15 @@ public enum TrussType {
         }
     }
 
+    public final class PointerType: TrussType {
+        public let pointee: TrussType
+        public let isNonnull: Bool
+        public init(_ pointee: TrussType, isNonnull: Bool = false) {
+            self.pointee = pointee
+            self.isNonnull = isNonnull
+        }
+    }
+
     public final class TupleType: TrussType {
         public struct Element {
             public let label: String?

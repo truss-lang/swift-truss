@@ -482,3 +482,30 @@ import TrussCore
             """
     )
 }
+
+@Test func dumpPointerSemantics() {
+    #expect(
+        dumpProgram(
+            "struct Int {}\nfunc f() {\n    var v: Int\n    var p: Int* = &v\n    var x = *p\n}",
+            semantic: true
+        ) == """
+        Program "main"
+        |-StructDecl Int sym:Int#1
+        `-FunctionDecl f sym:f#5
+          |-VariableDecl v sym:v#2
+          | `-Type
+          |   `-Variable Int ty:StructType(Int)#0 sym:Int#1
+          |-VariableDecl p sym:p#3
+          | |-Type
+          | | `-PointerType * ty:Pointer(StructType(Int)#0)
+          | |   `-Variable Int ty:StructType(Int)#0 sym:Int#1
+          | `-Initializer
+          |   `-AddressOf & ty:Pointer(StructType(Int)#0!)
+          |     `-Variable v ty:StructType(Int)#0 sym:v#2
+          `-VariableDecl x sym:x#4
+            `-Initializer
+              `-Dereference * ty:StructType(Int)#0
+                `-Variable p ty:Pointer(StructType(Int)#0) sym:p#3
+        """
+    )
+}

@@ -165,6 +165,18 @@ public extension AST {
         }
     }
 
+    final class NullPointerLiteral: Literal {
+        public let token: Token
+        public init(_ token: Token, sourceRange: SourceRange) {
+            self.token = token
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitNullPointerLiteral(self, additional: additional)
+        }
+    }
+
     final class VoidLiteral: Literal {
         public let openToken: Token
         public let closeToken: Token
@@ -325,16 +337,18 @@ public extension AST {
         public let token: Token
         public let member: Token
         public let isOptional: Bool
+        public let viaPointer: Bool
         public var symbol: Symbol.Symbol? = nil
         public var overloads: [Symbol.FunctionSymbol]? = nil
         public init(
             _ object: Expression, _ token: Token, _ member: Token, isOptional: Bool = false,
-            sourceRange: SourceRange
+            viaPointer: Bool = false, sourceRange: SourceRange
         ) {
             self.object = object
             self.token = token
             self.member = member
             self.isOptional = isOptional
+            self.viaPointer = viaPointer
             super.init(sourceRange)
         }
 
@@ -528,6 +542,25 @@ public extension AST {
         }
     }
 
+    final class PointerType: Expression {
+        public let wrappedType: Expression
+        public let token: Token
+        public let isNonnull: Bool
+        public init(
+            _ wrappedType: Expression, _ token: Token, isNonnull: Bool = false,
+            sourceRange: SourceRange
+        ) {
+            self.wrappedType = wrappedType
+            self.token = token
+            self.isNonnull = isNonnull
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitPointerType(self, additional: additional)
+        }
+    }
+
     final class VariadicType: Expression {
         public let base: Expression
         public let token: Token
@@ -692,6 +725,38 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitPostfix(self, additional: additional)
+        }
+    }
+
+    final class Dereference: Expression {
+        public let operatorToken: Token
+        public let expression: Expression
+        public init(
+            _ operatorToken: Token, _ expression: Expression, sourceRange: SourceRange
+        ) {
+            self.operatorToken = operatorToken
+            self.expression = expression
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitDereference(self, additional: additional)
+        }
+    }
+
+    final class AddressOf: Expression {
+        public let operatorToken: Token
+        public let expression: Expression
+        public init(
+            _ operatorToken: Token, _ expression: Expression, sourceRange: SourceRange
+        ) {
+            self.operatorToken = operatorToken
+            self.expression = expression
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitAddressOf(self, additional: additional)
         }
     }
 

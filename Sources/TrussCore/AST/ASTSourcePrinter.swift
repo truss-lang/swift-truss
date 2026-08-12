@@ -832,6 +832,14 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitNullPointerLiteral(
+        _ nullPointerLiteral: AST.NullPointerLiteral, additional: Any? = nil
+    ) -> Any? {
+        state.write(nullPointerLiteral.token.value)
+        return nil
+    }
+
+    @discardableResult
     public override func visitVoidLiteral(
         _ voidLiteral: AST.VoidLiteral, additional: Any? = nil
     ) -> Any? {
@@ -926,7 +934,7 @@ public final class SourcePrinter: AST.Visitor {
         _ memberAccess: AST.MemberAccess, additional: Any? = nil
     ) -> Any? {
         visit(memberAccess.object)
-        state.write(memberAccess.token.value)
+        state.write(memberAccess.viaPointer ? "->" : memberAccess.token.value)
         state.write(memberAccess.member.value)
         return nil
     }
@@ -1032,6 +1040,15 @@ public final class SourcePrinter: AST.Visitor {
     {
         visit(optionalType.wrappedType)
         state.write("?")
+        return nil
+    }
+
+    @discardableResult
+    public override func visitPointerType(_ pointerType: AST.PointerType, additional: Any? = nil)
+        -> Any?
+    {
+        visit(pointerType.wrappedType)
+        state.write(pointerType.isNonnull ? "*!" : "*")
         return nil
     }
 
@@ -1170,6 +1187,24 @@ public final class SourcePrinter: AST.Visitor {
     {
         visit(postfixExpression.expression)
         state.write(postfixExpression.operatorToken.value)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitDereference(
+        _ dereference: AST.Dereference, additional: Any? = nil
+    ) -> Any? {
+        state.write("*")
+        visit(dereference.expression)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitAddressOf(
+        _ addressOf: AST.AddressOf, additional: Any? = nil
+    ) -> Any? {
+        state.write("&")
+        visit(addressOf.expression)
         return nil
     }
 

@@ -1032,6 +1032,13 @@ extension AST {
         }
 
         @discardableResult
+        open override func visitNullPointerLiteral(
+            _ nullPointerLiteral: AST.NullPointerLiteral, additional: Any? = nil
+        ) -> Any? {
+            nullPointerLiteral
+        }
+
+        @discardableResult
         open override func visitVoidLiteral(
             _ voidLiteral: AST.VoidLiteral, additional: Any? = nil
         ) -> Any? {
@@ -1191,7 +1198,8 @@ extension AST {
             if object === memberAccess.object { return memberAccess }
             let newMemberAccess = AST.MemberAccess(
                 object, memberAccess.token, memberAccess.member,
-                isOptional: memberAccess.isOptional, sourceRange: memberAccess.sourceRange
+                isOptional: memberAccess.isOptional, viaPointer: memberAccess.viaPointer,
+                sourceRange: memberAccess.sourceRange
             )
             return newMemberAccess
         }
@@ -1286,6 +1294,19 @@ extension AST {
                 wrappedType, optionalType.token, sourceRange: optionalType.sourceRange
             )
             return newOptionalType
+        }
+
+        @discardableResult
+        open override func visitPointerType(
+            _ pointerType: AST.PointerType, additional: Any? = nil
+        ) -> Any? {
+            let wrappedType = rewrite(pointerType.wrappedType)
+            if wrappedType === pointerType.wrappedType { return pointerType }
+            let newPointerType = AST.PointerType(
+                wrappedType, pointerType.token, isNonnull: pointerType.isNonnull,
+                sourceRange: pointerType.sourceRange
+            )
+            return newPointerType
         }
 
         @discardableResult
@@ -1433,6 +1454,30 @@ extension AST {
                 sourceRange: postfixExpression.sourceRange
             )
             return newPostfix
+        }
+
+        @discardableResult
+        open override func visitDereference(
+            _ dereference: AST.Dereference, additional: Any? = nil
+        ) -> Any? {
+            let expression = rewrite(dereference.expression)
+            if expression === dereference.expression { return dereference }
+            let newDereference = AST.Dereference(
+                dereference.operatorToken, expression, sourceRange: dereference.sourceRange
+            )
+            return newDereference
+        }
+
+        @discardableResult
+        open override func visitAddressOf(
+            _ addressOf: AST.AddressOf, additional: Any? = nil
+        ) -> Any? {
+            let expression = rewrite(addressOf.expression)
+            if expression === addressOf.expression { return addressOf }
+            let newAddressOf = AST.AddressOf(
+                addressOf.operatorToken, expression, sourceRange: addressOf.sourceRange
+            )
+            return newAddressOf
         }
 
         @discardableResult

@@ -105,6 +105,8 @@ public extension AST {
                 return "Builtin.\(builtin.name)"
             case let optional as TrussType.OptionalType:
                 return "Optional(\(typeText(optional.wrapped)))"
+            case let pointer as TrussType.PointerType:
+                return "Pointer(\(typeText(pointer.pointee))\(pointer.isNonnull ? "!" : ""))"
             case let tuple as TrussType.TupleType:
                 return "Tuple([" + tuple.elements.map { element in
                     if let label = element.label {
@@ -1005,6 +1007,14 @@ public extension AST {
         }
 
         @discardableResult
+        public override func visitNullPointerLiteral(
+            _ nullPointerLiteral: NullPointerLiteral, additional: Any? = nil
+        ) -> Any? {
+            dumpNode("NullPointerLiteral" + tyText(nullPointerLiteral.ty))
+            return nil
+        }
+
+        @discardableResult
         public override func visitVoidLiteral(
             _ voidLiteral: VoidLiteral, additional: Any? = nil
         ) -> Any? {
@@ -1114,6 +1124,7 @@ public extension AST {
         ) -> Any? {
             var text = "MemberAccess \(memberAccess.member.value)"
             if memberAccess.isOptional { text += " ?" }
+            if memberAccess.viaPointer { text += " ->" }
             dumpNode(
                 text + tyText(memberAccess.ty) + symText(memberAccess.symbol)
                     + overloadsText(memberAccess.overloads),
@@ -1226,6 +1237,18 @@ public extension AST {
             dumpNode(
                 "OptionalType ?" + tyText(optionalType.ty),
                 children: [{ self.visit(optionalType.wrappedType) }]
+            )
+            return nil
+        }
+
+        @discardableResult
+        public override func visitPointerType(
+            _ pointerType: PointerType, additional: Any? = nil
+        ) -> Any? {
+            let suffix = pointerType.isNonnull ? "*!" : "*"
+            dumpNode(
+                "PointerType \(suffix)" + tyText(pointerType.ty),
+                children: [{ self.visit(pointerType.wrappedType) }]
             )
             return nil
         }
@@ -1354,6 +1377,28 @@ public extension AST {
             dumpNode(
                 "Postfix \(postfixExpression.operatorToken.value)" + tyText(postfixExpression.ty),
                 children: [{ self.visit(postfixExpression.expression) }]
+            )
+            return nil
+        }
+
+        @discardableResult
+        public override func visitDereference(
+            _ dereference: Dereference, additional: Any? = nil
+        ) -> Any? {
+            dumpNode(
+                "Dereference *" + tyText(dereference.ty),
+                children: [{ self.visit(dereference.expression) }]
+            )
+            return nil
+        }
+
+        @discardableResult
+        public override func visitAddressOf(
+            _ addressOf: AddressOf, additional: Any? = nil
+        ) -> Any? {
+            dumpNode(
+                "AddressOf &" + tyText(addressOf.ty),
+                children: [{ self.visit(addressOf.expression) }]
             )
             return nil
         }
