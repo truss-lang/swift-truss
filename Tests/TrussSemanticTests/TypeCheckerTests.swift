@@ -1671,3 +1671,28 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     let messages = context.diagnositicEngine.diagnostics.map(\.message)
     #expect(messages.contains { $0.contains("expected 'Builtin.Bool'") })
 }
+
+@Test func caseMatchInfersToBool() throws {
+    let (context, programs) = runTypeChecker(
+        ["enum E { case C }\nfunc f(e: E) {\n    let b = case .C = e\n}"],
+        installBuiltin: true
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+    let functionDecl = try #require(programs[0].statements[1] as? AST.FunctionDecl)
+    let body = try #require(functionDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let variableDecl = try #require(statements[0] as? AST.VariableDecl)
+    let type = try #require(variableDecl.symbol?.type as? TrussType.BuiltinType)
+    #expect(type.name == "Bool")
+}
+
+@Test func caseMatchAsIfConditionPasses() {
+    let (context, _) = runTypeChecker(
+        ["enum E { case C }\nfunc f(e: E) {\n    if case .C = e {\n    }\n}"],
+        installBuiltin: true
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}

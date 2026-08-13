@@ -515,8 +515,7 @@ public final class TypeChecker: AST.Visitor {
         -> Any?
     {
         withScope(whileStatement.scope) {
-            let conditionType = infer(whileStatement.condition, at: whileStatement.token)
-            checkConditionType(conditionType, at: whileStatement.token)
+            checkBoolCondition(whileStatement.condition, at: whileStatement.token)
             super.visitWhile(whileStatement, additional: additional)
         }
         return nil
@@ -526,8 +525,7 @@ public final class TypeChecker: AST.Visitor {
     public override func visitGuard(_ guardStatement: AST.Guard, additional: Any? = nil)
         -> Any?
     {
-        let guardConditionType = infer(guardStatement.condition, at: guardStatement.token)
-        checkConditionType(guardConditionType, at: guardStatement.token)
+        checkBoolCondition(guardStatement.condition, at: guardStatement.token)
         for statement in guardStatement.body {
             visit(statement)
         }
@@ -539,8 +537,7 @@ public final class TypeChecker: AST.Visitor {
         _ repeatWhile: AST.RepeatWhile, additional: Any? = nil
     ) -> Any? {
         withScope(repeatWhile.scope) {
-            let conditionType = infer(repeatWhile.condition, at: repeatWhile.token)
-            checkConditionType(conditionType, at: repeatWhile.token)
+            checkBoolCondition(repeatWhile.condition, at: repeatWhile.token)
             super.visitRepeatWhile(repeatWhile, additional: additional)
         }
         return nil
@@ -946,13 +943,11 @@ public final class TypeChecker: AST.Visitor {
         return evaluateSymbol(symbol)
     }
 
-    private func checkConditionType(_ type: TrussType.TrussType?, at token: Token) {
-        guard let type, let boolType = stdType(named: "Bool") else { return }
-        let resolved = resolve(type)
-        if resolved is TrussType.TypeVariableType {
-            _ = unify(resolved, boolType, at: token)
-        } else if !canCoerce(resolved, to: boolType, at: token) {
-            emitMismatch(at: token, expected: boolType, found: resolved)
+    private func checkBoolCondition(_ condition: AST.Expression, at token: Token) {
+        if let boolType = stdType(named: "Bool") {
+            check(condition, boolType, at: token)
+        } else {
+            _ = infer(condition, at: token)
         }
     }
 
@@ -1902,8 +1897,7 @@ public final class TypeChecker: AST.Visitor {
             }
             expression.ty = TrussType.TupleType(elements)
         case let ifExpression as AST.If:
-            let conditionType = infer(ifExpression.condition, at: token)
-            checkConditionType(conditionType, at: ifExpression.token)
+            checkBoolCondition(ifExpression.condition, at: ifExpression.token)
             let narrowed: (id: Id.SymbolId, type: TrussType.PointerType)? =
                 if let binary = ifExpression.condition as? AST.Binary,
                 binary.operatorToken.value == "!=",
@@ -1979,7 +1973,7 @@ public final class TypeChecker: AST.Visitor {
         case let caseMatch as AST.CaseMatch:
             let subjectType = infer(caseMatch.subject, at: token)
             checkPattern(caseMatch.pattern, against: subjectType, at: caseMatch.token)
-            expression.ty = TrussType.VoidType.INSTANCE
+            expression.ty = stdType(named: "Bool")
         case let doExpression as AST.Do:
             doThrownTypeStack.append([])
             for statement in doExpression.body {

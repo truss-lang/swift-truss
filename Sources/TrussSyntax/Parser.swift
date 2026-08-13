@@ -4096,7 +4096,6 @@ public final class Parser {
                     )
                 )
             case .Case:
-                if !isCondition { return nil }
                 expression = parseCaseMatch(token)
             case .Try:
                 expression = parseTryExpression(token, excepts, isCondition)

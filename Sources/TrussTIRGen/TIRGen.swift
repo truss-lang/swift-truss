@@ -1261,18 +1261,31 @@ public final class TIRGen: AST.Visitor {
     ) -> Any? {
         guard let builder else { return nil }
         guard let subject = visitExpression(caseMatch.subject) else { return nil }
+        let boolType = (caseMatch.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         let successBlock = builder.createBlock()
         let failBlock = builder.createBlock()
         emitPatternMatch(
             caseMatch.pattern, subject: subject, successBlock: successBlock,
             failBlock: failBlock, range: caseMatch.sourceRange
         )
+        let joinBlock = builder.createBlock()
+        var incomings: [(TIR.Value, TIR.BasicBlock)] = []
         builder.switchToBlock(successBlock)
-        builder.emit(TIR.Branch(failBlock, sourceRange: caseMatch.sourceRange))
-        builder.switchToBlock(failBlock)
-        return builder.emitWithResult(
-            TIR.VoidLiteral(caseMatch.sourceRange), type: TIRType.VoidType(), ownership: .Trivial
+        let trueValue = builder.emitWithResult(
+            TIR.BoolLiteral(true, sourceRange: caseMatch.sourceRange),
+            type: boolType, ownership: .Trivial
         )
+        incomings.append((trueValue, successBlock))
+        builder.emit(TIR.Branch(joinBlock, sourceRange: caseMatch.sourceRange))
+        builder.switchToBlock(failBlock)
+        let falseValue = builder.emitWithResult(
+            TIR.BoolLiteral(false, sourceRange: caseMatch.sourceRange),
+            type: boolType, ownership: .Trivial
+        )
+        incomings.append((falseValue, failBlock))
+        builder.emit(TIR.Branch(joinBlock, sourceRange: caseMatch.sourceRange))
+        builder.switchToBlock(joinBlock)
+        return emitPhi(incomings, range: caseMatch.sourceRange)
     }
 
     @discardableResult

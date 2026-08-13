@@ -139,3 +139,20 @@ import Testing
         try #require(tir.contains("Load "))
     }
 }
+
+@Test func caseMatchLowersToBoolPhi() throws {
+    let tir = dumpTIR(
+        """
+        enum E {
+            case C
+        }
+        func f(e: E) {
+            let b = case .C = e
+        }
+        """,
+        installBuiltin: true
+    )
+    try #require(tir.contains("BoolLiteral true"))
+    try #require(tir.contains("BoolLiteral false"))
+    try #require(tir.contains("Phi"))
+}
