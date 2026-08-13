@@ -34,6 +34,9 @@ struct Trussc: ParsableCommand {
     @Flag(help: "Print the TIR dump.")
     var dumpTIR = false
 
+    @Flag(help: "Print the LLVM IR dump.")
+    var dumpLLVMIR = false
+
     @Flag(help: "Print the round-tripped source.")
     var dumpSource = false
 
@@ -53,6 +56,7 @@ struct Trussc: ParsableCommand {
             dumpAST: dumpAST,
             dumpSymbols: dumpSymbols,
             dumpTIR: dumpTIR,
+            dumpLLVMIR: dumpLLVMIR,
             dumpSource: dumpSource
         )
         let result = Driver(config: config).run(files: files)

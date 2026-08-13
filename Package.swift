@@ -41,12 +41,20 @@ let package = Package(
             dependencies: ["TrussCore"]
         ),
         .target(
+            name: "TrussCodeGen",
+            dependencies: [
+                "TrussCore",
+                .product(name: "LLVMSwiftBinding", package: "llvm-swift-binding"),
+            ]
+        ),
+        .target(
             name: "TrussPackageManager"
         ),
         .target(
             name: "TrussDriver",
             dependencies: [
-                "TrussSyntax", "TrussSemantics", "TrussOperator", "TrussTIRGen",
+                "TrussSyntax", "TrussSemantics", "TrussOperator", "TrussTIRGen", "TrussCodeGen",
+                .product(name: "LLVMSwiftBinding", package: "llvm-swift-binding"),
                 .product(name: "SwiftBetterDiagnostic", package: "swift-better-diagnostic"),
             ]
         ),

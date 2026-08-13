@@ -1,5 +1,7 @@
 import Foundation
+import LLVMSwiftBinding
 import SwiftBetterDiagnostic
+import TrussCodeGen
 import TrussCore
 import TrussOperator
 import TrussSemantics
@@ -14,6 +16,7 @@ public struct DriverConfig {
     public var dumpAST: Bool
     public var dumpSymbols: Bool
     public var dumpTIR: Bool
+    public var dumpLLVMIR: Bool
     public var dumpSource: Bool
     public var dumpOnError: Bool
 
@@ -23,6 +26,7 @@ public struct DriverConfig {
         dumpAST: Bool = false,
         dumpSymbols: Bool = false,
         dumpTIR: Bool = false,
+        dumpLLVMIR: Bool = false,
         dumpSource: Bool = false,
         dumpOnError: Bool = false
     ) {
@@ -31,6 +35,7 @@ public struct DriverConfig {
         self.dumpAST = dumpAST
         self.dumpSymbols = dumpSymbols
         self.dumpTIR = dumpTIR
+        self.dumpLLVMIR = dumpLLVMIR
         self.dumpSource = dumpSource
         self.dumpOnError = dumpOnError
     }
@@ -50,7 +55,7 @@ public final class Driver {
     }
 
     public func run(files: [String]) -> DriverResult {
-        let context = Context()
+        let context = TrussCore.Context()
         Builtin.install(context: context)
         var programs: [AST.Program] = []
         for file in files {
@@ -71,7 +76,7 @@ public final class Driver {
     }
 
     public func runString(_ source: String, filename: String = "<main>") -> DriverResult {
-        let context = Context()
+        let context = TrussCore.Context()
         Builtin.install(context: context)
         var programs: [AST.Program] = []
         parseSource(
@@ -83,7 +88,7 @@ public final class Driver {
 
     private func parseSource(
         _ content: String, filepath: String, workingDirectory: String,
-        context: Context, programs: inout [AST.Program]
+        context: TrussCore.Context, programs: inout [AST.Program]
     ) {
         let src = Source(id: context.nextSourceId, filepath: filepath, content: content)
         context.register(source: src)
@@ -99,7 +104,7 @@ public final class Driver {
         programs.append(Parser(context: context, packageName: "main", preprocessed).parse())
     }
 
-    private func runPasses(programs: [AST.Program], context: Context) -> DriverResult {
+    private func runPasses(programs: [AST.Program], context: TrussCore.Context) -> DriverResult {
         var programs = programs
         if !context.diagnositicEngine.hasErrors {
             runPass(DeclCollector(context: context), context: context, programs: programs)
@@ -133,10 +138,24 @@ public final class Driver {
         if !context.diagnositicEngine.hasErrors {
             runPass(AccessChecker(context: context), context: context, programs: programs)
         }
-        var tirModules: [TIR.Module] = []
+        let tirModules: [TIR.Module]
         if !context.diagnositicEngine.hasErrors {
             let tirGen = TIRGen(context: context)
             tirModules = tirGen.generateAll(programs)
+        } else {
+            tirModules = []
+        }
+        let llvmContext: LLVMSwiftBinding.Context?
+        let llvmModules: [LLVMSwiftBinding.Module]
+        if !context.diagnositicEngine.hasErrors {
+            llvmContext = .init()
+            let codeGen = CodeGen(context: context, llvmContext: llvmContext!)
+            llvmModules = tirModules.map {
+                codeGen.generate($0)
+            }
+        } else {
+            llvmContext = nil
+            llvmModules = []
         }
         var stdout = ""
         if !context.diagnositicEngine.hasErrors || config.dumpOnError {
@@ -150,6 +169,9 @@ public final class Driver {
             if config.dumpTIR, !tirModules.isEmpty {
                 let dumper = TIR.Dumper()
                 stdout += tirModules.map { dumper.dump($0) }.joined(separator: "\n") + "\n"
+            }
+            if config.dumpLLVMIR, !llvmModules.isEmpty {
+                stdout += llvmModules.map(\.irString).joined(separator: "\n") + "\n"
             }
             if config.dumpSource, !programs.isEmpty {
                 let printer = SourcePrinter()
@@ -167,7 +189,7 @@ public final class Driver {
 
     private func runPass(
         _ visitor: AST.Visitor,
-        context: Context,
+        context: TrussCore.Context,
         programs: [AST.Program]
     ) {
         for program in programs {
@@ -178,7 +200,7 @@ public final class Driver {
         }
     }
 
-    private func runOperatorPasses(_ programs: inout [AST.Program], context: Context) {
+    private func runOperatorPasses(_ programs: inout [AST.Program], context: TrussCore.Context) {
         let table = OperatorTable()
         runPass(
             TrussOperator.DeclCollector(table: table, context: context),
@@ -191,7 +213,7 @@ public final class Driver {
         programs = programs.map { folder.rewrite($0) }
     }
 
-    private static func emitReadError(_ file: String, context: Context) {
+    private static func emitReadError(_ file: String, context: TrussCore.Context) {
         let src = Source(id: context.nextSourceId, filepath: file, content: "")
         context.register(source: src)
         let buffer = src.stringSourceBuffer

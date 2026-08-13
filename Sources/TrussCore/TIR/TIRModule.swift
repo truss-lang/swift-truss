@@ -26,6 +26,9 @@ public enum TIR {
     public final class FunctionRegistry {
         public var functions: [Int: Function] = [:]
         public init() {}
+        public var nextId: Int {
+            functions.count
+        }
     }
 
     public final class GlobalVariable {

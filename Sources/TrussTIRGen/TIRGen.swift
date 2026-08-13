@@ -5,8 +5,7 @@ public final class TIRGen: AST.Visitor {
     private let context: Context
     private let typeLower: TypeLower
     private var module = TIR.Module()
-    private var functionRegistry = TIR.FunctionRegistry()
-    private var functionCounter = 0
+    private var functionRegistry: TIR.FunctionRegistry? = nil
     private var builder: TIRBuilder? = nil
     private var functionsBySymbol: [Id.SymbolId: TIR.Function] = [:]
     private var env: [Id.SymbolId: TIR.Value] = [:]
@@ -66,7 +65,6 @@ public final class TIRGen: AST.Visitor {
         staticVariableSymbols = []
         deinitFunctionsByType = [:]
         functionRegistry = TIR.FunctionRegistry()
-        functionCounter = 0
         var modules: [TIR.Module] = []
         for program in programs {
             let programModule = TIR.Module()
@@ -572,9 +570,11 @@ public final class TIRGen: AST.Visitor {
         isVariadic: Bool = false, isAsync: Bool = false,
         isThrowing: Bool = false, throwsTypes: [TIRType.TIRType] = []
     ) -> TIR.Function {
-        functionCounter += 1
+        guard let functionRegistry else {
+            fatalError("unreachable")
+        }
         let function = TIR.Function(
-            id: functionCounter, name: name, returnType: returnType, isVariadic: isVariadic,
+            id: functionRegistry.nextId, name: name, returnType: returnType, isVariadic: isVariadic,
             isAsync: isAsync, isThrowing: isThrowing, throwsTypes: throwsTypes
         )
         function.symbol = symbol
@@ -918,11 +918,13 @@ public final class TIRGen: AST.Visitor {
     private func lowerGlobalInitializer(
         _ variableDecl: AST.VariableDecl, symbol: Symbol.VariableSymbol
     ) {
+        guard let functionRegistry else {
+            fatalError("unreachable")
+        }
         guard let global = globalsBySymbol[symbol.id], global.initializer.isEmpty else { return }
         guard let initializer = variableDecl.initializer else { return }
-        functionCounter += 1
         let initFunction = TIR.Function(
-            id: functionCounter, name: mangleGlobalName(symbol) + "_" + mangleIdentifier("init"),
+            id: functionRegistry.nextId, name: mangleGlobalName(symbol) + "_" + mangleIdentifier("init"),
             returnType: global.type
         )
         functionRegistry.functions[initFunction.id] = initFunction

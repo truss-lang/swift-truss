@@ -46,6 +46,10 @@ public final class Context {
 }
 
 public extension Context {
+    func emitError(_ message: String, at range: SourceRange) {
+        diagnositicEngine.emit(Diagnostic(severity: .error, message: message, range: range))
+    }
+
     func emitError(_ message: String, at token: Token) {
         emitError(message, at: token, notes: [])
     }

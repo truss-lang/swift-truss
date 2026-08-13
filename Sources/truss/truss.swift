@@ -22,9 +22,10 @@ struct truss {
             M.f3()
         }
         module M {
-            func f3() {
+            packageprivate func f3() {
             }
         }
+        let tt = TT()
         protocol P {}
         protocol P2: P {}
         struct S: P2 {
@@ -78,6 +79,7 @@ struct truss {
         }
         #[cname("has_cname")]
         func hasCName() {
+            /*
             match 1 {
                 2 => {
                     let a = 1
@@ -86,6 +88,7 @@ struct truss {
                     let b = 2
                 }
             }
+            */
             match En.SomeCase {
                 .SomeCase => {
 
@@ -98,7 +101,7 @@ struct truss {
         """
         let result = Driver(
             config: DriverConfig(
-                dumpAST: true, dumpSymbols: true, dumpTIR: true, dumpSource: true,
+                dumpAST: true, dumpSymbols: true, dumpTIR: true, dumpLLVMIR: true, dumpSource: true,
                 dumpOnError: true
             )
         ).runString(source)

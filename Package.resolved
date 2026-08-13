@@ -1,13 +1,13 @@
 {
-  "originHash" : "dd7c26d9d3fe46199dc2e6aae3f65b25082fc4b429c5491757ea8c82d4b6fc61",
+  "originHash" : "9be711598d8192527be1b026f65927c8a6fc157046ad0421bbe9b82e6111d486",
   "pins" : [
     {
       "identity" : "llvm-swift-binding",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/xiaoli-white/llvm-swift-binding",
       "state" : {
-        "revision" : "d55a45639b7b0bfe566423e90afb3dc90f558195",
-        "version" : "1.0.1"
+        "revision" : "bb28ec2660cb7d5e6150df616b4ac2458ad522f2",
+        "version" : "1.0.4"
       }
     },
     {
@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/xiaoli-white/swift-better-diagnostic.git",
       "state" : {
-        "revision" : "a9e572faacc6ef43230255a7d258b9e8402b9e43",
-        "version" : "1.1.2"
+        "revision" : "2ac17b7e0322e405d1ee9aef5cb69fb5d2f9cd48",
+        "version" : "1.1.3"
       }
     },
     {
