@@ -176,6 +176,9 @@ extension TIR {
         open func visitNullLiteral(_ instruction: NullLiteral, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
+        open func visitNullptrLiteral(_ instruction: NullptrLiteral, additional: Any? = nil) -> Any? { nil }
+
+        @discardableResult
         open func visitVoidLiteral(_ instruction: VoidLiteral, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult

@@ -78,6 +78,18 @@ public extension TIR {
         }
     }
 
+    final class NullptrLiteral: Instruction {
+        public let pointerType: TIRType.PointerType
+        public init(type pointerType: TIRType.PointerType, sourceRange: SourceRange) {
+            self.pointerType = pointerType
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitNullptrLiteral(self, additional: additional)
+        }
+    }
+
     final class VoidLiteral: Instruction {
         public override init(_ sourceRange: SourceRange) {
             super.init(sourceRange)

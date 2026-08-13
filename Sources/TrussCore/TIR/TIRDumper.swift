@@ -311,6 +311,8 @@ public extension TIR {
                 return result + "BoolLiteral " + String(instruction.value)
             case is NullLiteral:
                 return result + "NullLiteral"
+            case is NullptrLiteral:
+                return result + "NullptrLiteral"
             case is VoidLiteral:
                 return result + "VoidLiteral"
             case let instruction as ArrayValue:

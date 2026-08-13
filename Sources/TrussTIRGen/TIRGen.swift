@@ -1720,9 +1720,11 @@ public final class TIRGen: AST.Visitor {
         _ nullPointerLiteral: AST.NullPointerLiteral, additional: Any? = nil
     ) -> Any? {
         guard let builder else { return nil }
-        let type = (nullPointerLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
+        guard let ty = nullPointerLiteral.ty, let type = typeLower.lower(ty) as? TIRType.PointerType else {
+            return nil
+        }
         return builder.emitWithResult(
-            TIR.NullLiteral(type: type, sourceRange: nullPointerLiteral.sourceRange),
+            TIR.NullptrLiteral(type: type, sourceRange: nullPointerLiteral.sourceRange),
             type: type, ownership: .Trivial
         )
     }
