@@ -944,10 +944,40 @@ public final class TypeChecker: AST.Visitor {
     }
 
     private func checkBoolCondition(_ condition: AST.Expression, at token: Token) {
+        let unwrapped = unwrapParentheses(condition)
+        if let binding = unwrapped as? AST.OptionalBinding {
+            bindOptionalBindingVariable(binding, at: token)
+            _ = infer(binding, at: token)
+            return
+        }
         if let boolType = stdType(named: "Bool") {
             check(condition, boolType, at: token)
         } else {
             _ = infer(condition, at: token)
+        }
+    }
+
+    private func unwrapParentheses(_ expression: AST.Expression) -> AST.Expression {
+        if let parenthetical = expression as? AST.Parenthetical {
+            return unwrapParentheses(parenthetical.inner)
+        }
+        return expression
+    }
+
+    private func bindOptionalBindingVariable(
+        _ optionalBinding: AST.OptionalBinding, at token: Token
+    ) {
+        guard let valueType = infer(optionalBinding.value, at: token),
+              let variableSymbol = scopeStack.last?.values[optionalBinding.name.value]?
+              .first as? Symbol.VariableSymbol
+        else {
+            return
+        }
+        let unwrapped = (valueType as? TrussType.OptionalType)?.wrapped ?? valueType
+        if let existing = variableSymbol.type {
+            _ = unify(existing, unwrapped, at: token)
+        } else {
+            variableSymbol.type = unwrapped
         }
     }
 
@@ -1897,58 +1927,60 @@ public final class TypeChecker: AST.Visitor {
             }
             expression.ty = TrussType.TupleType(elements)
         case let ifExpression as AST.If:
-            checkBoolCondition(ifExpression.condition, at: ifExpression.token)
-            let narrowed: (id: Id.SymbolId, type: TrussType.PointerType)? =
-                if let binary = ifExpression.condition as? AST.Binary,
-                binary.operatorToken.value == "!=",
-                binary.right is AST.NullPointerLiteral,
-                let variable = binary.left as? AST.Variable,
-                let symbol = variable.symbol,
-                let pointer = binary.left.ty.map({ resolve($0) })
-                as? TrussType.PointerType,
-                !pointer.isNonnull {
-                    (symbol.id, TrussType.PointerType(pointer.pointee, isNonnull: true))
-                } else {
-                    nil
+            withScope(ifExpression.scope) {
+                checkBoolCondition(ifExpression.condition, at: ifExpression.token)
+                let narrowed: (id: Id.SymbolId, type: TrussType.PointerType)? =
+                    if let binary = ifExpression.condition as? AST.Binary,
+                    binary.operatorToken.value == "!=",
+                    binary.right is AST.NullPointerLiteral,
+                    let variable = binary.left as? AST.Variable,
+                    let symbol = variable.symbol,
+                    let pointer = binary.left.ty.map({ resolve($0) })
+                    as? TrussType.PointerType,
+                    !pointer.isNonnull {
+                        (symbol.id, TrussType.PointerType(pointer.pointee, isNonnull: true))
+                    } else {
+                        nil
+                    }
+                if let narrowed {
+                    narrowedPointerTypes[narrowed.id] = narrowed.type
                 }
-            if let narrowed {
-                narrowedPointerTypes[narrowed.id] = narrowed.type
-            }
-            for statement in ifExpression.then {
-                visit(statement)
-            }
-            if let narrowed {
-                narrowedPointerTypes[narrowed.id] = nil
-            }
-            let thenType: TrussType.TrussType =
-                if let expressionStatement = ifExpression.then.last as? AST.ExpressionStatement,
-                let ty = infer(expressionStatement.expression, at: token) {
-                    ty
-                } else {
-                    TrussType.VoidType.INSTANCE
-                }
-            let elseType: TrussType.TrussType?
-            switch ifExpression.elseKind {
-            case let .Block(statements):
-                for statement in statements {
+                for statement in ifExpression.then {
                     visit(statement)
                 }
-                elseType =
-                    if let expressionStatement = statements.last as? AST.ExpressionStatement,
+                if let narrowed {
+                    narrowedPointerTypes[narrowed.id] = nil
+                }
+                let thenType: TrussType.TrussType =
+                    if let expressionStatement = ifExpression.then.last as? AST.ExpressionStatement,
                     let ty = infer(expressionStatement.expression, at: token) {
                         ty
                     } else {
                         TrussType.VoidType.INSTANCE
                     }
-            case let .If(innerIf):
-                elseType = infer(innerIf, at: token) ?? TrussType.VoidType.INSTANCE
-            case nil:
-                elseType = nil
-            }
-            if let elseType {
-                expression.ty = join([thenType, elseType], at: token)
-            } else {
-                expression.ty = TrussType.VoidType.INSTANCE
+                let elseType: TrussType.TrussType?
+                switch ifExpression.elseKind {
+                case let .Block(statements):
+                    for statement in statements {
+                        visit(statement)
+                    }
+                    elseType =
+                        if let expressionStatement = statements.last as? AST.ExpressionStatement,
+                        let ty = infer(expressionStatement.expression, at: token) {
+                            ty
+                        } else {
+                            TrussType.VoidType.INSTANCE
+                        }
+                case let .If(innerIf):
+                    elseType = infer(innerIf, at: token) ?? TrussType.VoidType.INSTANCE
+                case nil:
+                    elseType = nil
+                }
+                if let elseType {
+                    expression.ty = join([thenType, elseType], at: token)
+                } else {
+                    expression.ty = TrussType.VoidType.INSTANCE
+                }
             }
         case let matchExpression as AST.Match:
             let subjectType = infer(matchExpression.subject, at: token)
@@ -2276,6 +2308,9 @@ public final class TypeChecker: AST.Visitor {
         case is AST.FloatLiteral:
             expression.ty = stdType(named: "Float64")
         case is AST.BoolLiteral:
+            expression.ty = stdType(named: "Bool")
+        case let optionalBinding as AST.OptionalBinding:
+            _ = infer(optionalBinding.value, at: token)
             expression.ty = stdType(named: "Bool")
         case is AST.VoidLiteral:
             expression.ty = TrussType.VoidType.INSTANCE

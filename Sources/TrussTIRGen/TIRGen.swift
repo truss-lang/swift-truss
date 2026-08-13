@@ -1141,7 +1141,8 @@ public final class TIRGen: AST.Visitor {
         range: SourceRange
     ) {
         guard let builder else { return }
-        if let binding = condition as? AST.OptionalBinding {
+        let unwrapped = unwrapParentheses(condition)
+        if let binding = unwrapped as? AST.OptionalBinding {
             guard let value = visitExpression(binding.value) else { return }
             let someBlock = builder.createBlock()
             let noneBlock = builder.createBlock()
@@ -1172,6 +1173,13 @@ public final class TIRGen: AST.Visitor {
             )
         }
         builder.switchToBlock(trueBlock)
+    }
+
+    private func unwrapParentheses(_ expression: AST.Expression) -> AST.Expression {
+        if let parenthetical = expression as? AST.Parenthetical {
+            return unwrapParentheses(parenthetical.inner)
+        }
+        return expression
     }
 
     @discardableResult
@@ -2192,6 +2200,9 @@ public final class TIRGen: AST.Visitor {
         if binary.operatorToken.value == "=" {
             return emitAssignment(binary)
         }
+        if binary.operatorToken.value == "&&" {
+            return emitShortCircuitAnd(binary)
+        }
         let left = visitExpression(binary.left)
         let right = visitExpression(binary.right)
         guard let functionSymbol = binary.symbol, let function = functionsBySymbol[functionSymbol.id]
@@ -2213,6 +2224,41 @@ public final class TIRGen: AST.Visitor {
             ),
             type: resultType, ownership: typeLower.ownership(for: resultType)
         )
+    }
+
+    private func emitShortCircuitAnd(_ binary: AST.Binary) -> TIR.Value? {
+        guard let builder, let left = visitExpression(binary.left) else { return nil }
+        let resultType = (binary.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
+        let rhsBlock = builder.createBlock()
+        let falseBlock = builder.createBlock()
+        let joinBlock = builder.createBlock()
+        builder.emit(
+            TIR.CondBranch(
+                condition: left, trueBlock: rhsBlock, falseBlock: falseBlock,
+                sourceRange: binary.sourceRange
+            )
+        )
+        var incomings: [(TIR.Value, TIR.BasicBlock)] = []
+        builder.switchToBlock(rhsBlock)
+        if let right = visitExpression(binary.right) {
+            incomings.append((right, rhsBlock))
+        } else {
+            let falseValue = builder.emitWithResult(
+                TIR.BoolLiteral(false, sourceRange: binary.sourceRange),
+                type: resultType, ownership: .Trivial
+            )
+            incomings.append((falseValue, rhsBlock))
+        }
+        builder.emit(TIR.Branch(joinBlock, sourceRange: binary.sourceRange))
+        builder.switchToBlock(falseBlock)
+        let falseValue = builder.emitWithResult(
+            TIR.BoolLiteral(false, sourceRange: binary.sourceRange),
+            type: resultType, ownership: .Trivial
+        )
+        incomings.append((falseValue, falseBlock))
+        builder.emit(TIR.Branch(joinBlock, sourceRange: binary.sourceRange))
+        builder.switchToBlock(joinBlock)
+        return emitPhi(incomings, range: binary.sourceRange)
     }
 
     private func emitAssignment(_ binary: AST.Binary) -> TIR.Value? {
@@ -2640,11 +2686,38 @@ public final class TIRGen: AST.Visitor {
     public override func visitOptionalBinding(
         _ optionalBinding: AST.OptionalBinding, additional: Any? = nil
     ) -> Any? {
-        guard let value = visitExpression(optionalBinding.value) else { return nil }
-        bindPatternValue(
-            name: optionalBinding.name.value, value: value, at: optionalBinding.sourceRange
+        guard let builder, let value = visitExpression(optionalBinding.value) else { return nil }
+        let boolType = (optionalBinding.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
+        let someBlock = builder.createBlock()
+        let noneBlock = builder.createBlock()
+        builder.emit(
+            TIR.SwitchEnum(
+                value,
+                cases: [
+                    TIR.EnumCaseBranch(caseName: "some", block: someBlock),
+                    TIR.EnumCaseBranch(caseName: "none", block: noneBlock),
+                ],
+                defaultBlock: nil, sourceRange: optionalBinding.sourceRange
+            )
         )
-        return value
+        let joinBlock = builder.createBlock()
+        var incomings: [(TIR.Value, TIR.BasicBlock)] = []
+        builder.switchToBlock(someBlock)
+        let trueValue = builder.emitWithResult(
+            TIR.BoolLiteral(true, sourceRange: optionalBinding.sourceRange),
+            type: boolType, ownership: .Trivial
+        )
+        incomings.append((trueValue, someBlock))
+        builder.emit(TIR.Branch(joinBlock, sourceRange: optionalBinding.sourceRange))
+        builder.switchToBlock(noneBlock)
+        let falseValue = builder.emitWithResult(
+            TIR.BoolLiteral(false, sourceRange: optionalBinding.sourceRange),
+            type: boolType, ownership: .Trivial
+        )
+        incomings.append((falseValue, noneBlock))
+        builder.emit(TIR.Branch(joinBlock, sourceRange: optionalBinding.sourceRange))
+        builder.switchToBlock(joinBlock)
+        return emitPhi(incomings, range: optionalBinding.sourceRange)
     }
 
     @discardableResult

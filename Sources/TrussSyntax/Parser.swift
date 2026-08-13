@@ -3886,6 +3886,13 @@ public final class Parser {
                     }
                 }
             default:
+                if case let .Keyword(kind) = token.kind,
+                   kind == .Let || kind == .Var,
+                   let lastToken = last,
+                   token.pos.line != lastToken.pos.line
+                {
+                    break _loop
+                }
                 if !lastIsExpression, !(justClosedAngle && peek?.kind == .Separator(.OpenBrace)),
                    let expr = parsePrimary(
                        excepts, isCondition: isCondition, isTypeContext: isTypeContext
@@ -4043,7 +4050,7 @@ public final class Parser {
                         )
                     )
                 } else {
-                    return nil
+                    expression = parseOptionalBinding(token)
                 }
             case .SomeKw, .AnyKw:
                 index += 1

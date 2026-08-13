@@ -156,3 +156,41 @@ import Testing
     try #require(tir.contains("BoolLiteral false"))
     try #require(tir.contains("Phi"))
 }
+
+@Test func optionalBindingExpressionLowersToBoolPhi() throws {
+    let tir = dumpTIR(
+        """
+        struct S {
+            init() {}
+        }
+        func f(a: S?) {
+            let b = (let x = a)
+        }
+        """,
+        installBuiltin: true
+    )
+    try #require(tir.contains("SwitchEnum"))
+    try #require(tir.contains("BoolLiteral true"))
+    try #require(tir.contains("BoolLiteral false"))
+    try #require(tir.contains("Phi"))
+}
+
+@Test func logicalAndShortCircuits() throws {
+    let tir = dumpTIR(
+        """
+        precedencegroup LogicalAnd { associativity: left }
+        infix operator &&: LogicalAnd
+        func &&(lhs: Builtin.Bool, rhs: Builtin.Bool) -> Builtin.Bool {
+            lhs
+        }
+        func f(a: Builtin.Bool, b: Builtin.Bool) -> Builtin.Bool {
+            return a && b
+        }
+        """,
+        installBuiltin: true
+    )
+    try #require(tir.contains("CondBranch"))
+    try #require(tir.contains("BoolLiteral false"))
+    try #require(tir.contains("Phi"))
+    try #require(!tir.contains("Apply "))
+}

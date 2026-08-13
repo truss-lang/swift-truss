@@ -1696,3 +1696,49 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     )
     #expect(!context.diagnositicEngine.hasErrors)
 }
+
+@Test func optionalBindingExpressionInfersToBool() throws {
+    let (context, programs) = runTypeChecker(
+        ["struct S { init() {} }\nfunc f(a: S?) {\n    let b = (let x = a)\n}"],
+        installBuiltin: true
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+    let functionDecl = try #require(programs[0].statements[1] as? AST.FunctionDecl)
+    let body = try #require(functionDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let variableDecl = try #require(statements[0] as? AST.VariableDecl)
+    let type = try #require(variableDecl.symbol?.type as? TrussType.BuiltinType)
+    #expect(type.name == "Bool")
+    let xSymbol = try #require(functionDecl.symbol?.scope.values["x"]?.first as? Symbol.VariableSymbol)
+    #expect(xSymbol.type == nil)
+}
+
+@Test func optionalBindingConditionBindsVariable() throws {
+    let (context, programs) = runTypeChecker(
+        ["struct S { init() {} }\nfunc f(a: S?) {\n    if (let x = a) {\n    }\n}"],
+        installBuiltin: true
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+    let functionDecl = try #require(programs[0].statements[1] as? AST.FunctionDecl)
+    let body = try #require(functionDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let expressionStatement = try #require(statements[0] as? AST.ExpressionStatement)
+    let ifExpression = try #require(expressionStatement.expression as? AST.If)
+    let xSymbol = try #require(ifExpression.scope?.values["x"]?.first as? Symbol.VariableSymbol)
+    let xType = try #require(xSymbol.type)
+    #expect(xType is TrussType.StructType)
+}
+
+@Test func optionalBindingExpressionAsIfConditionPasses() {
+    let (context, _) = runTypeChecker(
+        ["struct S { init() {} }\nfunc f(a: S?) {\n    if (let x = a) {\n    }\n}"],
+        installBuiltin: true
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
