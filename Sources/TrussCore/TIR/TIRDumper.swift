@@ -421,6 +421,7 @@ public extension TIR {
             case .Unsigned: "u"
             case .Float: "f"
             case .Bool: "b"
+            case .Char: "c"
             }
         }
 

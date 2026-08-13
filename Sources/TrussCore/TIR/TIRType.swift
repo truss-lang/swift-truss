@@ -56,6 +56,7 @@ public enum TIRType {
         case Unsigned
         case Float
         case Bool
+        case Char
     }
 
     public final class PrimitiveType: TIRType {

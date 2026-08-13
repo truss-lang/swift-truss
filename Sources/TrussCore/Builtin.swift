@@ -28,6 +28,7 @@ public enum Builtin {
         TypeInfo(name: "Float32", kind: .Float, bitWidth: 32),
         TypeInfo(name: "Float64", kind: .Float, bitWidth: 64),
         TypeInfo(name: "Bool", kind: .Bool, bitWidth: 1),
+        TypeInfo(name: "Char", kind: .Char, bitWidth: 32),
     ]
 
     @discardableResult

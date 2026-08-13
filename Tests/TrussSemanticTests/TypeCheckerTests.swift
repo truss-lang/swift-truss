@@ -1607,11 +1607,11 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     #expect(type is TrussType.StructType)
 }
 
-@Test func integerLiteralInfersToInt64() throws {
+@Test func integerLiteralInfersToInt32() throws {
     let (context, programs) = runTypeChecker(["let v = 42"], installBuiltin: true)
     let variableDecl = try #require(programs[0].statements[0] as? AST.VariableDecl)
     let type = try #require(variableDecl.symbol?.type as? TrussType.BuiltinType)
-    #expect(type.name == "Int64")
+    #expect(type.name == "Int32")
     #expect(!context.diagnositicEngine.hasErrors)
 }
 

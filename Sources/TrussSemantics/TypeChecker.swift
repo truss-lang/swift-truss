@@ -2304,11 +2304,13 @@ public final class TypeChecker: AST.Visitor {
             nullptrLiteralTokens[ObjectIdentifier(variable)] = nullPointer.token
             expression.ty = variable
         case is AST.IntegerLiteral:
-            expression.ty = stdType(named: "Int64")
+            expression.ty = stdType(named: "Int32")
         case is AST.FloatLiteral:
             expression.ty = stdType(named: "Float64")
         case is AST.BoolLiteral:
             expression.ty = stdType(named: "Bool")
+        case is AST.CharLiteral:
+            expression.ty = stdType(named: "Char")
         case let optionalBinding as AST.OptionalBinding:
             _ = infer(optionalBinding.value, at: token)
             expression.ty = stdType(named: "Bool")
@@ -2908,6 +2910,24 @@ public final class TypeChecker: AST.Visitor {
                     emitMismatch(at: token, expected: expected, found: actual)
                 }
             }
+        case is AST.IntegerLiteral:
+            if let kind = builtinPrimitiveKind(of: expected),
+               kind == .Signed || kind == .Unsigned || kind == .Float
+            {
+                expression.ty = expected
+            } else if let actual = infer(expression, at: token) {
+                if !canCoerce(actual, to: expected, at: token) {
+                    emitMismatch(at: token, expected: expected, found: actual)
+                }
+            }
+        case is AST.FloatLiteral:
+            if let kind = builtinPrimitiveKind(of: expected), kind == .Float {
+                expression.ty = expected
+            } else if let actual = infer(expression, at: token) {
+                if !canCoerce(actual, to: expected, at: token) {
+                    emitMismatch(at: token, expected: expected, found: actual)
+                }
+            }
         default:
             if let actual = infer(expression, at: token) {
                 if !canCoerce(actual, to: expected, at: token) {
@@ -2915,6 +2935,15 @@ public final class TypeChecker: AST.Visitor {
                 }
             }
         }
+    }
+
+    private func builtinPrimitiveKind(of type: TrussType.TrussType) -> TIRType.PrimitiveKind? {
+        guard let builtin = type as? TrussType.BuiltinType,
+              let info = Builtin.typeInfos.first(where: { $0.name == builtin.name })
+        else {
+            return nil
+        }
+        return info.kind
     }
 
     private func callTargetName(_ expression: AST.Expression) -> String? {
