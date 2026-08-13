@@ -3,9 +3,12 @@ import SwiftBetterDiagnostic
 
 public extension TIR {
     final class Dumper {
+        private var functionRegistry: TIR.FunctionRegistry?
+
         public init() {}
 
         public func dump(_ module: TIR.Module) -> String {
+            functionRegistry = module.functionRegistry
             var lines: [String] = []
             let types = collectTypes(module)
             if !types.isEmpty {
@@ -213,9 +216,12 @@ public extension TIR {
             case let instruction as MoveValue:
                 return result + "MoveValue " + instruction.value.name
             case let instruction as FunctionRef:
-                return result + "FunctionRef " + instruction.function.name
+                return result + "FunctionRef "
+                    + (functionRegistry?.functions[instruction.functionId]?.name ?? "?")
             case let instruction as Closure:
-                return result + "Closure " + instruction.function.name + "(captures: "
+                return result + "Closure "
+                    + (functionRegistry?.functions[instruction.functionId]?.name ?? "?")
+                    + "(captures: "
                     + instruction.captures.map(\.name).joined(separator: ", ") + ")"
             case let instruction as ClassMethod:
                 return result + "ClassMethod " + instruction.reference.name + ", "

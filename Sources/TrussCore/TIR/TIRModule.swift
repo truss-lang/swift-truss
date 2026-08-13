@@ -19,6 +19,12 @@ public enum TIR {
     public final class Module {
         public var globals: [GlobalVariable] = []
         public var functions: [Function] = []
+        public var functionRegistry: FunctionRegistry?
+        public init() {}
+    }
+
+    public final class FunctionRegistry {
+        public var functions: [Int: Function] = [:]
         public init() {}
     }
 
@@ -34,6 +40,7 @@ public enum TIR {
     }
 
     public final class Function {
+        public let id: Int
         public var symbol: Symbol.FunctionSymbol?
         public var name: String
         public var genericSignature: TIRType.GenericSignature?
@@ -46,9 +53,10 @@ public enum TIR {
         public let entryBlock: BasicBlock
         public var blocks: [BasicBlock]
         public init(
-            name: String, returnType: TIRType.TIRType, isVariadic: Bool = false, isAsync: Bool = false,
-            isThrowing: Bool = false, throwsTypes: [TIRType.TIRType] = []
+            id: Int, name: String, returnType: TIRType.TIRType, isVariadic: Bool = false,
+            isAsync: Bool = false, isThrowing: Bool = false, throwsTypes: [TIRType.TIRType] = []
         ) {
+            self.id = id
             self.name = name
             self.returnType = returnType
             self.isVariadic = isVariadic

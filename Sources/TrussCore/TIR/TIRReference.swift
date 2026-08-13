@@ -12,9 +12,9 @@ public extension TIR {
     }
 
     final class FunctionRef: Instruction {
-        public let function: Function
-        public init(_ function: Function, sourceRange: SourceRange) {
-            self.function = function
+        public let functionId: Int
+        public init(functionId: Int, sourceRange: SourceRange) {
+            self.functionId = functionId
             super.init(sourceRange)
         }
 
@@ -24,10 +24,10 @@ public extension TIR {
     }
 
     final class Closure: Instruction {
-        public let function: Function
+        public let functionId: Int
         public let captures: [Value]
-        public init(_ function: Function, captures: [Value], sourceRange: SourceRange) {
-            self.function = function
+        public init(functionId: Int, captures: [Value], sourceRange: SourceRange) {
+            self.functionId = functionId
             self.captures = captures
             super.init(sourceRange)
         }

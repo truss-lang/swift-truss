@@ -5,6 +5,8 @@ public final class TIRGen: AST.Visitor {
     private let context: Context
     private let typeLower: TypeLower
     private var module = TIR.Module()
+    private var functionRegistry = TIR.FunctionRegistry()
+    private var functionCounter = 0
     private var builder: TIRBuilder? = nil
     private var functionsBySymbol: [Id.SymbolId: TIR.Function] = [:]
     private var env: [Id.SymbolId: TIR.Value] = [:]
@@ -63,9 +65,12 @@ public final class TIRGen: AST.Visitor {
         globalNamesBySymbol = [:]
         staticVariableSymbols = []
         deinitFunctionsByType = [:]
+        functionRegistry = TIR.FunctionRegistry()
+        functionCounter = 0
         var modules: [TIR.Module] = []
         for program in programs {
             let programModule = TIR.Module()
+            programModule.functionRegistry = functionRegistry
             modules.append(programModule)
             module = programModule
             collectFunctions(in: program)
@@ -567,12 +572,14 @@ public final class TIRGen: AST.Visitor {
         isVariadic: Bool = false, isAsync: Bool = false,
         isThrowing: Bool = false, throwsTypes: [TIRType.TIRType] = []
     ) -> TIR.Function {
+        functionCounter += 1
         let function = TIR.Function(
-            name: name, returnType: returnType, isVariadic: isVariadic, isAsync: isAsync, isThrowing: isThrowing,
-            throwsTypes: throwsTypes
+            id: functionCounter, name: name, returnType: returnType, isVariadic: isVariadic,
+            isAsync: isAsync, isThrowing: isThrowing, throwsTypes: throwsTypes
         )
         function.symbol = symbol
         module.functions.append(function)
+        functionRegistry.functions[function.id] = function
         if let symbol {
             functionsBySymbol[symbol.id] = function
         }
@@ -913,9 +920,12 @@ public final class TIRGen: AST.Visitor {
     ) {
         guard let global = globalsBySymbol[symbol.id], global.initializer.isEmpty else { return }
         guard let initializer = variableDecl.initializer else { return }
+        functionCounter += 1
         let initFunction = TIR.Function(
-            name: mangleGlobalName(symbol) + "_" + mangleIdentifier("init"), returnType: global.type
+            id: functionCounter, name: mangleGlobalName(symbol) + "_" + mangleIdentifier("init"),
+            returnType: global.type
         )
+        functionRegistry.functions[initFunction.id] = initFunction
         let savedBuilder = builder
         let savedEnv = env
         let initBuilder = TIRBuilder(function: initFunction)
@@ -1784,7 +1794,7 @@ public final class TIRGen: AST.Visitor {
         if let getter = accessorFunctions[symbol.id]?["get"] {
             let selfValue = loadFrom(selfAddress, range: range) ?? selfAddress
             let callee = builder.emitWithResult(
-                TIR.FunctionRef(getter, sourceRange: range),
+                TIR.FunctionRef(functionId: getter.id, sourceRange: range),
                 type: accessorType(getter, withValue: false), ownership: .Trivial
             )
             return builder.emitWithResult(
@@ -1902,7 +1912,7 @@ public final class TIRGen: AST.Visitor {
     ) {
         guard let builder else { return }
         let callee = builder.emitWithResult(
-            TIR.FunctionRef(deinitFunction, sourceRange: range),
+            TIR.FunctionRef(functionId: deinitFunction.id, sourceRange: range),
             type: initFunctionType(deinitFunction), ownership: .Trivial
         )
         let selfValue = loadFrom(selfAddress, range: range) ?? selfAddress
@@ -2059,7 +2069,7 @@ public final class TIRGen: AST.Visitor {
                let initFunction = initFunctionsByType[typeSymbol.id]
             {
                 return builder?.emitWithResult(
-                    TIR.FunctionRef(initFunction, sourceRange: range),
+                    TIR.FunctionRef(functionId: initFunction.id, sourceRange: range),
                     type: initFunctionType(initFunction), ownership: .Trivial
                 )
             }
@@ -2069,6 +2079,11 @@ public final class TIRGen: AST.Visitor {
                 ?? member.overloads?.first
             {
                 if functionSymbol.isStatic {
+                    return functionRefValue(functionSymbol, at: range)
+                }
+                if let variable = member.object as? AST.Variable,
+                   variable.symbol is Symbol.ModuleSymbol
+                {
                     return functionRefValue(functionSymbol, at: range)
                 }
                 guard let object = visitExpression(member.object) else { return nil }
@@ -2131,7 +2146,7 @@ public final class TIRGen: AST.Visitor {
         guard let builder, let function = functionsBySymbol[symbol.id] else { return nil }
         let functionType = symbol.functionType.map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
-            TIR.FunctionRef(function, sourceRange: range), type: functionType, ownership: .Trivial
+            TIR.FunctionRef(functionId: function.id, sourceRange: range), type: functionType, ownership: .Trivial
         )
     }
 
@@ -2171,7 +2186,7 @@ public final class TIRGen: AST.Visitor {
            let getter = accessorFunctions[variableSymbol.id]?["get"]
         {
             let callee = builder.emitWithResult(
-                TIR.FunctionRef(getter, sourceRange: memberAccess.sourceRange),
+                TIR.FunctionRef(functionId: getter.id, sourceRange: memberAccess.sourceRange),
                 type: getterType(getter), ownership: .Trivial
             )
             return builder.emitWithResult(
@@ -2263,7 +2278,7 @@ public final class TIRGen: AST.Visitor {
             return nil
         }
         let callee = builder.emitWithResult(
-            TIR.FunctionRef(function, sourceRange: binary.sourceRange),
+            TIR.FunctionRef(functionId: function.id, sourceRange: binary.sourceRange),
             type: methodType(functionSymbol), ownership: .Trivial
         )
         let resultType = (binary.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
@@ -2439,7 +2454,7 @@ public final class TIRGen: AST.Visitor {
     ) {
         guard let builder else { return }
         let callee = builder.emitWithResult(
-            TIR.FunctionRef(function, sourceRange: range),
+            TIR.FunctionRef(functionId: function.id, sourceRange: range),
             type: accessorType(function, withValue: !arguments.isEmpty), ownership: .Trivial
         )
         builder.emitWithResult(
@@ -2480,7 +2495,7 @@ public final class TIRGen: AST.Visitor {
             return nil
         }
         let callee = builder.emitWithResult(
-            TIR.FunctionRef(function, sourceRange: prefix.sourceRange),
+            TIR.FunctionRef(functionId: function.id, sourceRange: prefix.sourceRange),
             type: methodType(functionSymbol), ownership: .Trivial
         )
         let resultType = (prefix.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
@@ -2504,7 +2519,7 @@ public final class TIRGen: AST.Visitor {
             return nil
         }
         let callee = builder.emitWithResult(
-            TIR.FunctionRef(function, sourceRange: postfix.sourceRange),
+            TIR.FunctionRef(functionId: function.id, sourceRange: postfix.sourceRange),
             type: methodType(functionSymbol), ownership: .Trivial
         )
         let resultType = (postfix.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
@@ -2705,7 +2720,7 @@ public final class TIRGen: AST.Visitor {
             return nil
         }
         let callee = builder.emitWithResult(
-            TIR.FunctionRef(function, sourceRange: subscriptExpression.sourceRange),
+            TIR.FunctionRef(functionId: function.id, sourceRange: subscriptExpression.sourceRange),
             type: methodType(functionSymbol), ownership: .Trivial
         )
         var arguments = [base]
@@ -2879,7 +2894,7 @@ public final class TIRGen: AST.Visitor {
         semanticScopes = savedSemanticScopes
 
         return builder.emitWithResult(
-            TIR.Closure(function, captures: captureCells, sourceRange: closure.sourceRange),
+            TIR.Closure(functionId: function.id, captures: captureCells, sourceRange: closure.sourceRange),
             type: closureType, ownership: .Owned
         )
     }
