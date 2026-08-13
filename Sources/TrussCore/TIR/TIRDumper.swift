@@ -388,12 +388,22 @@ public extension TIR {
             case let optional as TIRType.OptionalType:
                 return typeText(optional.wrapped) + "?"
             case let function as TIRType.FunctionType:
-                var text = "$(" + function.parameters.map { parameter in
+                let parameters = function.parameters.map { parameter in
                     if let label = parameter.label {
                         return label + ": " + innerTypeText(parameter.type)
                     }
                     return innerTypeText(parameter.type)
-                }.joined(separator: ", ") + ")"
+                }.joined(separator: ", ")
+                let variadic = if function.isVariadic {
+                    if parameters.isEmpty {
+                        "..."
+                    } else {
+                        ", ..."
+                    }
+                } else {
+                    ""
+                }
+                var text = "$(\(parameters)\(variadic))"
                 if function.isAsync { text += " async" }
                 if function.isThrowing {
                     text += " throws"

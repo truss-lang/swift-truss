@@ -210,7 +210,7 @@ public final class TypeChecker: AST.Visitor {
     }
 
     private func fillFunctionSignature(
-        parameters: [AST.FunctionDecl.Parameter], asyncToken: Token?,
+        parameters: [AST.FunctionDecl.Parameter], varargToken: Token?, asyncToken: Token?,
         throwsClause: AST.ThrowsClause?, returnType: TrussType.TrussType,
         genericDecl: AST.GenericDecl?, symbol: Symbol.FunctionSymbol
     ) {
@@ -218,6 +218,7 @@ public final class TypeChecker: AST.Visitor {
         let functionType = functionType(
             labels: parameters.map { $0.label?.value },
             parameterTypes: parameterTypes,
+            varargToken: varargToken,
             asyncToken: asyncToken,
             throwsClause: throwsClause,
             returnType: returnType
@@ -249,9 +250,9 @@ public final class TypeChecker: AST.Visitor {
                         TrussType.VoidType.INSTANCE
                     }
                 fillFunctionSignature(
-                    parameters: functionDecl.parameters, asyncToken: functionDecl.asyncToken,
-                    throwsClause: functionDecl.throwsClause, returnType: returnType,
-                    genericDecl: functionDecl.genericDecl, symbol: symbol
+                    parameters: functionDecl.parameters, varargToken: functionDecl.varargToken,
+                    asyncToken: functionDecl.asyncToken, throwsClause: functionDecl.throwsClause,
+                    returnType: returnType, genericDecl: functionDecl.genericDecl, symbol: symbol
                 )
             }
             return nil
@@ -270,6 +271,7 @@ public final class TypeChecker: AST.Visitor {
             let functionType = functionType(
                 labels: functionDecl.parameters.map { $0.label?.value },
                 parameterTypes: parameterTypes,
+                varargToken: functionDecl.varargToken,
                 asyncToken: functionDecl.asyncToken,
                 throwsClause: functionDecl.throwsClause,
                 returnType: returnType
@@ -309,7 +311,9 @@ public final class TypeChecker: AST.Visitor {
                     in: symbol.scope, genericDecl: initDecl.genericDecl, whereClause: nil
                 )
                 fillFunctionSignature(
-                    parameters: initDecl.parameters, asyncToken: initDecl.asyncToken,
+                    parameters: initDecl.parameters,
+                    varargToken: nil,
+                    asyncToken: initDecl.asyncToken,
                     throwsClause: initDecl.throwsClause,
                     returnType: TrussType.VoidType.INSTANCE,
                     genericDecl: initDecl.genericDecl, symbol: symbol
@@ -325,6 +329,7 @@ public final class TypeChecker: AST.Visitor {
             let functionType = functionType(
                 labels: initDecl.parameters.map { $0.label?.value },
                 parameterTypes: parameterTypes,
+                varargToken: nil,
                 asyncToken: initDecl.asyncToken,
                 throwsClause: initDecl.throwsClause,
                 returnType: TrussType.VoidType.INSTANCE
@@ -359,7 +364,9 @@ public final class TypeChecker: AST.Visitor {
         if collectFunctionSignatures || collectingSignatures {
             withScope(symbol.scope) {
                 fillFunctionSignature(
-                    parameters: subscriptDecl.parameters, asyncToken: subscriptDecl.asyncToken,
+                    parameters: subscriptDecl.parameters,
+                    varargToken: nil,
+                    asyncToken: subscriptDecl.asyncToken,
                     throwsClause: subscriptDecl.throwsClause,
                     returnType: evaluate(subscriptDecl.returnType),
                     genericDecl: subscriptDecl.genericDecl, symbol: symbol
@@ -373,6 +380,7 @@ public final class TypeChecker: AST.Visitor {
             let functionType = functionType(
                 labels: subscriptDecl.parameters.map { $0.label?.value },
                 parameterTypes: parameterTypes,
+                varargToken: nil,
                 asyncToken: subscriptDecl.asyncToken,
                 throwsClause: subscriptDecl.throwsClause,
                 returnType: returnType
@@ -758,6 +766,7 @@ public final class TypeChecker: AST.Visitor {
     private func functionType(
         labels: [String?],
         parameterTypes: [TrussType.TrussType],
+        varargToken: Token?,
         asyncToken: Token?,
         throwsClause: AST.ThrowsClause?,
         returnType: TrussType.TrussType
@@ -766,6 +775,7 @@ public final class TypeChecker: AST.Visitor {
             parameters: zip(labels, parameterTypes).map { label, type in
                 TrussType.FunctionType.Parameter(label: label, type: type)
             },
+            isVariadic: varargToken != nil,
             isAsync: asyncToken != nil,
             isThrowing: throwsClause != nil,
             throwsTypes: (throwsClause?.types ?? []).map(evaluate),
@@ -826,6 +836,7 @@ public final class TypeChecker: AST.Visitor {
                 result = functionType(
                     labels: closureType.parameters.map { $0.label?.value },
                     parameterTypes: parameters,
+                    varargToken: nil,
                     asyncToken: closureType.asyncToken,
                     throwsClause: closureType.throwsClause,
                     returnType: returnType
@@ -2544,6 +2555,7 @@ public final class TypeChecker: AST.Visitor {
                     let functionType = functionType(
                         labels: signature.parameters.map { $0.label?.value },
                         parameterTypes: parameterTypes,
+                        varargToken: nil,
                         asyncToken: signature.asyncToken,
                         throwsClause: signature.throwsClause,
                         returnType: returnType

@@ -107,15 +107,17 @@ public enum TIRType {
         }
 
         public let parameters: [Parameter]
+        public let isVariadic: Bool
         public let isAsync: Bool
         public let isThrowing: Bool
         public let throwsTypes: [TIRType]
         public let returnType: TIRType
         public init(
-            parameters: [Parameter], isAsync: Bool = false, isThrowing: Bool = false,
+            parameters: [Parameter], isVariadic: Bool = false, isAsync: Bool = false, isThrowing: Bool = false,
             throwsTypes: [TIRType] = [], returnType: TIRType
         ) {
             self.parameters = parameters
+            self.isVariadic = isVariadic
             self.isAsync = isAsync
             self.isThrowing = isThrowing
             self.throwsTypes = throwsTypes

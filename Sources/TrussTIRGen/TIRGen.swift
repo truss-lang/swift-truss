@@ -2139,7 +2139,11 @@ public final class TIRGen: AST.Visitor {
         let parameters = function.arguments.map {
             TIRType.FunctionType.Parameter(label: nil, type: $0.type)
         }
-        return TIRType.FunctionType(parameters: parameters, returnType: function.returnType)
+        return TIRType.FunctionType(
+            parameters: parameters,
+            isVariadic: function.isVariadic,
+            returnType: function.returnType
+        )
     }
 
     private func functionRefValue(_ symbol: Symbol.FunctionSymbol, at range: SourceRange) -> TIR.Value? {

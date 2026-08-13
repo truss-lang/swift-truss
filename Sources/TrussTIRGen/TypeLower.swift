@@ -33,6 +33,7 @@ final class TypeLower {
                 parameters: function.parameters.map {
                     TIRType.FunctionType.Parameter(label: $0.label, type: lower($0.type))
                 },
+                isVariadic: function.isVariadic,
                 isAsync: function.isAsync,
                 isThrowing: function.isThrowing,
                 throwsTypes: function.throwsTypes.map(lower),
