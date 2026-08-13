@@ -16,6 +16,7 @@ public final class TIRGen: AST.Visitor {
     private var closureCounter = 0
     private var semanticScopes: [Scope] = []
     private var pendingLoopLabel: String? = nil
+    private var labelBlocks: [String: TIR.BasicBlock] = [:]
     private var globalsBySymbol: [Id.SymbolId: TIR.GlobalVariable] = [:]
     private var globalNamesBySymbol: [Id.SymbolId: String] = [:]
     private var propertyInitializers: [Id.SymbolId: [(Symbol.VariableSymbol, AST.Expression)]] = [:]
@@ -87,6 +88,7 @@ public final class TIRGen: AST.Visitor {
             scopeStack = []
             semanticScopes = []
             pendingLoopLabel = nil
+            labelBlocks = [:]
             visitProgram(program)
         }
         return modules
@@ -601,6 +603,7 @@ public final class TIRGen: AST.Visitor {
         let savedError = errorTargets
         let savedClosureParams = closureParamValues
         let savedSemanticScopes = semanticScopes
+        let savedLabelBlocks = labelBlocks
 
         builder = TIRBuilder(function: function)
         env = [:]
@@ -609,6 +612,7 @@ public final class TIRGen: AST.Visitor {
         deferStack = []
         errorTargets = []
         closureParamValues = []
+        labelBlocks = [:]
         pushScope()
         if let scope = symbol?.scope {
             semanticScopes.append(scope)
@@ -644,6 +648,7 @@ public final class TIRGen: AST.Visitor {
         errorTargets = savedError
         closureParamValues = savedClosureParams
         semanticScopes = savedSemanticScopes
+        labelBlocks = savedLabelBlocks
     }
 
     private func bindSelfIfNeeded(
@@ -1073,22 +1078,61 @@ public final class TIRGen: AST.Visitor {
     public override func visitLabeledStatement(
         _ labeledStatement: AST.LabeledStatement, additional: Any? = nil
     ) -> Any? {
-        let savedLabel = pendingLoopLabel
-        pendingLoopLabel = labeledStatement.label.value
+        let isLoop = labeledStatement.body is AST.While
+            || labeledStatement.body is AST.RepeatWhile
+            || labeledStatement.body is AST.For
+        if isLoop {
+            let savedLabel = pendingLoopLabel
+            pendingLoopLabel = labeledStatement.label.value
+            _ = visit(labeledStatement.body, additional: additional)
+            pendingLoopLabel = savedLabel
+            return nil
+        }
+        guard let builder else { return nil }
+        let continuation = builder.currentBlock
+        let target = labelBlocks[labeledStatement.label.value] ?? builder.createBlock()
+        labelBlocks[labeledStatement.label.value] = target
+        builder.switchToBlock(target)
         _ = visit(labeledStatement.body, additional: additional)
-        pendingLoopLabel = savedLabel
+        if let last = builder.currentBlock.instructions.last, !isTerminator(last) {
+            builder.emit(TIR.Branch(continuation, sourceRange: labeledStatement.sourceRange))
+        }
+        builder.switchToBlock(continuation)
         return nil
     }
 
     @discardableResult
     public override func visitGoto(_ gotoStatement: AST.Goto, additional: Any? = nil) -> Any? {
-        builder?.emit(TIR.Trap(gotoStatement.sourceRange))
+        guard let builder else { return nil }
+        let target = labelBlocks[gotoStatement.label.value] ?? builder.createBlock()
+        labelBlocks[gotoStatement.label.value] = target
+        builder.emit(TIR.Branch(target, sourceRange: gotoStatement.sourceRange))
         return nil
     }
 
     @discardableResult
     public override func visitAsm(_ asmStatement: AST.Asm, additional: Any? = nil) -> Any? {
-        builder?.emit(TIR.Trap(asmStatement.sourceRange))
+        guard let builder else { return nil }
+        let template = asmStatement.templates.map(\.token.value).joined(separator: " ")
+        let constraints = asmStatement.bindings.map(\.constraint.value)
+        let options = asmStatement.options.map(\.value)
+        var operands: [TIR.Value] = []
+        for binding in asmStatement.bindings {
+            guard let local = binding.local,
+                  let symbol = currentScopeVariable(named: local.value),
+                  let address = env[symbol.id],
+                  let value = loadFrom(address, range: binding.sourceRange)
+            else {
+                continue
+            }
+            operands.append(value)
+        }
+        builder.emit(
+            TIR.InlineAsm(
+                template: template, constraints: constraints, operands: operands,
+                options: options, sourceRange: asmStatement.sourceRange
+            )
+        )
         return nil
     }
 

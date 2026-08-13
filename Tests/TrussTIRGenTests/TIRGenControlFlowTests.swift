@@ -120,7 +120,7 @@ import Testing
         try #require(tir.contains("Store "))
     }
 
-    @Test func gotoLowersToTrap() throws {
+    @Test func gotoBranchesToLabel() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -131,7 +131,25 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("Trap"))
+        try #require(tir.contains("Branch "))
+        try #require(!tir.contains("Trap"))
+    }
+
+    @Test func asmLowersToInlineAsm() throws {
+        let tir = dumpTIR(
+            """
+            struct S {
+                init() {}
+            }
+            func f() {
+                let s = S()
+                asm { "mov {dst}, 42" : dst = out(reg) s }
+            }
+            """
+        )
+        try #require(tir.contains("InlineAsm \"mov {dst}, 42\""))
+        try #require(tir.contains("constraints: [reg]"))
+        try #require(!tir.contains("Trap"))
     }
 
     @Test func forLoopLowersToTrap() throws {

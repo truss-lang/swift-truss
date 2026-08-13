@@ -280,6 +280,18 @@ public extension TIR {
                 return "Unreachable"
             case is Trap:
                 return "Trap"
+            case let instruction as InlineAsm:
+                var text = "InlineAsm \"" + instruction.template + "\""
+                if !instruction.constraints.isEmpty {
+                    text += " constraints: [" + instruction.constraints.joined(separator: ", ") + "]"
+                }
+                if !instruction.operands.isEmpty {
+                    text += " operands: [" + instruction.operands.map(\.name).joined(separator: ", ") + "]"
+                }
+                if !instruction.options.isEmpty {
+                    text += " options: [" + instruction.options.joined(separator: ", ") + "]"
+                }
+                return text
             case let instruction as Phi:
                 var text = result + "Phi"
                 for (index, incoming) in instruction.incomings.enumerated() {

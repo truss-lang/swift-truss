@@ -148,6 +148,9 @@ extension TIR {
         open func visitTrap(_ instruction: Trap, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
+        open func visitInlineAsm(_ instruction: InlineAsm, additional: Any? = nil) -> Any? { nil }
+
+        @discardableResult
         open func visitPhi(_ instruction: Phi, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
