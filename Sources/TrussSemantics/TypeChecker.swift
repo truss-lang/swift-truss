@@ -5,6 +5,7 @@ public final class TypeChecker: AST.Visitor {
     private let context: Context
     private var collectingTypealiases = false
     private var collectFunctionSignatures = false
+    private var collectingSignatures = false
     private var typealiasDecls: [Id.SymbolId: AST.TypeAliasDecl] = [:]
     private var resolvingTypealiases: Set<Id.SymbolId> = []
     private var scopeStack: [Scope] = []
@@ -30,6 +31,7 @@ public final class TypeChecker: AST.Visitor {
     @discardableResult
     public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         checkProgram(program, collectingTypealiases: true)
+        checkProgram(program, collectingSignatures: true)
         checkProgram(program, collectFunctionSignatures: true)
         checkProgram(program)
         return nil
@@ -38,6 +40,10 @@ public final class TypeChecker: AST.Visitor {
     public func checkAll(_ programs: [AST.Program]) {
         for program in programs {
             checkProgram(program, collectingTypealiases: true)
+            if context.diagnositicEngine.hasErrors { return }
+        }
+        for program in programs {
+            checkProgram(program, collectingSignatures: true)
             if context.diagnositicEngine.hasErrors { return }
         }
         for program in programs {
@@ -52,11 +58,12 @@ public final class TypeChecker: AST.Visitor {
 
     private func checkProgram(
         _ program: AST.Program, collectingTypealiases: Bool = false,
-        collectFunctionSignatures: Bool = false
+        collectFunctionSignatures: Bool = false, collectingSignatures: Bool = false
     ) {
         sourceId = program.id
         self.collectingTypealiases = collectingTypealiases
         self.collectFunctionSignatures = collectFunctionSignatures
+        self.collectingSignatures = collectingSignatures
         withScope(program.packageSymbol?.scope) {
             super.visitProgram(program, additional: nil)
         }
@@ -227,7 +234,10 @@ public final class TypeChecker: AST.Visitor {
         _ functionDecl: AST.FunctionDecl, additional: Any? = nil
     ) -> Any? {
         guard let symbol = functionDecl.symbol else { return nil }
-        if collectingTypealiases || collectFunctionSignatures {
+        if collectingTypealiases {
+            return nil
+        }
+        if collectFunctionSignatures || collectingSignatures {
             withScope(symbol.scope) {
                 collectConstraints(
                     in: symbol.scope, genericDecl: functionDecl.genericDecl, whereClause: nil
@@ -290,7 +300,10 @@ public final class TypeChecker: AST.Visitor {
         guard let symbol = initDecl.symbol else {
             return super.visitInitDecl(initDecl, additional: additional)
         }
-        if collectingTypealiases || collectFunctionSignatures {
+        if collectingTypealiases {
+            return nil
+        }
+        if collectFunctionSignatures || collectingSignatures {
             withScope(symbol.scope) {
                 collectConstraints(
                     in: symbol.scope, genericDecl: initDecl.genericDecl, whereClause: nil
@@ -340,7 +353,10 @@ public final class TypeChecker: AST.Visitor {
         guard let symbol = subscriptDecl.symbol else {
             return super.visitSubscriptDecl(subscriptDecl, additional: additional)
         }
-        if collectingTypealiases || collectFunctionSignatures {
+        if collectingTypealiases {
+            return nil
+        }
+        if collectFunctionSignatures || collectingSignatures {
             withScope(symbol.scope) {
                 fillFunctionSignature(
                     parameters: subscriptDecl.parameters, asyncToken: subscriptDecl.asyncToken,
@@ -388,10 +404,16 @@ public final class TypeChecker: AST.Visitor {
     public override func visitVariableDecl(
         _ variableDecl: AST.VariableDecl, additional: Any? = nil
     ) -> Any? {
-        if collectingTypealiases || collectFunctionSignatures {
+        if collectingTypealiases {
             if let typeExpression = variableDecl.typeExpression {
                 variableDecl.symbol?.type = evaluate(typeExpression)
-            } else if let initializer = variableDecl.initializer {
+            }
+            return nil
+        }
+        if collectFunctionSignatures || collectingSignatures {
+            if let typeExpression = variableDecl.typeExpression {
+                variableDecl.symbol?.type = evaluate(typeExpression)
+            } else if !collectingSignatures, let initializer = variableDecl.initializer {
                 let inferred = infer(initializer, at: variableDecl.name)
                 if let inferred, isResolved(inferred) {
                     variableDecl.symbol?.type = inferred
@@ -536,12 +558,29 @@ public final class TypeChecker: AST.Visitor {
         return nil
     }
 
+    private func precollectLocalVariableTypes(_ statements: [AST.Statement]) {
+        for statement in statements {
+            guard let variableDecl = statement as? AST.VariableDecl else { continue }
+            let symbol = variableDecl.symbol
+            guard symbol?.type == nil else { continue }
+            if let typeExpression = variableDecl.typeExpression {
+                symbol?.type = evaluate(typeExpression)
+            } else if let initializer = variableDecl.initializer {
+                let inferred = infer(initializer, at: variableDecl.name)
+                if let inferred, isResolved(inferred) {
+                    symbol?.type = inferred
+                }
+            }
+        }
+    }
+
     private func visitFunctionBody(
         _ body: AST.FunctionDecl.Body?, expectedReturn: TrussType.TrussType?, at token: Token
     ) {
         guard let body else { return }
         switch body {
         case let .Block(statements):
+            precollectLocalVariableTypes(statements)
             for statement in statements {
                 visit(statement)
             }

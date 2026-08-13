@@ -1535,3 +1535,74 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     let messages = context.diagnositicEngine.diagnostics.map(\.message)
     #expect(messages.contains { $0.contains("cannot take address of non-lvalue") })
 }
+
+@Test func useBeforeDefinitionInInitInfersType() throws {
+    let (_, programs) = runTypeChecker([
+        "struct Int32 { init() {} }\n"
+            + "struct S {\n    var x: Int32\n"
+            + "    init() {\n        let y = b\n        let b: Int32 = Int32()\n    }\n}",
+    ])
+    let structDecl = try #require(programs[0].statements[1] as? AST.StructDecl)
+    let initDecl = try #require(structDecl.body[1] as? AST.InitDecl)
+    let yDecl = try #require(initDecl.body[0] as? AST.VariableDecl)
+    let yType = try #require(yDecl.symbol?.type)
+    #expect(yType is TrussType.StructType)
+    let bDecl = try #require(initDecl.body[1] as? AST.VariableDecl)
+    let bType = try #require(bDecl.symbol?.type)
+    #expect(bType as AnyObject === yType as AnyObject)
+}
+
+@Test func useBeforeDefinitionWithoutAnnotationInFunctionInfersType() throws {
+    let (_, programs) = runTypeChecker([
+        "struct Int32 { init() {} }\n"
+            + "func f() {\n    let y = b\n    let b = Int32()\n}",
+    ])
+    let functionDecl = try #require(programs[0].statements[1] as? AST.FunctionDecl)
+    let body = try #require(functionDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let yDecl = try #require(statements[0] as? AST.VariableDecl)
+    let yType = try #require(yDecl.symbol?.type)
+    #expect(!(yType is TrussType.ErrorType))
+    let bDecl = try #require(statements[1] as? AST.VariableDecl)
+    let bType = try #require(bDecl.symbol?.type)
+    #expect(bType as AnyObject === yType as AnyObject)
+}
+
+@Test func declarationBeforeUseStillInfersType() throws {
+    let (_, programs) = runTypeChecker([
+        "struct Int32 { init() {} }\n"
+            + "func f() {\n    let b: Int32 = Int32()\n    let y = b\n}",
+    ])
+    let functionDecl = try #require(programs[0].statements[1] as? AST.FunctionDecl)
+    let body = try #require(functionDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let yDecl = try #require(statements[1] as? AST.VariableDecl)
+    let yType = try #require(yDecl.symbol?.type)
+    #expect(yType is TrussType.StructType)
+}
+
+@Test func typeUseBeforeDeclarationInfersType() throws {
+    let (_, programs) = runTypeChecker(["let tt = TT()\nstruct TT { init() {} }"])
+    let variableDecl = try #require(programs[0].statements[0] as? AST.VariableDecl)
+    let ttType = try #require(variableDecl.symbol?.type)
+    #expect(ttType is TrussType.GenericInstantiation)
+    let structDecl = try #require(programs[0].statements[1] as? AST.StructDecl)
+    let initDecl = try #require(structDecl.body[0] as? AST.InitDecl)
+    let initType = try #require(initDecl.symbol?.functionType)
+    #expect(initType.parameters.isEmpty)
+}
+
+@Test func functionCallBeforeDeclarationInfersType() throws {
+    let (_, programs) = runTypeChecker([
+        "let g = makeG()\nstruct Int32 { init() {} }\nfunc makeG() -> Int32 { Int32() }",
+    ])
+    let variableDecl = try #require(programs[0].statements[0] as? AST.VariableDecl)
+    let type = try #require(variableDecl.symbol?.type)
+    #expect(type is TrussType.StructType)
+}
