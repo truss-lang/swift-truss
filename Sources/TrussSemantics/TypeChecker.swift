@@ -515,7 +515,8 @@ public final class TypeChecker: AST.Visitor {
         -> Any?
     {
         withScope(whileStatement.scope) {
-            _ = infer(whileStatement.condition, at: whileStatement.token)
+            let conditionType = infer(whileStatement.condition, at: whileStatement.token)
+            checkConditionType(conditionType, at: whileStatement.token)
             super.visitWhile(whileStatement, additional: additional)
         }
         return nil
@@ -525,7 +526,8 @@ public final class TypeChecker: AST.Visitor {
     public override func visitGuard(_ guardStatement: AST.Guard, additional: Any? = nil)
         -> Any?
     {
-        _ = infer(guardStatement.condition, at: guardStatement.token)
+        let guardConditionType = infer(guardStatement.condition, at: guardStatement.token)
+        checkConditionType(guardConditionType, at: guardStatement.token)
         for statement in guardStatement.body {
             visit(statement)
         }
@@ -537,7 +539,8 @@ public final class TypeChecker: AST.Visitor {
         _ repeatWhile: AST.RepeatWhile, additional: Any? = nil
     ) -> Any? {
         withScope(repeatWhile.scope) {
-            _ = infer(repeatWhile.condition, at: repeatWhile.token)
+            let conditionType = infer(repeatWhile.condition, at: repeatWhile.token)
+            checkConditionType(conditionType, at: repeatWhile.token)
             super.visitRepeatWhile(repeatWhile, additional: additional)
         }
         return nil
@@ -931,6 +934,25 @@ public final class TypeChecker: AST.Visitor {
         case "Void": return TrussType.VoidType.INSTANCE
         case "Never": return TrussType.NeverType.INSTANCE
         default: return nil
+        }
+    }
+
+    private func stdType(named name: String) -> TrussType.TrussType? {
+        guard let package = context.name2Package[Builtin.packageName],
+              let symbol = package.scope.types[name]
+        else {
+            return nil
+        }
+        return evaluateSymbol(symbol)
+    }
+
+    private func checkConditionType(_ type: TrussType.TrussType?, at token: Token) {
+        guard let type, let boolType = stdType(named: "Bool") else { return }
+        let resolved = resolve(type)
+        if resolved is TrussType.TypeVariableType {
+            _ = unify(resolved, boolType, at: token)
+        } else if !canCoerce(resolved, to: boolType, at: token) {
+            emitMismatch(at: token, expected: boolType, found: resolved)
         }
     }
 
@@ -1340,7 +1362,7 @@ public final class TypeChecker: AST.Visitor {
         case let nominal as TrussType.NominalType:
             return nominal.name
         case let builtin as TrussType.BuiltinType:
-            return "Builtin.\(builtin.name)"
+            return "\(Builtin.packageName).\(builtin.name)"
         case let optional as TrussType.OptionalType:
             return "\(typeText(optional.wrapped))?"
         case let pointer as TrussType.PointerType:
@@ -1880,7 +1902,8 @@ public final class TypeChecker: AST.Visitor {
             }
             expression.ty = TrussType.TupleType(elements)
         case let ifExpression as AST.If:
-            _ = infer(ifExpression.condition, at: token)
+            let conditionType = infer(ifExpression.condition, at: token)
+            checkConditionType(conditionType, at: ifExpression.token)
             let narrowed: (id: Id.SymbolId, type: TrussType.PointerType)? =
                 if let binary = ifExpression.condition as? AST.Binary,
                 binary.operatorToken.value == "!=",
@@ -2254,6 +2277,12 @@ public final class TypeChecker: AST.Visitor {
             nullablePointerConstraints.insert(ObjectIdentifier(variable))
             nullptrLiteralTokens[ObjectIdentifier(variable)] = nullPointer.token
             expression.ty = variable
+        case is AST.IntegerLiteral:
+            expression.ty = stdType(named: "Int64")
+        case is AST.FloatLiteral:
+            expression.ty = stdType(named: "Float64")
+        case is AST.BoolLiteral:
+            expression.ty = stdType(named: "Bool")
         case is AST.VoidLiteral:
             expression.ty = TrussType.VoidType.INSTANCE
         case let interpolation as AST.StringInterpolation:

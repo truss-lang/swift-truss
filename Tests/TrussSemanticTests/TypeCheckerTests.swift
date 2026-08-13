@@ -1606,3 +1606,68 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     let type = try #require(variableDecl.symbol?.type)
     #expect(type is TrussType.StructType)
 }
+
+@Test func integerLiteralInfersToInt64() throws {
+    let (context, programs) = runTypeChecker(["let v = 42"], installBuiltin: true)
+    let variableDecl = try #require(programs[0].statements[0] as? AST.VariableDecl)
+    let type = try #require(variableDecl.symbol?.type as? TrussType.BuiltinType)
+    #expect(type.name == "Int64")
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func floatLiteralInfersToFloat64() throws {
+    let (context, programs) = runTypeChecker(["let v = 3.14"], installBuiltin: true)
+    let variableDecl = try #require(programs[0].statements[0] as? AST.VariableDecl)
+    let type = try #require(variableDecl.symbol?.type as? TrussType.BuiltinType)
+    #expect(type.name == "Float64")
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func boolLiteralInfersToBool() throws {
+    let (context, programs) = runTypeChecker(["let v = true"], installBuiltin: true)
+    let variableDecl = try #require(programs[0].statements[0] as? AST.VariableDecl)
+    let type = try #require(variableDecl.symbol?.type as? TrussType.BuiltinType)
+    #expect(type.name == "Bool")
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func integerLiteralMatchesInt64Annotation() throws {
+    let (context, programs) = runTypeChecker(["let v: Builtin.Int64 = 42"], installBuiltin: true)
+    let variableDecl = try #require(programs[0].statements[0] as? AST.VariableDecl)
+    let type = try #require(variableDecl.symbol?.type as? TrussType.BuiltinType)
+    #expect(type.name == "Int64")
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func ifConditionRequiresBool() {
+    let (context, _) = runTypeChecker(
+        ["struct S {}\nfunc f(x: S) {\n    if x {\n    }\n}"],
+        installBuiltin: true
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains { $0.contains("expected 'Builtin.Bool'") })
+}
+
+@Test func ifBoolLiteralConditionPasses() {
+    let (context, _) = runTypeChecker(["func f() {\n    if true {\n    }\n}"], installBuiltin: true)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func ifBoolVariableConditionPasses() {
+    let (context, _) = runTypeChecker(
+        ["func f(b: Builtin.Bool) {\n    if b {\n    }\n}"],
+        installBuiltin: true
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func whileConditionRequiresBool() {
+    let (context, _) = runTypeChecker(
+        ["struct S {}\nfunc f(x: S) {\n    while x {\n    }\n}"],
+        installBuiltin: true
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains { $0.contains("expected 'Builtin.Bool'") })
+}
