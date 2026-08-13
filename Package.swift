@@ -90,7 +90,7 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "trussTests",
+            name: "TrussDriverTests",
             dependencies: ["truss", "TrussDriver"]
         ),
         .testTarget(
