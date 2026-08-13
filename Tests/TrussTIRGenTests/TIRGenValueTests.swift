@@ -15,8 +15,8 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function $t4main_1+_3lhs1S_3rhs1S_1S"))
-        try #require(tir.contains("FunctionRef $t4main_1+_3lhs1S_3rhs1S_1S"))
+        try #require(tir.contains("function $t4main_1+_3lhs9$t4main1S_3rhs9$t4main1S_9$t4main1S"))
+        try #require(tir.contains("FunctionRef $t4main_1+_3lhs9$t4main1S_3rhs9$t4main1S_9$t4main1S"))
         try #require(tir.contains("Apply "))
     }
 
@@ -34,7 +34,7 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function $t4main_1-_11prefixValue1S_1S"))
+        try #require(tir.contains("function $t4main_1-_11prefixValue9$t4main1S_9$t4main1S"))
         try #require(tir.contains("Apply "))
     }
 
@@ -135,8 +135,8 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function $t4main_1S_4make_1S"))
-        try #require(tir.contains("FunctionRef $t4main_1S_4make_1S"))
+        try #require(tir.contains("function $t4main_1S_4make_9$t4main1S"))
+        try #require(tir.contains("FunctionRef $t4main_1S_4make_9$t4main1S"))
         try #require(tir.contains("Apply "))
     }
 }

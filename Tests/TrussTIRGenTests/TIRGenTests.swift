@@ -11,7 +11,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1f_1a1S_1S"))
+        try #require(tir.contains("function $t4main_1f_1a9$t4main1S_9$t4main1S"))
         try #require(tir.contains("entry:"))
         try #require(tir.contains("AllocStack"))
         try #require(tir.contains("Load"))
@@ -125,7 +125,7 @@ import TrussTIRGen
             """
         )
         let closureBlock = tir.components(separatedBy: "function ")
-            .first(where: { $0.hasPrefix("$t4main_1f_1e1E_1F_closure_0") }) ?? ""
+            .first(where: { $0.hasPrefix("$t4main_1f_1e9$t4main1E_11FR$t4main1E_closure_0") }) ?? ""
         let returns = closureBlock.components(separatedBy: "\n")
             .filter { $0.range(of: #"Return %\d+"#, options: .regularExpression) != nil }
         try #require(returns.count == 2)
@@ -366,8 +366,8 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main1A1B_1f_1a1S_1S"))
-        try #require(!tir.contains("function $t4main_1f_1a1S_1S"))
+        try #require(tir.contains("function $t4main1A1B_1f_1a9$t4main1S_9$t4main1S"))
+        try #require(!tir.contains("function $t4main_1f_1a9$t4main1S_9$t4main1S"))
     }
 
     @Test func nestedModuleGlobalMangled() throws {
@@ -400,7 +400,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main1A1B_1T_1xGetter_1S"))
+        try #require(tir.contains("function $t4main1A1B_1T_1xGetter_9$t4main1S"))
     }
 
     @Test func nestedModuleDoesNotCollideWithTopLevel() throws {
@@ -417,8 +417,8 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1f_1a1S_1S"))
-        try #require(tir.contains("function $t4main1A1B_1f_1a1S_1S"))
+        try #require(tir.contains("function $t4main_1f_1a9$t4main1S_9$t4main1S"))
+        try #require(tir.contains("function $t4main1A1B_1f_1a9$t4main1S_9$t4main1S"))
     }
 
     @Test func cnameOverridesMangledName() throws {
@@ -735,5 +735,98 @@ import TrussTIRGen
         )
         try #require(tir.contains("RetainValue"))
         try #require(tir.contains("AllocCell"))
+    }
+
+    @Test func optionalOverloadMangled() throws {
+        let tir = dumpTIR(
+            """
+            struct S {}
+            struct T {}
+            func f(a: S?) {}
+            func f(a: T?) {}
+            """
+        )
+        try #require(tir.contains("function $t4main_1f_1a10O$t4main1S_4Void"))
+        try #require(tir.contains("function $t4main_1f_1a10O$t4main1T_4Void"))
+    }
+
+    @Test func genericInstantiationOverloadMangled() throws {
+        let tir = dumpTIR(
+            """
+            struct S {}
+            struct T {}
+            struct Box<U> {}
+            func f(a: Box<S>) {}
+            func f(a: Box<T>) {}
+            """
+        )
+        try #require(tir.contains("function $t4main_1f_1a21G$t4main3Box$t4main1S_4Void"))
+        try #require(tir.contains("function $t4main_1f_1a21G$t4main3Box$t4main1T_4Void"))
+    }
+
+    @Test func functionTypeParameterOverloadMangled() throws {
+        let tir = dumpTIR(
+            """
+            struct S {}
+            struct T {}
+            func f(cb: (S) -> Void) {}
+            func f(cb: (T) -> Void) {}
+            """
+        )
+        try #require(tir.contains("function $t4main_1f_2cb15F$t4main1SRVoid_4Void"))
+        try #require(tir.contains("function $t4main_1f_2cb15F$t4main1TRVoid_4Void"))
+    }
+
+    @Test func tupleParameterOverloadMangled() throws {
+        let tir = dumpTIR(
+            """
+            struct S {}
+            struct T {}
+            func f(t: (S, T)) {}
+            func f(t: (T, S)) {}
+            """
+        )
+        try #require(tir.contains("function $t4main_1f_1t19T$t4main1S$t4main1T_4Void"))
+        try #require(tir.contains("function $t4main_1f_1t19T$t4main1T$t4main1S_4Void"))
+    }
+
+    @Test func crossModuleSameNameTypeMangled() throws {
+        let tir = dumpTIR(
+            """
+            module A { struct S {} }
+            module B { struct S {} }
+            func f(a: A.S) {}
+            func f(a: B.S) {}
+            """
+        )
+        try #require(tir.contains("function $t4main_1f_1a11$t4main1A1S_4Void"))
+        try #require(tir.contains("function $t4main_1f_1a11$t4main1B1S_4Void"))
+    }
+
+    @Test func nestedTypeMangled() throws {
+        let tir = dumpTIR(
+            """
+            struct Outer { struct Inner {} }
+            struct Inner {}
+            func f(a: Outer.Inner) {}
+            func f(a: Inner) {}
+            """
+        )
+        try #require(tir.contains("function $t4main_1f_1a19$t4main5Outer5Inner_4Void"))
+        try #require(tir.contains("function $t4main_1f_1a13$t4main5Inner_4Void"))
+    }
+
+    @Test func asyncThrowsFunctionTypeOverloadMangled() throws {
+        let tir = dumpTIR(
+            """
+            struct S {}
+            func f(cb: (S) -> Void) {}
+            func f(cb: (S) async -> Void) {}
+            func f(cb: (S) throws -> Void) {}
+            """
+        )
+        try #require(tir.contains("function $t4main_1f_2cb15F$t4main1SRVoid_4Void"))
+        try #require(tir.contains("function $t4main_1f_2cb16F$t4main1SRVoidA_4Void"))
+        try #require(tir.contains("function $t4main_1f_2cb16F$t4main1SRVoidT_4Void"))
     }
 }

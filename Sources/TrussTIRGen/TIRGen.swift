@@ -492,21 +492,72 @@ public final class TIRGen: AST.Visitor {
     private func typeName(_ type: TrussType.TrussType) -> String {
         switch type {
         case is TrussType.VoidType:
-            "Void"
+            return "Void"
         case is TrussType.NeverType:
-            "Never"
+            return "Never"
+        case is TrussType.ErrorType:
+            return "E"
+        case let builtin as TrussType.BuiltinType:
+            return "B" + builtin.name
         case let nominal as TrussType.NominalType:
-            nominal.name
-        case is TrussType.OptionalType:
-            "O"
-        case let generic as TrussType.GenericParamType:
-            generic.name
-        case is TrussType.FunctionType:
-            "F"
-        case is TrussType.TupleType:
-            "T"
+            return TypeMangler.nominalPath(nominal, context: context)
+        case let optional as TrussType.OptionalType:
+            return "O" + typeName(optional.wrapped)
+        case let pointer as TrussType.PointerType:
+            return "P" + (pointer.isNonnull ? "n" : "u") + typeName(pointer.pointee)
+        case let tuple as TrussType.TupleType:
+            var result = "T"
+            for element in tuple.elements {
+                result += typeName(element.type)
+            }
+            return result
+        case let function as TrussType.FunctionType:
+            var result = "F"
+            for parameter in function.parameters {
+                result += typeName(parameter.type)
+            }
+            result += "R"
+            result += typeName(function.returnType)
+            if function.isAsync {
+                result += "A"
+            }
+            if function.isThrowing {
+                result += "T"
+            }
+            if !function.throwsTypes.isEmpty {
+                result += "E"
+                for throwsType in function.throwsTypes {
+                    result += typeName(throwsType)
+                }
+            }
+            return result
+        case let composition as TrussType.CompositionType:
+            var result = "C"
+            for member in composition.members {
+                result += typeName(member)
+            }
+            return result
+        case let variadic as TrussType.VariadicType:
+            return "V" + typeName(variadic.base)
+        case let instantiation as TrussType.GenericInstantiation:
+            var result = "G"
+            result += typeName(instantiation.base)
+            for argument in instantiation.arguments {
+                result += typeName(argument)
+            }
+            return result
+        case let forall as TrussType.ForallType:
+            return "A" + typeName(forall.body)
+        case let genericParam as TrussType.GenericParamType:
+            return "p" + genericParam.name
+        case let variable as TrussType.TypeVariableType:
+            if let binding = variable.binding {
+                return typeName(binding)
+            } else {
+                return "v\(variable.id.id)"
+            }
         default:
-            "x"
+            return "x"
         }
     }
 

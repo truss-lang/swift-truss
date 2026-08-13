@@ -185,7 +185,7 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function $t4main_1T_9subscript_1i1S_1S"))
+        try #require(tir.contains("function $t4main_1T_9subscript_1i9$t4main1S_9$t4main1S"))
     }
 
     @Test func initCallLowered() throws {

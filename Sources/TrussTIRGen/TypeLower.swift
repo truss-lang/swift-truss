@@ -88,19 +88,7 @@ final class TypeLower {
     }
 
     private func mangleTypeName(_ type: TrussType.NominalType) -> String {
-        guard let symbol = type.symbol else { return type.name }
-        var result = "$t"
-        let packageName = symbol.packageId.flatMap { context.id2Symbol[$0]?.name } ?? "main"
-        result += mangleIdentifier(packageName)
-        if let module = symbol.moduleSymbol {
-            result += mangleIdentifier(module.name)
-        }
-        result += mangleIdentifier(type.name)
-        return result
-    }
-
-    private func mangleIdentifier(_ name: String) -> String {
-        "\(name.count)\(name)"
+        TypeMangler.nominalPath(type, context: context)
     }
 
     func ownership(for type: TIRType.TIRType) -> TIRType.Ownership {

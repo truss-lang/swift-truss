@@ -15,7 +15,7 @@ import Testing
             }
             """
         )
-        try #require(tir.contains("function $t4main_1T_1xGetter_1S"))
+        try #require(tir.contains("function $t4main_1T_1xGetter_9$t4main1S"))
         try #require(tir.contains("function $t4main_1T_1xSetter_4Void"))
     }
 
@@ -190,5 +190,5 @@ import Testing
         }
         """
     )
-    try #require(tir.contains("function $t4main_1f_1a1S_1S (%0 t4main1S#0) -> t4main1S#0"))
+    try #require(tir.contains("function $t4main_1f_1a9$t4main1S_9$t4main1S (%0 t4main1S#0) -> t4main1S#0"))
 }

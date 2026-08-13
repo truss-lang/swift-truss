@@ -46,7 +46,7 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     )
     let result = Driver(config: DriverConfig(dumpTIR: true)).run(files: [a, b])
     #expect(!result.hasErrors)
-    #expect(result.stdout.contains("FunctionRef $t4main_1b_1B"))
+    #expect(result.stdout.contains("FunctionRef $t4main_1b_9$t4main1B"))
 }
 
 @Test func driverResolvesCircularTypeReferencesAcrossFiles() throws {
