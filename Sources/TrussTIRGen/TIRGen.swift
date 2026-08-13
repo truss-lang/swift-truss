@@ -11,7 +11,7 @@ public final class TIRGen: AST.Visitor {
     private var capturedCells: Set<Id.SymbolId> = []
     private var breakStack: [BreakTarget] = []
     private var deferStack: [[AST.Statement]] = []
-    private var errorTargets: [TIR.BasicBlock] = []
+    private var errorTargets: [ErrorTarget] = []
     private var closureParamValues: [[TIR.Value]] = []
     private var closureCounter = 0
     private var globalsBySymbol: [Id.SymbolId: TIR.GlobalVariable] = [:]
@@ -21,6 +21,8 @@ public final class TIRGen: AST.Visitor {
     private var initFunctionsByType: [Id.SymbolId: TIR.Function] = [:]
     private var deinitFunctions: [ObjectIdentifier: TIR.Function] = [:]
     private var deinitOwners: [ObjectIdentifier: Symbol.NominalTypeSymbol] = [:]
+    private var deinitFunctionsByType: [Id.TypeId: TIR.Function] = [:]
+    private var scopeStack: [[LocalBinding]] = []
     private var staticVariableSymbols: Set<Id.SymbolId> = []
     private var collectTypeStack: [Symbol.NominalTypeSymbol] = []
     private var modulePathStack: [Symbol.ModuleSymbol] = []
@@ -30,6 +32,18 @@ public final class TIRGen: AST.Visitor {
         let label: String?
         let breakBlock: TIR.BasicBlock
         let continueBlock: TIR.BasicBlock?
+        let scopeDepth: Int
+    }
+
+    private struct LocalBinding {
+        let symbol: Id.SymbolId
+        let type: TIRType.TIRType
+        let address: TIR.Value
+    }
+
+    private struct ErrorTarget {
+        let block: TIR.BasicBlock
+        let scopeDepth: Int
     }
 
     public init(context: Context) {
@@ -45,6 +59,7 @@ public final class TIRGen: AST.Visitor {
         functionsBySymbol = [:]
         globalNamesBySymbol = [:]
         staticVariableSymbols = []
+        deinitFunctionsByType = [:]
         var modules: [TIR.Module] = []
         for program in programs {
             let programModule = TIR.Module()
@@ -67,6 +82,7 @@ public final class TIRGen: AST.Visitor {
             deferStack = []
             errorTargets = []
             closureParamValues = []
+            scopeStack = []
             visitProgram(program)
         }
         return modules
@@ -220,6 +236,9 @@ public final class TIRGen: AST.Visitor {
         )
         deinitFunctions[ObjectIdentifier(decl)] = function
         deinitOwners[ObjectIdentifier(decl)] = owner
+        if let typeId = owner.typeId {
+            deinitFunctionsByType[typeId] = function
+        }
     }
 
     private func mangleDeinitName(_ owner: Symbol.NominalTypeSymbol) -> String {
@@ -330,6 +349,7 @@ public final class TIRGen: AST.Visitor {
         deferStack = []
         errorTargets = []
         closureParamValues = []
+        pushScope()
 
         let selfType = ownerType(typeSymbol) ?? TIRType.VoidType()
         let selfArgument = builder.createArgument(
@@ -342,6 +362,9 @@ public final class TIRGen: AST.Visitor {
         )
         builder.emit(TIR.Store(selfArgument, to: selfAddress, sourceRange: emptyRange))
         env[typeSymbol.id] = selfAddress
+        if needsRelease(selfType) {
+            registerBinding(LocalBinding(symbol: typeSymbol.id, type: selfType, address: selfAddress))
+        }
 
         if accessor.kind != .Get {
             let parameterName = accessor.parameterName?.value
@@ -357,10 +380,18 @@ public final class TIRGen: AST.Visitor {
             builder.emit(
                 TIR.Store(newValueArgument, to: newValueAddress, sourceRange: emptyRange)
             )
-            if let variableSymbol = accessor.scope?.values[parameterName]?
-                .compactMap({ $0 as? Symbol.VariableSymbol }).first
-            {
-                env[variableSymbol.id] = newValueAddress
+            let newValueSymbol = accessor.scope?.values[parameterName]?
+                .compactMap { $0 as? Symbol.VariableSymbol }.first
+            if let newValueSymbol {
+                env[newValueSymbol.id] = newValueAddress
+            }
+            if needsRelease(propertyType) {
+                registerBinding(
+                    LocalBinding(
+                        symbol: newValueSymbol?.id ?? Id.SymbolId(id: 0), type: propertyType,
+                        address: newValueAddress
+                    )
+                )
             }
         }
 
@@ -447,7 +478,7 @@ public final class TIRGen: AST.Visitor {
     private func typeName(_ type: TrussType.TrussType) -> String {
         switch type {
         case is TrussType.VoidType:
-            "()"
+            "Void"
         case let nominal as TrussType.NominalType:
             nominal.name
         case is TrussType.OptionalType:
@@ -562,6 +593,7 @@ public final class TIRGen: AST.Visitor {
         deferStack = []
         errorTargets = []
         closureParamValues = []
+        pushScope()
 
         bindSelfIfNeeded(function: function, symbol: symbol, hasSelf: hasSelf, owner: owner)
         bindParameters(function: function, symbol: symbol, parameters: parameters)
@@ -622,6 +654,9 @@ public final class TIRGen: AST.Visitor {
             env[symbol.id] = address
         }
         env[ownerSymbol.id] = address
+        if needsRelease(selfType) {
+            registerBinding(LocalBinding(symbol: ownerSymbol.id, type: selfType, address: address))
+        }
     }
 
     private func bindParameters(
@@ -644,8 +679,17 @@ public final class TIRGen: AST.Visitor {
                 type: TIRType.AddressType(paramType), ownership: .MutableBorrowing
             )
             builder.emit(TIR.Store(argument, to: address, sourceRange: parameter.sourceRange))
-            if let variableSymbol = parameterVariableSymbol(symbol, parameter.name.value) {
+            let variableSymbol = parameterVariableSymbol(symbol, parameter.name.value)
+            if let variableSymbol {
                 env[variableSymbol.id] = address
+            }
+            if needsRelease(paramType) {
+                registerBinding(
+                    LocalBinding(
+                        symbol: variableSymbol?.id ?? Id.SymbolId(id: 0), type: paramType,
+                        address: address
+                    )
+                )
             }
             values.append(argument)
         }
@@ -694,6 +738,7 @@ public final class TIRGen: AST.Visitor {
                 )
             }
             if let value = visitExpression(initializer) {
+                emitRetainIfNeeded(value, range: range)
                 builder.emit(TIR.Store(value, to: fieldAddress, sourceRange: range))
             }
         }
@@ -713,6 +758,7 @@ public final class TIRGen: AST.Visitor {
         if let last = builder.currentBlock.instructions.last, isTerminator(last) {
             return
         }
+        releaseAllScopes(range: range)
         builder.emit(TIR.Return(nil, sourceRange: range))
     }
 
@@ -764,7 +810,11 @@ public final class TIRGen: AST.Visitor {
         )
         env[symbol.id] = address
         if let initializer = variableDecl.initializer, let value = visitExpression(initializer) {
+            emitRetainIfNeeded(value, range: variableDecl.sourceRange)
             builder.emit(TIR.Store(value, to: address, sourceRange: variableDecl.sourceRange))
+        }
+        if needsRelease(type) {
+            registerBinding(LocalBinding(symbol: symbol.id, type: type, address: address))
         }
         return nil
     }
@@ -800,6 +850,7 @@ public final class TIRGen: AST.Visitor {
                 TIR.GlobalAddr(global, sourceRange: variableDecl.sourceRange),
                 type: TIRType.AddressType(global.type), ownership: .MutableBorrowing
             )
+            emitRetainIfNeeded(value, range: variableDecl.sourceRange)
             initBuilder.emit(
                 TIR.Store(value, to: address, sourceRange: variableDecl.sourceRange)
             )
@@ -860,6 +911,11 @@ public final class TIRGen: AST.Visitor {
         guard let builder else { return nil }
         let value = visitExpression(throwStatement.expression)
         runDeferred()
+        if let target = errorTargets.last {
+            releaseScopes(upTo: target.scopeDepth, range: throwStatement.sourceRange)
+        } else {
+            releaseAllScopes(range: throwStatement.sourceRange)
+        }
         if let value {
             builder.emit(TIR.Throw(value, sourceRange: throwStatement.sourceRange))
         }
@@ -880,11 +936,12 @@ public final class TIRGen: AST.Visitor {
         )
         builder.switchToBlock(bodyBlock)
         breakStack.append(
-            BreakTarget(label: nil, breakBlock: exitBlock, continueBlock: condBlock)
+            BreakTarget(
+                label: nil, breakBlock: exitBlock, continueBlock: condBlock,
+                scopeDepth: scopeStack.count
+            )
         )
-        for statement in whileStatement.body {
-            visit(statement)
-        }
+        visitScopedStatements(whileStatement.body, range: whileStatement.sourceRange)
         breakStack.removeLast()
         builder.emit(TIR.Branch(condBlock, sourceRange: whileStatement.sourceRange))
         builder.switchToBlock(exitBlock)
@@ -902,11 +959,12 @@ public final class TIRGen: AST.Visitor {
         builder.emit(TIR.Branch(bodyBlock, sourceRange: repeatWhile.sourceRange))
         builder.switchToBlock(bodyBlock)
         breakStack.append(
-            BreakTarget(label: nil, breakBlock: exitBlock, continueBlock: condBlock)
+            BreakTarget(
+                label: nil, breakBlock: exitBlock, continueBlock: condBlock,
+                scopeDepth: scopeStack.count
+            )
         )
-        for statement in repeatWhile.body {
-            visit(statement)
-        }
+        visitScopedStatements(repeatWhile.body, range: repeatWhile.sourceRange)
         breakStack.removeLast()
         builder.emit(TIR.Branch(condBlock, sourceRange: repeatWhile.sourceRange))
         builder.switchToBlock(condBlock)
@@ -929,6 +987,7 @@ public final class TIRGen: AST.Visitor {
         )
         builder.switchToBlock(failBlock)
         runDeferred()
+        releaseAllScopes(range: guardStatement.sourceRange)
         builder.emit(TIR.Return(nil, sourceRange: guardStatement.sourceRange))
         builder.switchToBlock(continueBlock)
         return nil
@@ -954,6 +1013,7 @@ public final class TIRGen: AST.Visitor {
         let label = breakStatement.label?.value
         let target = breakStack.last { $0.label == label } ?? breakStack.last
         if let target {
+            releaseScopes(upTo: target.scopeDepth, range: breakStatement.sourceRange)
             builder.emit(TIR.Branch(target.breakBlock, sourceRange: breakStatement.sourceRange))
         }
         return nil
@@ -967,6 +1027,7 @@ public final class TIRGen: AST.Visitor {
         let label = continueStatement.label?.value
         let target = breakStack.last { $0.label == label } ?? breakStack.last
         if let target, let continueBlock = target.continueBlock {
+            releaseScopes(upTo: target.scopeDepth, range: continueStatement.sourceRange)
             builder.emit(TIR.Branch(continueBlock, sourceRange: continueStatement.sourceRange))
         }
         return nil
@@ -1065,6 +1126,7 @@ public final class TIRGen: AST.Visitor {
         joinBlock: TIR.BasicBlock, range: SourceRange
     ) {
         guard let builder else { return }
+        pushScope()
         if let last = statements.last as? AST.ExpressionStatement {
             for statement in statements.dropLast() {
                 visit(statement)
@@ -1077,6 +1139,7 @@ public final class TIRGen: AST.Visitor {
                 visit(statement)
             }
         }
+        popScope(range: range)
         builder.emit(TIR.Branch(joinBlock, sourceRange: range))
     }
 
@@ -1115,6 +1178,7 @@ public final class TIRGen: AST.Visitor {
             testBlock = builder.currentBlock
             builder.switchToBlock(caseBody)
             let statements = matchCase.body
+            pushScope()
             if let last = statements.last as? AST.ExpressionStatement {
                 for statement in statements.dropLast() {
                     visit(statement)
@@ -1125,12 +1189,14 @@ public final class TIRGen: AST.Visitor {
                     if let value = visitExpression(last.expression) {
                         incomings.append((value, builder.currentBlock))
                     }
+                    popScope(range: matchCase.sourceRange)
                     builder.emit(TIR.Branch(joinBlock, sourceRange: matchCase.sourceRange))
                 }
             } else {
                 for statement in statements {
                     visit(statement)
                 }
+                popScope(range: matchCase.sourceRange)
                 builder.emit(TIR.Branch(joinBlock, sourceRange: matchCase.sourceRange))
             }
         }
@@ -1299,8 +1365,9 @@ public final class TIRGen: AST.Visitor {
         let joinBlock = builder.createBlock()
         let errorBlock = builder.createBlock()
         var incomings: [(TIR.Value, TIR.BasicBlock)] = []
-        errorTargets.append(errorBlock)
+        errorTargets.append(ErrorTarget(block: errorBlock, scopeDepth: scopeStack.count))
         let bodyStatements = doExpression.body
+        pushScope()
         if let last = bodyStatements.last as? AST.ExpressionStatement {
             for statement in bodyStatements.dropLast() {
                 visit(statement)
@@ -1313,6 +1380,7 @@ public final class TIRGen: AST.Visitor {
                 visit(statement)
             }
         }
+        popScope(range: doExpression.sourceRange)
         errorTargets.removeLast()
         builder.emit(TIR.Branch(joinBlock, sourceRange: doExpression.sourceRange))
         builder.switchToBlock(errorBlock)
@@ -1341,6 +1409,7 @@ public final class TIRGen: AST.Visitor {
                 testBlock = builder.currentBlock
                 builder.switchToBlock(catchBody)
                 let catchStatements = catchClause.body
+                pushScope()
                 if let last = catchStatements.last as? AST.ExpressionStatement {
                     for statement in catchStatements.dropLast() {
                         visit(statement)
@@ -1353,6 +1422,7 @@ public final class TIRGen: AST.Visitor {
                         visit(statement)
                     }
                 }
+                popScope(range: catchClause.sourceRange)
                 builder.emit(TIR.Branch(joinBlock, sourceRange: doExpression.sourceRange))
             }
             builder.switchToBlock(testBlock)
@@ -1360,9 +1430,7 @@ public final class TIRGen: AST.Visitor {
         }
         if let finallyBody = doExpression.finallyBody {
             builder.switchToBlock(joinBlock)
-            for statement in finallyBody {
-                visit(statement)
-            }
+            visitScopedStatements(finallyBody, range: doExpression.sourceRange)
             builder.switchToBlock(joinBlock)
         } else {
             builder.switchToBlock(joinBlock)
@@ -1548,6 +1616,89 @@ public final class TIRGen: AST.Visitor {
         )
     }
 
+    private func pushScope() {
+        scopeStack.append([])
+    }
+
+    private func visitScopedStatements(_ statements: [AST.Statement], range: SourceRange) {
+        pushScope()
+        for statement in statements {
+            visit(statement)
+        }
+        popScope(range: range)
+    }
+
+    private func popScope(range: SourceRange) {
+        guard let scope = scopeStack.popLast() else { return }
+        releaseScope(scope, range: range)
+    }
+
+    private func registerBinding(_ binding: LocalBinding) {
+        if !scopeStack.isEmpty {
+            scopeStack[scopeStack.count - 1].append(binding)
+        }
+    }
+
+    private func releaseScopes(upTo depth: Int, range: SourceRange) {
+        while scopeStack.count > depth {
+            if let scope = scopeStack.popLast() {
+                releaseScope(scope, range: range)
+            }
+        }
+    }
+
+    private func releaseAllScopes(range: SourceRange) {
+        while let scope = scopeStack.popLast() {
+            releaseScope(scope, range: range)
+        }
+    }
+
+    private func needsRelease(_ type: TIRType.TIRType) -> Bool {
+        if type is TIRType.ReferenceType { return true }
+        if let structType = type as? TIRType.StructType {
+            return deinitFunctionsByType[structType.id] != nil
+        }
+        return false
+    }
+
+    private func emitRetainIfNeeded(_ value: TIR.Value, range: SourceRange) {
+        guard let builder else { return }
+        guard value.type is TIRType.ReferenceType else { return }
+        guard value.definingInstruction is TIR.Load || value.definingInstruction is TIR.Phi
+        else {
+            return
+        }
+        builder.emit(TIR.RetainValue(value, sourceRange: range))
+    }
+
+    private func releaseScope(_ scope: [LocalBinding], range: SourceRange) {
+        guard let builder else { return }
+        for binding in scope.reversed() {
+            if capturedCells.contains(binding.symbol) { continue }
+            if binding.type is TIRType.ReferenceType {
+                if let value = loadFrom(binding.address, range: range) {
+                    builder.emit(TIR.ReleaseValue(value, sourceRange: range))
+                }
+            } else if let structType = binding.type as? TIRType.StructType,
+                      let deinitFunction = deinitFunctionsByType[structType.id]
+            {
+                emitDeinitCall(deinitFunction, selfAddress: binding.address, range: range)
+            }
+        }
+    }
+
+    private func emitDeinitCall(
+        _ deinitFunction: TIR.Function, selfAddress: TIR.Value, range: SourceRange
+    ) {
+        guard let builder else { return }
+        let callee = builder.emitWithResult(
+            TIR.FunctionRef(deinitFunction, sourceRange: range),
+            type: initFunctionType(deinitFunction), ownership: .Trivial
+        )
+        let selfValue = loadFrom(selfAddress, range: range) ?? selfAddress
+        builder.emit(TIR.Apply(callee: callee, arguments: [selfValue], substitutions: [], sourceRange: range))
+    }
+
     private func loadFrom(_ address: TIR.Value, range: SourceRange) -> TIR.Value? {
         guard let builder else { return nil }
         let pointee = (address.type as? TIRType.AddressType)?.pointee ?? TIRType.VoidType()
@@ -1634,6 +1785,9 @@ public final class TIRGen: AST.Visitor {
             if let value = visitExpression(closure) {
                 arguments.append(value)
             }
+        }
+        for argument in arguments {
+            emitRetainIfNeeded(argument, range: call.sourceRange)
         }
         let substitutions = substitutionsFor(call)
         let resultType = (call.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
@@ -1923,6 +2077,7 @@ public final class TIRGen: AST.Visitor {
         }
         if let variable = binary.left as? AST.Variable, let symbol = variable.symbol {
             if let address = env[symbol.id] {
+                emitRetainIfNeeded(value, range: range)
                 builder.emit(TIR.Store(value, to: address, sourceRange: range))
                 return value
             }
@@ -1965,9 +2120,11 @@ public final class TIRGen: AST.Visitor {
                 TIR.Load(address, sourceRange: range),
                 type: propertyType, ownership: typeLower.ownership(for: propertyType)
             )
+            emitRetainIfNeeded(value, range: range)
             builder.emit(TIR.Store(value, to: address, sourceRange: range))
             emitAccessorCall(didSet, arguments: [selfValue, oldValue], range: range)
         } else {
+            emitRetainIfNeeded(value, range: range)
             builder.emit(TIR.Store(value, to: address, sourceRange: range))
         }
         return value
@@ -1984,6 +2141,7 @@ public final class TIRGen: AST.Visitor {
                 TIR.GlobalAddr(global, sourceRange: range),
                 type: TIRType.AddressType(global.type), ownership: .MutableBorrowing
             )
+            emitRetainIfNeeded(value, range: range)
             builder.emit(TIR.Store(value, to: address, sourceRange: range))
             return value
         }
@@ -2018,9 +2176,11 @@ public final class TIRGen: AST.Visitor {
                 TIR.Load(address, sourceRange: range),
                 type: propertyType, ownership: typeLower.ownership(for: propertyType)
             )
+            emitRetainIfNeeded(value, range: range)
             builder.emit(TIR.Store(value, to: address, sourceRange: range))
             emitAccessorCall(didSet, arguments: [object, oldValue], range: range)
         } else {
+            emitRetainIfNeeded(value, range: range)
             builder.emit(TIR.Store(value, to: address, sourceRange: range))
         }
         return value
@@ -2195,7 +2355,7 @@ public final class TIRGen: AST.Visitor {
         guard let call = tryExpression.expression as? AST.Call else {
             return visitExpression(tryExpression.expression)
         }
-        let errorBlock = errorTargets.last ?? builder?.createBlock()
+        let errorBlock = errorTargets.last?.block ?? builder?.createBlock()
         let result = emitCall(call, tryErrorBlock: errorBlock)
         if errorTargets.isEmpty {
             builder?.emit(TIR.Unreachable(tryExpression.sourceRange))
@@ -2261,6 +2421,7 @@ public final class TIRGen: AST.Visitor {
                     type: TIRType.AddressType(type), ownership: .MutableBorrowing
                 )
                 let loaded = loadFrom(value, range: closure.sourceRange) ?? value
+                emitRetainIfNeeded(loaded, range: closure.sourceRange)
                 builder.emit(TIR.Store(loaded, to: cell, sourceRange: closure.sourceRange))
                 captureCells.append(cell)
             }
@@ -2291,6 +2452,7 @@ public final class TIRGen: AST.Visitor {
         deferStack = []
         errorTargets = []
         closureParamValues = []
+        pushScope()
 
         for (index, (symbol, type)) in captured.enumerated() {
             if index < captureCells.count {
@@ -2317,10 +2479,18 @@ public final class TIRGen: AST.Visitor {
             )
             builder.emit(TIR.Store(argument, to: address, sourceRange: parameter.sourceRange))
             paramValues.append(argument)
-            if let variableSymbol = closure.scope?.values[parameter.name.value]?
-                .compactMap({ $0 as? Symbol.VariableSymbol }).first
-            {
+            let variableSymbol = closure.scope?.values[parameter.name.value]?
+                .compactMap { $0 as? Symbol.VariableSymbol }.first
+            if let variableSymbol {
                 env[variableSymbol.id] = address
+            }
+            if needsRelease(paramType) {
+                registerBinding(
+                    LocalBinding(
+                        symbol: variableSymbol?.id ?? Id.SymbolId(id: 0), type: paramType,
+                        address: address
+                    )
+                )
             }
             _ = index
         }
@@ -2571,6 +2741,7 @@ public final class TIRGen: AST.Visitor {
 
     private func emitReturn(_ value: TIR.Value?, range: SourceRange) {
         runDeferred()
+        releaseAllScopes(range: range)
         builder?.emit(TIR.Return(value, sourceRange: range))
     }
 

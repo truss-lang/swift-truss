@@ -588,4 +588,152 @@ import TrussTIRGen
         try #require(tir.contains("global g"))
         try #require(!tir.contains("global $t4main_1g"))
     }
+
+    @Test func structDeinitCalledOnScopeExit() throws {
+        let tir = dumpTIR(
+            """
+            struct S {
+                init() {}
+                deinit {
+                }
+            }
+            func f() {
+                let x = S()
+            }
+            """
+        )
+        try #require(tir.contains("function $t4main_1S_6deinit_4Void"))
+        try #require(tir.contains("ReleaseValue") == false)
+        let fBody = tir.components(separatedBy: "function $t4main_1f_4Void").last ?? ""
+        try #require(fBody.contains("FunctionRef $t4main_1S_6deinit_4Void"))
+        try #require(fBody.contains("Apply "))
+    }
+
+    @Test func structWithoutDeinitIsNotCalled() throws {
+        let tir = dumpTIR(
+            """
+            struct S {
+                init() {}
+            }
+            func f() {
+                let x = S()
+            }
+            """
+        )
+        try #require(!tir.contains("$t4main_1S_6deinit"))
+    }
+
+    @Test func classVariableReleasedOnScopeExit() throws {
+        let tir = dumpTIR(
+            """
+            class C {
+                init() {}
+            }
+            func f() {
+                let x = C()
+            }
+            """
+        )
+        let fBody = tir.components(separatedBy: "function $t4main_1f_4Void").last ?? ""
+        try #require(fBody.contains("ReleaseValue"))
+    }
+
+    @Test func refCopyRetainsAndReleasesBoth() throws {
+        let tir = dumpTIR(
+            """
+            class C {
+                init() {}
+            }
+            func f() {
+                let a = C()
+                let b = a
+            }
+            """
+        )
+        let fBody = tir.components(separatedBy: "function $t4main_1f_4Void").last ?? ""
+        try #require(fBody.contains("RetainValue"))
+        try #require(fBody.contains("ReleaseValue"))
+        let retains = fBody.components(separatedBy: "\n").filter {
+            $0.range(of: #"RetainValue"#, options: .regularExpression) != nil
+        }.count
+        let releases = fBody.components(separatedBy: "\n").filter {
+            $0.range(of: #"ReleaseValue"#, options: .regularExpression) != nil
+        }.count
+        try #require(retains == 1)
+        try #require(releases == 2)
+    }
+
+    @Test func refArgumentRetainedOnCall() throws {
+        let tir = dumpTIR(
+            """
+            class C {
+                init() {}
+            }
+            func g(c: C) {
+            }
+            func f() {
+                let x = C()
+                g(x)
+            }
+            """
+        )
+        let fBody = tir.components(separatedBy: "function $t4main_1f_4Void").last ?? ""
+        try #require(fBody.contains("RetainValue"))
+        try #require(fBody.contains("Apply "))
+    }
+
+    @Test func breakReleasesLoopScopeVariables() throws {
+        let tir = dumpTIR(
+            """
+            class C {
+                init() {}
+            }
+            func f() {
+                while true {
+                    let x = C()
+                    break
+                }
+            }
+            """
+        )
+        let fBody = tir.components(separatedBy: "function $t4main_1f_4Void").last ?? ""
+        try #require(fBody.contains("ReleaseValue"))
+        try #require(fBody.contains("Branch "))
+    }
+
+    @Test func guardFailureReleasesVariables() throws {
+        let tir = dumpTIR(
+            """
+            class C {
+                init() {}
+            }
+            func f() -> Bool {
+                let x = C()
+                guard true else {
+                    return false
+                }
+                return true
+            }
+            """
+        )
+        try #require(tir.contains("ReleaseValue"))
+    }
+
+    @Test func closureCaptureRetainsRef() throws {
+        let tir = dumpTIR(
+            """
+            class C {
+                init() {}
+            }
+            func f() {
+                let x = C()
+                let g = {
+                    x
+                }
+            }
+            """
+        )
+        try #require(tir.contains("RetainValue"))
+        try #require(tir.contains("AllocCell"))
+    }
 }
