@@ -24,6 +24,7 @@ public final class TIRGen: AST.Visitor {
     private var staticVariableSymbols: Set<Id.SymbolId> = []
     private var collectTypeStack: [Symbol.NominalTypeSymbol] = []
     private var modulePathStack: [Symbol.ModuleSymbol] = []
+    private var externContextDepth = 0
 
     private struct BreakTarget {
         let label: String?
@@ -132,6 +133,15 @@ public final class TIRGen: AST.Visitor {
                 if decl.symbol != nil {
                     modulePathStack.removeLast()
                 }
+            case let decl as AST.ExternDecl:
+                externContextDepth += 1
+                switch decl.body {
+                case let .Block(statements):
+                    collectStatements(statements)
+                case let .Declaration(inner):
+                    collectStatements([inner])
+                }
+                externContextDepth -= 1
             case let decl as AST.StructDecl:
                 collectTypeStack.append(decl.symbol ?? Symbol.StructSymbol(id: Id.SymbolId(id: 0), name: ""))
                 collectStatements(decl.body)
@@ -163,14 +173,11 @@ public final class TIRGen: AST.Visitor {
         let functionType = symbol.functionType
         let returnType = functionType.map { typeLower.lower($0.returnType) } ?? TIRType.VoidType()
         let throwsTypes = functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
-        let name = if let cname = cname(decl.attributes) {
-            cname
-        } else {
-            mangleFunctionName(
+        let name = cname(decl.attributes)
+            ?? (externContextDepth > 0 ? decl.name.value : mangleFunctionName(
                 symbol, baseName: decl.name.value,
                 returnType: functionType?.returnType ?? TrussType.VoidType.INSTANCE
-            )
-        }
+            ))
         createFunction(
             symbol, name: name,
             returnType: returnType,
@@ -261,7 +268,8 @@ public final class TIRGen: AST.Visitor {
             staticVariableSymbols.insert(symbol.id)
         }
         if symbol.memberOf == nil || isStatic, decl.accessors.isEmpty {
-            globalNamesBySymbol[symbol.id] = cname(decl.attributes) ?? mangleGlobalName(symbol)
+            globalNamesBySymbol[symbol.id] = cname(decl.attributes)
+                ?? (externContextDepth > 0 ? decl.name.value : mangleGlobalName(symbol))
         }
         guard !decl.accessors.isEmpty else { return }
         let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.VoidType()
@@ -335,10 +343,7 @@ public final class TIRGen: AST.Visitor {
         builder.emit(TIR.Store(selfArgument, to: selfAddress, sourceRange: emptyRange))
         env[typeSymbol.id] = selfAddress
 
-        switch accessor.kind {
-        case .Get:
-            break
-        case .Set, .WillSet, .DidSet:
+        if accessor.kind != .Get {
             let parameterName = accessor.parameterName?.value
                 ?? (accessor.kind == .DidSet ? "oldValue" : "newValue")
             let newValueArgument = builder.createArgument(
@@ -442,7 +447,7 @@ public final class TIRGen: AST.Visitor {
     private func typeName(_ type: TrussType.TrussType) -> String {
         switch type {
         case is TrussType.VoidType:
-            "Void"
+            "()"
         case let nominal as TrussType.NominalType:
             nominal.name
         case is TrussType.OptionalType:

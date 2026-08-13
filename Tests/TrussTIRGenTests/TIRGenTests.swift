@@ -522,4 +522,70 @@ import TrussTIRGen
             }
         )
     }
+
+    @Test func externFunctionUsesPlainName() throws {
+        let tir = dumpTIR(
+            """
+            extern "C" {
+                func foo(a: Int32) -> Int32
+            }
+            """
+        )
+        try #require(tir.contains("function foo "))
+    }
+
+    @Test func externFunctionUsesCnameWhenPresent() throws {
+        let tir = dumpTIR(
+            """
+            extern "C" {
+                #[cname("bar")]
+                func foo(a: Int32) -> Int32
+            }
+            """
+        )
+        try #require(tir.contains("function bar "))
+        try #require(!tir.contains("function foo "))
+    }
+
+    @Test func externFunctionWithBodyIsLowered() throws {
+        let tir = dumpTIR(
+            """
+            extern "C" {
+                func foo(a: Int32) -> Int32 {
+                    return a
+                }
+            }
+            """
+        )
+        try #require(tir.contains("function foo "))
+        try #require(tir.contains("Return "))
+    }
+
+    @Test func externFunctionCallUsesExternName() throws {
+        let tir = dumpTIR(
+            """
+            extern "C" {
+                func foo(a: Int32) -> Int32
+            }
+            func callFoo() {
+                let x = foo(1)
+            }
+            """
+        )
+        try #require(tir.contains("function foo "))
+        try #require(tir.contains("FunctionRef"))
+        try #require(tir.contains("Apply "))
+    }
+
+    @Test func externVariableUsesPlainName() throws {
+        let tir = dumpTIR(
+            """
+            extern "C" {
+                var g: Int32
+            }
+            """
+        )
+        try #require(tir.contains("global g"))
+        try #require(!tir.contains("global $t4main_1g"))
+    }
 }
