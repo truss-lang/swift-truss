@@ -38,6 +38,8 @@ final class TypeLower {
                 throwsTypes: function.throwsTypes.map(lower),
                 returnType: lower(function.returnType)
             )
+        case let pointer as TrussType.PointerType:
+            return TIRType.PointerType(lower(pointer.pointee))
         case let composition as TrussType.CompositionType:
             return TIRType.ExistentialType(composition.members.map(lower))
         case let instantiation as TrussType.GenericInstantiation:

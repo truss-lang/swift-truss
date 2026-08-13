@@ -120,10 +120,12 @@ public enum Symbol {
         public let labels: [String?]
         public let hasDefaults: [Bool]
         public let isVararg: [Bool]
-        public init(labels: [String?], hasDefaults: [Bool], isVararg: [Bool]) {
+        public let isVariadic: Bool
+        public init(labels: [String?], hasDefaults: [Bool], isVararg: [Bool], isVariadic: Bool) {
             self.labels = labels
             self.hasDefaults = hasDefaults
             self.isVararg = isVararg
+            self.isVariadic = isVariadic
         }
     }
 

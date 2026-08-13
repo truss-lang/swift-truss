@@ -52,7 +52,7 @@ public final class Enter: AST.Visitor {
     }
 
     private func signature(
-        of parameters: [AST.FunctionDecl.Parameter], varargToken: Token?
+        of parameters: [AST.FunctionDecl.Parameter], isVariadic: Bool
     ) -> Symbol.FunctionSignature {
         var labels: [String?] = []
         var hasDefaults: [Bool] = []
@@ -62,13 +62,8 @@ public final class Enter: AST.Visitor {
             hasDefaults.append(parameter.defaultValue != nil)
             isVararg.append(parameter.type is AST.VariadicType)
         }
-        if varargToken != nil {
-            labels.append(nil)
-            hasDefaults.append(false)
-            isVararg.append(true)
-        }
         return Symbol.FunctionSignature(
-            labels: labels, hasDefaults: hasDefaults, isVararg: isVararg
+            labels: labels, hasDefaults: hasDefaults, isVararg: isVararg, isVariadic: isVariadic
         )
     }
 
@@ -220,7 +215,7 @@ public final class Enter: AST.Visitor {
             id: context.nextSymbolId, name: functionDecl.name.value, locals: locals(of: scope),
             scope: scope,
             signature: signature(
-                of: functionDecl.parameters, varargToken: functionDecl.varargToken
+                of: functionDecl.parameters, isVariadic: functionDecl.varargToken != nil
             ),
             isStatic: functionDecl.modifiers.contains { modifier in
                 if case .Static = modifier.kind { return true }
@@ -249,7 +244,7 @@ public final class Enter: AST.Visitor {
 
         let symbol = Symbol.FunctionSymbol(
             id: context.nextSymbolId, name: "init", locals: locals(of: scope), scope: scope,
-            signature: signature(of: initDecl.parameters, varargToken: nil)
+            signature: signature(of: initDecl.parameters, isVariadic: false)
         )
         registerMemberSymbol(symbol, at: initDecl.token, modifiers: initDecl.modifiers)
         initDecl.symbol = symbol
@@ -275,7 +270,7 @@ public final class Enter: AST.Visitor {
 
         let symbol = Symbol.FunctionSymbol(
             id: context.nextSymbolId, name: "subscript", locals: locals(of: scope), scope: scope,
-            signature: signature(of: subscriptDecl.parameters, varargToken: nil)
+            signature: signature(of: subscriptDecl.parameters, isVariadic: false)
         )
         registerMemberSymbol(symbol, at: subscriptDecl.token, modifiers: subscriptDecl.modifiers)
         subscriptDecl.symbol = symbol

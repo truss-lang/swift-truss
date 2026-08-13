@@ -188,8 +188,9 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(f.hasDefaults == [false, true, false])
     #expect(f.isVararg == [false, false, true])
     let g = (packageScope.values["g"]![0] as! Symbol.FunctionSymbol).signature
-    #expect(g.labels == ["i", nil])
-    #expect(g.isVararg == [false, true])
+    #expect(g.labels == ["i"])
+    #expect(g.isVararg == [false])
+    #expect(g.isVariadic)
     let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
     let initSig = (s.scope.values["init"]![0] as! Symbol.FunctionSymbol).signature
     #expect(initSig.labels == ["x"])

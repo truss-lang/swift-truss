@@ -118,7 +118,16 @@ public extension TIR {
 
         private func functionSignatureText(_ function: TIR.Function) -> String {
             let args = function.arguments.map { "\($0.name) \(innerTypeText($0.type))" }.joined(separator: ", ")
-            return "(\(args)) -> " + functionReturnTypeText(function.returnType)
+            let variadic = if function.isVariadic {
+                if args.isEmpty {
+                    "..."
+                } else {
+                    ", ..."
+                }
+            } else {
+                ""
+            }
+            return "(\(args)\(variadic)) -> " + functionReturnTypeText(function.returnType)
         }
 
         private func functionReturnTypeText(_ type: TIRType.TIRType) -> String {
@@ -344,7 +353,7 @@ public extension TIR {
         public func typeText(_ type: TIRType.TIRType) -> String {
             switch type {
             case is TIRType.VoidType:
-                return "void"
+                return "()"
             case let primitive as TIRType.PrimitiveType:
                 return primitiveKindText(primitive.kind) + String(primitive.bitWidth)
             case let nominal as TIRType.NominalType:

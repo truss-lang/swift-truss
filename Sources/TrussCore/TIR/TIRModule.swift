@@ -39,17 +39,19 @@ public enum TIR {
         public var genericSignature: TIRType.GenericSignature?
         public var arguments: [Argument] = []
         public var returnType: TIRType.TIRType
+        public var isVariadic: Bool
         public var isAsync: Bool
         public var isThrowing: Bool
         public var throwsTypes: [TIRType.TIRType]
         public let entryBlock: BasicBlock
         public var blocks: [BasicBlock]
         public init(
-            name: String, returnType: TIRType.TIRType, isAsync: Bool = false,
+            name: String, returnType: TIRType.TIRType, isVariadic: Bool = false, isAsync: Bool = false,
             isThrowing: Bool = false, throwsTypes: [TIRType.TIRType] = []
         ) {
             self.name = name
             self.returnType = returnType
+            self.isVariadic = isVariadic
             self.isAsync = isAsync
             self.isThrowing = isThrowing
             self.throwsTypes = throwsTypes

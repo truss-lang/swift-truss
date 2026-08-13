@@ -1408,6 +1408,8 @@ public final class TypeChecker: AST.Visitor {
         switch (a, b) {
         case let (l as TrussType.NominalType, r as TrussType.NominalType):
             return l.id == r.id
+        case let (l as TrussType.BuiltinType, r as TrussType.BuiltinType):
+            return l.name == r.name
         case let (l as TrussType.GenericInstantiation, r as TrussType.NominalType):
             return l.arguments.isEmpty && l.base.id == r.id
         case let (l as TrussType.NominalType, r as TrussType.GenericInstantiation):

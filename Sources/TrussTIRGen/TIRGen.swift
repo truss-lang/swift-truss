@@ -14,6 +14,8 @@ public final class TIRGen: AST.Visitor {
     private var errorTargets: [ErrorTarget] = []
     private var closureParamValues: [[TIR.Value]] = []
     private var closureCounter = 0
+    private var semanticScopes: [Scope] = []
+    private var pendingLoopLabel: String? = nil
     private var globalsBySymbol: [Id.SymbolId: TIR.GlobalVariable] = [:]
     private var globalNamesBySymbol: [Id.SymbolId: String] = [:]
     private var propertyInitializers: [Id.SymbolId: [(Symbol.VariableSymbol, AST.Expression)]] = [:]
@@ -83,6 +85,8 @@ public final class TIRGen: AST.Visitor {
             errorTargets = []
             closureParamValues = []
             scopeStack = []
+            semanticScopes = []
+            pendingLoopLabel = nil
             visitProgram(program)
         }
         return modules
@@ -197,7 +201,9 @@ public final class TIRGen: AST.Visitor {
         createFunction(
             symbol, name: name,
             returnType: returnType,
-            isAsync: decl.asyncToken != nil, isThrowing: functionType?.isThrowing ?? false,
+            isVariadic: decl.varargToken != nil,
+            isAsync: decl.asyncToken != nil,
+            isThrowing: functionType?.isThrowing ?? false,
             throwsTypes: throwsTypes
         )
     }
@@ -216,7 +222,8 @@ public final class TIRGen: AST.Visitor {
         let function = createFunction(
             symbol, name: name,
             returnType: TIRType.VoidType(),
-            isAsync: decl.asyncToken != nil, isThrowing: symbol.functionType?.isThrowing ?? false,
+            isAsync: decl.asyncToken != nil,
+            isThrowing: symbol.functionType?.isThrowing ?? false,
             throwsTypes: throwsTypes
         )
         if let memberOf = symbol.memberOf {
@@ -340,6 +347,7 @@ public final class TIRGen: AST.Visitor {
         let savedDefer = deferStack
         let savedError = errorTargets
         let savedClosureParams = closureParamValues
+        let savedSemanticScopes = semanticScopes
 
         let builder = TIRBuilder(function: function)
         self.builder = builder
@@ -350,6 +358,9 @@ public final class TIRGen: AST.Visitor {
         errorTargets = []
         closureParamValues = []
         pushScope()
+        if let scope = accessor.scope {
+            semanticScopes.append(scope)
+        }
 
         let selfType = ownerType(typeSymbol) ?? TIRType.VoidType()
         let selfArgument = builder.createArgument(
@@ -414,6 +425,7 @@ public final class TIRGen: AST.Visitor {
         deferStack = savedDefer
         errorTargets = savedError
         closureParamValues = savedClosureParams
+        semanticScopes = savedSemanticScopes
     }
 
     private func cname(_ attributes: [AST.Attribute]) -> String? {
@@ -479,6 +491,8 @@ public final class TIRGen: AST.Visitor {
         switch type {
         case is TrussType.VoidType:
             "Void"
+        case is TrussType.NeverType:
+            "Never"
         case let nominal as TrussType.NominalType:
             nominal.name
         case is TrussType.OptionalType:
@@ -497,10 +511,11 @@ public final class TIRGen: AST.Visitor {
     @discardableResult
     private func createFunction(
         _ symbol: Symbol.FunctionSymbol?, name: String, returnType: TIRType.TIRType,
-        isAsync: Bool = false, isThrowing: Bool = false, throwsTypes: [TIRType.TIRType] = []
+        isVariadic: Bool = false, isAsync: Bool = false,
+        isThrowing: Bool = false, throwsTypes: [TIRType.TIRType] = []
     ) -> TIR.Function {
         let function = TIR.Function(
-            name: name, returnType: returnType, isAsync: isAsync, isThrowing: isThrowing,
+            name: name, returnType: returnType, isVariadic: isVariadic, isAsync: isAsync, isThrowing: isThrowing,
             throwsTypes: throwsTypes
         )
         function.symbol = symbol
@@ -585,6 +600,7 @@ public final class TIRGen: AST.Visitor {
         let savedDefer = deferStack
         let savedError = errorTargets
         let savedClosureParams = closureParamValues
+        let savedSemanticScopes = semanticScopes
 
         builder = TIRBuilder(function: function)
         env = [:]
@@ -594,6 +610,9 @@ public final class TIRGen: AST.Visitor {
         errorTargets = []
         closureParamValues = []
         pushScope()
+        if let scope = symbol?.scope {
+            semanticScopes.append(scope)
+        }
 
         bindSelfIfNeeded(function: function, symbol: symbol, hasSelf: hasSelf, owner: owner)
         bindParameters(function: function, symbol: symbol, parameters: parameters)
@@ -624,6 +643,7 @@ public final class TIRGen: AST.Visitor {
         deferStack = savedDefer
         errorTargets = savedError
         closureParamValues = savedClosureParams
+        semanticScopes = savedSemanticScopes
     }
 
     private func bindSelfIfNeeded(
@@ -925,6 +945,9 @@ public final class TIRGen: AST.Visitor {
     @discardableResult
     public override func visitWhile(_ whileStatement: AST.While, additional: Any? = nil) -> Any? {
         guard let builder else { return nil }
+        if let scope = whileStatement.scope {
+            semanticScopes.append(scope)
+        }
         let condBlock = builder.createBlock()
         let bodyBlock = builder.createBlock()
         let exitBlock = builder.createBlock()
@@ -935,14 +958,19 @@ public final class TIRGen: AST.Visitor {
             range: whileStatement.sourceRange
         )
         builder.switchToBlock(bodyBlock)
+        let label = pendingLoopLabel
+        pendingLoopLabel = nil
         breakStack.append(
             BreakTarget(
-                label: nil, breakBlock: exitBlock, continueBlock: condBlock,
+                label: label, breakBlock: exitBlock, continueBlock: condBlock,
                 scopeDepth: scopeStack.count
             )
         )
         visitScopedStatements(whileStatement.body, range: whileStatement.sourceRange)
         breakStack.removeLast()
+        if whileStatement.scope != nil {
+            semanticScopes.removeLast()
+        }
         builder.emit(TIR.Branch(condBlock, sourceRange: whileStatement.sourceRange))
         builder.switchToBlock(exitBlock)
         return nil
@@ -953,19 +981,27 @@ public final class TIRGen: AST.Visitor {
         _ repeatWhile: AST.RepeatWhile, additional: Any? = nil
     ) -> Any? {
         guard let builder else { return nil }
+        if let scope = repeatWhile.scope {
+            semanticScopes.append(scope)
+        }
         let bodyBlock = builder.createBlock()
         let condBlock = builder.createBlock()
         let exitBlock = builder.createBlock()
         builder.emit(TIR.Branch(bodyBlock, sourceRange: repeatWhile.sourceRange))
         builder.switchToBlock(bodyBlock)
+        let label = pendingLoopLabel
+        pendingLoopLabel = nil
         breakStack.append(
             BreakTarget(
-                label: nil, breakBlock: exitBlock, continueBlock: condBlock,
+                label: label, breakBlock: exitBlock, continueBlock: condBlock,
                 scopeDepth: scopeStack.count
             )
         )
         visitScopedStatements(repeatWhile.body, range: repeatWhile.sourceRange)
         breakStack.removeLast()
+        if repeatWhile.scope != nil {
+            semanticScopes.removeLast()
+        }
         builder.emit(TIR.Branch(condBlock, sourceRange: repeatWhile.sourceRange))
         builder.switchToBlock(condBlock)
         visitCondition(
@@ -1034,6 +1070,17 @@ public final class TIRGen: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitLabeledStatement(
+        _ labeledStatement: AST.LabeledStatement, additional: Any? = nil
+    ) -> Any? {
+        let savedLabel = pendingLoopLabel
+        pendingLoopLabel = labeledStatement.label.value
+        _ = visit(labeledStatement.body, additional: additional)
+        pendingLoopLabel = savedLabel
+        return nil
+    }
+
+    @discardableResult
     public override func visitGoto(_ gotoStatement: AST.Goto, additional: Any? = nil) -> Any? {
         builder?.emit(TIR.Trap(gotoStatement.sourceRange))
         return nil
@@ -1086,6 +1133,9 @@ public final class TIRGen: AST.Visitor {
     @discardableResult
     public override func visitIf(_ ifExpression: AST.If, additional: Any? = nil) -> Any? {
         guard let builder else { return nil }
+        if let scope = ifExpression.scope {
+            semanticScopes.append(scope)
+        }
         let thenBlock = builder.createBlock()
         let elseBlock = builder.createBlock()
         let joinBlock = builder.createBlock()
@@ -1118,6 +1168,9 @@ public final class TIRGen: AST.Visitor {
             incomings = []
         }
         builder.switchToBlock(joinBlock)
+        if ifExpression.scope != nil {
+            semanticScopes.removeLast()
+        }
         return emitPhi(incomings, range: ifExpression.sourceRange)
     }
 
@@ -1156,6 +1209,26 @@ public final class TIRGen: AST.Visitor {
     @discardableResult
     public override func visitMatch(_ matchExpression: AST.Match, additional: Any? = nil) -> Any? {
         visitMatch(matchExpression, implicitReturn: false)
+    }
+
+    @discardableResult
+    public override func visitCaseMatch(
+        _ caseMatch: AST.CaseMatch, additional: Any? = nil
+    ) -> Any? {
+        guard let builder else { return nil }
+        guard let subject = visitExpression(caseMatch.subject) else { return nil }
+        let successBlock = builder.createBlock()
+        let failBlock = builder.createBlock()
+        emitPatternMatch(
+            caseMatch.pattern, subject: subject, successBlock: successBlock,
+            failBlock: failBlock, range: caseMatch.sourceRange
+        )
+        builder.switchToBlock(successBlock)
+        builder.emit(TIR.Branch(failBlock, sourceRange: caseMatch.sourceRange))
+        builder.switchToBlock(failBlock)
+        return builder.emitWithResult(
+            TIR.VoidLiteral(caseMatch.sourceRange), type: TIRType.VoidType(), ownership: .Trivial
+        )
     }
 
     @discardableResult
@@ -1356,7 +1429,14 @@ public final class TIRGen: AST.Visitor {
     }
 
     private func currentScopeVariable(named name: String) -> Symbol.VariableSymbol? {
-        nil
+        for scope in semanticScopes.reversed() {
+            if let symbol = scope.values[name]?.first(where: { $0 is Symbol.VariableSymbol })
+                as? Symbol.VariableSymbol
+            {
+                return symbol
+            }
+        }
+        return nil
     }
 
     @discardableResult
@@ -1515,6 +1595,18 @@ public final class TIRGen: AST.Visitor {
         let type = (nullLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.NullLiteral(type: type, sourceRange: nullLiteral.sourceRange),
+            type: type, ownership: .Trivial
+        )
+    }
+
+    @discardableResult
+    public override func visitNullPointerLiteral(
+        _ nullPointerLiteral: AST.NullPointerLiteral, additional: Any? = nil
+    ) -> Any? {
+        guard let builder else { return nil }
+        let type = (nullPointerLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
+        return builder.emitWithResult(
+            TIR.NullLiteral(type: type, sourceRange: nullPointerLiteral.sourceRange),
             type: type, ownership: .Trivial
         )
     }
@@ -2272,6 +2364,84 @@ public final class TIRGen: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitDereference(
+        _ dereference: AST.Dereference, additional: Any? = nil
+    ) -> Any? {
+        guard let builder else { return nil }
+        guard let pointer = visitExpression(dereference.expression) else { return nil }
+        let type = (dereference.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
+        return builder.emitWithResult(
+            TIR.Load(pointer, sourceRange: dereference.sourceRange),
+            type: type, ownership: typeLower.ownership(for: type)
+        )
+    }
+
+    @discardableResult
+    public override func visitAddressOf(_ addressOf: AST.AddressOf, additional: Any? = nil) -> Any? {
+        guard let builder else { return nil }
+        guard let address = addressValue(addressOf.expression, range: addressOf.sourceRange) else {
+            return nil
+        }
+        let type = (addressOf.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
+        return builder.emitWithResult(
+            TIR.AddressToPointer(address, sourceRange: addressOf.sourceRange),
+            type: type, ownership: .Trivial
+        )
+    }
+
+    private func addressValue(_ expression: AST.Expression, range: SourceRange) -> TIR.Value? {
+        guard let builder else { return nil }
+        switch expression {
+        case let variable as AST.Variable:
+            guard let symbol = variable.symbol else { return nil }
+            if let global = globalsBySymbol[symbol.id] {
+                return builder.emitWithResult(
+                    TIR.GlobalAddr(global, sourceRange: range),
+                    type: TIRType.AddressType(global.type), ownership: .MutableBorrowing
+                )
+            }
+            if let address = env[symbol.id] {
+                return address
+            }
+            if let memberOf = symbol.memberOf, let selfAddress = env[memberOf],
+               let property = symbol as? Symbol.VariableSymbol
+            {
+                let propertyType = property.type.map { typeLower.lower($0) }
+                    ?? TIRType.VoidType()
+                return implicitPropertyElementAddress(
+                    property, selfAddress: selfAddress, propertyType: propertyType, range: range
+                )
+            }
+            return nil
+        case let member as AST.MemberAccess:
+            guard let variableSymbol = member.symbol as? Symbol.VariableSymbol,
+                  accessorFunctions[variableSymbol.id]?["get"] == nil,
+                  let object = visitExpression(member.object)
+            else {
+                return nil
+            }
+            let memberType = variableSymbolType(variableSymbol) ?? TIRType.VoidType()
+            let isClass = isReferenceType(member.object.ty)
+            return builder.emitWithResult(
+                isClass
+                    ? TIR.RefElementAddr(
+                        object, fieldIndex: 0, fieldName: member.member.value,
+                        sourceRange: range
+                    )
+                    : TIR.StructElementAddr(
+                        object, fieldIndex: 0, fieldName: member.member.value,
+                        sourceRange: range
+                    ),
+                type: TIRType.AddressType(memberType), ownership: .MutableBorrowing
+            )
+        case let dereference as AST.Dereference:
+            return visitExpression(dereference.expression)
+        default:
+            return nil
+        }
+    }
+
+    @discardableResult
     public override func visitArrayLiteral(
         _ arrayLiteral: AST.ArrayLiteral, additional: Any? = nil
     ) -> Any? {
@@ -2410,6 +2580,17 @@ public final class TIRGen: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitOptionalBinding(
+        _ optionalBinding: AST.OptionalBinding, additional: Any? = nil
+    ) -> Any? {
+        guard let value = visitExpression(optionalBinding.value) else { return nil }
+        bindPatternValue(
+            name: optionalBinding.name.value, value: value, at: optionalBinding.sourceRange
+        )
+        return value
+    }
+
+    @discardableResult
     public override func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
         guard let builder else { return nil }
         let captured = analyzeCaptures(closure.body)
@@ -2444,6 +2625,7 @@ public final class TIRGen: AST.Visitor {
         let savedDefer = deferStack
         let savedError = errorTargets
         let savedClosureParams = closureParamValues
+        let savedSemanticScopes = semanticScopes
 
         self.builder = TIRBuilder(function: function)
         env = [:]
@@ -2453,6 +2635,9 @@ public final class TIRGen: AST.Visitor {
         errorTargets = []
         closureParamValues = []
         pushScope()
+        if let scope = closure.scope {
+            semanticScopes.append(scope)
+        }
 
         for (index, (symbol, type)) in captured.enumerated() {
             if index < captureCells.count {
@@ -2508,6 +2693,7 @@ public final class TIRGen: AST.Visitor {
         deferStack = savedDefer
         errorTargets = savedError
         closureParamValues = savedClosureParams
+        semanticScopes = savedSemanticScopes
 
         return builder.emitWithResult(
             TIR.Closure(function, captures: captureCells, sourceRange: closure.sourceRange),
