@@ -19,15 +19,20 @@ public enum TIR {
     public final class Module {
         public var globals: [GlobalVariable] = []
         public var functions: [Function] = []
-        public var functionRegistry: FunctionRegistry?
+        public var registry: Registry?
         public init() {}
     }
 
-    public final class FunctionRegistry {
+    public final class Registry {
         public var functions: [Int: Function] = [:]
+        public var types: [Int: TIRType.TIRType] = [:]
         public init() {}
-        public var nextId: Int {
+        public var nextFunctionId: Int {
             functions.count
+        }
+
+        public var nextTypeId: Int {
+            types.count
         }
     }
 

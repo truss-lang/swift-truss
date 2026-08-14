@@ -19,7 +19,6 @@ public enum TIRType {
     public class NominalType: TIRType {
         public let id: Id.TypeId
         public let name: String
-        public var symbol: Symbol.NominalTypeSymbol? = nil
         @abstractInit
         public init(_ id: Id.TypeId, _ name: String) {
             self.id = id
@@ -28,18 +27,21 @@ public enum TIRType {
     }
 
     public final class StructType: NominalType {
+        public var fields: [(name: String, type: Int)] = []
         public override init(_ id: Id.TypeId, _ name: String) {
             super.init(id, name)
         }
     }
 
     public final class EnumType: NominalType {
+        public var cases: [(name: String, associatedTypeIds: [Int])] = []
         public override init(_ id: Id.TypeId, _ name: String) {
             super.init(id, name)
         }
     }
 
     public final class ReferenceType: NominalType {
+        public var fields: [(name: String, type: Int)] = []
         public override init(_ id: Id.TypeId, _ name: String) {
             super.init(id, name)
         }

@@ -5,7 +5,7 @@ public final class TIRGen: AST.Visitor {
     private let context: Context
     private let typeLower: TypeLower
     private var module = TIR.Module()
-    private var functionRegistry: TIR.FunctionRegistry? = nil
+    private var registry: TIR.Registry? = nil
     private var builder: TIRBuilder? = nil
     private var functionsBySymbol: [Id.SymbolId: TIR.Function] = [:]
     private var env: [Id.SymbolId: TIR.Value] = [:]
@@ -64,11 +64,17 @@ public final class TIRGen: AST.Visitor {
         globalNamesBySymbol = [:]
         staticVariableSymbols = []
         deinitFunctionsByType = [:]
-        functionRegistry = TIR.FunctionRegistry()
+        registry = TIR.Registry()
+        typeLower.registry = registry
+        typeLower.storedProperties = [:]
+        typeLower.enumCases = [:]
+        for program in programs {
+            collectTypeLayouts(in: program)
+        }
         var modules: [TIR.Module] = []
         for program in programs {
             let programModule = TIR.Module()
-            programModule.functionRegistry = functionRegistry
+            programModule.registry = registry
             modules.append(programModule)
             module = programModule
             collectFunctions(in: program)
@@ -95,6 +101,71 @@ public final class TIRGen: AST.Visitor {
             visitProgram(program)
         }
         return modules
+    }
+
+    private func collectTypeLayouts(in program: AST.Program) {
+        collectLayoutStatements(program.statements)
+    }
+
+    private func collectLayoutStatements(_ statements: [AST.Statement]) {
+        for statement in statements {
+            switch statement {
+            case let decl as AST.EnumDecl:
+                collectEnumCases(decl)
+                collectLayoutStatements(decl.body)
+            case let decl as AST.ModuleDecl:
+                collectLayoutStatements(decl.body)
+            case let decl as AST.ExtensionDecl:
+                collectLayoutStatements(decl.body)
+            case let decl as AST.StructDecl:
+                collectLayoutStatements(decl.body)
+            case let decl as AST.ClassDecl:
+                collectLayoutStatements(decl.body)
+            case let decl as AST.ActorDecl:
+                collectLayoutStatements(decl.body)
+            case let decl as AST.VariableDecl:
+                collectStoredProperty(decl)
+            default:
+                break
+            }
+        }
+    }
+
+    private func collectStoredProperty(_ decl: AST.VariableDecl) {
+        guard let symbol = decl.symbol, let memberOf = symbol.memberOf,
+              !decl.accessors.contains(where: { $0.kind == .Get || $0.kind == .Set })
+        else {
+            return
+        }
+        if isStaticDecl(decl) {
+            return
+        }
+        guard let owner = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol,
+              let typeId = owner.typeId, let type = symbol.type
+        else {
+            return
+        }
+        typeLower.storedProperties[typeId, default: []].append((name: symbol.name, type: type))
+    }
+
+    private func collectEnumCases(_ decl: AST.EnumDecl) {
+        guard let typeId = decl.symbol?.typeId else { return }
+        for statement in decl.body {
+            if let caseDecl = statement as? AST.EnumCaseDecl {
+                for caseSymbol in caseDecl.symbols {
+                    typeLower.enumCases[typeId, default: []].append(
+                        (name: caseSymbol.name, types: caseSymbol.associatedTypes)
+                    )
+                }
+            }
+        }
+    }
+
+    private func isStaticDecl(_ decl: AST.VariableDecl) -> Bool {
+        decl.modifiers.contains { modifier in
+            if case .Static = modifier.kind { return true }
+            return false
+        }
     }
 
     private func collectGlobalInitializers(in program: AST.Program) {
@@ -570,16 +641,16 @@ public final class TIRGen: AST.Visitor {
         isVariadic: Bool = false, isAsync: Bool = false,
         isThrowing: Bool = false, throwsTypes: [TIRType.TIRType] = []
     ) -> TIR.Function {
-        guard let functionRegistry else {
+        guard let registry else {
             fatalError("unreachable")
         }
         let function = TIR.Function(
-            id: functionRegistry.nextId, name: name, returnType: returnType, isVariadic: isVariadic,
+            id: registry.nextFunctionId, name: name, returnType: returnType, isVariadic: isVariadic,
             isAsync: isAsync, isThrowing: isThrowing, throwsTypes: throwsTypes
         )
         function.symbol = symbol
         module.functions.append(function)
-        functionRegistry.functions[function.id] = function
+        registry.functions[function.id] = function
         if let symbol {
             functionsBySymbol[symbol.id] = function
         }
@@ -799,14 +870,20 @@ public final class TIRGen: AST.Visitor {
         }
         guard let selfAddress = env[memberOf] else { return }
         let isClass = owner is Symbol.ClassSymbol || owner is Symbol.ActorSymbol
+        guard let ownerTIRType = ownerType(owner) else { return }
         for (propertySymbol, initializer) in initializers {
             let propertyType = propertySymbol.type.map { typeLower.lower($0) }
                 ?? (initializer.ty).map { typeLower.lower($0) }
                 ?? TIRType.VoidType()
+            guard let fieldIndex = storedFieldIndex(
+                of: propertySymbol.name, in: ownerTIRType, range: range
+            ) else {
+                continue
+            }
             let fieldAddress: TIR.Value = if isClass {
                 builder.emitWithResult(
                     TIR.RefElementAddr(
-                        selfAddress, fieldIndex: 0, fieldName: propertySymbol.name,
+                        selfAddress, fieldIndex: fieldIndex, fieldName: propertySymbol.name,
                         sourceRange: range
                     ),
                     type: TIRType.AddressType(propertyType), ownership: .MutableBorrowing
@@ -814,7 +891,7 @@ public final class TIRGen: AST.Visitor {
             } else {
                 builder.emitWithResult(
                     TIR.StructElementAddr(
-                        selfAddress, fieldIndex: 0, fieldName: propertySymbol.name,
+                        selfAddress, fieldIndex: fieldIndex, fieldName: propertySymbol.name,
                         sourceRange: range
                     ),
                     type: TIRType.AddressType(propertyType), ownership: .MutableBorrowing
@@ -834,6 +911,28 @@ public final class TIRGen: AST.Visitor {
             return nil
         }
         return typeLower.lower(type)
+    }
+
+    private func storedFieldIndex(
+        of name: String, in ownerType: TIRType.TIRType, range: SourceRange
+    ) -> Int? {
+        guard let nominal = ownerType as? TIRType.NominalType else { return nil }
+        let fields: [(name: String, type: Int)]
+        switch nominal {
+        case let structType as TIRType.StructType:
+            fields = structType.fields
+        case let referenceType as TIRType.ReferenceType:
+            fields = referenceType.fields
+        default:
+            return nil
+        }
+        guard let index = fields.firstIndex(where: { $0.name == name }) else {
+            context.emitError(
+                "cannot find stored property '\(name)' in type '\(nominal.name)'", at: range
+            )
+            return nil
+        }
+        return index
     }
 
     private func ensureTerminator(range: SourceRange) {
@@ -918,16 +1017,16 @@ public final class TIRGen: AST.Visitor {
     private func lowerGlobalInitializer(
         _ variableDecl: AST.VariableDecl, symbol: Symbol.VariableSymbol
     ) {
-        guard let functionRegistry else {
+        guard let registry else {
             fatalError("unreachable")
         }
         guard let global = globalsBySymbol[symbol.id], global.initializer.isEmpty else { return }
         guard let initializer = variableDecl.initializer else { return }
         let initFunction = TIR.Function(
-            id: functionRegistry.nextId, name: mangleGlobalName(symbol) + "_" + mangleIdentifier("init"),
+            id: registry.nextFunctionId, name: mangleGlobalName(symbol) + "_" + mangleIdentifier("init"),
             returnType: global.type
         )
-        functionRegistry.functions[initFunction.id] = initFunction
+        registry.functions[initFunction.id] = initFunction
         let savedBuilder = builder
         let savedEnv = env
         let initBuilder = TIRBuilder(function: initFunction)
@@ -1821,7 +1920,11 @@ public final class TIRGen: AST.Visitor {
         range: SourceRange
     ) -> TIR.Value? {
         guard let builder, let memberOf = symbol.memberOf,
-              let owner = context.id2Symbol[memberOf]
+              let owner = context.id2Symbol[memberOf],
+              let ownerTIRType = ownerType(owner),
+              let fieldIndex = storedFieldIndex(
+                  of: symbol.name, in: ownerTIRType, range: range
+              )
         else {
             return nil
         }
@@ -1829,10 +1932,10 @@ public final class TIRGen: AST.Visitor {
         return builder.emitWithResult(
             isClass
                 ? TIR.RefElementAddr(
-                    selfAddress, fieldIndex: 0, fieldName: symbol.name, sourceRange: range
+                    selfAddress, fieldIndex: fieldIndex, fieldName: symbol.name, sourceRange: range
                 )
                 : TIR.StructElementAddr(
-                    selfAddress, fieldIndex: 0, fieldName: symbol.name, sourceRange: range
+                    selfAddress, fieldIndex: fieldIndex, fieldName: symbol.name, sourceRange: range
                 ),
             type: TIRType.AddressType(propertyType), ownership: .MutableBorrowing
         )
@@ -2205,10 +2308,17 @@ public final class TIRGen: AST.Visitor {
         }
         let memberType = variableSymbolType(symbol) ?? TIRType.VoidType()
         let isClass = isReferenceType(memberAccess.object.ty)
+        guard let objectType = memberAccess.object.ty.map({ typeLower.lower($0) }),
+              let fieldIndex = storedFieldIndex(
+                  of: memberAccess.member.value, in: objectType, range: memberAccess.sourceRange
+              )
+        else {
+            return nil
+        }
         let address: TIR.Value = if isClass {
             builder.emitWithResult(
                 TIR.RefElementAddr(
-                    object, fieldIndex: 0, fieldName: memberAccess.member.value,
+                    object, fieldIndex: fieldIndex, fieldName: memberAccess.member.value,
                     sourceRange: memberAccess.sourceRange
                 ),
                 type: TIRType.AddressType(memberType), ownership: .MutableBorrowing
@@ -2216,7 +2326,7 @@ public final class TIRGen: AST.Visitor {
         } else {
             builder.emitWithResult(
                 TIR.StructElementAddr(
-                    object, fieldIndex: 0, fieldName: memberAccess.member.value,
+                    object, fieldIndex: fieldIndex, fieldName: memberAccess.member.value,
                     sourceRange: memberAccess.sourceRange
                 ),
                 type: TIRType.AddressType(memberType), ownership: .MutableBorrowing
@@ -2478,14 +2588,21 @@ public final class TIRGen: AST.Visitor {
     ) -> TIR.Value? {
         guard let builder else { return nil }
         let isClass = isReferenceType(member.object.ty)
+        guard let objectType = member.object.ty.map({ typeLower.lower($0) }),
+              let fieldIndex = storedFieldIndex(
+                  of: member.member.value, in: objectType, range: range
+              )
+        else {
+            return nil
+        }
         return builder.emitWithResult(
             isClass
                 ? TIR.RefElementAddr(
-                    base, fieldIndex: 0, fieldName: member.member.value,
+                    base, fieldIndex: fieldIndex, fieldName: member.member.value,
                     sourceRange: range
                 )
                 : TIR.StructElementAddr(
-                    base, fieldIndex: 0, fieldName: member.member.value,
+                    base, fieldIndex: fieldIndex, fieldName: member.member.value,
                     sourceRange: range
                 ),
             type: TIRType.AddressType(propertyType), ownership: .MutableBorrowing
@@ -2593,7 +2710,11 @@ public final class TIRGen: AST.Visitor {
         case let member as AST.MemberAccess:
             guard let variableSymbol = member.symbol as? Symbol.VariableSymbol,
                   accessorFunctions[variableSymbol.id]?["get"] == nil,
-                  let object = visitExpression(member.object)
+                  let object = visitExpression(member.object),
+                  let objectType = member.object.ty.map({ typeLower.lower($0) }),
+                  let fieldIndex = storedFieldIndex(
+                      of: member.member.value, in: objectType, range: range
+                  )
             else {
                 return nil
             }
@@ -2602,11 +2723,11 @@ public final class TIRGen: AST.Visitor {
             return builder.emitWithResult(
                 isClass
                     ? TIR.RefElementAddr(
-                        object, fieldIndex: 0, fieldName: member.member.value,
+                        object, fieldIndex: fieldIndex, fieldName: member.member.value,
                         sourceRange: range
                     )
                     : TIR.StructElementAddr(
-                        object, fieldIndex: 0, fieldName: member.member.value,
+                        object, fieldIndex: fieldIndex, fieldName: member.member.value,
                         sourceRange: range
                     ),
                 type: TIRType.AddressType(memberType), ownership: .MutableBorrowing

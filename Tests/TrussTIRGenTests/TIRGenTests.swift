@@ -1823,3 +1823,102 @@ import TrussTIRGen
         try #require(tir.contains("Apply "))
     }
 }
+
+@Suite struct TypeRegistryTests {
+    @Test func storedPropertyFieldIndexFollowsDeclarationOrder() throws {
+        let tir = dumpTIR(
+            """
+            struct T {}
+            struct S {
+                var x: T = T()
+                var y: T = T()
+                init() {}
+            }
+            func f() -> T {
+                let s = S()
+                return s.y
+            }
+            """
+        )
+        let fBlock = tir.components(separatedBy: "function ").last ?? ""
+        try #require(fBlock.range(
+            of: #"StructElementAddr %\d+, #1 y"#, options: .regularExpression
+        ) != nil)
+    }
+
+    @Test func mutuallyRecursiveStructsLowerWithoutCycle() throws {
+        let tir = dumpTIR(
+            """
+            struct A {
+                var b: B
+            }
+            struct B {
+                var a: A
+            }
+            func f(a: A) -> A {
+                return a
+            }
+            func g(b: B) -> B {
+                return b
+            }
+            """
+        )
+        try #require(tir.contains("types:"))
+        try #require(tir.contains("b: "))
+        try #require(tir.contains("a: "))
+    }
+
+    @Test func recursiveClassFieldLowered() throws {
+        let tir = dumpTIR(
+            """
+            class C {
+                var next: C?
+            }
+            func f(c: C) -> C {
+                return c
+            }
+            """
+        )
+        try #require(tir.contains("next: "))
+    }
+
+    @Test func computedAndStaticPropertiesExcludedFromFields() throws {
+        let tir = dumpTIR(
+            """
+            struct T {}
+            struct S {
+                var stored: T = T()
+                static var shared: T = T()
+                var computed: T {
+                    get { return stored }
+                }
+                init() {}
+            }
+            """
+        )
+        let typeLine = tir.components(separatedBy: "\n").first(where: { $0.contains("1S#") })
+            ?? ""
+        try #require(typeLine.contains("stored: "))
+        try #require(!typeLine.contains("shared"))
+        try #require(!typeLine.contains("computed"))
+    }
+
+    @Test func enumCasesDumpedWithAssociatedTypes() throws {
+        let tir = dumpTIR(
+            """
+            struct T {}
+            enum E {
+                case A
+                case B(T)
+            }
+            func f(e: E) -> E {
+                return e
+            }
+            """
+        )
+        try #require(tir.contains(".A"))
+        try #require(tir.range(
+            of: #"\.B\(\$t4main1T#"#, options: .regularExpression
+        ) != nil)
+    }
+}

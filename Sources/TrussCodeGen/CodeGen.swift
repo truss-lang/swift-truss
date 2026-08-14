@@ -5,7 +5,7 @@ public final class CodeGen: TIR.Visitor {
     private let context: TrussCore.Context
     private let llvmContext: LLVMSwiftBinding.Context
     private var currentModule: LLVMSwiftBinding.Module? = nil
-    private var currentRegistry: TIR.FunctionRegistry? = nil
+    private var currentRegistry: TIR.Registry? = nil
     private var builder: LLVMSwiftBinding.Builder? = nil
     private var currentFunction: FunctionBinding? = nil
     private var functionMap: [ObjectIdentifier: FunctionBinding] = [:]
@@ -31,7 +31,7 @@ public final class CodeGen: TIR.Visitor {
     public func generate(_ mod: TIR.Module) -> LLVMSwiftBinding.Module {
         let llvmModule: LLVMSwiftBinding.Module = .init(name: "module", in: llvmContext)
         currentModule = llvmModule
-        currentRegistry = mod.functionRegistry
+        currentRegistry = mod.registry
         functionMap = mod.functions.reduce(into: [:]) {
             $0[ObjectIdentifier($1)] = createFunction($1)
         }
@@ -82,6 +82,8 @@ public final class CodeGen: TIR.Visitor {
 
     private func lowerType(_ type: TIRType.TIRType) -> LLVMSwiftBinding.LLVMType {
         switch type {
+        case is TIRType.VoidType:
+            return llvmContext.void
         case let primitive as TIRType.PrimitiveType:
             switch primitive.kind {
             case .Bool:
@@ -110,8 +112,8 @@ public final class CodeGen: TIR.Visitor {
                 parameterTypes: parameterTypes,
                 isVariadic: functionType.isVariadic
             )
-        case is TIRType.VoidType:
-            return llvmContext.void
+        case let structType as TIRType.StructType:
+            return llvmContext.int8
         default:
             return llvmContext.int8
         }

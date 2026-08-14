@@ -4,12 +4,37 @@ final class TypeLower {
     private let context: Context
     private var cache: [Id.TypeId: TIRType.TIRType] = [:]
     private var archetypes: [String: TIRType.ArchetypeType] = [:]
+    private var registered: [ObjectIdentifier: Int] = [:]
+    var registry: TIR.Registry?
+    var storedProperties: [Id.TypeId: [(name: String, type: TrussType.TrussType)]] = [:]
+    var enumCases: [Id.TypeId: [(name: String, types: [TrussType.TrussType])]] = [:]
 
     init(context: Context) {
         self.context = context
     }
 
     func lower(_ type: TrussType.TrussType) -> TIRType.TIRType {
+        let lowered = lowerUnregistered(type)
+        register(lowered)
+        return lowered
+    }
+
+    @discardableResult
+    func register(_ type: TIRType.TIRType) -> Int {
+        let key = ObjectIdentifier(type)
+        if let existing = registered[key] {
+            return existing
+        }
+        guard let registry else {
+            fatalError("type registry is not configured")
+        }
+        let id = registry.nextTypeId
+        registry.types[id] = type
+        registered[key] = id
+        return id
+    }
+
+    func lowerUnregistered(_ type: TrussType.TrussType) -> TIRType.TIRType {
         switch type {
         case is TrussType.VoidType, is TrussType.NeverType, is TrussType.ErrorType:
             return TIRType.VoidType()
@@ -83,9 +108,26 @@ final class TypeLower {
         default:
             TIRType.ReferenceType(type.id, mangledName)
         }
-        lowered.symbol = type.symbol
         cache[type.id] = lowered
+        register(lowered)
+        fillMembers(lowered, type: type)
         return lowered
+    }
+
+    private func fillMembers(_ lowered: TIRType.NominalType, type: TrussType.NominalType) {
+        if let structType = lowered as? TIRType.StructType {
+            structType.fields = (storedProperties[type.id] ?? []).map {
+                (name: $0.name, type: register(lower($0.type)))
+            }
+        } else if let referenceType = lowered as? TIRType.ReferenceType {
+            referenceType.fields = (storedProperties[type.id] ?? []).map {
+                (name: $0.name, type: register(lower($0.type)))
+            }
+        } else if let enumType = lowered as? TIRType.EnumType {
+            enumType.cases = (enumCases[type.id] ?? []).map {
+                (name: $0.name, associatedTypeIds: $0.types.map { register(lower($0)) })
+            }
+        }
     }
 
     private func mangleTypeName(_ type: TrussType.NominalType) -> String {

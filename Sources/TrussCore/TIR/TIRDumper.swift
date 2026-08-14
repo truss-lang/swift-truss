@@ -3,12 +3,12 @@ import SwiftBetterDiagnostic
 
 public extension TIR {
     final class Dumper {
-        private var functionRegistry: TIR.FunctionRegistry?
+        private var registry: TIR.Registry?
 
         public init() {}
 
         public func dump(_ module: TIR.Module) -> String {
-            functionRegistry = module.functionRegistry
+            registry = module.registry
             var lines: [String] = []
             let types = collectTypes(module)
             if !types.isEmpty {
@@ -217,10 +217,10 @@ public extension TIR {
                 return result + "MoveValue " + instruction.value.name
             case let instruction as FunctionRef:
                 return result + "FunctionRef "
-                    + (functionRegistry?.functions[instruction.functionId]?.name ?? "?")
+                    + (registry?.functions[instruction.functionId]?.name ?? "?")
             case let instruction as Closure:
                 return result + "Closure "
-                    + (functionRegistry?.functions[instruction.functionId]?.name ?? "?")
+                    + (registry?.functions[instruction.functionId]?.name ?? "?")
                     + "(captures: "
                     + instruction.captures.map(\.name).joined(separator: ", ") + ")"
             case let instruction as ClassMethod:
@@ -444,32 +444,15 @@ public extension TIR {
         }
 
         private func nominalDefinition(_ nominal: TIRType.NominalType) -> String {
-            guard let symbol = nominal.symbol else { return "" }
-            var members: [String] = []
-            for (name, entries) in symbol.scope.values.sorted(by: { $0.key < $1.key }) {
-                for entry in entries {
-                    switch entry {
-                    case let variable as Symbol.VariableSymbol:
-                        members.append("\(name): " + trussTypeText(variable.type))
-                    case let caseSymbol as Symbol.CaseSymbol:
-                        if caseSymbol.associatedTypes.isEmpty {
-                            members.append(".\(name)")
-                        } else {
-                            members.append(
-                                ".\(name)("
-                                    + caseSymbol.associatedTypes.map(trussTypeText)
-                                    .joined(separator: ", ") + ")"
-                            )
-                        }
-                    case is Symbol.FunctionSymbol:
-                        members.append("\(name)()")
-                    default:
-                        break
-                    }
-                }
-            }
-            for (name, _) in symbol.scope.types.sorted(by: { $0.key < $1.key }) {
-                members.append("type \(name)")
+            let members: [String] = switch nominal {
+            case let structType as TIRType.StructType:
+                structType.fields.map { "\($0.name): " + fieldTypeText($0.type) }
+            case let referenceType as TIRType.ReferenceType:
+                referenceType.fields.map { "\($0.name): " + fieldTypeText($0.type) }
+            case let enumType as TIRType.EnumType:
+                enumType.cases.map(caseText)
+            default:
+                []
             }
             if members.isEmpty {
                 return ""
@@ -477,35 +460,17 @@ public extension TIR {
             return " { " + members.joined(separator: ", ") + " }"
         }
 
-        private func trussTypeText(_ type: TrussType.TrussType?) -> String {
-            guard let type else { return "?" }
-            switch type {
-            case is TrussType.VoidType:
-                return "Void"
-            case let builtin as TrussType.BuiltinType:
-                return "Builtin.\(builtin.name)"
-            case let nominal as TrussType.NominalType:
-                return nominal.name + "#" + String(nominal.id.id)
-            case let optional as TrussType.OptionalType:
-                return trussTypeText(optional.wrapped) + "?"
-            case let generic as TrussType.GenericParamType:
-                return generic.name
-            case let instantiation as TrussType.GenericInstantiation:
-                return trussTypeText(instantiation.base) + "<"
-                    + instantiation.arguments.map(trussTypeText).joined(separator: ", ") + ">"
-            case let function as TrussType.FunctionType:
-                let text = "("
-                    + function.parameters.map { parameter in
-                        trussTypeText(parameter.type)
-                    }.joined(separator: ", ") + ") -> "
-                    + trussTypeText(function.returnType)
-                return text
-            case let tuple as TrussType.TupleType:
-                return "(" + tuple.elements.map { trussTypeText($0.type) }.joined(separator: ", ")
-                    + ")"
-            default:
-                return "?"
+        private func fieldTypeText(_ typeId: Int) -> String {
+            guard let type = registry?.types[typeId] else { return "?" }
+            return typeText(type)
+        }
+
+        private func caseText(_ entry: (name: String, associatedTypeIds: [Int])) -> String {
+            if entry.associatedTypeIds.isEmpty {
+                return "." + entry.name
             }
+            return "." + entry.name + "("
+                + entry.associatedTypeIds.map(fieldTypeText).joined(separator: ", ") + ")"
         }
     }
 }
