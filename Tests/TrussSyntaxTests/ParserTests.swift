@@ -5176,6 +5176,34 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(call!.trailingClosures[0].0 == nil)
 }
 
+@Test func parseMultipleTrailingClosuresWithUnlabeledFirstIsValid() {
+    let (_, errors) = parseWithDiagnostics("func main() { foo { } bar: { } }")
+    #expect(errors.isEmpty)
+}
+
+@Test func parseUnlabeledTrailingClosureStopsAttachment() throws {
+    let body = parseBlockStatements("func main() { foo { } { } }")
+    try #require(body.count == 2)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let call = exprStmt!.expression as? AST.Call
+    try #require(call != nil)
+    try #require(call!.trailingClosures.count == 1)
+    #expect(call!.trailingClosures[0].0 == nil)
+    #expect(body[1] is AST.ExpressionStatement)
+}
+
+@Test func parseLabeledTrailingClosureThenUnlabeledStopsAttachment() throws {
+    let body = parseBlockStatements("func main() { foo { } bar: { } { } }")
+    try #require(body.count == 2)
+    let exprStmt = body[0] as? AST.ExpressionStatement
+    let call = exprStmt!.expression as? AST.Call
+    try #require(call != nil)
+    try #require(call!.trailingClosures.count == 2)
+    #expect(call!.trailingClosures[0].0 == nil)
+    #expect(call!.trailingClosures[1].0?.value == "bar")
+    #expect(body[1] is AST.ExpressionStatement)
+}
+
 // MARK: - String Interpolation
 
 @Test func parseStringInterpolationSimple() throws {

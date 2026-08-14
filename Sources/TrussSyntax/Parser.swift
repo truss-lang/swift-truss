@@ -3808,6 +3808,7 @@ public final class Parser {
                     args = []
                 }
                 var trailing: [(Token?, AST.Closure)] = []
+                var stoppedUnlabeled = false
                 while true {
                     var label: Token?
                     if let t = peek, case .Identifier = t.kind,
@@ -3818,6 +3819,10 @@ public final class Parser {
                         index += 2
                     }
                     guard peek?.kind == .Separator(.OpenBrace) else { break }
+                    if !trailing.isEmpty, label == nil {
+                        stoppedUnlabeled = true
+                        break
+                    }
                     let closure = parseClosure()
                     trailing.append((label, closure))
                 }
@@ -3832,6 +3837,9 @@ public final class Parser {
                 let postfixed = parsePostfix(call, excepts: excepts, isTypeContext: isTypeContext)
                 operands.append(postfixed)
                 lastIsExpression = true
+                if stoppedUnlabeled {
+                    break _loop
+                }
             case .Operator(.DotDotDot) where lastIsExpression && isTypeContext:
                 let base = operands.removeLast()
                 let variadic = AST.VariadicType(
