@@ -358,3 +358,44 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.contains("StructElementAddr"))
     #expect(result.stdout.contains("Store "))
 }
+
+@Test func driverDumpLLVMIRShowsArithInstructions() throws {
+    let sources = [
+        (
+            "add.truss",
+            """
+            #[cname("truss_add_i32")]
+            func addI32(a: Builtin.Int32, b: Builtin.Int32) -> Builtin.Int32 {
+                return Builtin.builtin_add_int32(a, b)
+            }
+            """,
+            "add i32"
+        ),
+        (
+            "div.truss",
+            """
+            #[cname("truss_div_u64")]
+            func divU64(a: Builtin.UInt64, b: Builtin.UInt64) -> Builtin.UInt64 {
+                return Builtin.builtin_div_uint64(a, b)
+            }
+            """,
+            "udiv i64"
+        ),
+        (
+            "neg.truss",
+            """
+            #[cname("truss_neg_f64")]
+            func negF64(a: Builtin.Float64) -> Builtin.Float64 {
+                return Builtin.builtin_neg_float64(a)
+            }
+            """,
+            "fneg double"
+        ),
+    ]
+    for (name, source, expected) in sources {
+        let file = try writeTemp(name, source)
+        let result = Driver(config: DriverConfig(dumpLLVMIR: true)).run(files: [file])
+        #expect(!result.hasErrors)
+        #expect(result.stdout.contains(expected))
+    }
+}

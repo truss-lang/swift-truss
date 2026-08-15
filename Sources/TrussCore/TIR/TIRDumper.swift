@@ -249,6 +249,9 @@ public extension TIR {
             case let instruction as WitnessMethod:
                 return result + "WitnessMethod " + instruction.protocolName + "."
                     + instruction.methodName
+            case let instruction as Arith:
+                return result + "Arith " + instruction.op.rawValue + " "
+                    + instruction.operands.map(\.name).joined(separator: ", ")
             case let instruction as Apply:
                 return result + "Apply " + applyText(instruction.callee, instruction.arguments)
                     + substitutionText(instruction.substitutions)

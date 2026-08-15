@@ -134,6 +134,7 @@ public enum Symbol {
         public var locals: [VariableSymbol]
         public let signature: FunctionSignature
         public let isStatic: Bool
+        public var isBuiltin: Bool = false
         public var functionType: TrussType.FunctionType? = nil
         public var forallType: TrussType.ForallType? = nil
         public init(

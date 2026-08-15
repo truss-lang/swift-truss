@@ -1742,3 +1742,39 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     )
     #expect(!context.diagnositicEngine.hasErrors)
 }
+
+@Test func builtinCallResolvesWithReturnType() throws {
+    let (context, programs) = runTypeChecker(
+        ["let x = Builtin.builtin_add_int32(1, 2)"], installBuiltin: true
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+    let variableDecl = try #require(programs[0].statements[0] as? AST.VariableDecl)
+    let type = try #require(variableDecl.symbol?.type as? TrussType.BuiltinType)
+    #expect(type.name == "Int32")
+}
+
+@Test func builtinCallArgumentTypeMismatchReportsError() {
+    let (context, _) = runTypeChecker(
+        ["let x = Builtin.builtin_add_int32(1, 2.0)"], installBuiltin: true
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("no exact matches in call to 'builtin_add_int32'"))
+}
+
+@Test func builtinCallArgumentCountMismatchReportsError() {
+    let (context, _) = runTypeChecker(
+        ["let x = Builtin.builtin_add_int32(1)"], installBuiltin: true
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+}
+
+@Test func builtinCallNegIsUnary() throws {
+    let (context, programs) = runTypeChecker(
+        ["let x = Builtin.builtin_neg_float64(1.5)"], installBuiltin: true
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+    let variableDecl = try #require(programs[0].statements[0] as? AST.VariableDecl)
+    let type = try #require(variableDecl.symbol?.type as? TrussType.BuiltinType)
+    #expect(type.name == "Float64")
+}

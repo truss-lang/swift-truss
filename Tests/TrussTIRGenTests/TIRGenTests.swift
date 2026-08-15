@@ -1976,3 +1976,117 @@ import TrussTIRGen
         ) != nil)
     }
 }
+
+@Test func builtinArithCallLowersToArithInstruction() throws {
+    let tir = dumpTIR(
+        """
+        func f(a: Builtin.Int32, b: Builtin.Int32) -> Builtin.Int32 {
+            return Builtin.builtin_add_int32(a, b)
+        }
+        """,
+        installBuiltin: true
+    )
+    try #require(tir.contains("Arith add"))
+    try #require(!tir.contains("FunctionRef"))
+    try #require(!tir.contains("Apply "))
+}
+
+@Test func builtinNegCallLowersToUnaryArith() throws {
+    let tir = dumpTIR(
+        """
+        func f(a: Builtin.Float64) -> Builtin.Float64 {
+            return Builtin.builtin_neg_float64(a)
+        }
+        """,
+        installBuiltin: true
+    )
+    try #require(tir.contains("Arith neg"))
+    try #require(!tir.contains("Apply "))
+}
+
+@Test func builtinDivCoversIntAndUint() throws {
+    let tir = dumpTIR(
+        """
+        func f(a: Builtin.Int32, b: Builtin.Int32) -> Builtin.Int32 {
+            return Builtin.builtin_div_int32(a, b)
+        }
+        func g(a: Builtin.UInt64, b: Builtin.UInt64) -> Builtin.UInt64 {
+            return Builtin.builtin_div_uint64(a, b)
+        }
+        """,
+        installBuiltin: true
+    )
+    try #require(tir.contains("Arith div"))
+    try #require(!tir.contains("FunctionRef"))
+    try #require(!tir.contains("Apply "))
+}
+
+@Test func operatorFunctionBodyCallsBuiltin() throws {
+    let tir = dumpTIR(
+        """
+        precedencegroup Additive { associativity: left }
+        infix operator +: Additive
+        func +(lhs: Builtin.Int32, rhs: Builtin.Int32) -> Builtin.Int32 {
+            return Builtin.builtin_add_int32(lhs, rhs)
+        }
+        func f(a: Builtin.Int32, b: Builtin.Int32) -> Builtin.Int32 {
+            return a + b
+        }
+        """,
+        installBuiltin: true
+    )
+    try #require(tir.contains("Arith add"))
+    try #require(tir.contains("Apply "))
+}
+
+@Test func logicalOrShortCircuitsBool() throws {
+    let tir = dumpTIR(
+        """
+        precedencegroup LogicalOr { associativity: left }
+        infix operator ||: LogicalOr
+        func ||(lhs: Builtin.Bool, rhs: Builtin.Bool) -> Builtin.Bool {
+            lhs
+        }
+        func f(a: Builtin.Bool, b: Builtin.Bool) -> Builtin.Bool {
+            return a || b
+        }
+        """,
+        installBuiltin: true
+    )
+    try #require(tir.contains("CondBranch"))
+    try #require(tir.contains("BoolLiteral true"))
+    try #require(tir.contains("Phi"))
+    try #require(!tir.contains("Apply "))
+}
+
+@Test func nonBoolAndOperatorApplies() throws {
+    let tir = dumpTIR(
+        """
+        struct S {}
+        precedencegroup LogicalAnd { associativity: left }
+        infix operator &&: LogicalAnd
+        func &&(lhs: S, rhs: S) -> S { lhs }
+        func f(a: S, b: S) -> S {
+            return a && b
+        }
+        """
+    )
+    try #require(tir.contains("Apply "))
+    try #require(!tir.contains("CondBranch"))
+}
+
+@Test func nonBoolOrOperatorApplies() throws {
+    let tir = dumpTIR(
+        """
+        struct S {}
+        precedencegroup LogicalOr { associativity: left }
+        infix operator ||: LogicalOr
+        func ||(lhs: S, rhs: S) -> S { lhs }
+        func f(a: S, b: S) -> S {
+            return a || b
+        }
+        """
+    )
+    try #require(tir.contains("Apply "))
+    try #require(!tir.contains("CondBranch"))
+}

@@ -1,0 +1,45 @@
+import Testing
+import TrussCore
+
+private func installedBuiltin() -> Symbol.PackageSymbol {
+    let context = Context()
+    return Builtin.install(context: context)
+}
+
+@Test func builtinInstallsArithFunctions() {
+    let package = installedBuiltin()
+    for name in ["builtin_add_int32", "builtin_sub_uint64", "builtin_div_float32", "builtin_neg_int8"] {
+        let symbols = package.scope.values[name] ?? []
+        #expect(symbols.count == 1)
+        let function = symbols.first as? Symbol.FunctionSymbol
+        #expect(function != nil)
+        #expect(function?.isBuiltin == true)
+    }
+}
+
+@Test func builtinArithFunctionSignature() {
+    let package = installedBuiltin()
+    let add = (package.scope.values["builtin_add_int32"] ?? []).first as? Symbol.FunctionSymbol
+    let functionType = add?.functionType
+    #expect(functionType?.parameters.count == 2)
+    #expect((functionType?.parameters[0].type as? TrussType.BuiltinType)?.name == "Int32")
+    #expect((functionType?.parameters[1].type as? TrussType.BuiltinType)?.name == "Int32")
+    #expect((functionType?.returnType as? TrussType.BuiltinType)?.name == "Int32")
+}
+
+@Test func builtinNegFunctionIsUnary() {
+    let package = installedBuiltin()
+    let neg = (package.scope.values["builtin_neg_float64"] ?? []).first as? Symbol.FunctionSymbol
+    let functionType = neg?.functionType
+    #expect(functionType?.parameters.count == 1)
+    #expect((functionType?.returnType as? TrussType.BuiltinType)?.name == "Float64")
+}
+
+@Test func builtinFunctionInfoParsesNames() {
+    #expect(Builtin.builtinFunctionInfo(named: "builtin_add_int32")?.opName == "add")
+    #expect(Builtin.builtinFunctionInfo(named: "builtin_add_int32")?.typeName == "int32")
+    #expect(Builtin.builtinFunctionInfo(named: "builtin_neg_float32")?.opName == "neg")
+    #expect(Builtin.builtinFunctionInfo(named: "builtin_neg_float32")?.typeName == "float32")
+    #expect(Builtin.builtinFunctionInfo(named: "ordinaryFunction") == nil)
+    #expect(Builtin.builtinFunctionInfo(named: "builtin_shift_int32") == nil)
+}

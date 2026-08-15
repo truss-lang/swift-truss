@@ -2099,8 +2099,14 @@ public final class TIRGen: AST.Visitor {
 
     private func emitCall(_ call: AST.Call, tryErrorBlock: TIR.BasicBlock?) -> TIR.Value? {
         guard let builder else { return nil }
-        guard let calleeValue = lowerCallee(call.callee, at: call.sourceRange) else { return nil }
         let resolvedSymbol = call.symbol ?? call.overloads?.first
+        if let builtinSymbol = resolvedSymbol as? Symbol.FunctionSymbol,
+           builtinSymbol.isBuiltin,
+           let arith = emitBuiltinArith(call, symbol: builtinSymbol)
+        {
+            return arith
+        }
+        guard let calleeValue = lowerCallee(call.callee, at: call.sourceRange) else { return nil }
         var arguments: [TIR.Value] = []
         if let initFunction = initFunctionFor(call, resolvedSymbol: resolvedSymbol),
            let selfTypeId = initFunction.arguments.first?.type,
@@ -2159,6 +2165,24 @@ public final class TIRGen: AST.Visitor {
                 sourceRange: call.sourceRange
             ),
             type: resultType.id, ownership: resultOwnership
+        )
+    }
+
+    private func emitBuiltinArith(
+        _ call: AST.Call, symbol: Symbol.FunctionSymbol
+    ) -> TIR.Value? {
+        guard let builder,
+              let info = Builtin.builtinFunctionInfo(named: symbol.name),
+              let op = TIR.ArithOp(rawValue: info.opName),
+              let typeInfo = Builtin.typeInfos.first(where: { $0.name.lowercased() == info.typeName })
+        else {
+            return nil
+        }
+        let operands = call.arguments.compactMap { visitExpression($0.value) }
+        let resultType = typeLower.lower(TrussType.BuiltinType(typeInfo.name))
+        return builder.emitWithResult(
+            TIR.Arith(op, operands: operands, sourceRange: call.sourceRange),
+            type: resultType.id, ownership: typeLower.ownership(for: resultType)
         )
     }
 
@@ -2423,8 +2447,10 @@ public final class TIRGen: AST.Visitor {
         if binary.operatorToken.value == "=" {
             return emitAssignment(binary)
         }
-        if binary.operatorToken.value == "&&" {
-            return emitShortCircuitAnd(binary)
+        if binary.operatorToken.value == "&&" || binary.operatorToken.value == "||",
+           isBool(binary.left.ty), isBool(binary.right.ty)
+        {
+            return emitShortCircuit(binary)
         }
         let left = visitExpression(binary.left)
         let right = visitExpression(binary.right)
@@ -2449,15 +2475,19 @@ public final class TIRGen: AST.Visitor {
         )
     }
 
-    private func emitShortCircuitAnd(_ binary: AST.Binary) -> TIR.Value? {
+    private func emitShortCircuit(_ binary: AST.Binary) -> TIR.Value? {
         guard let builder, let left = visitExpression(binary.left) else { return nil }
+        let isAnd = binary.operatorToken.value == "&&"
         let resultType = (binary.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         let rhsBlock = builder.createBlock()
-        let falseBlock = builder.createBlock()
+        let shortCircuitBlock = builder.createBlock()
         let joinBlock = builder.createBlock()
+        let shortCircuitValue = isAnd ? false : true
         builder.emit(
             TIR.CondBranch(
-                condition: left, trueBlock: rhsBlock, falseBlock: falseBlock,
+                condition: left,
+                trueBlock: isAnd ? rhsBlock : shortCircuitBlock,
+                falseBlock: isAnd ? shortCircuitBlock : rhsBlock,
                 sourceRange: binary.sourceRange
             )
         )
@@ -2466,22 +2496,27 @@ public final class TIRGen: AST.Visitor {
         if let right = visitExpression(binary.right) {
             incomings.append((right, rhsBlock))
         } else {
-            let falseValue = builder.emitWithResult(
+            let fallback = builder.emitWithResult(
                 TIR.BoolLiteral(false, sourceRange: binary.sourceRange),
                 type: resultType.id, ownership: .Trivial
             )
-            incomings.append((falseValue, rhsBlock))
+            incomings.append((fallback, rhsBlock))
         }
         builder.emit(TIR.Branch(joinBlock, sourceRange: binary.sourceRange))
-        builder.switchToBlock(falseBlock)
-        let falseValue = builder.emitWithResult(
-            TIR.BoolLiteral(false, sourceRange: binary.sourceRange),
+        builder.switchToBlock(shortCircuitBlock)
+        let shortValue = builder.emitWithResult(
+            TIR.BoolLiteral(shortCircuitValue, sourceRange: binary.sourceRange),
             type: resultType.id, ownership: .Trivial
         )
-        incomings.append((falseValue, falseBlock))
+        incomings.append((shortValue, shortCircuitBlock))
         builder.emit(TIR.Branch(joinBlock, sourceRange: binary.sourceRange))
         builder.switchToBlock(joinBlock)
         return emitPhi(incomings, range: binary.sourceRange)
+    }
+
+    private func isBool(_ type: TrussType.TrussType?) -> Bool {
+        guard let builtin = type as? TrussType.BuiltinType else { return false }
+        return builtin.name == "Bool"
     }
 
     private func emitAssignment(_ binary: AST.Binary) -> TIR.Value? {

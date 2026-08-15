@@ -8,7 +8,7 @@ public final class CodeGen: TIR.Visitor {
     private var currentRegistry: TIR.Registry? = nil
     private var builder: LLVMSwiftBinding.Builder? = nil
     private var currentFunction: FunctionBinding? = nil
-    private var functionMap: [ObjectIdentifier: FunctionBinding] = [:]
+    private var functionMap: [Int: FunctionBinding] = [:]
     private var valueMap: [ObjectIdentifier: LLVMSwiftBinding.Value] = [:]
 
     private struct FunctionBinding {
@@ -33,9 +33,10 @@ public final class CodeGen: TIR.Visitor {
         currentModule = llvmModule
         currentRegistry = mod.registry
         functionMap = mod.functions.reduce(into: [:]) {
-            $0[ObjectIdentifier($1)] = createFunction($1)
+            $0[$1.id] = createFunction($1)
         }
-        for (tirFunction, llvmFunction) in zip(mod.functions, functionMap.values) {
+        for tirFunction in mod.functions {
+            guard let llvmFunction = functionMap[tirFunction.id] else { continue }
             let builder: LLVMSwiftBinding.Builder = .init(in: llvmContext)
             currentFunction = llvmFunction
             self.builder = builder
@@ -81,7 +82,10 @@ public final class CodeGen: TIR.Visitor {
     }
 
     private func lowerType(_ typeId: Int) -> LLVMSwiftBinding.LLVMType {
-        guard let type = currentRegistry?.type(typeId) else {
+        guard let currentRegistry else {
+            fatalError("unreachable")
+        }
+        guard let type = currentRegistry.type(typeId) else {
             return llvmContext.int8
         }
         switch type {
@@ -115,6 +119,8 @@ public final class CodeGen: TIR.Visitor {
                 parameterTypes: parameterTypes,
                 isVariadic: functionType.isVariadic
             )
+        case let addressType as TIRType.AddressType:
+            return lowerType(addressType.pointee)
         case let structType as TIRType.StructType:
             return llvmContext.int8
         default:
@@ -340,12 +346,89 @@ public final class CodeGen: TIR.Visitor {
             )
             return nil
         }
-        if let binding = functionMap[ObjectIdentifier(f)] {
+        if let binding = functionMap[f.id] {
             valueMap[ObjectIdentifier(result)] = binding.function
         } else {
             let llvmFunction = createFunctionDecl(f)
-            functionMap[ObjectIdentifier(f)] = FunctionBinding(function: llvmFunction)
+            functionMap[f.id] = FunctionBinding(function: llvmFunction)
             valueMap[ObjectIdentifier(result)] = llvmFunction
+        }
+        return nil
+    }
+
+    public override func visitArith(_ instruction: TIR.Arith, additional: Any? = nil) -> Any? {
+        guard let builder, let currentRegistry else {
+            fatalError("unreachable")
+        }
+        guard let result = instruction.result else {
+            context.emitError("arith: missing result value", at: instruction.sourceRange)
+            return nil
+        }
+        guard instruction.operands.count == 2 || instruction.op == .Neg else {
+            context.emitError("arith: wrong operand count", at: instruction.sourceRange)
+            return nil
+        }
+        guard let lhs = valueMap[ObjectIdentifier(instruction.operands[0])],
+              let operandTypeId = currentRegistry.type(instruction.operands[0].type)
+        else {
+            context.emitError("arith: missing operand value", at: instruction.sourceRange)
+            return nil
+        }
+        let primitive = operandTypeId as? TIRType.PrimitiveType
+        let kind = primitive?.kind
+        let built: LLVMSwiftBinding.Value?
+        switch instruction.op {
+        case .Neg:
+            if kind == .Float {
+                built = builder.buildFNeg(lhs)
+            } else if kind == .Signed || kind == .Unsigned {
+                built = builder.buildNeg(lhs)
+            } else {
+                context.emitError("arith neg: unsupported operand type", at: instruction.sourceRange)
+                built = nil
+            }
+        case .Add, .Sub, .Mul, .Div, .Rem:
+            guard let rhs = valueMap[ObjectIdentifier(instruction.operands[1])] else {
+                context.emitError("arith: missing operand value", at: instruction.sourceRange)
+                return nil
+            }
+            if let kind {
+                switch (instruction.op, kind) {
+                case (.Add, .Signed), (.Add, .Unsigned):
+                    built = builder.buildAdd(lhs, rhs)
+                case (.Add, .Float):
+                    built = builder.buildFAdd(lhs, rhs)
+                case (.Sub, .Signed), (.Sub, .Unsigned):
+                    built = builder.buildSub(lhs, rhs)
+                case (.Sub, .Float):
+                    built = builder.buildFSub(lhs, rhs)
+                case (.Mul, .Signed), (.Mul, .Unsigned):
+                    built = builder.buildMul(lhs, rhs)
+                case (.Mul, .Float):
+                    built = builder.buildFMul(lhs, rhs)
+                case (.Div, .Signed):
+                    built = builder.buildSDiv(lhs, rhs)
+                case (.Div, .Unsigned):
+                    built = builder.buildUDiv(lhs, rhs)
+                case (.Div, .Float):
+                    built = builder.buildFDiv(lhs, rhs)
+                case (.Rem, .Signed):
+                    built = builder.buildSRem(lhs, rhs)
+                case (.Rem, .Unsigned):
+                    built = builder.buildURem(lhs, rhs)
+                case (.Rem, .Float):
+                    built = builder.buildFRem(lhs, rhs)
+                default:
+                    context.emitError("arith: unsupported operand type", at: instruction.sourceRange)
+                    built = nil
+                }
+            } else {
+                context.emitError("arith: unsupported operand type", at: instruction.sourceRange)
+                built = nil
+            }
+        }
+        if let built {
+            valueMap[ObjectIdentifier(result)] = built
         }
         return nil
     }

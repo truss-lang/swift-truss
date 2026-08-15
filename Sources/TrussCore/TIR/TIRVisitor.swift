@@ -100,6 +100,9 @@ extension TIR {
         open func visitApply(_ instruction: Apply, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
+        open func visitArith(_ instruction: Arith, additional: Any? = nil) -> Any? { nil }
+
+        @discardableResult
         open func visitTryApply(_ instruction: TryApply, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult

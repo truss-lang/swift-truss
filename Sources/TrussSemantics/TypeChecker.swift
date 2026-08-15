@@ -1844,6 +1844,12 @@ public final class TypeChecker: AST.Visitor {
             if call.symbol == nil {
                 var overloads = call.overloads ?? []
                 if overloads.isEmpty, let member = call.callee as? AST.MemberAccess,
+                   let builtinSymbol = member.symbol as? Symbol.FunctionSymbol,
+                   builtinSymbol.isBuiltin
+                {
+                    overloads = [builtinSymbol]
+                }
+                if overloads.isEmpty, let member = call.callee as? AST.MemberAccess,
                    let objectType = infer(member.object, at: token)
                 {
                     overloads = memberFunctionSymbols(of: member.member.value, in: objectType)
