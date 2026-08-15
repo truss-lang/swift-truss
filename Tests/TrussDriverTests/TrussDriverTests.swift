@@ -399,3 +399,38 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
         #expect(result.stdout.contains(expected))
     }
 }
+
+@Test func driverDumpLLVMIRShowsCompareAndBitwiseInstructions() throws {
+    let file = try writeTemp(
+        "cmp.truss",
+        """
+        #[cname("truss_eq_i32")]
+        func eqI32(a: Builtin.Int32, b: Builtin.Int32) -> Builtin.Bool {
+            return Builtin.builtin_eq_int32(a, b)
+        }
+        #[cname("truss_lt_u64")]
+        func ltU64(a: Builtin.UInt64, b: Builtin.UInt64) -> Builtin.Bool {
+            return Builtin.builtin_lt_uint64(a, b)
+        }
+        #[cname("truss_ge_f64")]
+        func geF64(a: Builtin.Float64, b: Builtin.Float64) -> Builtin.Bool {
+            return Builtin.builtin_ge_float64(a, b)
+        }
+        #[cname("truss_not_b")]
+        func notB(a: Builtin.Bool) -> Builtin.Bool {
+            return Builtin.builtin_not_bool(a)
+        }
+        #[cname("truss_bitnot_i32")]
+        func bitnotI32(a: Builtin.Int32) -> Builtin.Int32 {
+            return Builtin.builtin_bitnot_int32(a)
+        }
+        """
+    )
+    let result = Driver(config: DriverConfig(dumpLLVMIR: true)).run(files: [file])
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("icmp eq i32"))
+    #expect(result.stdout.contains("icmp ult i64"))
+    #expect(result.stdout.contains("fcmp oge double"))
+    #expect(result.stdout.contains("xor i1"))
+    #expect(result.stdout.contains("xor i32"))
+}

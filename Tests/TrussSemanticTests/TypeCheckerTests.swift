@@ -1778,3 +1778,46 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     let type = try #require(variableDecl.symbol?.type as? TrussType.BuiltinType)
     #expect(type.name == "Float64")
 }
+
+@Test func builtinCompareCallReturnsBool() throws {
+    let (context, programs) = runTypeChecker(
+        [
+            "let a: Builtin.UInt64 = 1\n"
+                + "let b: Builtin.UInt64 = 2\n"
+                + "let x = Builtin.builtin_eq_int32(1, 2)\n"
+                + "let y = Builtin.builtin_lt_uint64(a, b)\n"
+                + "let z = Builtin.builtin_ge_float64(1.0, 2.0)\n",
+        ],
+        installBuiltin: true
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+    for index in 2 ..< 5 {
+        let variableDecl = try #require(programs[0].statements[index] as? AST.VariableDecl)
+        let type = try #require(variableDecl.symbol?.type as? TrussType.BuiltinType)
+        #expect(type.name == "Bool")
+    }
+}
+
+@Test func builtinNotAndBitnotCalls() throws {
+    let (context, programs) = runTypeChecker(
+        [
+            "let x = Builtin.builtin_not_bool(true)\n"
+                + "let y = Builtin.builtin_bitnot_int32(5)\n",
+        ],
+        installBuiltin: true
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+    let first = try #require(programs[0].statements[0] as? AST.VariableDecl)
+    #expect((first.symbol?.type as? TrussType.BuiltinType)?.name == "Bool")
+    let second = try #require(programs[0].statements[1] as? AST.VariableDecl)
+    #expect((second.symbol?.type as? TrussType.BuiltinType)?.name == "Int32")
+}
+
+@Test func builtinCompareTypeMismatchReportsError() {
+    let (context, _) = runTypeChecker(
+        ["let x = Builtin.builtin_eq_int32(1, 2.0)"], installBuiltin: true
+    )
+    #expect(context.diagnositicEngine.hasErrors)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("no exact matches in call to 'builtin_eq_int32'"))
+}

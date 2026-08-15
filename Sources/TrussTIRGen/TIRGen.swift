@@ -2100,7 +2100,7 @@ public final class TIRGen: AST.Visitor {
     private func emitCall(_ call: AST.Call, tryErrorBlock: TIR.BasicBlock?) -> TIR.Value? {
         guard let builder else { return nil }
         let resolvedSymbol = call.symbol ?? call.overloads?.first
-        if let builtinSymbol = resolvedSymbol as? Symbol.FunctionSymbol,
+        if let builtinSymbol = resolvedSymbol,
            builtinSymbol.isBuiltin,
            let arith = emitBuiltinArith(call, symbol: builtinSymbol)
         {
@@ -2179,7 +2179,9 @@ public final class TIRGen: AST.Visitor {
             return nil
         }
         let operands = call.arguments.compactMap { visitExpression($0.value) }
-        let resultType = typeLower.lower(TrussType.BuiltinType(typeInfo.name))
+        let resultType = typeLower.lower(
+            symbol.functionType?.returnType ?? TrussType.BuiltinType(typeInfo.name)
+        )
         return builder.emitWithResult(
             TIR.Arith(op, operands: operands, sourceRange: call.sourceRange),
             type: resultType.id, ownership: typeLower.ownership(for: resultType)

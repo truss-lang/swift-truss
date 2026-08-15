@@ -364,7 +364,7 @@ public final class CodeGen: TIR.Visitor {
             context.emitError("arith: missing result value", at: instruction.sourceRange)
             return nil
         }
-        guard instruction.operands.count == 2 || instruction.op == .Neg else {
+        guard instruction.operands.count == 2 || instruction.op.isUnary else {
             context.emitError("arith: wrong operand count", at: instruction.sourceRange)
             return nil
         }
@@ -374,63 +374,191 @@ public final class CodeGen: TIR.Visitor {
             context.emitError("arith: missing operand value", at: instruction.sourceRange)
             return nil
         }
-        let primitive = operandTypeId as? TIRType.PrimitiveType
-        let kind = primitive?.kind
-        let built: LLVMSwiftBinding.Value?
-        switch instruction.op {
-        case .Neg:
-            if kind == .Float {
-                built = builder.buildFNeg(lhs)
-            } else if kind == .Signed || kind == .Unsigned {
-                built = builder.buildNeg(lhs)
-            } else {
-                context.emitError("arith neg: unsupported operand type", at: instruction.sourceRange)
-                built = nil
-            }
+        let kind = (operandTypeId as? TIRType.PrimitiveType)?.kind
+        let built: LLVMSwiftBinding.Value? = switch instruction.op {
+        case .Neg, .Not, .Bitnot:
+            emitUnaryArith(instruction, lhs: lhs, kind: kind)
         case .Add, .Sub, .Mul, .Div, .Rem:
-            guard let rhs = valueMap[ObjectIdentifier(instruction.operands[1])] else {
-                context.emitError("arith: missing operand value", at: instruction.sourceRange)
-                return nil
-            }
-            if let kind {
-                switch (instruction.op, kind) {
-                case (.Add, .Signed), (.Add, .Unsigned):
-                    built = builder.buildAdd(lhs, rhs)
-                case (.Add, .Float):
-                    built = builder.buildFAdd(lhs, rhs)
-                case (.Sub, .Signed), (.Sub, .Unsigned):
-                    built = builder.buildSub(lhs, rhs)
-                case (.Sub, .Float):
-                    built = builder.buildFSub(lhs, rhs)
-                case (.Mul, .Signed), (.Mul, .Unsigned):
-                    built = builder.buildMul(lhs, rhs)
-                case (.Mul, .Float):
-                    built = builder.buildFMul(lhs, rhs)
-                case (.Div, .Signed):
-                    built = builder.buildSDiv(lhs, rhs)
-                case (.Div, .Unsigned):
-                    built = builder.buildUDiv(lhs, rhs)
-                case (.Div, .Float):
-                    built = builder.buildFDiv(lhs, rhs)
-                case (.Rem, .Signed):
-                    built = builder.buildSRem(lhs, rhs)
-                case (.Rem, .Unsigned):
-                    built = builder.buildURem(lhs, rhs)
-                case (.Rem, .Float):
-                    built = builder.buildFRem(lhs, rhs)
-                default:
-                    context.emitError("arith: unsupported operand type", at: instruction.sourceRange)
-                    built = nil
-                }
-            } else {
-                context.emitError("arith: unsupported operand type", at: instruction.sourceRange)
-                built = nil
-            }
+            emitBinaryArith(instruction, lhs: lhs, kind: kind)
+        case .Eq, .Ne, .Lt, .Le, .Gt, .Ge:
+            emitCompareArith(instruction, lhs: lhs, kind: kind)
         }
         if let built {
             valueMap[ObjectIdentifier(result)] = built
         }
         return nil
+    }
+
+    private func emitUnaryArith(
+        _ instruction: TIR.Arith, lhs: LLVMSwiftBinding.Value, kind: TIRType.PrimitiveKind?
+    ) -> LLVMSwiftBinding.Value? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        switch instruction.op {
+        case .Neg:
+            if kind == .Float {
+                return builder.buildFNeg(lhs)
+            }
+            if kind == .Signed || kind == .Unsigned {
+                return builder.buildNeg(lhs)
+            }
+            context.emitError("arith neg: unsupported operand type", at: instruction.sourceRange)
+            return nil
+        case .Not:
+            if kind == .Bool {
+                return builder.buildNot(lhs)
+            }
+            context.emitError("arith not: unsupported operand type", at: instruction.sourceRange)
+            return nil
+        case .Bitnot:
+            if kind == .Signed || kind == .Unsigned {
+                return builder.buildNot(lhs)
+            }
+            context.emitError("arith bitnot: unsupported operand type", at: instruction.sourceRange)
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private func emitBinaryArith(
+        _ instruction: TIR.Arith, lhs: LLVMSwiftBinding.Value, kind: TIRType.PrimitiveKind?
+    ) -> LLVMSwiftBinding.Value? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        guard let rhs = valueMap[ObjectIdentifier(instruction.operands[1])] else {
+            context.emitError("arith: missing operand value", at: instruction.sourceRange)
+            return nil
+        }
+        guard let kind else {
+            context.emitError("arith: unsupported operand type", at: instruction.sourceRange)
+            return nil
+        }
+        switch (instruction.op, kind) {
+        case (.Add, .Signed), (.Add, .Unsigned):
+            return builder.buildAdd(lhs, rhs)
+        case (.Add, .Float):
+            return builder.buildFAdd(lhs, rhs)
+        case (.Sub, .Signed), (.Sub, .Unsigned):
+            return builder.buildSub(lhs, rhs)
+        case (.Sub, .Float):
+            return builder.buildFSub(lhs, rhs)
+        case (.Mul, .Signed), (.Mul, .Unsigned):
+            return builder.buildMul(lhs, rhs)
+        case (.Mul, .Float):
+            return builder.buildFMul(lhs, rhs)
+        case (.Div, .Signed):
+            return builder.buildSDiv(lhs, rhs)
+        case (.Div, .Unsigned):
+            return builder.buildUDiv(lhs, rhs)
+        case (.Div, .Float):
+            return builder.buildFDiv(lhs, rhs)
+        case (.Rem, .Signed):
+            return builder.buildSRem(lhs, rhs)
+        case (.Rem, .Unsigned):
+            return builder.buildURem(lhs, rhs)
+        case (.Rem, .Float):
+            return builder.buildFRem(lhs, rhs)
+        default:
+            context.emitError("arith: unsupported operand type", at: instruction.sourceRange)
+            return nil
+        }
+    }
+
+    private func emitCompareArith(
+        _ instruction: TIR.Arith, lhs: LLVMSwiftBinding.Value, kind: TIRType.PrimitiveKind?
+    ) -> LLVMSwiftBinding.Value? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        guard let rhs = valueMap[ObjectIdentifier(instruction.operands[1])] else {
+            context.emitError("arith: missing operand value", at: instruction.sourceRange)
+            return nil
+        }
+        guard let kind else {
+            context.emitError("arith: unsupported operand type", at: instruction.sourceRange)
+            return nil
+        }
+        switch kind {
+        case .Float:
+            guard let predicate = realPredicate(for: instruction.op) else {
+                context.emitError("arith compare: unsupported operand type", at: instruction.sourceRange)
+                return nil
+            }
+            return builder.buildFCmp(predicate, lhs, rhs)
+        case .Signed:
+            guard let predicate = intPredicate(for: instruction.op, unsigned: false) else {
+                context.emitError("arith compare: unsupported operand type", at: instruction.sourceRange)
+                return nil
+            }
+            return builder.buildICmp(predicate, lhs, rhs)
+        case .Unsigned:
+            guard let predicate = intPredicate(for: instruction.op, unsigned: true) else {
+                context.emitError("arith compare: unsupported operand type", at: instruction.sourceRange)
+                return nil
+            }
+            return builder.buildICmp(predicate, lhs, rhs)
+        case .Bool, .Char:
+            switch instruction.op {
+            case .Eq:
+                return builder.buildICmp(.EQ, lhs, rhs)
+            case .Ne:
+                return builder.buildICmp(.NE, lhs, rhs)
+            default:
+                context.emitError("arith compare: unsupported operand type", at: instruction.sourceRange)
+                return nil
+            }
+        }
+    }
+
+    private func intPredicate(
+        for op: TIR.ArithOp, unsigned: Bool
+    ) -> LLVMSwiftBinding.IntPredicate? {
+        switch (op, unsigned) {
+        case (.Eq, _):
+            .EQ
+        case (.Ne, _):
+            .NE
+        case (.Lt, false):
+            .SLT
+        case (.Lt, true):
+            .ULT
+        case (.Le, false):
+            .SLE
+        case (.Le, true):
+            .ULE
+        case (.Gt, false):
+            .SGT
+        case (.Gt, true):
+            .UGT
+        case (.Ge, false):
+            .SGE
+        case (.Ge, true):
+            .UGE
+        default:
+            nil
+        }
+    }
+
+    private func realPredicate(for op: TIR.ArithOp) -> LLVMSwiftBinding.RealPredicate? {
+        switch op {
+        case .Eq:
+            .OEQ
+        case .Ne:
+            .ONE
+        case .Lt:
+            .OLT
+        case .Le:
+            .OLE
+        case .Gt:
+            .OGT
+        case .Ge:
+            .OGE
+        default:
+            nil
+        }
     }
 
     public override func visitApply(_ instruction: TIR.Apply, additional: Any? = nil) -> Any? {

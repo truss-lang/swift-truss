@@ -3,7 +3,13 @@ import SwiftAbstract
 public enum Builtin {
     public static let packageName = "Builtin"
 
-    public static let arithOpNames = ["add", "sub", "mul", "div", "rem", "neg"]
+    public static let binaryArithOpNames = ["add", "sub", "mul", "div", "rem"]
+    public static let unaryArithOpNames = ["neg", "not", "bitnot"]
+    public static let compareOpNames = ["eq", "ne", "lt", "le", "gt", "ge"]
+
+    public static var allOpNames: [String] {
+        binaryArithOpNames + unaryArithOpNames + compareOpNames
+    }
 
     public struct TypeInfo: Sendable {
         public let name: String
@@ -40,8 +46,23 @@ public enum Builtin {
         guard let separator = rest.firstIndex(of: "_") else { return nil }
         let opName = String(rest[..<separator])
         let typeName = String(rest[rest.index(after: separator)...])
-        guard arithOpNames.contains(opName) else { return nil }
+        guard allOpNames.contains(opName) else { return nil }
         return (opName, typeName)
+    }
+
+    public static func allows(_ info: TypeInfo, opName: String) -> Bool {
+        switch opName {
+        case "eq", "ne":
+            true
+        case "lt", "le", "gt", "ge":
+            info.kind == .Signed || info.kind == .Unsigned || info.kind == .Float
+        case "bitnot":
+            info.kind == .Signed || info.kind == .Unsigned
+        case "not":
+            info.kind == .Bool
+        default:
+            true
+        }
     }
 
     @discardableResult
@@ -56,29 +77,28 @@ public enum Builtin {
             context.register(symbol: symbol)
             package.scope.types[info.name] = symbol
             let builtinType = TrussType.BuiltinType(info.name)
-            for opName in arithOpNames {
+            for opName in allOpNames {
+                guard allows(info, opName: opName) else { continue }
+                let arity = unaryArithOpNames.contains(opName) ? 1 : 2
+                let returnType: TrussType.TrussType =
+                    compareOpNames.contains(opName) ? TrussType.BuiltinType("Bool") : builtinType
                 let functionName = "builtin_\(opName)_\(info.name.lowercased())"
                 let function = Symbol.FunctionSymbol(
                     id: context.nextSymbolId, name: functionName,
                     locals: [], scope: package.scope,
                     signature: Symbol.FunctionSignature(
-                        labels: opName == "neg" ? [nil] : [nil, nil],
-                        hasDefaults: opName == "neg" ? [false] : [false, false],
-                        isVararg: opName == "neg" ? [false] : [false, false],
+                        labels: arity == 1 ? [nil] : [nil, nil],
+                        hasDefaults: arity == 1 ? [false] : [false, false],
+                        isVararg: arity == 1 ? [false] : [false, false],
                         isVariadic: false
                     )
                 )
                 function.isBuiltin = true
-                let parameterType = builtinType
-                let parameters: [TrussType.FunctionType.Parameter] =
-                    opName == "neg"
-                        ? [TrussType.FunctionType.Parameter(label: nil, type: parameterType)]
-                        : [
-                            TrussType.FunctionType.Parameter(label: nil, type: parameterType),
-                            TrussType.FunctionType.Parameter(label: nil, type: parameterType),
-                        ]
+                let parameters = (0 ..< arity).map { _ in
+                    TrussType.FunctionType.Parameter(label: nil, type: builtinType)
+                }
                 function.functionType = TrussType.FunctionType(
-                    parameters: parameters, returnType: builtinType
+                    parameters: parameters, returnType: returnType
                 )
                 context.register(symbol: function)
                 package.scope.values[functionName, default: []].append(function)

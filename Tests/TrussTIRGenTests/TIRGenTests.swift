@@ -2090,3 +2090,43 @@ import TrussTIRGen
     try #require(tir.contains("Apply "))
     try #require(!tir.contains("CondBranch"))
 }
+
+@Test func builtinCompareLowersToArith() throws {
+    let tir = dumpTIR(
+        """
+        func f(a: Builtin.Int32, b: Builtin.Int32) -> Builtin.Bool {
+            return Builtin.builtin_eq_int32(a, b)
+        }
+        func g(a: Builtin.UInt64, b: Builtin.UInt64) -> Builtin.Bool {
+            return Builtin.builtin_lt_uint64(a, b)
+        }
+        func h(a: Builtin.Float64, b: Builtin.Float64) -> Builtin.Bool {
+            return Builtin.builtin_ge_float64(a, b)
+        }
+        """,
+        installBuiltin: true
+    )
+    try #require(tir.contains("Arith eq"))
+    try #require(tir.contains("Arith lt"))
+    try #require(tir.contains("Arith ge"))
+    try #require(tir.contains(": b1"))
+    try #require(!tir.contains("FunctionRef"))
+    try #require(!tir.contains("Apply "))
+}
+
+@Test func builtinNotAndBitnotLowerToUnaryArith() throws {
+    let tir = dumpTIR(
+        """
+        func f(a: Builtin.Bool) -> Builtin.Bool {
+            return Builtin.builtin_not_bool(a)
+        }
+        func g(a: Builtin.Int32) -> Builtin.Int32 {
+            return Builtin.builtin_bitnot_int32(a)
+        }
+        """,
+        installBuiltin: true
+    )
+    try #require(tir.contains("Arith not"))
+    try #require(tir.contains("Arith bitnot"))
+    try #require(!tir.contains("Apply "))
+}
