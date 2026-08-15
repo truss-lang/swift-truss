@@ -40,19 +40,22 @@ import TrussCore
         #expect(labeled != unlabeled)
     }
 
-    @Test func nominalTypeKeyedByTypeId() {
+    @Test func nominalTypeKeyedByName() {
         let registry = TIR.Registry()
-        let a = TIRType.StructType(Id.TypeId(id: 1), "A")
-        let b = TIRType.StructType(Id.TypeId(id: 1), "A")
+        let a = TIRType.StructType("A")
+        let b = TIRType.StructType("A")
+        let c = TIRType.StructType("B")
         let id1 = registry.registerType(a)
         let id2 = registry.registerType(b)
+        let id3 = registry.registerType(c)
         #expect(id1 == id2)
+        #expect(id1 != id3)
     }
 
     @Test func fieldTypeIdsResolveInRegistry() {
         let registry = TIR.Registry()
         let intId = registry.registerType(TIRType.PrimitiveType(kind: .Signed, bitWidth: 32))
-        let structType = TIRType.StructType(Id.TypeId(id: 7), "S")
+        let structType = TIRType.StructType("S")
         registry.registerType(structType)
         structType.fields = [(name: "x", type: intId)]
         #expect(registry.type(structType.fields[0].type) is TIRType.PrimitiveType)

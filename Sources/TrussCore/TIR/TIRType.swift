@@ -18,39 +18,37 @@ public enum TIRType {
 
     @abstractClass
     public class NominalType: TIRType {
-        public let typeId: Id.TypeId
         public let name: String
         @abstractInit
-        public init(_ typeId: Id.TypeId, _ name: String) {
-            self.typeId = typeId
+        public init(_ name: String) {
             self.name = name
         }
     }
 
     public final class StructType: NominalType {
         public var fields: [(name: String, type: Int)] = []
-        public override init(_ typeId: Id.TypeId, _ name: String) {
-            super.init(typeId, name)
+        public override init(_ name: String) {
+            super.init(name)
         }
     }
 
     public final class EnumType: NominalType {
         public var cases: [(name: String, associatedTypeIds: [Int])] = []
-        public override init(_ typeId: Id.TypeId, _ name: String) {
-            super.init(typeId, name)
+        public override init(_ name: String) {
+            super.init(name)
         }
     }
 
     public final class ReferenceType: NominalType {
         public var fields: [(name: String, type: Int)] = []
-        public override init(_ typeId: Id.TypeId, _ name: String) {
-            super.init(typeId, name)
+        public override init(_ name: String) {
+            super.init(name)
         }
     }
 
     public final class ProtocolType: NominalType {
-        public override init(_ typeId: Id.TypeId, _ name: String) {
-            super.init(typeId, name)
+        public override init(_ name: String) {
+            super.init(name)
         }
     }
 
@@ -151,10 +149,8 @@ public enum TIRType {
 
     public final class ArchetypeType: TIRType {
         public let name: String
-        public var genericParam: Symbol.GenericParamSymbol? = nil
-        public init(_ name: String, _ genericParam: Symbol.GenericParamSymbol? = nil) {
+        public init(_ name: String) {
             self.name = name
-            self.genericParam = genericParam
         }
     }
 
@@ -166,9 +162,9 @@ public enum TIRType {
     }
 
     public final class GenericSignature {
-        public let parameters: [Symbol.GenericParamSymbol]
+        public let parameters: [String]
         public var requirements: [Requirement] = []
-        public init(parameters: [Symbol.GenericParamSymbol]) {
+        public init(parameters: [String]) {
             self.parameters = parameters
         }
     }

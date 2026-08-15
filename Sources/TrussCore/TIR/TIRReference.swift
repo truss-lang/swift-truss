@@ -3,10 +3,8 @@ import SwiftBetterDiagnostic
 
 public extension TIR {
     struct Substitution {
-        public let genericParam: Symbol.GenericParamSymbol?
         public let concreteType: TIRType.TIRType
-        public init(genericParam: Symbol.GenericParamSymbol?, concreteType: TIRType.TIRType) {
-            self.genericParam = genericParam
+        public init(concreteType: TIRType.TIRType) {
             self.concreteType = concreteType
         }
     }
@@ -39,10 +37,10 @@ public extension TIR {
 
     final class ClassMethod: Instruction {
         public let reference: Value
-        public let methodSymbol: Symbol.FunctionSymbol
-        public init(_ reference: Value, methodSymbol: Symbol.FunctionSymbol, sourceRange: SourceRange) {
+        public let methodName: String
+        public init(_ reference: Value, methodName: String, sourceRange: SourceRange) {
             self.reference = reference
-            self.methodSymbol = methodSymbol
+            self.methodName = methodName
             super.init(sourceRange)
         }
 
@@ -53,10 +51,10 @@ public extension TIR {
 
     final class SuperMethod: Instruction {
         public let reference: Value
-        public let methodSymbol: Symbol.FunctionSymbol
-        public init(_ reference: Value, methodSymbol: Symbol.FunctionSymbol, sourceRange: SourceRange) {
+        public let methodName: String
+        public init(_ reference: Value, methodName: String, sourceRange: SourceRange) {
             self.reference = reference
-            self.methodSymbol = methodSymbol
+            self.methodName = methodName
             super.init(sourceRange)
         }
 
@@ -66,14 +64,14 @@ public extension TIR {
     }
 
     final class WitnessMethod: Instruction {
-        public let protocolSymbol: Symbol.ProtocolSymbol
-        public let methodSymbol: Symbol.FunctionSymbol
+        public let protocolName: String
+        public let methodName: String
         public init(
-            protocolSymbol: Symbol.ProtocolSymbol, methodSymbol: Symbol.FunctionSymbol,
+            protocolName: String, methodName: String,
             sourceRange: SourceRange
         ) {
-            self.protocolSymbol = protocolSymbol
-            self.methodSymbol = methodSymbol
+            self.protocolName = protocolName
+            self.methodName = methodName
             super.init(sourceRange)
         }
 

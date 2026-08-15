@@ -25,7 +25,7 @@ public final class TIRGen: AST.Visitor {
     private var initFunctionsByType: [Id.SymbolId: TIR.Function] = [:]
     private var deinitFunctions: [ObjectIdentifier: TIR.Function] = [:]
     private var deinitOwners: [ObjectIdentifier: Symbol.NominalTypeSymbol] = [:]
-    private var deinitFunctionsByType: [Id.TypeId: TIR.Function] = [:]
+    private var deinitFunctionsByType: [String: TIR.Function] = [:]
     private var scopeStack: [[LocalBinding]] = []
     private var staticVariableSymbols: Set<Id.SymbolId> = []
     private var collectTypeStack: [Symbol.NominalTypeSymbol] = []
@@ -322,8 +322,10 @@ public final class TIRGen: AST.Visitor {
         )
         deinitFunctions[ObjectIdentifier(decl)] = function
         deinitOwners[ObjectIdentifier(decl)] = owner
-        if let typeId = owner.typeId {
-            deinitFunctionsByType[typeId] = function
+        if let typeId = owner.typeId,
+           let nominalType = context.typeTable[typeId] as? TrussType.NominalType
+        {
+            deinitFunctionsByType[TypeMangler.nominalPath(nominalType, context: context)] = function
         }
     }
 
@@ -661,7 +663,6 @@ public final class TIRGen: AST.Visitor {
             isAsync: isAsync, isThrowing: isThrowing, throwsTypes: throwsTypes.map(\.id),
             isExtern: isExtern, callingConvention: callingConvention
         )
-        function.symbol = symbol
         registry.registerFunction(function)
         module.functions.append(function)
         if let symbol {
@@ -1023,7 +1024,6 @@ public final class TIRGen: AST.Visitor {
             name: globalNamesBySymbol[symbol.id] ?? mangleGlobalName(symbol), type: type.id,
             isExtern: !externContextStack.isEmpty && variableDecl.initializer == nil
         )
-        global.symbol = symbol
         module.globals.append(global)
         globalsBySymbol[symbol.id] = global
     }
@@ -1996,7 +1996,7 @@ public final class TIRGen: AST.Visitor {
     private func needsRelease(_ type: TIRType.TIRType) -> Bool {
         if type is TIRType.ReferenceType { return true }
         if let structType = type as? TIRType.StructType {
-            return deinitFunctionsByType[structType.typeId] != nil
+            return deinitFunctionsByType[structType.name] != nil
         }
         return false
     }
@@ -2020,7 +2020,7 @@ public final class TIRGen: AST.Visitor {
                     builder.emit(TIR.ReleaseValue(value, sourceRange: range))
                 }
             } else if let structType = binding.type as? TIRType.StructType,
-                      let deinitFunction = deinitFunctionsByType[structType.typeId]
+                      let deinitFunction = deinitFunctionsByType[structType.name]
             {
                 emitDeinitCall(deinitFunction, selfAddress: binding.address, range: range)
             }
@@ -2177,7 +2177,7 @@ public final class TIRGen: AST.Visitor {
         guard let application = call.callee as? AST.GenericApplication else { return [] }
         return application.genericArguments.compactMap { argument in
             argument.ty.map {
-                TIR.Substitution(genericParam: nil, concreteType: typeLower.lower($0))
+                TIR.Substitution(concreteType: typeLower.lower($0))
             }
         }
     }
@@ -2214,7 +2214,7 @@ public final class TIRGen: AST.Visitor {
                 guard let object = visitExpression(member.object) else { return nil }
                 if isReferenceType(member.object.ty) {
                     return builder?.emitWithResult(
-                        TIR.ClassMethod(object, methodSymbol: functionSymbol, sourceRange: range),
+                        TIR.ClassMethod(object, methodName: methodName(functionSymbol), sourceRange: range),
                         type: methodType(functionSymbol).id, ownership: .Trivial
                     )
                 }
@@ -2230,6 +2230,14 @@ public final class TIRGen: AST.Visitor {
 
     private func methodType(_ symbol: Symbol.FunctionSymbol) -> TIRType.TIRType {
         symbol.functionType.map { typeLower.lower($0) } ?? TIRType.VoidType()
+    }
+
+    private func methodName(_ symbol: Symbol.FunctionSymbol) -> String {
+        functionsBySymbol[symbol.id]?.name
+            ?? mangleFunctionName(
+                symbol, baseName: symbol.name,
+                returnType: symbol.functionType?.returnType ?? TrussType.VoidType.INSTANCE
+            )
     }
 
     private func getterType(_ getter: TIR.Function) -> TIRType.TIRType {
@@ -2297,7 +2305,11 @@ public final class TIRGen: AST.Visitor {
             guard let object = visitExpression(memberAccess.object) else { return nil }
             if isReferenceType(memberAccess.object.ty) {
                 return builder.emitWithResult(
-                    TIR.ClassMethod(object, methodSymbol: functionSymbol, sourceRange: memberAccess.sourceRange),
+                    TIR.ClassMethod(
+                        object,
+                        methodName: methodName(functionSymbol),
+                        sourceRange: memberAccess.sourceRange
+                    ),
                     type: methodType(functionSymbol).id, ownership: .Trivial
                 )
             }

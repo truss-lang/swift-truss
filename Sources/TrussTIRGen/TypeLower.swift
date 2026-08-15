@@ -73,7 +73,7 @@ final class TypeLower {
             if let archetype = archetypes[genericParam.name] {
                 return archetype
             }
-            let archetype = TIRType.ArchetypeType(genericParam.name, genericParam.symbol)
+            let archetype = TIRType.ArchetypeType(genericParam.name)
             archetypes[genericParam.name] = archetype
             return archetype
         default:
@@ -88,17 +88,17 @@ final class TypeLower {
         let mangledName = mangleTypeName(type)
         let lowered: TIRType.NominalType = switch type {
         case is TrussType.StructType:
-            TIRType.StructType(type.id, mangledName)
+            TIRType.StructType(mangledName)
         case is TrussType.ClassType:
-            TIRType.ReferenceType(type.id, mangledName)
+            TIRType.ReferenceType(mangledName)
         case is TrussType.EnumType:
-            TIRType.EnumType(type.id, mangledName)
+            TIRType.EnumType(mangledName)
         case is TrussType.ProtocolType:
-            TIRType.ProtocolType(type.id, mangledName)
+            TIRType.ProtocolType(mangledName)
         case is TrussType.ActorType:
-            TIRType.ReferenceType(type.id, mangledName)
+            TIRType.ReferenceType(mangledName)
         default:
-            TIRType.ReferenceType(type.id, mangledName)
+            TIRType.ReferenceType(mangledName)
         }
         nominalInProgress[type.id] = lowered
         register(lowered)

@@ -35,7 +35,7 @@ public enum TIR {
             case existential([Int])
             case pointer(Int)
             case archetype(String)
-            case nominal(Id.TypeId)
+            case nominal(String)
         }
 
         public struct TupleElementKey: Hashable {
@@ -126,7 +126,7 @@ public enum TIR {
             case let archetype as TIRType.ArchetypeType:
                 .archetype(archetype.name)
             case let nominal as TIRType.NominalType:
-                .nominal(nominal.typeId)
+                .nominal(nominal.name)
             default:
                 fatalError("unreachable")
             }
@@ -134,7 +134,6 @@ public enum TIR {
     }
 
     public final class GlobalVariable {
-        public var symbol: Symbol.VariableSymbol?
         public var name: String
         public var type: Int
         public var isExtern: Bool
@@ -148,7 +147,6 @@ public enum TIR {
 
     public final class Function {
         public var id: Int = -1
-        public var symbol: Symbol.FunctionSymbol?
         public var name: String
         public var genericSignature: TIRType.GenericSignature?
         public var arguments: [Argument] = []

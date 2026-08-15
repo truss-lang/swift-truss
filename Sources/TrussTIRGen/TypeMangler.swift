@@ -16,8 +16,10 @@ enum TypeMangler {
             current = owner.memberOf
         }
         for name in chain.reversed() {
+            result += "_"
             result += mangleIdentifier(name)
         }
+        result += "_"
         result += mangleIdentifier(type.name)
         return result
     }

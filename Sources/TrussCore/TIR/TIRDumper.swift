@@ -14,8 +14,7 @@ public extension TIR {
             if !types.isEmpty {
                 lines.append("types:")
                 for type in types {
-                    lines.append("  " + type.name + "#" + String(type.typeId.id)
-                        + nominalDefinition(type))
+                    lines.append("  " + type.name + nominalDefinition(type))
                 }
                 lines.append("")
             }
@@ -34,12 +33,12 @@ public extension TIR {
         }
 
         private func collectTypes(_ module: TIR.Module) -> [TIRType.NominalType] {
-            var seen = Set<UInt64>()
+            var seen = Set<String>()
             var result: [TIRType.NominalType] = []
             func visit(_ type: TIRType.TIRType) {
                 switch type {
                 case let nominal as TIRType.NominalType:
-                    if seen.insert(nominal.typeId.id).inserted {
+                    if seen.insert(nominal.name).inserted {
                         result.append(nominal)
                     }
                 case let optional as TIRType.OptionalType:
@@ -102,7 +101,7 @@ public extension TIR {
                     }
                 }
             }
-            return result.sorted { $0.typeId.id < $1.typeId.id }
+            return result.sorted { $0.name < $1.name }
         }
 
         public func dump(_ function: TIR.Function) -> String {
@@ -160,7 +159,7 @@ public extension TIR {
 
         private func signatureText(_ signature: TIRType.GenericSignature) -> String {
             var text = "generic <"
-            text += signature.parameters.map(\.name).joined(separator: ", ") + ">"
+            text += signature.parameters.joined(separator: ", ") + ">"
             if !signature.requirements.isEmpty {
                 text += " where "
                 text += signature.requirements.map(requirementText).joined(separator: ", ")
@@ -243,13 +242,13 @@ public extension TIR {
                     + instruction.captures.map(\.name).joined(separator: ", ") + ")"
             case let instruction as ClassMethod:
                 return result + "ClassMethod " + instruction.reference.name + ", "
-                    + instruction.methodSymbol.name
+                    + instruction.methodName
             case let instruction as SuperMethod:
                 return result + "SuperMethod " + instruction.reference.name + ", "
-                    + instruction.methodSymbol.name
+                    + instruction.methodName
             case let instruction as WitnessMethod:
-                return result + "WitnessMethod " + instruction.protocolSymbol.name + "."
-                    + instruction.methodSymbol.name
+                return result + "WitnessMethod " + instruction.protocolName + "."
+                    + instruction.methodName
             case let instruction as Apply:
                 return result + "Apply " + applyText(instruction.callee, instruction.arguments)
                     + substitutionText(instruction.substitutions)
@@ -400,7 +399,7 @@ public extension TIR {
             case let primitive as TIRType.PrimitiveType:
                 return primitiveKindText(primitive.kind) + String(primitive.bitWidth)
             case let nominal as TIRType.NominalType:
-                return nominal.name + "#" + String(nominal.typeId.id)
+                return nominal.name
             case let tuple as TIRType.TupleType:
                 return "$(" + tuple.elements.map { element in
                     if let label = element.label {
