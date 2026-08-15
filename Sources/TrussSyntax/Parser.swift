@@ -255,7 +255,7 @@ public final class Parser {
                     switch kind {
                     case .TypeAlias, .Module, .PrecedenceGroup, .Infix, .Prefix, .Postfix,
                          .Operator, .Struct, .Class, .Enum, .ProtocolKw, .Actor, .Extension,
-                         .Func, .Let, .Var, .Async:
+                         .Func, .Let, .Var, .Async, .Extern:
                         true
                     default:
                         false
@@ -276,6 +276,7 @@ public final class Parser {
                 }
                 emitError("import is only allowed at top level", at: t)
                 return parseImport()
+            case .Extern: return parseExtern(modifiers, attributes)
             case .TypeAlias: return parseTypeAliasDecl(modifiers, attributes)
             case .Module: return parseModuleDecl(modifiers, attributes)
             case .PrecedenceGroup: return parsePrecedenceGroupDecl(modifiers, attributes)
@@ -2063,6 +2064,7 @@ public final class Parser {
         case let .Keyword(kind):
             switch kind {
             case .TypeAlias: return parseTypeAliasDecl(modifiers, attributes)
+            case .Extern: return parseExtern(modifiers, attributes)
             case .Struct: return parseStructDecl(modifiers, attributes)
             case .Class: return parseClassDecl(modifiers, attributes)
             case .Enum: return parseEnumDecl(modifiers, attributes)
@@ -2280,7 +2282,7 @@ public final class Parser {
             switch token.kind {
             case let .Keyword(kind):
                 switch kind {
-                case .Func, .Let, .Var, .Async:
+                case .Func, .Let, .Var, .Async, .Extern:
                     break
                 case .Return, .Throw, .While, .Repeat, .Guard, .For, .Defer, .Asm,
                      .Break, .Continue, .Goto:
@@ -2297,6 +2299,7 @@ public final class Parser {
         switch token.kind {
         case let .Keyword(kind):
             switch kind {
+            case .Extern: return parseExtern(modifiers, attributes)
             case .Func: return parseFunctionDecl(modifiers, attributes)
             case .Let: return parseVariableDecl(modifiers, attributes, inFunctionContext: true)
             case .Var: return parseVariableDecl(modifiers, attributes, inFunctionContext: true)

@@ -30,7 +30,7 @@ public final class TIRGen: AST.Visitor {
     private var staticVariableSymbols: Set<Id.SymbolId> = []
     private var collectTypeStack: [Symbol.NominalTypeSymbol] = []
     private var modulePathStack: [Symbol.ModuleSymbol] = []
-    private var externContextDepth = 0
+    private var externContextStack: [String] = []
 
     private struct BreakTarget {
         let label: String?
@@ -230,14 +230,14 @@ public final class TIRGen: AST.Visitor {
                     modulePathStack.removeLast()
                 }
             case let decl as AST.ExternDecl:
-                externContextDepth += 1
+                externContextStack.append(decl.convention.value)
                 switch decl.body {
                 case let .Block(statements):
                     collectStatements(statements)
                 case let .Declaration(inner):
                     collectStatements([inner])
                 }
-                externContextDepth -= 1
+                externContextStack.removeLast()
             case let decl as AST.StructDecl:
                 collectTypeStack.append(decl.symbol ?? Symbol.StructSymbol(id: Id.SymbolId(id: 0), name: ""))
                 collectStatements(decl.body)
@@ -269,8 +269,9 @@ public final class TIRGen: AST.Visitor {
         let functionType = symbol.functionType
         let returnType = functionType.map { typeLower.lower($0.returnType) } ?? TIRType.VoidType()
         let throwsTypes = functionType?.throwsTypes.map { typeLower.lower($0) } ?? []
+        let inExternContext = !externContextStack.isEmpty
         let name = cname(decl.attributes)
-            ?? (externContextDepth > 0 ? decl.name.value : mangleFunctionName(
+            ?? (inExternContext ? decl.name.value : mangleFunctionName(
                 symbol, baseName: decl.name.value,
                 returnType: functionType?.returnType ?? TrussType.VoidType.INSTANCE
             ))
@@ -280,7 +281,9 @@ public final class TIRGen: AST.Visitor {
             isVariadic: decl.varargToken != nil,
             isAsync: decl.asyncToken != nil,
             isThrowing: functionType?.isThrowing ?? false,
-            throwsTypes: throwsTypes
+            throwsTypes: throwsTypes,
+            isExtern: inExternContext && decl.body == nil,
+            callingConvention: inExternContext ? externContextStack.last : nil
         )
     }
 
@@ -371,7 +374,7 @@ public final class TIRGen: AST.Visitor {
         }
         if symbol.memberOf == nil || isStatic, decl.accessors.isEmpty {
             globalNamesBySymbol[symbol.id] = cname(decl.attributes)
-                ?? (externContextDepth > 0 ? decl.name.value : mangleGlobalName(symbol))
+                ?? (!externContextStack.isEmpty ? decl.name.value : mangleGlobalName(symbol))
         }
         guard !decl.accessors.isEmpty else { return }
         let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.VoidType()
@@ -639,14 +642,16 @@ public final class TIRGen: AST.Visitor {
     private func createFunction(
         _ symbol: Symbol.FunctionSymbol?, name: String, returnType: TIRType.TIRType,
         isVariadic: Bool = false, isAsync: Bool = false,
-        isThrowing: Bool = false, throwsTypes: [TIRType.TIRType] = []
+        isThrowing: Bool = false, throwsTypes: [TIRType.TIRType] = [],
+        isExtern: Bool = false, callingConvention: String? = nil
     ) -> TIR.Function {
         guard let registry else {
             fatalError("unreachable")
         }
         let function = TIR.Function(
             id: registry.nextFunctionId, name: name, returnType: returnType, isVariadic: isVariadic,
-            isAsync: isAsync, isThrowing: isThrowing, throwsTypes: throwsTypes
+            isAsync: isAsync, isThrowing: isThrowing, throwsTypes: throwsTypes,
+            isExtern: isExtern, callingConvention: callingConvention
         )
         function.symbol = symbol
         module.functions.append(function)
@@ -1007,7 +1012,8 @@ public final class TIRGen: AST.Visitor {
             ?? (variableDecl.initializer?.ty).map { typeLower.lower($0) }
             ?? TIRType.VoidType()
         let global = TIR.GlobalVariable(
-            name: globalNamesBySymbol[symbol.id] ?? mangleGlobalName(symbol), type: type
+            name: globalNamesBySymbol[symbol.id] ?? mangleGlobalName(symbol), type: type,
+            isExtern: !externContextStack.isEmpty && variableDecl.initializer == nil
         )
         global.symbol = symbol
         module.globals.append(global)

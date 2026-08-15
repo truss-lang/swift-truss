@@ -6,6 +6,7 @@ public final class Enter: AST.Visitor {
     private var currentPackageSymbol: Symbol.PackageSymbol? = nil
     private var currentModuleSymbol: Symbol.ModuleSymbol? = nil
     private var typeStack: [Symbol.NominalTypeSymbol] = []
+    private var moduleScope: Scope? = nil
     public init(context: Context) {
         self.context = context
     }
@@ -80,13 +81,16 @@ public final class Enter: AST.Visitor {
         let lastScope = currentScope
         let lastPackage = currentPackageSymbol
         let lastModule = currentModuleSymbol
+        let lastModuleScope = moduleScope
         currentScope = packageSymbol.scope
         currentPackageSymbol = packageSymbol
         currentModuleSymbol = nil
+        moduleScope = packageSymbol.scope
         super.visitProgram(program, additional: additional)
         currentScope = lastScope
         currentPackageSymbol = lastPackage
         currentModuleSymbol = lastModule
+        moduleScope = lastModuleScope
         return nil
     }
 
@@ -97,11 +101,14 @@ public final class Enter: AST.Visitor {
         guard let moduleSymbol = moduleDecl.symbol else { return nil }
         let lastScope = currentScope
         let lastModule = currentModuleSymbol
+        let lastModuleScope = moduleScope
         currentScope = moduleSymbol.scope
         currentModuleSymbol = moduleSymbol
+        moduleScope = moduleSymbol.scope
         super.visitModuleDecl(moduleDecl, additional: additional)
         currentScope = lastScope
         currentModuleSymbol = lastModule
+        moduleScope = lastModuleScope
         return nil
     }
 
@@ -442,5 +449,16 @@ public final class Enter: AST.Visitor {
         _ associatedTypeDecl: AST.AssociatedTypeDecl, additional: Any? = nil
     ) -> Any? {
         nil
+    }
+
+    @discardableResult
+    public override func visitExternDecl(_ externDecl: AST.ExternDecl, additional: Any? = nil)
+        -> Any?
+    {
+        if currentScope !== moduleScope {
+            context.emitError("extern declaration must be at top level", at: externDecl.token)
+            return nil
+        }
+        return super.visitExternDecl(externDecl, additional: additional)
     }
 }

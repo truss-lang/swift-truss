@@ -20,7 +20,8 @@ public extension TIR {
                 lines.append("")
             }
             for global in module.globals {
-                lines.append("global \(global.name) : \(typeText(global.type))")
+                let externMark = global.isExtern ? " extern" : ""
+                lines.append("global\(externMark) \(global.name) : \(typeText(global.type))")
                 for instruction in global.initializer {
                     lines.append("  " + instructionText(instruction))
                 }
@@ -101,7 +102,14 @@ public extension TIR {
 
         public func dump(_ function: TIR.Function) -> String {
             var lines: [String] = []
-            lines.append("function \(function.name) " + functionSignatureText(function))
+            var attributes = ""
+            if function.isExtern {
+                attributes += " extern"
+            }
+            if let convention = function.callingConvention {
+                attributes += " \"" + convention + "\""
+            }
+            lines.append("function \(function.name)\(attributes) " + functionSignatureText(function))
             if let genericSignature = function.genericSignature {
                 lines.append("  " + signatureText(genericSignature))
             }
@@ -430,7 +438,11 @@ public extension TIR {
         }
 
         private func innerTypeText(_ type: TIRType.TIRType) -> String {
-            String(typeText(type).dropFirst())
+            let text = typeText(type)
+            if text.hasPrefix("$") {
+                return String(text.dropFirst())
+            }
+            return text
         }
 
         private func primitiveKindText(_ kind: TIRType.PrimitiveKind) -> String {

@@ -585,8 +585,62 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("global g"))
+        try #require(tir.contains("global extern g"))
         try #require(!tir.contains("global $t4main_1g"))
+    }
+
+    @Test func externDeclarationIsExternWithConvention() throws {
+        let tir = dumpTIR(
+            """
+            extern "C" {
+                func foo(a: Builtin.Int32) -> Builtin.Int32
+            }
+            """,
+            installBuiltin: true
+        )
+        try #require(tir.contains("function foo extern \"C\""))
+    }
+
+    @Test func externFunctionWithBodyKeepsConventionWithoutExtern() throws {
+        let tir = dumpTIR(
+            """
+            extern "C" {
+                func foo(a: Builtin.Int32) -> Builtin.Int32 {
+                    return a
+                }
+            }
+            """,
+            installBuiltin: true
+        )
+        try #require(tir.contains("function foo \"C\""))
+        try #require(!tir.contains("function foo extern"))
+        try #require(tir.contains("Return "))
+    }
+
+    @Test func ordinaryFunctionHasNoExternOrConvention() throws {
+        let tir = dumpTIR(
+            """
+            func foo(a: Builtin.Int32) -> Builtin.Int32 {
+                return a
+            }
+            """,
+            installBuiltin: true
+        )
+        try #require(!tir.contains(" extern"))
+        try #require(!tir.contains(" \"C\""))
+    }
+
+    @Test func externVariableWithInitializerIsDefinition() throws {
+        let tir = dumpTIR(
+            """
+            extern "C" {
+                var g: Builtin.Int32 = 5
+            }
+            """,
+            installBuiltin: true
+        )
+        try #require(tir.contains("global g : i32"))
+        try #require(!tir.contains("global extern g"))
     }
 
     @Test func structDeinitCalledOnScopeExit() throws {

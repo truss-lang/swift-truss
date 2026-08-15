@@ -40,10 +40,12 @@ public enum TIR {
         public var symbol: Symbol.VariableSymbol?
         public var name: String
         public var type: TIRType.TIRType
+        public var isExtern: Bool
         public var initializer: [Instruction] = []
-        public init(name: String, type: TIRType.TIRType) {
+        public init(name: String, type: TIRType.TIRType, isExtern: Bool = false) {
             self.name = name
             self.type = type
+            self.isExtern = isExtern
         }
     }
 
@@ -58,11 +60,14 @@ public enum TIR {
         public var isAsync: Bool
         public var isThrowing: Bool
         public var throwsTypes: [TIRType.TIRType]
+        public var isExtern: Bool
+        public var callingConvention: String?
         public let entryBlock: BasicBlock
         public var blocks: [BasicBlock]
         public init(
             id: Int, name: String, returnType: TIRType.TIRType, isVariadic: Bool = false,
-            isAsync: Bool = false, isThrowing: Bool = false, throwsTypes: [TIRType.TIRType] = []
+            isAsync: Bool = false, isThrowing: Bool = false, throwsTypes: [TIRType.TIRType] = [],
+            isExtern: Bool = false, callingConvention: String? = nil
         ) {
             self.id = id
             self.name = name
@@ -71,6 +76,8 @@ public enum TIR {
             self.isAsync = isAsync
             self.isThrowing = isThrowing
             self.throwsTypes = throwsTypes
+            self.isExtern = isExtern
+            self.callingConvention = callingConvention
             let entry = BasicBlock(name: "entry")
             entryBlock = entry
             blocks = [entry]
