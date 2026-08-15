@@ -39,6 +39,7 @@ public enum Builtin {
         let package = Symbol.PackageSymbol(id: context.nextSymbolId, name: packageName)
         for info in typeInfos {
             let symbol = Symbol.BuiltinTypeSymbol(id: context.nextSymbolId, name: info.name)
+            symbol.access = .Public
             context.register(symbol: symbol)
             package.scope.types[info.name] = symbol
         }

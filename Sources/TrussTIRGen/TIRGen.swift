@@ -443,12 +443,12 @@ public final class TIRGen: AST.Visitor {
 
         let selfType = ownerType(typeSymbol) ?? TIRType.VoidType()
         let selfArgument = builder.createArgument(
-            type: selfType, ownership: typeLower.ownership(for: selfType)
+            type: selfType.id, ownership: typeLower.ownership(for: selfType)
         )
         function.arguments.append(selfArgument)
         let selfAddress = builder.emitWithResult(
             TIR.AllocStack(selfType, sourceRange: emptyRange),
-            type: TIRType.AddressType(selfType), ownership: .MutableBorrowing
+            type: typeLower.register(TIRType.AddressType(selfType.id)), ownership: .MutableBorrowing
         )
         builder.emit(TIR.Store(selfArgument, to: selfAddress, sourceRange: emptyRange))
         env[typeSymbol.id] = selfAddress
@@ -460,12 +460,12 @@ public final class TIRGen: AST.Visitor {
             let parameterName = accessor.parameterName?.value
                 ?? (accessor.kind == .DidSet ? "oldValue" : "newValue")
             let newValueArgument = builder.createArgument(
-                type: propertyType, ownership: typeLower.ownership(for: propertyType)
+                type: propertyType.id, ownership: typeLower.ownership(for: propertyType)
             )
             function.arguments.append(newValueArgument)
             let newValueAddress = builder.emitWithResult(
                 TIR.AllocStack(propertyType, sourceRange: emptyRange),
-                type: TIRType.AddressType(propertyType), ownership: .MutableBorrowing
+                type: typeLower.register(TIRType.AddressType(propertyType.id)), ownership: .MutableBorrowing
             )
             builder.emit(
                 TIR.Store(newValueArgument, to: newValueAddress, sourceRange: emptyRange)
@@ -638,6 +638,14 @@ public final class TIRGen: AST.Visitor {
         }
     }
 
+    private func resolvedType(_ typeId: Int) -> TIRType.TIRType? {
+        registry?.type(typeId)
+    }
+
+    private func voidType() -> TIRType.TIRType {
+        typeLower.lower(TrussType.VoidType.INSTANCE)
+    }
+
     @discardableResult
     private func createFunction(
         _ symbol: Symbol.FunctionSymbol?, name: String, returnType: TIRType.TIRType,
@@ -649,13 +657,13 @@ public final class TIRGen: AST.Visitor {
             fatalError("unreachable")
         }
         let function = TIR.Function(
-            id: registry.nextFunctionId, name: name, returnType: returnType, isVariadic: isVariadic,
-            isAsync: isAsync, isThrowing: isThrowing, throwsTypes: throwsTypes,
+            name: name, returnType: returnType.id, isVariadic: isVariadic,
+            isAsync: isAsync, isThrowing: isThrowing, throwsTypes: throwsTypes.map(\.id),
             isExtern: isExtern, callingConvention: callingConvention
         )
         function.symbol = symbol
+        registry.registerFunction(function)
         module.functions.append(function)
-        registry.functions[function.id] = function
         if let symbol {
             functionsBySymbol[symbol.id] = function
         }
@@ -802,11 +810,11 @@ public final class TIRGen: AST.Visitor {
             return
         }
         let selfType = ownerType(ownerSymbol) ?? TIRType.VoidType()
-        let argument = builder.createArgument(type: selfType, ownership: typeLower.ownership(for: selfType))
+        let argument = builder.createArgument(type: selfType.id, ownership: typeLower.ownership(for: selfType))
         function.arguments.append(argument)
         let address = builder.emitWithResult(
             TIR.AllocStack(selfType, sourceRange: emptyRange),
-            type: TIRType.AddressType(selfType), ownership: .MutableBorrowing
+            type: typeLower.register(TIRType.AddressType(selfType.id)), ownership: .MutableBorrowing
         )
         builder.emit(TIR.Store(argument, to: address, sourceRange: emptyRange))
         if let symbol {
@@ -830,12 +838,12 @@ public final class TIRGen: AST.Visitor {
         for (index, parameter) in parameters.enumerated() {
             let paramType = paramTypes[index]
             let argument = builder.createArgument(
-                type: paramType, ownership: typeLower.ownership(for: paramType)
+                type: paramType.id, ownership: typeLower.ownership(for: paramType)
             )
             function.arguments.append(argument)
             let address = builder.emitWithResult(
                 TIR.AllocStack(paramType, sourceRange: parameter.sourceRange),
-                type: TIRType.AddressType(paramType), ownership: .MutableBorrowing
+                type: typeLower.register(TIRType.AddressType(paramType.id)), ownership: .MutableBorrowing
             )
             builder.emit(TIR.Store(argument, to: address, sourceRange: parameter.sourceRange))
             let variableSymbol = parameterVariableSymbol(symbol, parameter.name.value)
@@ -891,7 +899,7 @@ public final class TIRGen: AST.Visitor {
                         selfAddress, fieldIndex: fieldIndex, fieldName: propertySymbol.name,
                         sourceRange: range
                     ),
-                    type: TIRType.AddressType(propertyType), ownership: .MutableBorrowing
+                    type: typeLower.register(TIRType.AddressType(propertyType.id)), ownership: .MutableBorrowing
                 )
             } else {
                 builder.emitWithResult(
@@ -899,7 +907,7 @@ public final class TIRGen: AST.Visitor {
                         selfAddress, fieldIndex: fieldIndex, fieldName: propertySymbol.name,
                         sourceRange: range
                     ),
-                    type: TIRType.AddressType(propertyType), ownership: .MutableBorrowing
+                    type: typeLower.register(TIRType.AddressType(propertyType.id)), ownership: .MutableBorrowing
                 )
             }
             if let value = visitExpression(initializer) {
@@ -993,7 +1001,7 @@ public final class TIRGen: AST.Visitor {
             ?? TIRType.VoidType()
         let address = builder.emitWithResult(
             TIR.AllocStack(type, sourceRange: variableDecl.sourceRange),
-            type: TIRType.AddressType(type), ownership: .MutableBorrowing
+            type: typeLower.register(TIRType.AddressType(type.id)), ownership: .MutableBorrowing
         )
         env[symbol.id] = address
         if let initializer = variableDecl.initializer, let value = visitExpression(initializer) {
@@ -1012,7 +1020,7 @@ public final class TIRGen: AST.Visitor {
             ?? (variableDecl.initializer?.ty).map { typeLower.lower($0) }
             ?? TIRType.VoidType()
         let global = TIR.GlobalVariable(
-            name: globalNamesBySymbol[symbol.id] ?? mangleGlobalName(symbol), type: type,
+            name: globalNamesBySymbol[symbol.id] ?? mangleGlobalName(symbol), type: type.id,
             isExtern: !externContextStack.isEmpty && variableDecl.initializer == nil
         )
         global.symbol = symbol
@@ -1029,10 +1037,10 @@ public final class TIRGen: AST.Visitor {
         guard let global = globalsBySymbol[symbol.id], global.initializer.isEmpty else { return }
         guard let initializer = variableDecl.initializer else { return }
         let initFunction = TIR.Function(
-            id: registry.nextFunctionId, name: mangleGlobalName(symbol) + "_" + mangleIdentifier("init"),
+            name: mangleGlobalName(symbol) + "_" + mangleIdentifier("init"),
             returnType: global.type
         )
-        registry.functions[initFunction.id] = initFunction
+        registry.registerFunction(initFunction)
         let savedBuilder = builder
         let savedEnv = env
         let initBuilder = TIRBuilder(function: initFunction)
@@ -1041,7 +1049,7 @@ public final class TIRGen: AST.Visitor {
         if let value = visitExpression(initializer) {
             let address = initBuilder.emitWithResult(
                 TIR.GlobalAddr(global, sourceRange: variableDecl.sourceRange),
-                type: TIRType.AddressType(global.type), ownership: .MutableBorrowing
+                type: typeLower.register(TIRType.AddressType(global.type)), ownership: .MutableBorrowing
             )
             emitRetainIfNeeded(value, range: variableDecl.sourceRange)
             initBuilder.emit(
@@ -1422,7 +1430,7 @@ public final class TIRGen: AST.Visitor {
         guard let builder, let first = incomings.first else { return nil }
         return builder.emitWithResult(
             TIR.Phi(incomings: incomings, sourceRange: range),
-            type: first.0.type, ownership: typeLower.ownership(for: first.0.type)
+            type: first.0.type, ownership: typeLower.ownership(for: resolvedType(first.0.type) ?? TIRType.VoidType())
         )
     }
 
@@ -1449,14 +1457,14 @@ public final class TIRGen: AST.Visitor {
         builder.switchToBlock(successBlock)
         let trueValue = builder.emitWithResult(
             TIR.BoolLiteral(true, sourceRange: caseMatch.sourceRange),
-            type: boolType, ownership: .Trivial
+            type: boolType.id, ownership: .Trivial
         )
         incomings.append((trueValue, successBlock))
         builder.emit(TIR.Branch(joinBlock, sourceRange: caseMatch.sourceRange))
         builder.switchToBlock(failBlock)
         let falseValue = builder.emitWithResult(
             TIR.BoolLiteral(false, sourceRange: caseMatch.sourceRange),
-            type: boolType, ownership: .Trivial
+            type: boolType.id, ownership: .Trivial
         )
         incomings.append((falseValue, failBlock))
         builder.emit(TIR.Branch(joinBlock, sourceRange: caseMatch.sourceRange))
@@ -1565,19 +1573,19 @@ public final class TIRGen: AST.Visitor {
             if !call.arguments.isEmpty {
                 let payload = builder.emitWithResult(
                     TIR.UncheckedEnumData(subject, caseName: caseSymbol.name, sourceRange: range),
-                    type: payloadType(caseSymbol), ownership: .Trivial
+                    type: payloadType(caseSymbol).id, ownership: .Trivial
                 )
                 _ = builder.emitWithResult(
                     TIR.TupleElementAddr(payload, index: 0, sourceRange: range),
-                    type: TIRType.AddressType(TIRType.VoidType()), ownership: .MutableBorrowing
+                    type: typeLower.register(TIRType.AddressType(voidType().id)), ownership: .MutableBorrowing
                 )
                 for (index, argument) in call.arguments.enumerated() {
                     let element = builder.emitWithResult(
                         TIR.TupleElementAddr(payload, index: index, sourceRange: range),
-                        type: TIRType.AddressType(TIRType.VoidType()), ownership: .MutableBorrowing
+                        type: typeLower.register(TIRType.AddressType(voidType().id)), ownership: .MutableBorrowing
                     )
                     let elementValue = builder.emitWithResult(
-                        TIR.Load(element, sourceRange: range), type: TIRType.VoidType(),
+                        TIR.Load(element, sourceRange: range), type: voidType().id,
                         ownership: .Trivial
                     )
                     emitPatternMatch(
@@ -1593,17 +1601,17 @@ public final class TIRGen: AST.Visitor {
             }
         case let tuple as AST.Tuple:
             let tupleAddress = builder.emitWithResult(
-                TIR.AllocStack(subject.type, sourceRange: range),
-                type: TIRType.AddressType(subject.type), ownership: .MutableBorrowing
+                TIR.AllocStack(resolvedType(subject.type) ?? voidType(), sourceRange: range),
+                type: typeLower.register(TIRType.AddressType(subject.type)), ownership: .MutableBorrowing
             )
             builder.emit(TIR.Store(subject, to: tupleAddress, sourceRange: range))
             for (index, element) in tuple.elements.enumerated() {
                 let elementAddress = builder.emitWithResult(
                     TIR.TupleElementAddr(tupleAddress, index: index, sourceRange: range),
-                    type: TIRType.AddressType(TIRType.VoidType()), ownership: .MutableBorrowing
+                    type: typeLower.register(TIRType.AddressType(voidType().id)), ownership: .MutableBorrowing
                 )
                 let elementValue = builder.emitWithResult(
-                    TIR.Load(elementAddress, sourceRange: range), type: TIRType.VoidType(),
+                    TIR.Load(elementAddress, sourceRange: range), type: voidType().id,
                     ownership: .Trivial
                 )
                 emitPatternMatch(
@@ -1616,10 +1624,10 @@ public final class TIRGen: AST.Visitor {
             }
         case let isPattern as AST.IsPattern:
             let targetType = (isPattern.typeExpression.ty).map { typeLower.lower($0) }
-                ?? TIRType.VoidType()
+                ?? voidType()
             _ = builder.emitWithResult(
                 TIR.UncheckedRefCast(subject, to: targetType, sourceRange: range),
-                type: targetType, ownership: .Trivial
+                type: targetType.id, ownership: .Trivial
             )
             builder.emit(TIR.Branch(successBlock, sourceRange: range))
         default:
@@ -1652,8 +1660,8 @@ public final class TIRGen: AST.Visitor {
     private func bindPatternValue(name: String, value: TIR.Value, at range: SourceRange) {
         guard let builder else { return }
         let address = builder.emitWithResult(
-            TIR.AllocStack(value.type, sourceRange: range),
-            type: TIRType.AddressType(value.type), ownership: .MutableBorrowing
+            TIR.AllocStack(resolvedType(value.type) ?? voidType(), sourceRange: range),
+            type: typeLower.register(TIRType.AddressType(value.type)), ownership: .MutableBorrowing
         )
         builder.emit(TIR.Store(value, to: address, sourceRange: range))
         if let variableSymbol = currentScopeVariable(named: name) {
@@ -1768,7 +1776,7 @@ public final class TIRGen: AST.Visitor {
         let type = (integerLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.IntegerLiteral(Int64(integerLiteral.value), type: type, sourceRange: integerLiteral.sourceRange),
-            type: type, ownership: .Trivial
+            type: type.id, ownership: .Trivial
         )
     }
 
@@ -1780,7 +1788,7 @@ public final class TIRGen: AST.Visitor {
         let type = (floatLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.FloatLiteral(floatLiteral.value, type: type, sourceRange: floatLiteral.sourceRange),
-            type: type, ownership: .Trivial
+            type: type.id, ownership: .Trivial
         )
     }
 
@@ -1792,7 +1800,7 @@ public final class TIRGen: AST.Visitor {
         let type = (stringLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.StringLiteral(stringLiteral.token.value, sourceRange: stringLiteral.sourceRange),
-            type: type, ownership: .Owned
+            type: type.id, ownership: .Owned
         )
     }
 
@@ -1804,7 +1812,7 @@ public final class TIRGen: AST.Visitor {
         let type = (charLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.CharLiteral(charLiteral.value, sourceRange: charLiteral.sourceRange),
-            type: type, ownership: .Trivial
+            type: type.id, ownership: .Trivial
         )
     }
 
@@ -1816,7 +1824,7 @@ public final class TIRGen: AST.Visitor {
         let type = (boolLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.BoolLiteral(boolLiteral.value, sourceRange: boolLiteral.sourceRange),
-            type: type, ownership: .Trivial
+            type: type.id, ownership: .Trivial
         )
     }
 
@@ -1828,7 +1836,7 @@ public final class TIRGen: AST.Visitor {
         let type = (nullLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.NullLiteral(type: type, sourceRange: nullLiteral.sourceRange),
-            type: type, ownership: .Trivial
+            type: type.id, ownership: .Trivial
         )
     }
 
@@ -1842,7 +1850,7 @@ public final class TIRGen: AST.Visitor {
         }
         return builder.emitWithResult(
             TIR.NullptrLiteral(type: type, sourceRange: nullPointerLiteral.sourceRange),
-            type: type, ownership: .Trivial
+            type: type.id, ownership: .Trivial
         )
     }
 
@@ -1851,9 +1859,9 @@ public final class TIRGen: AST.Visitor {
         _ voidLiteral: AST.VoidLiteral, additional: Any? = nil
     ) -> Any? {
         guard let builder else { return nil }
-        let type = TIRType.VoidType()
+        let type = voidType()
         return builder.emitWithResult(
-            TIR.VoidLiteral(voidLiteral.sourceRange), type: type, ownership: .Trivial
+            TIR.VoidLiteral(voidLiteral.sourceRange), type: type.id, ownership: .Trivial
         )
     }
 
@@ -1871,7 +1879,7 @@ public final class TIRGen: AST.Visitor {
         if let global = globalsBySymbol[symbol.id] {
             let address = builder.emitWithResult(
                 TIR.GlobalAddr(global, sourceRange: variable.sourceRange),
-                type: TIRType.AddressType(global.type), ownership: .MutableBorrowing
+                type: typeLower.register(TIRType.AddressType(global.type)), ownership: .MutableBorrowing
             )
             return loadFrom(address, range: variable.sourceRange)
         }
@@ -1902,14 +1910,15 @@ public final class TIRGen: AST.Visitor {
             let selfValue = loadFrom(selfAddress, range: range) ?? selfAddress
             let callee = builder.emitWithResult(
                 TIR.FunctionRef(functionId: getter.id, sourceRange: range),
-                type: accessorType(getter, withValue: false), ownership: .Trivial
+                type: accessorType(getter, withValue: false).id, ownership: .Trivial
             )
             return builder.emitWithResult(
                 TIR.Apply(
                     callee: callee, arguments: [selfValue], substitutions: [],
                     sourceRange: range
                 ),
-                type: getter.returnType, ownership: typeLower.ownership(for: getter.returnType)
+                type: getter.returnType,
+                ownership: typeLower.ownership(for: resolvedType(getter.returnType) ?? voidType())
             )
         }
         let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.VoidType()
@@ -1943,7 +1952,7 @@ public final class TIRGen: AST.Visitor {
                 : TIR.StructElementAddr(
                     selfAddress, fieldIndex: fieldIndex, fieldName: symbol.name, sourceRange: range
                 ),
-            type: TIRType.AddressType(propertyType), ownership: .MutableBorrowing
+            type: typeLower.register(TIRType.AddressType(propertyType.id)), ownership: .MutableBorrowing
         )
     }
 
@@ -1987,14 +1996,14 @@ public final class TIRGen: AST.Visitor {
     private func needsRelease(_ type: TIRType.TIRType) -> Bool {
         if type is TIRType.ReferenceType { return true }
         if let structType = type as? TIRType.StructType {
-            return deinitFunctionsByType[structType.id] != nil
+            return deinitFunctionsByType[structType.typeId] != nil
         }
         return false
     }
 
     private func emitRetainIfNeeded(_ value: TIR.Value, range: SourceRange) {
         guard let builder else { return }
-        guard value.type is TIRType.ReferenceType else { return }
+        guard let resolved = resolvedType(value.type), resolved is TIRType.ReferenceType else { return }
         guard value.definingInstruction is TIR.Load || value.definingInstruction is TIR.Phi
         else {
             return
@@ -2011,7 +2020,7 @@ public final class TIRGen: AST.Visitor {
                     builder.emit(TIR.ReleaseValue(value, sourceRange: range))
                 }
             } else if let structType = binding.type as? TIRType.StructType,
-                      let deinitFunction = deinitFunctionsByType[structType.id]
+                      let deinitFunction = deinitFunctionsByType[structType.typeId]
             {
                 emitDeinitCall(deinitFunction, selfAddress: binding.address, range: range)
             }
@@ -2024,7 +2033,7 @@ public final class TIRGen: AST.Visitor {
         guard let builder else { return }
         let callee = builder.emitWithResult(
             TIR.FunctionRef(functionId: deinitFunction.id, sourceRange: range),
-            type: initFunctionType(deinitFunction), ownership: .Trivial
+            type: initFunctionType(deinitFunction).id, ownership: .Trivial
         )
         let selfValue = loadFrom(selfAddress, range: range) ?? selfAddress
         builder.emit(TIR.Apply(callee: callee, arguments: [selfValue], substitutions: [], sourceRange: range))
@@ -2032,9 +2041,13 @@ public final class TIRGen: AST.Visitor {
 
     private func loadFrom(_ address: TIR.Value, range: SourceRange) -> TIR.Value? {
         guard let builder else { return nil }
-        let pointee = (address.type as? TIRType.AddressType)?.pointee ?? TIRType.VoidType()
+        let pointee = if let addressType = resolvedType(address.type) as? TIRType.AddressType {
+            resolvedType(addressType.pointee) ?? voidType()
+        } else {
+            voidType()
+        }
         return builder.emitWithResult(
-            TIR.Load(address, sourceRange: range), type: pointee,
+            TIR.Load(address, sourceRange: range), type: pointee.id,
             ownership: typeLower.ownership(for: pointee)
         )
     }
@@ -2074,7 +2087,7 @@ public final class TIRGen: AST.Visitor {
         let elements = tuple.elements.compactMap { visitExpression($0.value) }
         let type = (tuple.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
-            TIR.TupleValue(elements: elements, sourceRange: tuple.sourceRange), type: type,
+            TIR.TupleValue(elements: elements, sourceRange: tuple.sourceRange), type: type.id,
             ownership: .Trivial
         )
     }
@@ -2090,17 +2103,18 @@ public final class TIRGen: AST.Visitor {
         let resolvedSymbol = call.symbol ?? call.overloads?.first
         var arguments: [TIR.Value] = []
         if let initFunction = initFunctionFor(call, resolvedSymbol: resolvedSymbol),
-           let selfType = initFunction.arguments.first?.type
+           let selfTypeId = initFunction.arguments.first?.type,
+           let selfType = resolvedType(selfTypeId)
         {
             let selfAddress = if let refType = selfType as? TIRType.ReferenceType {
                 builder.emitWithResult(
                     TIR.AllocRef(refType, sourceRange: call.sourceRange),
-                    type: TIRType.AddressType(selfType), ownership: .MutableBorrowing
+                    type: typeLower.register(TIRType.AddressType(selfTypeId)), ownership: .MutableBorrowing
                 )
             } else {
                 builder.emitWithResult(
                     TIR.AllocStack(selfType, sourceRange: call.sourceRange),
-                    type: TIRType.AddressType(selfType), ownership: .MutableBorrowing
+                    type: typeLower.register(TIRType.AddressType(selfTypeId)), ownership: .MutableBorrowing
                 )
             }
             arguments.append(selfAddress)
@@ -2126,7 +2140,7 @@ public final class TIRGen: AST.Visitor {
         if let errorBlock = tryErrorBlock, resolvedSymbol?.functionType?.isThrowing == true {
             let successBlock = builder.createBlock()
             let errorType = errorArgumentType(resolvedSymbol)
-            let errorArgument = TIR.Argument(name: "error", type: errorType, ownership: .Owned)
+            let errorArgument = TIR.Argument(name: "error", type: errorType.id, ownership: .Owned)
             errorBlock.arguments.append(errorArgument)
             let instruction = TIR.TryApply(
                 callee: calleeValue, arguments: arguments, substitutions: substitutions,
@@ -2134,7 +2148,7 @@ public final class TIRGen: AST.Visitor {
                 sourceRange: call.sourceRange
             )
             let result = builder.emitWithResult(
-                instruction, type: resultType, ownership: resultOwnership
+                instruction, type: resultType.id, ownership: resultOwnership
             )
             builder.switchToBlock(successBlock)
             return result
@@ -2144,7 +2158,7 @@ public final class TIRGen: AST.Visitor {
                 callee: calleeValue, arguments: arguments, substitutions: substitutions,
                 sourceRange: call.sourceRange
             ),
-            type: resultType, ownership: resultOwnership
+            type: resultType.id, ownership: resultOwnership
         )
     }
 
@@ -2181,7 +2195,7 @@ public final class TIRGen: AST.Visitor {
             {
                 return builder?.emitWithResult(
                     TIR.FunctionRef(functionId: initFunction.id, sourceRange: range),
-                    type: initFunctionType(initFunction), ownership: .Trivial
+                    type: initFunctionType(initFunction).id, ownership: .Trivial
                 )
             }
             return visitExpression(callee)
@@ -2201,7 +2215,7 @@ public final class TIRGen: AST.Visitor {
                 if isReferenceType(member.object.ty) {
                     return builder?.emitWithResult(
                         TIR.ClassMethod(object, methodSymbol: functionSymbol, sourceRange: range),
-                        type: methodType(functionSymbol), ownership: .Trivial
+                        type: methodType(functionSymbol).id, ownership: .Trivial
                     )
                 }
                 return functionRefValue(functionSymbol, at: range)
@@ -2219,20 +2233,24 @@ public final class TIRGen: AST.Visitor {
     }
 
     private func getterType(_ getter: TIR.Function) -> TIRType.TIRType {
-        let selfType = getter.arguments.first?.type ?? TIRType.VoidType()
-        return TIRType.FunctionType(
-            parameters: [TIRType.FunctionType.Parameter(label: nil, type: selfType)],
+        let selfTypeId = getter.arguments.first?.type ?? voidType().id
+        let type = TIRType.FunctionType(
+            parameters: [TIRType.FunctionType.Parameter(label: nil, type: selfTypeId)],
             returnType: getter.returnType
         )
+        typeLower.register(type)
+        return type
     }
 
     private func accessorType(_ function: TIR.Function, withValue: Bool) -> TIRType.TIRType {
-        let selfType = function.arguments.first?.type ?? TIRType.VoidType()
+        let selfType = function.arguments.first?.type ?? voidType().id
         var parameters = [TIRType.FunctionType.Parameter(label: nil, type: selfType)]
         if withValue, let valueType = function.arguments[safe: 1]?.type {
             parameters.append(TIRType.FunctionType.Parameter(label: nil, type: valueType))
         }
-        return TIRType.FunctionType(parameters: parameters, returnType: function.returnType)
+        let type = TIRType.FunctionType(parameters: parameters, returnType: function.returnType)
+        typeLower.register(type)
+        return type
     }
 
     private func initFunctionFor(
@@ -2250,18 +2268,20 @@ public final class TIRGen: AST.Visitor {
         let parameters = function.arguments.map {
             TIRType.FunctionType.Parameter(label: nil, type: $0.type)
         }
-        return TIRType.FunctionType(
+        let type = TIRType.FunctionType(
             parameters: parameters,
             isVariadic: function.isVariadic,
             returnType: function.returnType
         )
+        typeLower.register(type)
+        return type
     }
 
     private func functionRefValue(_ symbol: Symbol.FunctionSymbol, at range: SourceRange) -> TIR.Value? {
         guard let builder, let function = functionsBySymbol[symbol.id] else { return nil }
         let functionType = symbol.functionType.map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
-            TIR.FunctionRef(functionId: function.id, sourceRange: range), type: functionType, ownership: .Trivial
+            TIR.FunctionRef(functionId: function.id, sourceRange: range), type: functionType.id, ownership: .Trivial
         )
     }
 
@@ -2278,7 +2298,7 @@ public final class TIRGen: AST.Visitor {
             if isReferenceType(memberAccess.object.ty) {
                 return builder.emitWithResult(
                     TIR.ClassMethod(object, methodSymbol: functionSymbol, sourceRange: memberAccess.sourceRange),
-                    type: methodType(functionSymbol), ownership: .Trivial
+                    type: methodType(functionSymbol).id, ownership: .Trivial
                 )
             }
             return functionRefValue(functionSymbol, at: memberAccess.sourceRange)
@@ -2292,7 +2312,7 @@ public final class TIRGen: AST.Visitor {
             guard let global = globalsBySymbol[variableSymbol.id] else { return nil }
             let address = builder.emitWithResult(
                 TIR.GlobalAddr(global, sourceRange: memberAccess.sourceRange),
-                type: TIRType.AddressType(global.type), ownership: .MutableBorrowing
+                type: typeLower.register(TIRType.AddressType(global.type)), ownership: .MutableBorrowing
             )
             return loadFrom(address, range: memberAccess.sourceRange)
         }
@@ -2302,14 +2322,15 @@ public final class TIRGen: AST.Visitor {
         {
             let callee = builder.emitWithResult(
                 TIR.FunctionRef(functionId: getter.id, sourceRange: memberAccess.sourceRange),
-                type: getterType(getter), ownership: .Trivial
+                type: getterType(getter).id, ownership: .Trivial
             )
             return builder.emitWithResult(
                 TIR.Apply(
                     callee: callee, arguments: [object], substitutions: [],
                     sourceRange: memberAccess.sourceRange
                 ),
-                type: getter.returnType, ownership: typeLower.ownership(for: getter.returnType)
+                type: getter.returnType,
+                ownership: typeLower.ownership(for: resolvedType(getter.returnType) ?? voidType())
             )
         }
         let memberType = variableSymbolType(symbol) ?? TIRType.VoidType()
@@ -2327,7 +2348,7 @@ public final class TIRGen: AST.Visitor {
                     object, fieldIndex: fieldIndex, fieldName: memberAccess.member.value,
                     sourceRange: memberAccess.sourceRange
                 ),
-                type: TIRType.AddressType(memberType), ownership: .MutableBorrowing
+                type: typeLower.register(TIRType.AddressType(memberType.id)), ownership: .MutableBorrowing
             )
         } else {
             builder.emitWithResult(
@@ -2335,7 +2356,7 @@ public final class TIRGen: AST.Visitor {
                     object, fieldIndex: fieldIndex, fieldName: memberAccess.member.value,
                     sourceRange: memberAccess.sourceRange
                 ),
-                type: TIRType.AddressType(memberType), ownership: .MutableBorrowing
+                type: typeLower.register(TIRType.AddressType(memberType.id)), ownership: .MutableBorrowing
             )
         }
         return loadFrom(address, range: memberAccess.sourceRange)
@@ -2370,7 +2391,7 @@ public final class TIRGen: AST.Visitor {
             TIR.EnumValue(
                 enumType, caseName: caseSymbol.name, payload: payload, sourceRange: range
             ),
-            type: enumType, ownership: typeLower.ownership(for: enumType)
+            type: enumType.id, ownership: typeLower.ownership(for: enumType)
         )
     }
 
@@ -2401,7 +2422,7 @@ public final class TIRGen: AST.Visitor {
         }
         let callee = builder.emitWithResult(
             TIR.FunctionRef(functionId: function.id, sourceRange: binary.sourceRange),
-            type: methodType(functionSymbol), ownership: .Trivial
+            type: methodType(functionSymbol).id, ownership: .Trivial
         )
         let resultType = (binary.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         var arguments: [TIR.Value] = []
@@ -2412,7 +2433,7 @@ public final class TIRGen: AST.Visitor {
                 callee: callee, arguments: arguments, substitutions: [],
                 sourceRange: binary.sourceRange
             ),
-            type: resultType, ownership: typeLower.ownership(for: resultType)
+            type: resultType.id, ownership: typeLower.ownership(for: resultType)
         )
     }
 
@@ -2435,7 +2456,7 @@ public final class TIRGen: AST.Visitor {
         } else {
             let falseValue = builder.emitWithResult(
                 TIR.BoolLiteral(false, sourceRange: binary.sourceRange),
-                type: resultType, ownership: .Trivial
+                type: resultType.id, ownership: .Trivial
             )
             incomings.append((falseValue, rhsBlock))
         }
@@ -2443,7 +2464,7 @@ public final class TIRGen: AST.Visitor {
         builder.switchToBlock(falseBlock)
         let falseValue = builder.emitWithResult(
             TIR.BoolLiteral(false, sourceRange: binary.sourceRange),
-            type: resultType, ownership: .Trivial
+            type: resultType.id, ownership: .Trivial
         )
         incomings.append((falseValue, falseBlock))
         builder.emit(TIR.Branch(joinBlock, sourceRange: binary.sourceRange))
@@ -2503,7 +2524,7 @@ public final class TIRGen: AST.Visitor {
         if let didSet = accessors["didSet"] {
             let oldValue = builder.emitWithResult(
                 TIR.Load(address, sourceRange: range),
-                type: propertyType, ownership: typeLower.ownership(for: propertyType)
+                type: propertyType.id, ownership: typeLower.ownership(for: propertyType)
             )
             emitRetainIfNeeded(value, range: range)
             builder.emit(TIR.Store(value, to: address, sourceRange: range))
@@ -2524,7 +2545,7 @@ public final class TIRGen: AST.Visitor {
             guard let global = globalsBySymbol[symbol.id] else { return nil }
             let address = builder.emitWithResult(
                 TIR.GlobalAddr(global, sourceRange: range),
-                type: TIRType.AddressType(global.type), ownership: .MutableBorrowing
+                type: typeLower.register(TIRType.AddressType(global.type)), ownership: .MutableBorrowing
             )
             emitRetainIfNeeded(value, range: range)
             builder.emit(TIR.Store(value, to: address, sourceRange: range))
@@ -2559,7 +2580,7 @@ public final class TIRGen: AST.Visitor {
         if let didSet = accessors["didSet"] {
             let oldValue = builder.emitWithResult(
                 TIR.Load(address, sourceRange: range),
-                type: propertyType, ownership: typeLower.ownership(for: propertyType)
+                type: propertyType.id, ownership: typeLower.ownership(for: propertyType)
             )
             emitRetainIfNeeded(value, range: range)
             builder.emit(TIR.Store(value, to: address, sourceRange: range))
@@ -2577,14 +2598,14 @@ public final class TIRGen: AST.Visitor {
         guard let builder else { return }
         let callee = builder.emitWithResult(
             TIR.FunctionRef(functionId: function.id, sourceRange: range),
-            type: accessorType(function, withValue: !arguments.isEmpty), ownership: .Trivial
+            type: accessorType(function, withValue: !arguments.isEmpty).id, ownership: .Trivial
         )
         builder.emitWithResult(
             TIR.Apply(
                 callee: callee, arguments: arguments, substitutions: [],
                 sourceRange: range
             ),
-            type: TIRType.VoidType(), ownership: .Trivial
+            type: voidType().id, ownership: .Trivial
         )
     }
 
@@ -2611,7 +2632,7 @@ public final class TIRGen: AST.Visitor {
                     base, fieldIndex: fieldIndex, fieldName: member.member.value,
                     sourceRange: range
                 ),
-            type: TIRType.AddressType(propertyType), ownership: .MutableBorrowing
+            type: typeLower.register(TIRType.AddressType(propertyType.id)), ownership: .MutableBorrowing
         )
     }
 
@@ -2625,7 +2646,7 @@ public final class TIRGen: AST.Visitor {
         }
         let callee = builder.emitWithResult(
             TIR.FunctionRef(functionId: function.id, sourceRange: prefix.sourceRange),
-            type: methodType(functionSymbol), ownership: .Trivial
+            type: methodType(functionSymbol).id, ownership: .Trivial
         )
         let resultType = (prefix.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         var arguments: [TIR.Value] = []
@@ -2635,7 +2656,7 @@ public final class TIRGen: AST.Visitor {
                 callee: callee, arguments: arguments, substitutions: [],
                 sourceRange: prefix.sourceRange
             ),
-            type: resultType, ownership: typeLower.ownership(for: resultType)
+            type: resultType.id, ownership: typeLower.ownership(for: resultType)
         )
     }
 
@@ -2649,7 +2670,7 @@ public final class TIRGen: AST.Visitor {
         }
         let callee = builder.emitWithResult(
             TIR.FunctionRef(functionId: function.id, sourceRange: postfix.sourceRange),
-            type: methodType(functionSymbol), ownership: .Trivial
+            type: methodType(functionSymbol).id, ownership: .Trivial
         )
         let resultType = (postfix.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         var arguments: [TIR.Value] = []
@@ -2659,7 +2680,7 @@ public final class TIRGen: AST.Visitor {
                 callee: callee, arguments: arguments, substitutions: [],
                 sourceRange: postfix.sourceRange
             ),
-            type: resultType, ownership: typeLower.ownership(for: resultType)
+            type: resultType.id, ownership: typeLower.ownership(for: resultType)
         )
     }
 
@@ -2672,7 +2693,7 @@ public final class TIRGen: AST.Visitor {
         let type = (dereference.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.Load(pointer, sourceRange: dereference.sourceRange),
-            type: type, ownership: typeLower.ownership(for: type)
+            type: type.id, ownership: typeLower.ownership(for: type)
         )
     }
 
@@ -2685,7 +2706,7 @@ public final class TIRGen: AST.Visitor {
         let type = (addressOf.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.AddressToPointer(address, sourceRange: addressOf.sourceRange),
-            type: type, ownership: .Trivial
+            type: type.id, ownership: .Trivial
         )
     }
 
@@ -2697,7 +2718,7 @@ public final class TIRGen: AST.Visitor {
             if let global = globalsBySymbol[symbol.id] {
                 return builder.emitWithResult(
                     TIR.GlobalAddr(global, sourceRange: range),
-                    type: TIRType.AddressType(global.type), ownership: .MutableBorrowing
+                    type: typeLower.register(TIRType.AddressType(global.type)), ownership: .MutableBorrowing
                 )
             }
             if let address = env[symbol.id] {
@@ -2736,7 +2757,7 @@ public final class TIRGen: AST.Visitor {
                         object, fieldIndex: fieldIndex, fieldName: member.member.value,
                         sourceRange: range
                     ),
-                type: TIRType.AddressType(memberType), ownership: .MutableBorrowing
+                type: typeLower.register(TIRType.AddressType(memberType.id)), ownership: .MutableBorrowing
             )
         case let dereference as AST.Dereference:
             return visitExpression(dereference.expression)
@@ -2753,7 +2774,7 @@ public final class TIRGen: AST.Visitor {
         let elements = arrayLiteral.elements.compactMap { visitExpression($0) }
         let type = (arrayLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
-            TIR.ArrayValue(elements: elements, sourceRange: arrayLiteral.sourceRange), type: type,
+            TIR.ArrayValue(elements: elements, sourceRange: arrayLiteral.sourceRange), type: type.id,
             ownership: typeLower.ownership(for: type)
         )
     }
@@ -2773,7 +2794,7 @@ public final class TIRGen: AST.Visitor {
         let type = (dictionaryLiteral.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.DictionaryValue(entries: entries, sourceRange: dictionaryLiteral.sourceRange),
-            type: type, ownership: typeLower.ownership(for: type)
+            type: type.id, ownership: typeLower.ownership(for: type)
         )
     }
 
@@ -2792,33 +2813,33 @@ public final class TIRGen: AST.Visitor {
                 guard let existential = targetType as? TIRType.ExistentialType else {
                     return builder.emitWithResult(
                         TIR.Upcast(value, to: targetType, sourceRange: cast.sourceRange),
-                        type: targetType, ownership: .Trivial
+                        type: targetType.id, ownership: .Trivial
                     )
                 }
                 return builder.emitWithResult(
                     TIR.InitExistential(value, to: existential, sourceRange: cast.sourceRange),
-                    type: targetType, ownership: .Owned
+                    type: targetType.id, ownership: .Owned
                 )
             }
             return builder.emitWithResult(
-                TIR.Upcast(value, to: targetType, sourceRange: cast.sourceRange), type: targetType,
+                TIR.Upcast(value, to: targetType, sourceRange: cast.sourceRange), type: targetType.id,
                 ownership: .Trivial
             )
         case .OptionalAs:
-            let optionalType = TIRType.OptionalType(targetType)
+            let optionalType = TIRType.OptionalType(targetType.id)
             return builder.emitWithResult(
                 TIR.Upcast(value, to: optionalType, sourceRange: cast.sourceRange),
-                type: optionalType, ownership: .Trivial
+                type: typeLower.register(optionalType), ownership: .Trivial
             )
         case .AsExclamation, .AsBitCast:
             return builder.emitWithResult(
                 TIR.UncheckedRefCast(value, to: targetType, sourceRange: cast.sourceRange),
-                type: targetType, ownership: .Trivial
+                type: targetType.id, ownership: .Trivial
             )
         case .Is:
             let type = (cast.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
             return builder.emitWithResult(
-                TIR.BoolLiteral(true, sourceRange: cast.sourceRange), type: type,
+                TIR.BoolLiteral(true, sourceRange: cast.sourceRange), type: type.id,
                 ownership: .Trivial
             )
         }
@@ -2854,7 +2875,7 @@ public final class TIRGen: AST.Visitor {
         }
         let callee = builder.emitWithResult(
             TIR.FunctionRef(functionId: function.id, sourceRange: subscriptExpression.sourceRange),
-            type: methodType(functionSymbol), ownership: .Trivial
+            type: methodType(functionSymbol).id, ownership: .Trivial
         )
         var arguments = [base]
         arguments.append(
@@ -2867,7 +2888,7 @@ public final class TIRGen: AST.Visitor {
                 callee: callee, arguments: arguments, substitutions: [],
                 sourceRange: subscriptExpression.sourceRange
             ),
-            type: resultType, ownership: typeLower.ownership(for: resultType)
+            type: resultType.id, ownership: typeLower.ownership(for: resultType)
         )
     }
 
@@ -2879,7 +2900,7 @@ public final class TIRGen: AST.Visitor {
         let resultType = (forceUnwrap.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.UncheckedEnumData(value, caseName: "some", sourceRange: forceUnwrap.sourceRange),
-            type: resultType, ownership: .Trivial
+            type: resultType.id, ownership: .Trivial
         )
     }
 
@@ -2906,14 +2927,14 @@ public final class TIRGen: AST.Visitor {
         builder.switchToBlock(someBlock)
         let trueValue = builder.emitWithResult(
             TIR.BoolLiteral(true, sourceRange: optionalBinding.sourceRange),
-            type: boolType, ownership: .Trivial
+            type: boolType.id, ownership: .Trivial
         )
         incomings.append((trueValue, someBlock))
         builder.emit(TIR.Branch(joinBlock, sourceRange: optionalBinding.sourceRange))
         builder.switchToBlock(noneBlock)
         let falseValue = builder.emitWithResult(
             TIR.BoolLiteral(false, sourceRange: optionalBinding.sourceRange),
-            type: boolType, ownership: .Trivial
+            type: boolType.id, ownership: .Trivial
         )
         incomings.append((falseValue, noneBlock))
         builder.emit(TIR.Branch(joinBlock, sourceRange: optionalBinding.sourceRange))
@@ -2930,7 +2951,7 @@ public final class TIRGen: AST.Visitor {
             if let value = env[symbol.id] {
                 let cell = builder.emitWithResult(
                     TIR.AllocCell(type, sourceRange: closure.sourceRange),
-                    type: TIRType.AddressType(type), ownership: .MutableBorrowing
+                    type: typeLower.register(TIRType.AddressType(type.id)), ownership: .MutableBorrowing
                 )
                 let loaded = loadFrom(value, range: closure.sourceRange) ?? value
                 emitRetainIfNeeded(loaded, range: closure.sourceRange)
@@ -2939,15 +2960,15 @@ public final class TIRGen: AST.Visitor {
             }
         }
         let closureType = (closure.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
-        let returnType = (closureType as? TIRType.FunctionType)?.returnType ?? TIRType.VoidType()
+        let returnType = (closureType as? TIRType.FunctionType)?.returnType ?? voidType().id
         let isThrowing = (closureType as? TIRType.FunctionType)?.isThrowing ?? false
         let throwsTypes = (closureType as? TIRType.FunctionType)?.throwsTypes ?? []
         let ownerName = builder.function.name
         let name = ownerName + "_closure_" + String(closureCounter)
         closureCounter += 1
         let function = createFunction(
-            nil, name: name, returnType: returnType, isAsync: false, isThrowing: isThrowing,
-            throwsTypes: throwsTypes
+            nil, name: name, returnType: resolvedType(returnType) ?? voidType(), isAsync: false,
+            isThrowing: isThrowing, throwsTypes: throwsTypes.map { resolvedType($0) ?? voidType() }
         )
         let savedBuilder = builder
         let savedEnv = env
@@ -2973,7 +2994,7 @@ public final class TIRGen: AST.Visitor {
         for (index, (symbol, type)) in captured.enumerated() {
             if index < captureCells.count {
                 let cellArgument = builder.createArgument(
-                    type: TIRType.AddressType(type), ownership: .MutableBorrowing
+                    type: typeLower.register(TIRType.AddressType(type.id)), ownership: .MutableBorrowing
                 )
                 function.arguments.append(cellArgument)
                 env[symbol.id] = cellArgument
@@ -2986,12 +3007,12 @@ public final class TIRGen: AST.Visitor {
             let paramType = (parameter.type?.ty).map { typeLower.lower($0) }
                 ?? TIRType.VoidType()
             let argument = builder.createArgument(
-                type: paramType, ownership: typeLower.ownership(for: paramType)
+                type: paramType.id, ownership: typeLower.ownership(for: paramType)
             )
             function.arguments.append(argument)
             let address = builder.emitWithResult(
                 TIR.AllocStack(paramType, sourceRange: parameter.sourceRange),
-                type: TIRType.AddressType(paramType), ownership: .MutableBorrowing
+                type: typeLower.register(TIRType.AddressType(paramType.id)), ownership: .MutableBorrowing
             )
             builder.emit(TIR.Store(argument, to: address, sourceRange: parameter.sourceRange))
             paramValues.append(argument)
@@ -3013,7 +3034,7 @@ public final class TIRGen: AST.Visitor {
         if !paramValues.isEmpty {
             closureParamValues.append(paramValues)
         }
-        let implicitReturn = !(returnType is TIRType.VoidType)
+        let implicitReturn = !(resolvedType(returnType) is TIRType.VoidType)
         visitBodyStatements(closure.body, implicitReturn: implicitReturn)
         ensureTerminator(range: closure.sourceRange)
 
@@ -3028,7 +3049,7 @@ public final class TIRGen: AST.Visitor {
 
         return builder.emitWithResult(
             TIR.Closure(functionId: function.id, captures: captureCells, sourceRange: closure.sourceRange),
-            type: closureType, ownership: .Owned
+            type: closureType.id, ownership: .Owned
         )
     }
 
@@ -3199,7 +3220,7 @@ public final class TIRGen: AST.Visitor {
         }
         let type = (interpolation.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
-            TIR.StringLiteral(text, sourceRange: interpolation.sourceRange), type: type,
+            TIR.StringLiteral(text, sourceRange: interpolation.sourceRange), type: type.id,
             ownership: .Owned
         )
     }

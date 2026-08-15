@@ -80,7 +80,10 @@ public final class CodeGen: TIR.Visitor {
         return currentModule.addFunction(function.name, type: functionType)
     }
 
-    private func lowerType(_ type: TIRType.TIRType) -> LLVMSwiftBinding.LLVMType {
+    private func lowerType(_ typeId: Int) -> LLVMSwiftBinding.LLVMType {
+        guard let type = currentRegistry?.type(typeId) else {
+            return llvmContext.int8
+        }
         switch type {
         case is TIRType.VoidType:
             return llvmContext.void
@@ -120,7 +123,7 @@ public final class CodeGen: TIR.Visitor {
     }
 
     public override func visitIntegerLiteral(_ instruction: TIR.IntegerLiteral, additional: Any? = nil) -> Any? {
-        let type = lowerType(instruction.literalType)
+        let type = lowerType(instruction.literalType.id)
         guard let result = instruction.result else {
             context.emitError("integer literal: missing result value", at: instruction.sourceRange)
             return nil
@@ -143,7 +146,7 @@ public final class CodeGen: TIR.Visitor {
     }
 
     public override func visitFloatLiteral(_ instruction: TIR.FloatLiteral, additional: Any? = nil) -> Any? {
-        let type = lowerType(instruction.literalType)
+        let type = lowerType(instruction.literalType.id)
         guard let result = instruction.result else {
             context.emitError("float literal: missing result value", at: instruction.sourceRange)
             return nil
@@ -191,7 +194,7 @@ public final class CodeGen: TIR.Visitor {
             context.emitError("null pointer literal: missing result value", at: instruction.sourceRange)
             return nil
         }
-        valueMap[ObjectIdentifier(result)] = llvmContext.constantNull(lowerType(instruction.pointerType))
+        valueMap[ObjectIdentifier(result)] = llvmContext.constantNull(lowerType(instruction.pointerType.id))
         return nil
     }
 
@@ -206,7 +209,7 @@ public final class CodeGen: TIR.Visitor {
         guard !(instruction.allocatedType is TIRType.VoidType) else {
             return nil
         }
-        valueMap[ObjectIdentifier(result)] = builder.buildAlloca(lowerType(instruction.allocatedType))
+        valueMap[ObjectIdentifier(result)] = builder.buildAlloca(lowerType(instruction.allocatedType.id))
         return nil
     }
 

@@ -11,45 +11,46 @@ public enum TIRType {
 
     @abstractClass
     public class TIRType {
+        public var id: Int = -1
         @abstractInit
         public init() {}
     }
 
     @abstractClass
     public class NominalType: TIRType {
-        public let id: Id.TypeId
+        public let typeId: Id.TypeId
         public let name: String
         @abstractInit
-        public init(_ id: Id.TypeId, _ name: String) {
-            self.id = id
+        public init(_ typeId: Id.TypeId, _ name: String) {
+            self.typeId = typeId
             self.name = name
         }
     }
 
     public final class StructType: NominalType {
         public var fields: [(name: String, type: Int)] = []
-        public override init(_ id: Id.TypeId, _ name: String) {
-            super.init(id, name)
+        public override init(_ typeId: Id.TypeId, _ name: String) {
+            super.init(typeId, name)
         }
     }
 
     public final class EnumType: NominalType {
         public var cases: [(name: String, associatedTypeIds: [Int])] = []
-        public override init(_ id: Id.TypeId, _ name: String) {
-            super.init(id, name)
+        public override init(_ typeId: Id.TypeId, _ name: String) {
+            super.init(typeId, name)
         }
     }
 
     public final class ReferenceType: NominalType {
         public var fields: [(name: String, type: Int)] = []
-        public override init(_ id: Id.TypeId, _ name: String) {
-            super.init(id, name)
+        public override init(_ typeId: Id.TypeId, _ name: String) {
+            super.init(typeId, name)
         }
     }
 
     public final class ProtocolType: NominalType {
-        public override init(_ id: Id.TypeId, _ name: String) {
-            super.init(id, name)
+        public override init(_ typeId: Id.TypeId, _ name: String) {
+            super.init(typeId, name)
         }
     }
 
@@ -77,8 +78,8 @@ public enum TIRType {
     public final class TupleType: TIRType {
         public struct Element {
             public let label: String?
-            public let type: TIRType
-            public init(label: String?, type: TIRType) {
+            public let type: Int
+            public init(label: String?, type: Int) {
                 self.label = label
                 self.type = type
             }
@@ -92,8 +93,8 @@ public enum TIRType {
     }
 
     public final class OptionalType: TIRType {
-        public let wrapped: TIRType
-        public init(_ wrapped: TIRType) {
+        public let wrapped: Int
+        public init(_ wrapped: Int) {
             self.wrapped = wrapped
         }
     }
@@ -101,8 +102,8 @@ public enum TIRType {
     public final class FunctionType: TIRType {
         public struct Parameter {
             public let label: String?
-            public let type: TIRType
-            public init(label: String?, type: TIRType) {
+            public let type: Int
+            public init(label: String?, type: Int) {
                 self.label = label
                 self.type = type
             }
@@ -112,11 +113,11 @@ public enum TIRType {
         public let isVariadic: Bool
         public let isAsync: Bool
         public let isThrowing: Bool
-        public let throwsTypes: [TIRType]
-        public let returnType: TIRType
+        public let throwsTypes: [Int]
+        public let returnType: Int
         public init(
             parameters: [Parameter], isVariadic: Bool = false, isAsync: Bool = false, isThrowing: Bool = false,
-            throwsTypes: [TIRType] = [], returnType: TIRType
+            throwsTypes: [Int] = [], returnType: Int
         ) {
             self.parameters = parameters
             self.isVariadic = isVariadic
@@ -128,22 +129,22 @@ public enum TIRType {
     }
 
     public final class AddressType: TIRType {
-        public let pointee: TIRType
-        public init(_ pointee: TIRType) {
+        public let pointee: Int
+        public init(_ pointee: Int) {
             self.pointee = pointee
         }
     }
 
     public final class MetatypeType: TIRType {
-        public let instance: TIRType
-        public init(_ instance: TIRType) {
+        public let instance: Int
+        public init(_ instance: Int) {
             self.instance = instance
         }
     }
 
     public final class ExistentialType: TIRType {
-        public let protocolTypes: [TIRType]
-        public init(_ protocolTypes: [TIRType]) {
+        public let protocolTypes: [Int]
+        public init(_ protocolTypes: [Int]) {
             self.protocolTypes = protocolTypes
         }
     }
@@ -158,8 +159,8 @@ public enum TIRType {
     }
 
     public final class PointerType: TIRType {
-        public let pointee: TIRType
-        public init(_ pointee: TIRType) {
+        public let pointee: Int
+        public init(_ pointee: Int) {
             self.pointee = pointee
         }
     }
@@ -173,14 +174,14 @@ public enum TIRType {
     }
 
     public struct Requirement {
-        public let subject: TIRType
+        public let subject: Int
         public enum Kind {
-            case Conformance(TIRType)
-            case Equality(TIRType)
+            case Conformance(Int)
+            case Equality(Int)
         }
 
         public let kind: Kind
-        public init(subject: TIRType, kind: Kind) {
+        public init(subject: Int, kind: Kind) {
             self.subject = subject
             self.kind = kind
         }

@@ -2,9 +2,8 @@ import TrussCore
 
 final class TypeLower {
     private let context: Context
-    private var cache: [Id.TypeId: TIRType.TIRType] = [:]
     private var archetypes: [String: TIRType.ArchetypeType] = [:]
-    private var registered: [ObjectIdentifier: Int] = [:]
+    private var nominalInProgress: [Id.TypeId: TIRType.NominalType] = [:]
     var registry: TIR.Registry?
     var storedProperties: [Id.TypeId: [(name: String, type: TrussType.TrussType)]] = [:]
     var enumCases: [Id.TypeId: [(name: String, types: [TrussType.TrussType])]] = [:]
@@ -21,17 +20,10 @@ final class TypeLower {
 
     @discardableResult
     func register(_ type: TIRType.TIRType) -> Int {
-        let key = ObjectIdentifier(type)
-        if let existing = registered[key] {
-            return existing
-        }
         guard let registry else {
             fatalError("type registry is not configured")
         }
-        let id = registry.nextTypeId
-        registry.types[id] = type
-        registered[key] = id
-        return id
+        return registry.registerType(type)
     }
 
     func lowerUnregistered(_ type: TrussType.TrussType) -> TIRType.TIRType {
@@ -46,28 +38,28 @@ final class TypeLower {
         case let nominal as TrussType.NominalType:
             return nominalType(nominal)
         case let optional as TrussType.OptionalType:
-            return TIRType.OptionalType(lower(optional.wrapped))
+            return TIRType.OptionalType(lower(optional.wrapped).id)
         case let tuple as TrussType.TupleType:
             return TIRType.TupleType(
                 tuple.elements.map {
-                    TIRType.TupleType.Element(label: $0.label, type: lower($0.type))
+                    TIRType.TupleType.Element(label: $0.label, type: lower($0.type).id)
                 }
             )
         case let function as TrussType.FunctionType:
             return TIRType.FunctionType(
                 parameters: function.parameters.map {
-                    TIRType.FunctionType.Parameter(label: $0.label, type: lower($0.type))
+                    TIRType.FunctionType.Parameter(label: $0.label, type: lower($0.type).id)
                 },
                 isVariadic: function.isVariadic,
                 isAsync: function.isAsync,
                 isThrowing: function.isThrowing,
-                throwsTypes: function.throwsTypes.map(lower),
-                returnType: lower(function.returnType)
+                throwsTypes: function.throwsTypes.map { lower($0).id },
+                returnType: lower(function.returnType).id
             )
         case let pointer as TrussType.PointerType:
-            return TIRType.PointerType(lower(pointer.pointee))
+            return TIRType.PointerType(lower(pointer.pointee).id)
         case let composition as TrussType.CompositionType:
-            return TIRType.ExistentialType(composition.members.map(lower))
+            return TIRType.ExistentialType(composition.members.map { lower($0).id })
         case let instantiation as TrussType.GenericInstantiation:
             return lower(instantiation.base)
         case let variable as TrussType.TypeVariableType:
@@ -90,8 +82,8 @@ final class TypeLower {
     }
 
     private func nominalType(_ type: TrussType.NominalType) -> TIRType.TIRType {
-        if let cached = cache[type.id] {
-            return cached
+        if let existing = nominalInProgress[type.id] {
+            return existing
         }
         let mangledName = mangleTypeName(type)
         let lowered: TIRType.NominalType = switch type {
@@ -108,7 +100,7 @@ final class TypeLower {
         default:
             TIRType.ReferenceType(type.id, mangledName)
         }
-        cache[type.id] = lowered
+        nominalInProgress[type.id] = lowered
         register(lowered)
         fillMembers(lowered, type: type)
         return lowered

@@ -14,7 +14,7 @@ public extension TIR {
             if !types.isEmpty {
                 lines.append("types:")
                 for type in types {
-                    lines.append("  " + type.name + "#" + String(type.id.id)
+                    lines.append("  " + type.name + "#" + String(type.typeId.id)
                         + nominalDefinition(type))
                 }
                 lines.append("")
@@ -39,7 +39,7 @@ public extension TIR {
             func visit(_ type: TIRType.TIRType) {
                 switch type {
                 case let nominal as TIRType.NominalType:
-                    if seen.insert(nominal.id.id).inserted {
+                    if seen.insert(nominal.typeId.id).inserted {
                         result.append(nominal)
                     }
                 case let optional as TIRType.OptionalType:
@@ -70,6 +70,11 @@ public extension TIR {
                     break
                 }
             }
+            func visit(_ typeId: Int) {
+                if let type = registry?.types[typeId] {
+                    visit(type)
+                }
+            }
             for global in module.globals {
                 visit(global.type)
                 for instruction in global.initializer {
@@ -97,7 +102,7 @@ public extension TIR {
                     }
                 }
             }
-            return result.sorted { $0.id.id < $1.id.id }
+            return result.sorted { $0.typeId.id < $1.typeId.id }
         }
 
         public func dump(_ function: TIR.Function) -> String {
@@ -139,6 +144,11 @@ public extension TIR {
                 ""
             }
             return "(\(args)\(variadic)) -> " + functionReturnTypeText(function.returnType)
+        }
+
+        private func functionReturnTypeText(_ type: Int) -> String {
+            guard let resolved = registry?.types[type] else { return "?" }
+            return functionReturnTypeText(resolved)
         }
 
         private func functionReturnTypeText(_ type: TIRType.TIRType) -> String {
@@ -378,6 +388,11 @@ public extension TIR {
                 + ">"
         }
 
+        public func typeText(_ typeId: Int) -> String {
+            guard let type = registry?.types[typeId] else { return "?" }
+            return typeText(type)
+        }
+
         public func typeText(_ type: TIRType.TIRType) -> String {
             switch type {
             case is TIRType.VoidType:
@@ -385,7 +400,7 @@ public extension TIR {
             case let primitive as TIRType.PrimitiveType:
                 return primitiveKindText(primitive.kind) + String(primitive.bitWidth)
             case let nominal as TIRType.NominalType:
-                return nominal.name + "#" + String(nominal.id.id)
+                return nominal.name + "#" + String(nominal.typeId.id)
             case let tuple as TIRType.TupleType:
                 return "$(" + tuple.elements.map { element in
                     if let label = element.label {
@@ -435,6 +450,14 @@ public extension TIR {
             default:
                 return "$?"
             }
+        }
+
+        private func innerTypeText(_ typeId: Int) -> String {
+            let text = typeText(typeId)
+            if text.hasPrefix("$") {
+                return String(text.dropFirst())
+            }
+            return text
         }
 
         private func innerTypeText(_ type: TIRType.TIRType) -> String {

@@ -31,7 +31,7 @@ public final class TIRBuilder {
 
     @discardableResult
     public func emitWithResult(
-        _ instruction: TIR.Instruction, type: TIRType.TIRType,
+        _ instruction: TIR.Instruction, type: Int,
         ownership: TIRType.Ownership? = nil
     ) -> TIR.Value {
         let value = createValue(type: type, ownership: ownership ?? .Trivial)
@@ -41,13 +41,13 @@ public final class TIRBuilder {
         return value
     }
 
-    public func createValue(type: TIRType.TIRType, ownership: TIRType.Ownership) -> TIR.Value {
+    public func createValue(type: Int, ownership: TIRType.Ownership) -> TIR.Value {
         let value = TIR.Value(name: "%\(counter)", type: type, ownership: ownership)
         counter += 1
         return value
     }
 
-    public func createArgument(type: TIRType.TIRType, ownership: TIRType.Ownership) -> TIR.Argument {
+    public func createArgument(type: Int, ownership: TIRType.Ownership) -> TIR.Argument {
         let argument = TIR.Argument(name: "%\(counter)", type: type, ownership: ownership)
         counter += 1
         return argument
