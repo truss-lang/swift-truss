@@ -1526,16 +1526,6 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     #expect(messages.contains { $0.contains("unknown operator '+'") })
 }
 
-@Test func addressOfNonLValueReportsError() {
-    let (context, _) = runTypeChecker(
-        ["struct Int {} \n"
-            + "func f() {\n    var x = &42\n}"]
-    )
-    #expect(context.diagnositicEngine.hasErrors)
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
-    #expect(messages.contains { $0.contains("cannot take address of non-lvalue") })
-}
-
 @Test func useBeforeDefinitionInInitInfersType() throws {
     let (_, programs) = runTypeChecker([
         "struct Int32 { init() {} }\n"

@@ -1578,15 +1578,6 @@ public final class TypeChecker: AST.Visitor {
         return false
     }
 
-    private func isLValue(_ expression: AST.Expression) -> Bool {
-        switch expression {
-        case is AST.Variable, is AST.Dereference, is AST.MemberAccess, is AST.Subscript:
-            true
-        default:
-            false
-        }
-    }
-
     private func occurs(
         _ variable: TrussType.TypeVariableType, in type: TrussType.TrussType
     ) -> Bool {
@@ -2082,6 +2073,7 @@ public final class TypeChecker: AST.Visitor {
             }
             doThrownTypeStack.removeLast()
         case let memberAccess as AST.MemberAccess:
+            memberAccess.object.isLeftValue = true
             _ = infer(memberAccess.object, at: token)
             let objectType = memberAccess.object.ty
             if let caseSymbol = memberAccess.symbol as? Symbol.CaseSymbol,
@@ -2306,12 +2298,7 @@ public final class TypeChecker: AST.Visitor {
                 }
             }
         case let addressOf as AST.AddressOf:
-            if !isLValue(addressOf.expression) {
-                context.emitError(
-                    "cannot take address of non-lvalue expression",
-                    at: addressOf.operatorToken
-                )
-            }
+            addressOf.expression.isLeftValue = true
             if let inner = infer(addressOf.expression, at: token) {
                 expression.ty = TrussType.PointerType(inner, isNonnull: true)
             }
@@ -2352,6 +2339,9 @@ public final class TypeChecker: AST.Visitor {
             }
             expression.ty = nil
         case let binary as AST.Binary:
+            if binary.operatorToken.value == "=" {
+                binary.left.isLeftValue = true
+            }
             _ = infer(binary.left, at: token)
             _ = infer(binary.right, at: token)
             if binary.operatorToken.value == "=" {
