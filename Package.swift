@@ -10,7 +10,7 @@ let package = Package(
         .package(url: "https://github.com/davecom/SwiftGraph.git", from: "4.0.0"),
         .package(url: "https://github.com/xiaoli-white/swift-abstract.git", from: "1.0.0"),
         .package(url: "https://github.com/xiaoli-white/swift-better-diagnostic.git", from: "1.1.2"),
-        .package(url: "https://github.com/xiaoli-white/llvm-swift-binding", from: "1.0.5"),
+        .package(url: "https://github.com/xiaoli-white/llvm-swift-binding", from: "1.0.6"),
     ],
     targets: [
         .target(
