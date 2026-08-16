@@ -1550,6 +1550,33 @@ import TrussTIRGen
         try #require(tir.contains("Store "))
     }
 
+    @Test func classInheritedFieldsAppearInReferenceType() throws {
+        let tir = dumpTIR(
+            """
+            struct S {
+                init() {}
+            }
+            struct T {
+                init() {}
+            }
+            class A {
+                let a: S
+                init() {}
+            }
+            class B: A {
+                let b: T
+                init() {}
+            }
+            func f(x: B) -> S {
+                return x.a
+            }
+            """
+        )
+        try #require(tir.contains("$t4main_1A { a: $t4main_1S }"))
+        try #require(tir.contains("$t4main_1B { a: $t4main_1S, b: $t4main_1T }"))
+        try #require(tir.contains("RefElementAddr %2, #0 a"))
+    }
+
     @Test func deinitFunctionLowered() throws {
         let tir = dumpTIR(
             """

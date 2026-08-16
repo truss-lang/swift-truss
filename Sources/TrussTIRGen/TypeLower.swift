@@ -112,14 +112,33 @@ final class TypeLower {
                 (name: $0.name, type: register(lower($0.type)))
             }
         } else if let referenceType = lowered as? TIRType.ReferenceType {
-            referenceType.fields = (storedProperties[type.id] ?? []).map {
-                (name: $0.name, type: register(lower($0.type)))
+            var fields: [(name: String, type: Int)] = []
+            if let superclassType = superclassType(of: type),
+               let superLowered = nominalType(superclassType) as? TIRType.ReferenceType
+            {
+                fields = superLowered.fields
             }
+            fields.append(
+                contentsOf: (storedProperties[type.id] ?? []).map {
+                    (name: $0.name, type: register(lower($0.type)))
+                }
+            )
+            referenceType.fields = fields
         } else if let enumType = lowered as? TIRType.EnumType {
             enumType.cases = (enumCases[type.id] ?? []).map {
                 (name: $0.name, associatedTypeIds: $0.types.map { register(lower($0)) })
             }
         }
+    }
+
+    private func superclassType(of type: TrussType.NominalType) -> TrussType.ClassType? {
+        guard let symbol = type.symbol as? Symbol.ClassSymbol,
+              let superclassSymbol = symbol.superclass,
+              let typeId = superclassSymbol.typeId
+        else {
+            return nil
+        }
+        return context.typeTable[typeId] as? TrussType.ClassType
     }
 
     private func mangleTypeName(_ type: TrussType.NominalType) -> String {
