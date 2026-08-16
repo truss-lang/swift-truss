@@ -2,12 +2,14 @@ import LLVMSwiftBinding
 import TrussCore
 
 public final class CodeGen: TIR.Visitor {
+    private static let ReferenceHeaderSize = 2
     private let context: TrussCore.Context
     private let llvmContext: LLVMSwiftBinding.Context
     private var currentModule: LLVMSwiftBinding.Module? = nil
     private var currentRegistry: TIR.Registry? = nil
     private var builder: LLVMSwiftBinding.Builder? = nil
     private var currentFunction: FunctionBinding? = nil
+    private var typeMap: [Int: LLVMSwiftBinding.LLVMType] = [:]
     private var functionMap: [Int: FunctionBinding] = [:]
     private var valueMap: [ObjectIdentifier: LLVMSwiftBinding.Value] = [:]
 
@@ -32,6 +34,7 @@ public final class CodeGen: TIR.Visitor {
         let llvmModule: LLVMSwiftBinding.Module = .init(name: "module", in: llvmContext)
         currentModule = llvmModule
         currentRegistry = mod.registry
+        typeMap = [:]
         functionMap = mod.functions.reduce(into: [:]) {
             $0[$1.id] = createFunction($1)
         }
@@ -82,49 +85,79 @@ public final class CodeGen: TIR.Visitor {
     }
 
     private func lowerType(_ typeId: Int) -> LLVMSwiftBinding.LLVMType {
+        if let ty = typeMap[typeId] {
+            return ty
+        }
         guard let currentRegistry else {
             fatalError("unreachable")
         }
         guard let type = currentRegistry.type(typeId) else {
-            return llvmContext.int8
+            let lowered = llvmContext.int8
+            typeMap[typeId] = lowered
+            return lowered
         }
         switch type {
         case is TIRType.VoidType:
-            return llvmContext.void
+            let lowered = llvmContext.void
+            typeMap[typeId] = lowered
+            return lowered
         case let primitive as TIRType.PrimitiveType:
+            let lowered: LLVMSwiftBinding.LLVMType
             switch primitive.kind {
             case .Bool:
-                return llvmContext.int1
+                lowered = llvmContext.int1
             case .Char:
-                return llvmContext.int32
+                lowered = llvmContext.int32
             case .Signed, .Unsigned:
-                return llvmContext.intType(width: UInt32(primitive.bitWidth))
+                lowered = llvmContext.intType(width: UInt32(primitive.bitWidth))
             case .Float:
                 switch primitive.bitWidth {
                 case 32:
-                    return llvmContext.float
+                    lowered = llvmContext.float
                 case 64:
-                    return llvmContext.double
+                    lowered = llvmContext.double
                 default:
                     fatalError("unreachable")
                 }
             }
+            typeMap[typeId] = lowered
+            return lowered
         case let functionType as TIRType.FunctionType:
             let returnType = lowerType(functionType.returnType)
             let parameterTypes = functionType.parameters.map {
                 lowerType($0.type)
             }
-            return llvmContext.functionType(
+            let lowered = llvmContext.functionType(
                 returnType: returnType,
                 parameterTypes: parameterTypes,
                 isVariadic: functionType.isVariadic
             )
+            typeMap[typeId] = lowered
+            return lowered
         case let addressType as TIRType.AddressType:
-            return lowerType(addressType.pointee)
+            let lowered = lowerType(addressType.pointee)
+            typeMap[typeId] = lowered
+            return lowered
         case let structType as TIRType.StructType:
-            return llvmContext.int8
+            let lowered = llvmContext.namedStructType(name: structType.name)
+            typeMap[typeId] = lowered
+            let elementTypes = structType.fields.map {
+                lowerType($0.type)
+            }
+            lowered.setElementTypes(elementTypes, isPacked: false)
+            return lowered
+        case let refType as TIRType.ReferenceType:
+            let lowered = llvmContext.namedStructType(name: refType.name)
+            typeMap[typeId] = lowered
+            let elementTypes = [llvmContext.pointerType(), llvmContext.int64] + refType.fields.map {
+                lowerType($0.type)
+            }
+            lowered.setElementTypes(elementTypes, isPacked: false)
+            return lowered
         default:
-            return llvmContext.int8
+            let lowered = llvmContext.int8
+            typeMap[typeId] = lowered
+            return lowered
         }
     }
 
@@ -248,6 +281,54 @@ public final class CodeGen: TIR.Visitor {
             return nil
         }
         builder.buildStore(value, to: address)
+        return nil
+    }
+
+    public override func visitStructElementAddr(_ instruction: TIR.StructElementAddr, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        guard let structAddress = valueMap[ObjectIdentifier(instruction.structAddress)] else {
+            context.emitError("struct element addr: missing address operand", at: instruction.sourceRange)
+            return nil
+        }
+        guard let structType = lowerType(instruction.structAddress.type) as? LLVMSwiftBinding.StructType else {
+            context.emitError("struct element addr: unsupported operand type", at: instruction.sourceRange)
+            return nil
+        }
+        guard let result = instruction.result else {
+            // TODO: emit error
+            return nil
+        }
+        valueMap[ObjectIdentifier(result)] = builder.buildStructGEP(
+            structType,
+            structAddress,
+            index: UInt32(instruction.fieldIndex + 2)
+        )
+        return nil
+    }
+
+    public override func visitRefElementAddr(_ instruction: TIR.RefElementAddr, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        guard let structAddress = valueMap[ObjectIdentifier(instruction.reference)] else {
+            context.emitError("ref element addr: missing address operand", at: instruction.sourceRange)
+            return nil
+        }
+        guard let structType = lowerType(instruction.reference.type) as? LLVMSwiftBinding.StructType else {
+            context.emitError("ref element addr: unsupported operand type", at: instruction.sourceRange)
+            return nil
+        }
+        guard let result = instruction.result else {
+            // TODO: emit error
+            return nil
+        }
+        valueMap[ObjectIdentifier(result)] = builder.buildStructGEP(
+            structType,
+            structAddress,
+            index: UInt32(instruction.fieldIndex + CodeGen.ReferenceHeaderSize)
+        )
         return nil
     }
 
