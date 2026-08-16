@@ -1764,6 +1764,14 @@ public final class TIRGen: AST.Visitor {
         visit(expression) as? TIR.Value
     }
 
+    private func selfValue(_ expression: AST.Expression, range: SourceRange) -> TIR.Value? {
+        guard let object = visitExpression(expression) else { return nil }
+        if isReferenceType(expression.ty) {
+            return object
+        }
+        return loadFrom(object, range: range) ?? object
+    }
+
     private func visitExpressionList(_ expressions: [AST.Expression]) -> [TIR.Value] {
         expressions.compactMap { visitExpression($0) }
     }
@@ -1881,22 +1889,36 @@ public final class TIRGen: AST.Visitor {
                 TIR.GlobalAddr(global, sourceRange: variable.sourceRange),
                 type: typeLower.register(TIRType.AddressType(global.type)), ownership: .MutableBorrowing
             )
+            if variable.isLeftValue, !isReferenceType(variable.ty) {
+                return address
+            }
             return loadFrom(address, range: variable.sourceRange)
         }
         if let address = env[symbol.id] {
-            let loaded = loadFrom(address, range: variable.sourceRange)
-            if capturedCells.contains(symbol.id) {
-                let projected = builder.emitWithResult(
+            let projected: TIR.Value? = if capturedCells.contains(symbol.id) {
+                builder.emitWithResult(
                     TIR.ProjectCell(address, sourceRange: variable.sourceRange),
                     type: address.type, ownership: .MutableBorrowing
                 )
-                return loadFrom(projected, range: variable.sourceRange)
+            } else {
+                nil
             }
-            return loaded
+            let variableAddress = projected ?? address
+            if variable.isLeftValue, !isReferenceType(variable.ty) {
+                return variableAddress
+            }
+            return loadFrom(variableAddress, range: variable.sourceRange)
         }
         if let memberOf = symbol.memberOf, let selfAddress = env[memberOf],
            let property = symbol as? Symbol.VariableSymbol
         {
+            if variable.isLeftValue, !isReferenceType(variable.ty) {
+                let propertyType = property.type.map { typeLower.lower($0) } ?? TIRType.VoidType()
+                return implicitPropertyElementAddress(
+                    property, selfAddress: selfAddress, propertyType: propertyType,
+                    range: variable.sourceRange
+                )
+            }
             return loadImplicitProperty(property, selfAddress: selfAddress, at: variable.sourceRange)
         }
         return nil
@@ -2056,29 +2078,45 @@ public final class TIRGen: AST.Visitor {
     public override func visitSelfExpression(
         _ selfExpression: AST.SelfExpression, additional: Any? = nil
     ) -> Any? {
-        if let symbol = selfExpression.symbol, let address = env[symbol.id] {
-            return loadFrom(address, range: selfExpression.sourceRange)
-        }
+        let addr: TIR.Value? = if let symbol = selfExpression.symbol, let address = env[symbol.id] {
+            address
+        } else
         if let address = env.values.first {
-            return loadFrom(address, range: selfExpression.sourceRange)
+            address
+        } else {
+            nil
         }
-        return nil
+        if let addr {
+            if selfExpression.isLeftValue, !isReferenceType(selfExpression.ty) {
+                return addr
+            } else {
+                return loadFrom(addr, range: selfExpression.sourceRange)
+            }
+        } else {
+            return nil
+        }
     }
 
     @discardableResult
     public override func visitSuperExpression(
         _ superExpression: AST.SuperExpression, additional: Any? = nil
     ) -> Any? {
-        visitSelfExpression(
-            AST.SelfExpression(superExpression.token, sourceRange: superExpression.sourceRange)
+        let selfExpression = AST.SelfExpression(
+            superExpression.token, sourceRange: superExpression.sourceRange
         )
+        selfExpression.symbol = superExpression.symbol
+        selfExpression.isLeftValue = superExpression.isLeftValue
+        return visitSelfExpression(selfExpression)
     }
 
     @discardableResult
     public override func visitParenthetical(
         _ parenthetical: AST.Parenthetical, additional: Any? = nil
     ) -> Any? {
-        visitExpression(parenthetical.inner)
+        if parenthetical.isLeftValue {
+            parenthetical.inner.isLeftValue = true
+        }
+        return visitExpression(parenthetical.inner)
     }
 
     @discardableResult
@@ -2126,8 +2164,8 @@ public final class TIRGen: AST.Visitor {
             arguments.append(selfAddress)
         }
         if let member = call.callee as? AST.MemberAccess, let functionSymbol = resolvedSymbol,
-           !functionSymbol.isStatic, let object = visitExpression(member.object),
-           !isReferenceType(member.object.ty)
+           !functionSymbol.isStatic, !isReferenceType(member.object.ty),
+           let object = selfValue(member.object, range: call.sourceRange)
         {
             arguments.append(object)
         }
@@ -2237,8 +2275,8 @@ public final class TIRGen: AST.Visitor {
                 {
                     return functionRefValue(functionSymbol, at: range)
                 }
-                guard let object = visitExpression(member.object) else { return nil }
                 if isReferenceType(member.object.ty) {
+                    guard let object = visitExpression(member.object) else { return nil }
                     return builder?.emitWithResult(
                         TIR.ClassMethod(object, methodName: methodName(functionSymbol), sourceRange: range),
                         type: methodType(functionSymbol).id, ownership: .Trivial
@@ -2328,8 +2366,8 @@ public final class TIRGen: AST.Visitor {
             if functionSymbol.isStatic {
                 return functionRefValue(functionSymbol, at: memberAccess.sourceRange)
             }
-            guard let object = visitExpression(memberAccess.object) else { return nil }
             if isReferenceType(memberAccess.object.ty) {
+                guard let object = visitExpression(memberAccess.object) else { return nil }
                 return builder.emitWithResult(
                     TIR.ClassMethod(
                         object,
@@ -2352,12 +2390,18 @@ public final class TIRGen: AST.Visitor {
                 TIR.GlobalAddr(global, sourceRange: memberAccess.sourceRange),
                 type: typeLower.register(TIRType.AddressType(global.type)), ownership: .MutableBorrowing
             )
+            if memberAccess.isLeftValue {
+                return address
+            }
             return loadFrom(address, range: memberAccess.sourceRange)
         }
-        guard let object = visitExpression(memberAccess.object) else { return nil }
         if let variableSymbol = symbol as? Symbol.VariableSymbol,
            let getter = accessorFunctions[variableSymbol.id]?["get"]
         {
+            guard let object = selfValue(memberAccess.object, range: memberAccess.sourceRange)
+            else {
+                return nil
+            }
             let callee = builder.emitWithResult(
                 TIR.FunctionRef(functionId: getter.id, sourceRange: memberAccess.sourceRange),
                 type: getterType(getter).id, ownership: .Trivial
@@ -2380,10 +2424,12 @@ public final class TIRGen: AST.Visitor {
         else {
             return nil
         }
+        let base = visitExpression(memberAccess.object)
+        guard let base else { return nil }
         let address: TIR.Value = if isClass {
             builder.emitWithResult(
                 TIR.RefElementAddr(
-                    object, fieldIndex: fieldIndex, fieldName: memberAccess.member.value,
+                    base, fieldIndex: fieldIndex, fieldName: memberAccess.member.value,
                     sourceRange: memberAccess.sourceRange
                 ),
                 type: typeLower.register(TIRType.AddressType(memberType.id)), ownership: .MutableBorrowing
@@ -2391,11 +2437,14 @@ public final class TIRGen: AST.Visitor {
         } else {
             builder.emitWithResult(
                 TIR.StructElementAddr(
-                    object, fieldIndex: fieldIndex, fieldName: memberAccess.member.value,
+                    base, fieldIndex: fieldIndex, fieldName: memberAccess.member.value,
                     sourceRange: memberAccess.sourceRange
                 ),
                 type: typeLower.register(TIRType.AddressType(memberType.id)), ownership: .MutableBorrowing
             )
+        }
+        if memberAccess.isLeftValue {
+            return address
         }
         return loadFrom(address, range: memberAccess.sourceRange)
     }
@@ -2601,30 +2650,27 @@ public final class TIRGen: AST.Visitor {
             return value
         }
         let accessors = accessorFunctions[symbol.id] ?? [:]
-        if accessors["set"] != nil, let object = visitExpression(member.object) {
-            emitAccessorCall(accessors["set"]!, arguments: [object, value], range: range)
+        guard let object = visitExpression(member.object) else { return nil }
+        let selfValue = if isReferenceType(member.object.ty) {
+            object
+        } else {
+            loadFrom(object, range: range) ?? object
+        }
+        if accessors["set"] != nil {
+            emitAccessorCall(accessors["set"]!, arguments: [selfValue, value], range: range)
             return value
         }
         if accessors["get"] != nil {
             return nil
         }
-        guard let object = visitExpression(member.object) else { return nil }
         let propertyType = symbol.type.map { typeLower.lower($0) } ?? TIRType.VoidType()
-        let base: TIR.Value = if let variable = member.object as? AST.Variable,
-                                 let variableSymbol = variable.symbol,
-                                 let address = env[variableSymbol.id]
-        {
-            address
-        } else {
-            object
-        }
         guard let address = propertyElementAddress(
-            member, base: base, propertyType: propertyType, range: range
+            member, base: object, propertyType: propertyType, range: range
         ) else {
             return nil
         }
         if let willSet = accessors["willSet"] {
-            emitAccessorCall(willSet, arguments: [object, value], range: range)
+            emitAccessorCall(willSet, arguments: [selfValue, value], range: range)
         }
         if let didSet = accessors["didSet"] {
             let oldValue = builder.emitWithResult(
@@ -2633,7 +2679,7 @@ public final class TIRGen: AST.Visitor {
             )
             emitRetainIfNeeded(value, range: range)
             builder.emit(TIR.Store(value, to: address, sourceRange: range))
-            emitAccessorCall(didSet, arguments: [object, oldValue], range: range)
+            emitAccessorCall(didSet, arguments: [selfValue, oldValue], range: range)
         } else {
             emitRetainIfNeeded(value, range: range)
             builder.emit(TIR.Store(value, to: address, sourceRange: range))
@@ -2740,6 +2786,9 @@ public final class TIRGen: AST.Visitor {
         guard let builder else { return nil }
         guard let pointer = visitExpression(dereference.expression) else { return nil }
         let type = (dereference.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
+        if dereference.isLeftValue {
+            return pointer
+        }
         return builder.emitWithResult(
             TIR.Load(pointer, sourceRange: dereference.sourceRange),
             type: type.id, ownership: typeLower.ownership(for: type)
@@ -2749,70 +2798,12 @@ public final class TIRGen: AST.Visitor {
     @discardableResult
     public override func visitAddressOf(_ addressOf: AST.AddressOf, additional: Any? = nil) -> Any? {
         guard let builder else { return nil }
-        guard let address = addressValue(addressOf.expression, range: addressOf.sourceRange) else {
-            return nil
-        }
+        guard let address = visitExpression(addressOf.expression) else { return nil }
         let type = (addressOf.ty).map { typeLower.lower($0) } ?? TIRType.VoidType()
         return builder.emitWithResult(
             TIR.AddressToPointer(address, sourceRange: addressOf.sourceRange),
             type: type.id, ownership: .Trivial
         )
-    }
-
-    private func addressValue(_ expression: AST.Expression, range: SourceRange) -> TIR.Value? {
-        guard let builder else { return nil }
-        switch expression {
-        case let variable as AST.Variable:
-            guard let symbol = variable.symbol else { return nil }
-            if let global = globalsBySymbol[symbol.id] {
-                return builder.emitWithResult(
-                    TIR.GlobalAddr(global, sourceRange: range),
-                    type: typeLower.register(TIRType.AddressType(global.type)), ownership: .MutableBorrowing
-                )
-            }
-            if let address = env[symbol.id] {
-                return address
-            }
-            if let memberOf = symbol.memberOf, let selfAddress = env[memberOf],
-               let property = symbol as? Symbol.VariableSymbol
-            {
-                let propertyType = property.type.map { typeLower.lower($0) }
-                    ?? TIRType.VoidType()
-                return implicitPropertyElementAddress(
-                    property, selfAddress: selfAddress, propertyType: propertyType, range: range
-                )
-            }
-            return nil
-        case let member as AST.MemberAccess:
-            guard let variableSymbol = member.symbol as? Symbol.VariableSymbol,
-                  accessorFunctions[variableSymbol.id]?["get"] == nil,
-                  let object = visitExpression(member.object),
-                  let objectType = member.object.ty.map({ typeLower.lower($0) }),
-                  let fieldIndex = storedFieldIndex(
-                      of: member.member.value, in: objectType, range: range
-                  )
-            else {
-                return nil
-            }
-            let memberType = variableSymbolType(variableSymbol) ?? TIRType.VoidType()
-            let isClass = isReferenceType(member.object.ty)
-            return builder.emitWithResult(
-                isClass
-                    ? TIR.RefElementAddr(
-                        object, fieldIndex: fieldIndex, fieldName: member.member.value,
-                        sourceRange: range
-                    )
-                    : TIR.StructElementAddr(
-                        object, fieldIndex: fieldIndex, fieldName: member.member.value,
-                        sourceRange: range
-                    ),
-                type: typeLower.register(TIRType.AddressType(memberType.id)), ownership: .MutableBorrowing
-            )
-        case let dereference as AST.Dereference:
-            return visitExpression(dereference.expression)
-        default:
-            return nil
-        }
     }
 
     @discardableResult

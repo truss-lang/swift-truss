@@ -2130,3 +2130,35 @@ import TrussTIRGen
     try #require(tir.contains("Arith bitnot"))
     try #require(!tir.contains("Apply "))
 }
+
+@Test func memberAccessOnSelfUsesAddressDirectly() throws {
+    let tir = dumpTIR(
+        """
+        struct S {
+            let i: Builtin.Int32
+            func f() {
+                let ii = self.i
+            }
+        }
+        """,
+        installBuiltin: true
+    )
+    try #require(tir.contains("StructElementAddr %1, #0 i"))
+    try #require(!tir.contains("Load %1 "))
+}
+
+@Test func memberAccessOnLocalUsesAddressDirectly() throws {
+    let tir = dumpTIR(
+        """
+        struct S {
+            let i: Builtin.Int32
+        }
+        func f(s: S) -> Builtin.Int32 {
+            return s.i
+        }
+        """,
+        installBuiltin: true
+    )
+    try #require(tir.contains("StructElementAddr %1, #0 i"))
+    try #require(!tir.contains("Load %1 "))
+}
