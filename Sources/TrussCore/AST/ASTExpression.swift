@@ -5,6 +5,7 @@ public extension AST {
     @abstractClass
     class Expression: AstNode {
         public var ty: TrussType.TrussType? = nil
+        public var isLeftValue: Bool = false
         @abstractInit
         public override init(_ sourceRange: SourceRange) {
             super.init(sourceRange)
