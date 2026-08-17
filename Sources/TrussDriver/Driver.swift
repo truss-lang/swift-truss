@@ -159,9 +159,24 @@ public final class Driver {
         let llvmModules: [LLVMSwiftBinding.Module]
         if !context.diagnositicEngine.hasErrors {
             llvmContext = .init()
-            let codeGen = CodeGen(context: context, llvmContext: llvmContext!)
-            llvmModules = tirModules.map {
-                codeGen.generate($0)
+            do {
+                let codeGen = try CodeGen(
+                    context: context, llvmContext: llvmContext!, target: config.target
+                )
+                llvmModules = tirModules.map {
+                    codeGen.generate($0)
+                }
+            } catch {
+                let buffer = StringSourceBuffer(filePath: "", content: "")
+                let location = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
+                context.diagnositicEngine.emit(
+                    Diagnostic(
+                        severity: .error,
+                        message: "unsupported target '\(config.target)': \(error)",
+                        range: SourceRange(start: location, end: location)
+                    )
+                )
+                llvmModules = []
             }
         } else {
             llvmContext = nil
