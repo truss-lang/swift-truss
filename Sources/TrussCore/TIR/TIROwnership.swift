@@ -1,88 +1,49 @@
-import SwiftAbstract
-import SwiftBetterDiagnostic
-
 public extension TIR {
-    final class CopyValue: Instruction {
+    final class Retain: Instruction {
         public let value: Value
-        public init(_ value: Value, sourceRange: SourceRange) {
+        public init(registry: Registry, value: Value) {
             self.value = value
-            super.init(sourceRange)
+            super.init(ty: registry.voidType().id, name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitCopyValue(self, additional: additional)
+            visitor.visitRetain(self, additional: additional)
         }
     }
 
-    final class DestroyValue: Instruction {
+    final class Release: Instruction {
         public let value: Value
-        public init(_ value: Value, sourceRange: SourceRange) {
+        public init(registry: Registry, value: Value) {
             self.value = value
-            super.init(sourceRange)
+            super.init(ty: registry.voidType().id, name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitDestroyValue(self, additional: additional)
+            visitor.visitRelease(self, additional: additional)
         }
     }
 
-    final class RetainValue: Instruction {
+    final class Copy: Instruction {
         public let value: Value
-        public init(_ value: Value, sourceRange: SourceRange) {
+        public init(value: Value, name: String) {
             self.value = value
-            super.init(sourceRange)
+            super.init(ty: value.ty, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitRetainValue(self, additional: additional)
+            visitor.visitCopy(self, additional: additional)
         }
     }
 
-    final class ReleaseValue: Instruction {
+    final class Destroy: Instruction {
         public let value: Value
-        public init(_ value: Value, sourceRange: SourceRange) {
+        public init(registry: Registry, value: Value) {
             self.value = value
-            super.init(sourceRange)
+            super.init(ty: registry.voidType().id, name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitReleaseValue(self, additional: additional)
-        }
-    }
-
-    final class BorrowValue: Instruction {
-        public let value: Value
-        public init(_ value: Value, sourceRange: SourceRange) {
-            self.value = value
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitBorrowValue(self, additional: additional)
-        }
-    }
-
-    final class EndBorrow: Instruction {
-        public let value: Value
-        public init(_ value: Value, sourceRange: SourceRange) {
-            self.value = value
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitEndBorrow(self, additional: additional)
-        }
-    }
-
-    final class MoveValue: Instruction {
-        public let value: Value
-        public init(_ value: Value, sourceRange: SourceRange) {
-            self.value = value
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitMoveValue(self, additional: additional)
+            visitor.visitDestroy(self, additional: additional)
         }
     }
 }

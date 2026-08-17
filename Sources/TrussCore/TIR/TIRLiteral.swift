@@ -1,135 +1,57 @@
 import SwiftAbstract
-import SwiftBetterDiagnostic
 
 public extension TIR {
-    final class IntegerLiteral: Instruction {
-        public let value: Int64
-        public let literalType: TIRType.TIRType
-        public init(_ value: Int64, type literalType: TIRType.TIRType, sourceRange: SourceRange) {
-            self.value = value
-            self.literalType = literalType
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitIntegerLiteral(self, additional: additional)
+    @abstractClass
+    class Literal: Value {
+        @abstractInit
+        public override init(ty: Id.TIRTypeId, name: String) {
+            super.init(ty: ty, name: name)
         }
     }
 
-    final class FloatLiteral: Instruction {
-        public let value: Double
-        public let literalType: TIRType.TIRType
-        public init(_ value: Double, type literalType: TIRType.TIRType, sourceRange: SourceRange) {
+    final class IntegerLiteral: Literal {
+        public let value: UInt64
+        public init(value: UInt64, ty: Id.TIRTypeId, name: String) {
             self.value = value
-            self.literalType = literalType
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitFloatLiteral(self, additional: additional)
+            super.init(ty: ty, name: name)
         }
     }
 
-    final class StringLiteral: Instruction {
-        public let value: String
-        public init(_ value: String, sourceRange: SourceRange) {
+    final class FloatLiteral: Literal {
+        public let value: Float64
+        public init(value: Float64, ty: Id.TIRTypeId, name: String) {
             self.value = value
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitStringLiteral(self, additional: additional)
+            super.init(ty: ty, name: name)
         }
     }
 
-    final class CharLiteral: Instruction {
+    final class CharLiteral: Literal {
         public let value: Character
-        public init(_ value: Character, sourceRange: SourceRange) {
+        public init(value: Character, ty: Id.TIRTypeId, name: String) {
             self.value = value
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitCharLiteral(self, additional: additional)
+            super.init(ty: ty, name: name)
         }
     }
 
-    final class BoolLiteral: Instruction {
+    final class BoolLiteral: Literal {
         public let value: Bool
-        public init(_ value: Bool, sourceRange: SourceRange) {
+        public init(value: Bool, ty: Id.TIRTypeId, name: String) {
             self.value = value
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitBoolLiteral(self, additional: additional)
+            super.init(ty: ty, name: name)
         }
     }
 
-    final class NullLiteral: Instruction {
-        public let literalType: TIRType.TIRType
-        public init(type literalType: TIRType.TIRType, sourceRange: SourceRange) {
-            self.literalType = literalType
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitNullLiteral(self, additional: additional)
+    final class StringLiteral: Literal {
+        public let value: String
+        public init(value: String, ty: Id.TIRTypeId, name: String) {
+            self.value = value
+            super.init(ty: ty, name: name)
         }
     }
 
-    final class NullptrLiteral: Instruction {
-        public let pointerType: TIRType.PointerType
-        public init(type pointerType: TIRType.PointerType, sourceRange: SourceRange) {
-            self.pointerType = pointerType
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitNullptrLiteral(self, additional: additional)
-        }
-    }
-
-    final class VoidLiteral: Instruction {
-        public override init(_ sourceRange: SourceRange) {
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitVoidLiteral(self, additional: additional)
-        }
-    }
-
-    final class ArrayValue: Instruction {
-        public let elements: [Value]
-        public init(elements: [Value], sourceRange: SourceRange) {
-            self.elements = elements
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitArrayValue(self, additional: additional)
-        }
-    }
-
-    final class DictionaryValue: Instruction {
-        public struct Entry {
-            public let key: Value
-            public let value: Value
-            public init(key: Value, value: Value) {
-                self.key = key
-                self.value = value
-            }
-        }
-
-        public let entries: [Entry]
-        public init(entries: [Entry], sourceRange: SourceRange) {
-            self.entries = entries
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitDictionaryValue(self, additional: additional)
+    final class NullptrLiteral: Literal {
+        public override init(ty: Id.TIRTypeId, name: String) {
+            super.init(ty: ty, name: name)
         }
     }
 }

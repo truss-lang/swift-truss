@@ -1,99 +1,9 @@
-import SwiftAbstract
-import SwiftBetterDiagnostic
-
 public extension TIR {
-    final class Branch: Instruction {
-        public let target: BasicBlock
-        public init(_ target: BasicBlock, sourceRange: SourceRange) {
-            self.target = target
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitBranch(self, additional: additional)
-        }
-    }
-
-    final class CondBranch: Instruction {
-        public let condition: Value
-        public let trueBlock: BasicBlock
-        public let falseBlock: BasicBlock
-        public init(
-            condition: Value, trueBlock: BasicBlock, falseBlock: BasicBlock,
-            sourceRange: SourceRange
-        ) {
-            self.condition = condition
-            self.trueBlock = trueBlock
-            self.falseBlock = falseBlock
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitCondBranch(self, additional: additional)
-        }
-    }
-
-    struct EnumCaseBranch {
-        public let caseName: String
-        public let block: BasicBlock
-        public init(caseName: String, block: BasicBlock) {
-            self.caseName = caseName
-            self.block = block
-        }
-    }
-
-    final class SwitchEnum: Instruction {
-        public let value: Value
-        public let cases: [EnumCaseBranch]
-        public let defaultBlock: BasicBlock?
-        public init(
-            _ value: Value, cases: [EnumCaseBranch], defaultBlock: BasicBlock?,
-            sourceRange: SourceRange
-        ) {
-            self.value = value
-            self.cases = cases
-            self.defaultBlock = defaultBlock
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitSwitchEnum(self, additional: additional)
-        }
-    }
-
-    struct ValueCaseBranch {
-        public let literal: Value
-        public let block: BasicBlock
-        public init(literal: Value, block: BasicBlock) {
-            self.literal = literal
-            self.block = block
-        }
-    }
-
-    final class SwitchValue: Instruction {
-        public let value: Value
-        public let cases: [ValueCaseBranch]
-        public let defaultBlock: BasicBlock?
-        public init(
-            _ value: Value, cases: [ValueCaseBranch], defaultBlock: BasicBlock?,
-            sourceRange: SourceRange
-        ) {
-            self.value = value
-            self.cases = cases
-            self.defaultBlock = defaultBlock
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitSwitchValue(self, additional: additional)
-        }
-    }
-
     final class Return: Instruction {
         public let value: Value?
-        public init(_ value: Value? = nil, sourceRange: SourceRange) {
+        public init(value: Value? = nil, ty: Id.TIRTypeId) {
             self.value = value
-            super.init(sourceRange)
+            super.init(ty: ty, name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -101,21 +11,37 @@ public extension TIR {
         }
     }
 
-    final class Throw: Instruction {
-        public let value: Value
-        public init(_ value: Value, sourceRange: SourceRange) {
-            self.value = value
-            super.init(sourceRange)
+    final class Branch: Instruction {
+        public let target: BasicBlock
+        public init(target: BasicBlock) {
+            self.target = target
+            super.init(ty: target.function!.module!.registry.voidType().id, name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitThrow(self, additional: additional)
+            visitor.visitBranch(self, additional: additional)
+        }
+    }
+
+    final class ConditionalBranch: Instruction {
+        public let condition: Value
+        public let trueBranch: BasicBlock
+        public let falseBranch: BasicBlock
+        public init(condition: Value, trueBranch: BasicBlock, falseBranch: BasicBlock) {
+            self.condition = condition
+            self.trueBranch = trueBranch
+            self.falseBranch = falseBranch
+            super.init(ty: trueBranch.function!.module!.registry.voidType().id, name: "")
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitConditionalBranch(self, additional: additional)
         }
     }
 
     final class Unreachable: Instruction {
-        public override init(_ sourceRange: SourceRange) {
-            super.init(sourceRange)
+        public init(registry: Registry) {
+            super.init(ty: registry.voidType().id, name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -123,34 +49,61 @@ public extension TIR {
         }
     }
 
-    final class Trap: Instruction {
-        public override init(_ sourceRange: SourceRange) {
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitTrap(self, additional: additional)
-        }
-    }
-
-    struct PhiIncoming {
-        public let value: Value
-        public let block: BasicBlock
-        public init(value: Value, block: BasicBlock) {
-            self.value = value
-            self.block = block
-        }
-    }
-
     final class Phi: Instruction {
-        public let incomings: [PhiIncoming]
-        public init(incomings: [(Value, BasicBlock)], sourceRange: SourceRange) {
-            self.incomings = incomings.map { PhiIncoming(value: $0.0, block: $0.1) }
-            super.init(sourceRange)
+        public struct Incoming {
+            public let value: Value
+            public let block: BasicBlock
+            public init(value: Value, block: BasicBlock) {
+                self.value = value
+                self.block = block
+            }
+        }
+
+        public let incomings: [Incoming]
+        public init(incomings: [Incoming], ty: Id.TIRTypeId, name: String) {
+            self.incomings = incomings
+            super.init(ty: ty, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitPhi(self, additional: additional)
+        }
+    }
+
+    final class SwitchEnum: Instruction {
+        public struct Case {
+            public let tag: Int
+            public let block: BasicBlock
+            public init(tag: Int, block: BasicBlock) {
+                self.tag = tag
+                self.block = block
+            }
+        }
+
+        public let value: Value
+        public let cases: [Case]
+        public let defaultBlock: BasicBlock?
+        public init(registry: Registry, value: Value, cases: [Case], defaultBlock: BasicBlock?) {
+            self.value = value
+            self.cases = cases
+            self.defaultBlock = defaultBlock
+            super.init(ty: registry.voidType().id, name: "")
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitSwitchEnum(self, additional: additional)
+        }
+    }
+
+    final class ExtractPayload: Instruction {
+        public let value: Value
+        public init(value: Value, ty: Id.TIRTypeId, name: String) {
+            self.value = value
+            super.init(ty: ty, name: name)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitExtractPayload(self, additional: additional)
         }
     }
 }

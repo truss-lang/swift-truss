@@ -6,11 +6,20 @@ public extension TIR {
         case Add = "add"
         case Sub = "sub"
         case Mul = "mul"
-        case Div = "div"
-        case Rem = "rem"
+        case SDiv = "sdiv"
+        case UDiv = "udiv"
+        case SRem = "srem"
+        case URem = "urem"
+        case FDiv = "fdiv"
+        case FRem = "frem"
         case Neg = "neg"
         case Not = "not"
         case Bitnot = "bitnot"
+        case And = "and"
+        case Or = "or"
+        case Xor = "xor"
+        case Shl = "shl"
+        case Shr = "shr"
         case Eq = "eq"
         case Ne = "ne"
         case Lt = "lt"
@@ -40,10 +49,10 @@ public extension TIR {
     final class Arith: Instruction {
         public let op: ArithOp
         public let operands: [Value]
-        public init(_ op: ArithOp, operands: [Value], sourceRange: SourceRange) {
+        public init(_ op: ArithOp, operands: [Value], ty: Id.TIRTypeId, name: String) {
             self.op = op
             self.operands = operands
-            super.init(sourceRange)
+            super.init(ty: ty, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

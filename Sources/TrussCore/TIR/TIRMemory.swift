@@ -1,12 +1,9 @@
-import SwiftAbstract
-import SwiftBetterDiagnostic
-
 public extension TIR {
     final class AllocStack: Instruction {
-        public let allocatedType: TIRType.TIRType
-        public init(_ allocatedType: TIRType.TIRType, sourceRange: SourceRange) {
+        public let allocatedType: Id.TIRTypeId
+        public init(registry: TIR.Registry, allocatedType: Id.TIRTypeId, name: String) {
             self.allocatedType = allocatedType
-            super.init(sourceRange)
+            super.init(ty: registry.pointerType(pointee: allocatedType).id, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -14,35 +11,11 @@ public extension TIR {
         }
     }
 
-    final class AllocCell: Instruction {
-        public let allocatedType: TIRType.TIRType
-        public init(_ allocatedType: TIRType.TIRType, sourceRange: SourceRange) {
-            self.allocatedType = allocatedType
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitAllocCell(self, additional: additional)
-        }
-    }
-
-    final class AllocRef: Instruction {
-        public let referenceType: TIRType.ReferenceType
-        public init(_ referenceType: TIRType.ReferenceType, sourceRange: SourceRange) {
-            self.referenceType = referenceType
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitAllocRef(self, additional: additional)
-        }
-    }
-
     final class DeallocStack: Instruction {
-        public let address: Value
-        public init(_ address: Value, sourceRange: SourceRange) {
-            self.address = address
-            super.init(sourceRange)
+        public let value: Value
+        public init(registry: Registry, value: Value) {
+            self.value = value
+            super.init(ty: registry.voidType().id, name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -50,11 +23,47 @@ public extension TIR {
         }
     }
 
+    final class AllocHeap: Instruction {
+        public let allocatedType: Id.TIRTypeId
+        public init(registry: TIR.Registry, allocatedType: Id.TIRTypeId, name: String) {
+            self.allocatedType = allocatedType
+            super.init(ty: registry.pointerType(pointee: allocatedType).id, name: name)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitAllocHeap(self, additional: additional)
+        }
+    }
+
+    final class DeallocHeap: Instruction {
+        public let value: Value
+        public init(registry: Registry, value: Value) {
+            self.value = value
+            super.init(ty: registry.voidType().id, name: "")
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitDeallocHeap(self, additional: additional)
+        }
+    }
+
+    final class AllocCell: Instruction {
+        public let allocatedType: Id.TIRTypeId
+        public init(registry: TIR.Registry, allocatedType: Id.TIRTypeId, name: String) {
+            self.allocatedType = allocatedType
+            super.init(ty: registry.pointerType(pointee: allocatedType).id, name: name)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitAllocCell(self, additional: additional)
+        }
+    }
+
     final class DeallocCell: Instruction {
-        public let address: Value
-        public init(_ address: Value, sourceRange: SourceRange) {
-            self.address = address
-            super.init(sourceRange)
+        public let value: Value
+        public init(registry: Registry, value: Value) {
+            self.value = value
+            super.init(ty: registry.voidType().id, name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -62,23 +71,11 @@ public extension TIR {
         }
     }
 
-    final class DeallocRef: Instruction {
-        public let reference: Value
-        public init(_ reference: Value, sourceRange: SourceRange) {
-            self.reference = reference
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitDeallocRef(self, additional: additional)
-        }
-    }
-
     final class Load: Instruction {
-        public let address: Value
-        public init(_ address: Value, sourceRange: SourceRange) {
-            self.address = address
-            super.init(sourceRange)
+        public let ptr: Value
+        public init(ptr: Value, ty: Id.TIRTypeId, name: String) {
+            self.ptr = ptr
+            super.init(ty: ty, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -88,11 +85,11 @@ public extension TIR {
 
     final class Store: Instruction {
         public let value: Value
-        public let address: Value
-        public init(_ value: Value, to address: Value, sourceRange: SourceRange) {
+        public let ptr: Value
+        public init(registry: Registry, value: Value, ptr: Value) {
             self.value = value
-            self.address = address
-            super.init(sourceRange)
+            self.ptr = ptr
+            super.init(ty: registry.voidType().id, name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -100,47 +97,25 @@ public extension TIR {
         }
     }
 
-    final class ProjectCell: Instruction {
-        public let address: Value
-        public init(_ address: Value, sourceRange: SourceRange) {
-            self.address = address
-            super.init(sourceRange)
+    final class GlobalAddr: Instruction {
+        public let global: GlobalVariable
+        public init(registry: Registry, global: GlobalVariable, name: String) {
+            self.global = global
+            super.init(ty: registry.pointerType(pointee: global.type).id, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitProjectCell(self, additional: additional)
-        }
-    }
-
-    final class RefElementAddr: Instruction {
-        public let reference: Value
-        public let fieldIndex: Int
-        public let fieldName: String
-        public init(
-            _ reference: Value, fieldIndex: Int, fieldName: String, sourceRange: SourceRange
-        ) {
-            self.reference = reference
-            self.fieldIndex = fieldIndex
-            self.fieldName = fieldName
-            super.init(sourceRange)
-        }
-
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitRefElementAddr(self, additional: additional)
+            visitor.visitGlobalAddr(self, additional: additional)
         }
     }
 
     final class StructElementAddr: Instruction {
-        public let structAddress: Value
-        public let fieldIndex: Int
-        public let fieldName: String
-        public init(
-            _ structAddress: Value, fieldIndex: Int, fieldName: String, sourceRange: SourceRange
-        ) {
-            self.structAddress = structAddress
-            self.fieldIndex = fieldIndex
-            self.fieldName = fieldName
-            super.init(sourceRange)
+        public let base: Value
+        public let index: Int
+        public init(registry: Registry, base: Value, index: Int, name: String) {
+            self.base = base
+            self.index = index
+            super.init(ty: registry.elementPointerType(base: base.ty, at: index), name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -149,12 +124,12 @@ public extension TIR {
     }
 
     final class TupleElementAddr: Instruction {
-        public let tupleAddress: Value
+        public let base: Value
         public let index: Int
-        public init(_ tupleAddress: Value, index: Int, sourceRange: SourceRange) {
-            self.tupleAddress = tupleAddress
+        public init(registry: Registry, base: Value, index: Int, name: String) {
+            self.base = base
             self.index = index
-            super.init(sourceRange)
+            super.init(ty: registry.elementPointerType(base: base.ty, at: index), name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -162,27 +137,29 @@ public extension TIR {
         }
     }
 
-    final class AddressToPointer: Instruction {
-        public let address: Value
-        public init(_ address: Value, sourceRange: SourceRange) {
-            self.address = address
-            super.init(sourceRange)
+    final class RefElementAddr: Instruction {
+        public let base: Value
+        public let index: Int
+        public init(registry: Registry, base: Value, index: Int, name: String) {
+            self.base = base
+            self.index = index
+            super.init(ty: registry.elementPointerType(base: base.ty, at: index), name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitAddressToPointer(self, additional: additional)
+            visitor.visitRefElementAddr(self, additional: additional)
         }
     }
 
-    final class GlobalAddr: Instruction {
-        public let global: GlobalVariable
-        public init(_ global: GlobalVariable, sourceRange: SourceRange) {
-            self.global = global
-            super.init(sourceRange)
+    final class ProjectCell: Instruction {
+        public let cell: Value
+        public init(registry: Registry, cell: Value, name: String) {
+            self.cell = cell
+            super.init(ty: cell.ty, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitGlobalAddr(self, additional: additional)
+            visitor.visitProjectCell(self, additional: additional)
         }
     }
 }
