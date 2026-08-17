@@ -1,55 +1,427 @@
-import SwiftAbstract
+public extension TIR {
+    final class Builder {
+        public let registry: Registry
+        public var insertPoint: BasicBlock? {
+            didSet {
+                if let insertPoint, insertPoint.function !== oldValue?.function {
+                    nextValueIndex = 0
+                }
+            }
+        }
 
-public final class TIRBuilder {
-    public private(set) var function: TIR.Function
-    public private(set) var currentBlock: TIR.BasicBlock
-    private var counter = 0
+        private var nextValueIndex: Int = 0
 
-    public init(function: TIR.Function) {
-        self.function = function
-        currentBlock = function.entryBlock
-    }
+        public init(registry: Registry) {
+            self.registry = registry
+        }
 
-    @discardableResult
-    public func createBlock() -> TIR.BasicBlock {
-        let block = TIR.BasicBlock(name: "bb\(counter)")
-        counter += 1
-        function.blocks.append(block)
-        return block
-    }
+        private func freshName(_ name: String?) -> String {
+            if let name {
+                return name
+            }
+            let index = nextValueIndex
+            nextValueIndex += 1
+            return String(index)
+        }
 
-    public func switchToBlock(_ block: TIR.BasicBlock) {
-        currentBlock = block
-    }
+        private func voidType() -> Id.TIRTypeId {
+            registry.voidType().id
+        }
 
-    @discardableResult
-    public func emit(_ instruction: TIR.Instruction) -> TIR.Value? {
-        instruction.parentBlock = currentBlock
-        currentBlock.instructions.append(instruction)
-        return instruction.result
-    }
+        private func callResultType(_ callee: Value) -> Id.TIRTypeId {
+            if let functionType = registry.types[callee.ty] as? TIRType.FunctionType {
+                return functionType.returnType
+            }
+            return voidType()
+        }
 
-    @discardableResult
-    public func emitWithResult(
-        _ instruction: TIR.Instruction, type: Int,
-        ownership: TIRType.Ownership? = nil
-    ) -> TIR.Value {
-        let value = createValue(type: type, ownership: ownership ?? .Trivial)
-        instruction.result = value
-        value.definingInstruction = instruction
-        emit(instruction)
-        return value
-    }
+        @discardableResult
+        public func buildReturn(_ value: Value? = nil) -> Return {
+            guard let insertPoint else { fatalError("no insert point") }
+            let ty = if let value {
+                value.ty
+            } else {
+                voidType()
+            }
+            let instruction = TIR.Return(value: value, ty: ty)
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
 
-    public func createValue(type: Int, ownership: TIRType.Ownership) -> TIR.Value {
-        let value = TIR.Value(name: "%\(counter)", type: type, ownership: ownership)
-        counter += 1
-        return value
-    }
+        @discardableResult
+        public func buildBranch(to target: BasicBlock) -> Branch {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.Branch(target: target)
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
 
-    public func createArgument(type: Int, ownership: TIRType.Ownership) -> TIR.Argument {
-        let argument = TIR.Argument(name: "%\(counter)", type: type, ownership: ownership)
-        counter += 1
-        return argument
+        @discardableResult
+        public func buildConditionalBranch(
+            condition: Value, trueBranch: BasicBlock, falseBranch: BasicBlock
+        ) -> ConditionalBranch {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.ConditionalBranch(
+                condition: condition, trueBranch: trueBranch, falseBranch: falseBranch
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildUnreachable() -> Unreachable {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.Unreachable(registry: registry)
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildPhi(incomings: [Phi.Incoming], name: String? = nil) -> Phi {
+            guard let insertPoint else { fatalError("no insert point") }
+            let ty = incomings.first?.value.ty ?? voidType()
+            let instruction = TIR.Phi(incomings: incomings, ty: ty, name: freshName(name))
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildSwitchEnum(
+            value: Value, cases: [SwitchEnum.Case], defaultBlock: BasicBlock? = nil
+        ) -> SwitchEnum {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.SwitchEnum(
+                registry: registry, value: value, cases: cases, defaultBlock: defaultBlock
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildExtractPayload(
+            value: Value, ty: Id.TIRTypeId, name: String? = nil
+        ) -> ExtractPayload {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.ExtractPayload(value: value, ty: ty, name: freshName(name))
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildArith(op: ArithOp, operands: [Value], name: String? = nil) -> Arith {
+            guard let insertPoint else { fatalError("no insert point") }
+            let ty = if op.isCompare {
+                registry.primitiveType(kind: .Bool, bitWidth: 1).id
+            } else if let operand = operands.first {
+                operand.ty
+            } else {
+                voidType()
+            }
+            let instruction = TIR.Arith(op, operands: operands, ty: ty, name: freshName(name))
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildAllocStack(allocatedType: Id.TIRTypeId, name: String? = nil) -> AllocStack {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.AllocStack(
+                registry: registry, allocatedType: allocatedType, name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildDeallocStack(_ value: Value) -> DeallocStack {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.DeallocStack(registry: registry, value: value)
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildAllocHeap(allocatedType: Id.TIRTypeId, name: String? = nil) -> AllocHeap {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.AllocHeap(
+                registry: registry, allocatedType: allocatedType, name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildDeallocHeap(_ value: Value) -> DeallocHeap {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.DeallocHeap(registry: registry, value: value)
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildAllocCell(allocatedType: Id.TIRTypeId, name: String? = nil) -> AllocCell {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.AllocCell(
+                registry: registry, allocatedType: allocatedType, name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildDeallocCell(_ value: Value) -> DeallocCell {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.DeallocCell(registry: registry, value: value)
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildLoad(ptr: Value, name: String? = nil) -> Load {
+            guard let insertPoint else { fatalError("no insert point") }
+            let ty = if let pointerType = registry.types[ptr.ty] as? TIRType.PointerType {
+                pointerType.pointee
+            } else {
+                ptr.ty
+            }
+            let instruction = TIR.Load(ptr: ptr, ty: ty, name: freshName(name))
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildStore(value: Value, to ptr: Value) -> Store {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.Store(registry: registry, value: value, ptr: ptr)
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildGlobalAddr(global: GlobalVariable, name: String? = nil) -> GlobalAddr {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.GlobalAddr(registry: registry, global: global, name: freshName(name))
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildStructElementAddr(
+            base: Value, index: Int, name: String? = nil
+        ) -> StructElementAddr {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.StructElementAddr(
+                registry: registry, base: base, index: index, name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildTupleElementAddr(
+            base: Value, index: Int, name: String? = nil
+        ) -> TupleElementAddr {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.TupleElementAddr(
+                registry: registry, base: base, index: index, name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildRefElementAddr(
+            base: Value, index: Int, name: String? = nil
+        ) -> RefElementAddr {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.RefElementAddr(
+                registry: registry, base: base, index: index, name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildProjectCell(cell: Value, name: String? = nil) -> ProjectCell {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.ProjectCell(registry: registry, cell: cell, name: freshName(name))
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildStructValue(
+            fields: [Value], ty: Id.TIRTypeId, name: String? = nil
+        ) -> StructValue {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.StructValue(fields: fields, ty: ty, name: freshName(name))
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildTupleValue(
+            elements: [Value], ty: Id.TIRTypeId, name: String? = nil
+        ) -> TupleValue {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.TupleValue(elements: elements, ty: ty, name: freshName(name))
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildEnumValue(
+            caseIndex: Int, payload: Value?, ty: Id.TIRTypeId, name: String? = nil
+        ) -> EnumValue {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.EnumValue(
+                caseIndex: caseIndex, payload: payload, ty: ty, name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildCall(callee: Value, arguments: [Value], name: String? = nil) -> Call {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.Call(
+                callee: callee, arguments: arguments, ty: callResultType(callee),
+                name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildTryCall(
+            callee: Value, arguments: [Value], successBlock: BasicBlock, errorBlock: BasicBlock,
+            errorCell: Value? = nil, name: String? = nil
+        ) -> TryCall {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.TryCall(
+                callee: callee, arguments: arguments, successBlock: successBlock,
+                errorBlock: errorBlock, errorCell: errorCell, ty: callResultType(callee),
+                name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildClosure(
+            function: TIR.Function, captures: [Value], name: String? = nil
+        ) -> Closure {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.Closure(
+                function: function, captures: captures, name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildUpcast(value: Value, to targetType: Id.TIRTypeId, name: String? = nil) -> Upcast {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.Upcast(
+                value: value, targetType: targetType, name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildUncheckedRefCast(
+            value: Value, to targetType: Id.TIRTypeId, name: String? = nil
+        ) -> UncheckedRefCast {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.UncheckedRefCast(
+                value: value, targetType: targetType, name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildRetain(_ value: Value) -> Retain {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.Retain(registry: registry, value: value)
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildRelease(_ value: Value) -> Release {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.Release(registry: registry, value: value)
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildCopy(_ value: Value, name: String? = nil) -> Copy {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.Copy(value: value, name: freshName(name))
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildDestroy(_ value: Value) -> Destroy {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.Destroy(registry: registry, value: value)
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildInlineAsm(
+            template: String, constraints: [String], operands: [Value], options: [String]
+        ) -> InlineAsm {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.InlineAsm(
+                registry: registry, template: template, constraints: constraints,
+                operands: operands, options: options
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildIntegerLiteral(
+            value: UInt64, ty: Id.TIRTypeId, name: String? = nil
+        ) -> IntegerLiteral {
+            TIR.IntegerLiteral(value: value, ty: ty, name: name ?? "")
+        }
+
+        @discardableResult
+        public func buildFloatLiteral(
+            value: Float64, ty: Id.TIRTypeId, name: String? = nil
+        ) -> FloatLiteral {
+            TIR.FloatLiteral(value: value, ty: ty, name: name ?? "")
+        }
+
+        @discardableResult
+        public func buildCharLiteral(
+            value: Character, ty: Id.TIRTypeId, name: String? = nil
+        ) -> CharLiteral {
+            TIR.CharLiteral(value: value, ty: ty, name: name ?? "")
+        }
+
+        @discardableResult
+        public func buildBoolLiteral(value: Bool, ty: Id.TIRTypeId, name: String? = nil) -> BoolLiteral {
+            TIR.BoolLiteral(value: value, ty: ty, name: name ?? "")
+        }
+
+        @discardableResult
+        public func buildStringLiteral(
+            value: String, ty: Id.TIRTypeId, name: String? = nil
+        ) -> StringLiteral {
+            TIR.StringLiteral(value: value, ty: ty, name: name ?? "")
+        }
+
+        @discardableResult
+        public func buildNullptrLiteral(ty: Id.TIRTypeId, name: String? = nil) -> NullptrLiteral {
+            TIR.NullptrLiteral(ty: ty, name: name ?? "")
+        }
     }
 }
