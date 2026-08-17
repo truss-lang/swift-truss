@@ -5,12 +5,12 @@ import TrussSyntax
 
 func parseWithDiagnostics(_ source: String) -> (AST.Program, [Diagnostic]) {
     let context = Context()
-    let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
+    let src = Source(id: Id.SourceId(0), filepath: "<test>", content: source)
     context.register(source: src)
-    let stream = CharStream(content: source, id: Id.SourceId(id: 0))
+    let stream = CharStream(content: source, id: Id.SourceId(0))
     let lexer = Lexer(input: stream)
     let tokens = lexer.parse().tokens
-    let result = LexerResult(id: Id.SourceId(id: 0), tokens: tokens)
+    let result = LexerResult(id: Id.SourceId(0), tokens: tokens)
     let parser = Parser(context: context, packageName: "main", result)
     return (parser.parse(), context.diagnositicEngine.diagnostics)
 }

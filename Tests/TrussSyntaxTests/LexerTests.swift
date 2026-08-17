@@ -3,7 +3,7 @@ import TrussCore
 import TrussSyntax
 
 func lex(_ source: String) -> [Token] {
-    let stream = CharStream(content: source, id: Id.SourceId(id: 0))
+    let stream = CharStream(content: source, id: Id.SourceId(0))
     let lexer = Lexer(input: stream)
     return lexer.parse().tokens
 }

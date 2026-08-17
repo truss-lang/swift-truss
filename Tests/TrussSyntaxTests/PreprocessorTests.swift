@@ -9,9 +9,9 @@ func preprocessWithDiagnostics(
     workingDirectory: String = ""
 ) -> ([Token], [Diagnostic]) {
     let context = Context()
-    let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
+    let src = Source(id: Id.SourceId(0), filepath: "<test>", content: source)
     context.register(source: src)
-    let stream = CharStream(content: source, id: Id.SourceId(id: 0))
+    let stream = CharStream(content: source, id: Id.SourceId(0))
     let lexerResult = Lexer(input: stream).parse()
     let result = Preprocessor(context: context).process(
         lexerResult,
@@ -628,19 +628,19 @@ func tokenValues(_ tokens: [Token]) -> [String] {
 @Test func ppExpansionNotesHelper() throws {
     let context = Context()
     let src = Source(
-        id: Id.SourceId(id: 0), filepath: "<test>",
+        id: Id.SourceId(0), filepath: "<test>",
         content: "#define MAX 100\nMAX"
     )
     context.register(source: src)
     let site = MacroExpansionSite(
         name: "MAX",
         definitionPosition: Position(pos: 8, line: 1, col: 9, len: 3),
-        definitionSourceId: Id.SourceId(id: 0)
+        definitionSourceId: Id.SourceId(0)
     )
     let token = Token(
         value: "100", kind: .IntegerLiteral(100),
         pos: Position(pos: 16, line: 2, col: 1, len: 3),
-        id: Id.SourceId(id: 0), expansion: [site]
+        id: Id.SourceId(0), expansion: [site]
     )
     let notes = token.expansionNotes(in: context)
     try #require(notes.count == 1)
@@ -651,9 +651,9 @@ func tokenValues(_ tokens: [Token]) -> [String] {
 
 func parseWithPreprocessor(_ source: String) -> [Diagnostic] {
     let context = Context()
-    let src = Source(id: Id.SourceId(id: 0), filepath: "<test>", content: source)
+    let src = Source(id: Id.SourceId(0), filepath: "<test>", content: source)
     context.register(source: src)
-    let stream = CharStream(content: source, id: Id.SourceId(id: 0))
+    let stream = CharStream(content: source, id: Id.SourceId(0))
     let lexerResult = Lexer(input: stream).parse()
     let processed = Preprocessor(context: context).process(
         lexerResult, config: PreprocessorConfig()
