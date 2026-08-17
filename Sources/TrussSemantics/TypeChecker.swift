@@ -18,7 +18,7 @@ public final class TypeChecker: AST.Visitor {
     private var closureParameterTypes: [[TrussType.TrussType]] = []
     private var rawTypeStack: [TrussType.TrussType?] = []
     private var nextTypeVariableId: UInt64 = 0
-    private var sourceId: Id.SourceId = .init(id: 0)
+    private var sourceId: Id.SourceId = .init(0)
     private var nullablePointerConstraints: Set<ObjectIdentifier> = []
     private var narrowedPointerTypes: [Id.SymbolId: TrussType.PointerType] = [:]
     private var nullptrLiteralTokens: [ObjectIdentifier: Token] = [:]
@@ -1133,7 +1133,7 @@ public final class TypeChecker: AST.Visitor {
     }
 
     private func freshTypeVariable(_ name: String? = nil) -> TrussType.TypeVariableType {
-        let variable = TrussType.TypeVariableType(Id.TypeVariableId(id: nextTypeVariableId), name)
+        let variable = TrussType.TypeVariableType(Id.TypeVariableId(nextTypeVariableId), name)
         nextTypeVariableId += 1
         return variable
     }

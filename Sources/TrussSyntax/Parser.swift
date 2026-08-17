@@ -63,7 +63,7 @@ public final class Parser {
     private func errorToken() -> Token {
         Token(
             value: "<error>", kind: .Unknown,
-            pos: Position(pos: 0, line: 0, col: 0, len: 0), id: Id.SourceId(id: 0)
+            pos: Position(pos: 0, line: 0, col: 0, len: 0), id: Id.SourceId(0)
         )
     }
 

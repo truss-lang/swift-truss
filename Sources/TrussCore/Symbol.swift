@@ -38,7 +38,7 @@ public enum Symbol {
     @abstractClass
     public class NominalTypeSymbol: Symbol {
         public var conformances: [ProtocolSymbol] = []
-        public var typeId: Id.TypeId? = nil
+        public var typeId: Id.ASTTypeId? = nil
         public let scope: Scope = .init()
         @abstractInit
         public override init(_ id: Id.SymbolId, _ name: String) {

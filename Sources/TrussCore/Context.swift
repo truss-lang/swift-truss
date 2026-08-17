@@ -5,7 +5,7 @@ public final class Context {
     public private(set) var sourceTable: [Id.SourceId: Source] = [:]
     public private(set) var id2Symbol: [Id.SymbolId: Symbol.Symbol] = [:]
     public private(set) var name2Package: [String: Symbol.PackageSymbol] = [:]
-    public private(set) var typeTable: [Id.TypeId: TrussType.TrussType] = [:]
+    public private(set) var typeTable: [Id.ASTTypeId: TrussType.TrussType] = [:]
     public private(set) var allowedWarningRanges: [SourceRange] = []
     public init() {}
     @discardableResult
@@ -34,15 +34,15 @@ public final class Context {
     }
 
     public var nextSourceId: Id.SourceId {
-        Id.SourceId(id: UInt64(sourceTable.count))
+        Id.SourceId(UInt64(sourceTable.count))
     }
 
     public var nextSymbolId: Id.SymbolId {
-        Id.SymbolId(id: UInt64(id2Symbol.count))
+        Id.SymbolId(UInt64(id2Symbol.count))
     }
 
-    public var nextTypeId: Id.TypeId {
-        Id.TypeId(id: UInt64(typeTable.count))
+    public var nextTypeId: Id.ASTTypeId {
+        Id.ASTTypeId(UInt64(typeTable.count))
     }
 }
 

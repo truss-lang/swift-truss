@@ -48,7 +48,7 @@ public final class TypeBuilder: AST.Visitor {
 
     private func build(
         _ symbol: Symbol.NominalTypeSymbol?,
-        make: (Id.TypeId, String) -> TrussType.NominalType
+        make: (Id.ASTTypeId, String) -> TrussType.NominalType
     ) {
         guard let symbol else { return }
         let typeId = context.nextTypeId
