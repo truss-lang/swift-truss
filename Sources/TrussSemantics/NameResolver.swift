@@ -1,3 +1,4 @@
+import SwiftBetterDiagnostic
 import TrussCore
 
 public final class NameResolver: AST.Visitor {
@@ -291,7 +292,14 @@ public final class NameResolver: AST.Visitor {
             {
                 classSymbol.superclass = baseClass
             } else if let protocolSymbol = resolved as? Symbol.ProtocolSymbol {
-                symbol.conformances.append(protocolSymbol)
+                if symbol.conformances.contains(where: { $0.id == protocolSymbol.id }) {
+                    context.emitError(
+                        "duplicate conformance to protocol '\(protocolSymbol.name)'",
+                        at: expression.sourceRange
+                    )
+                } else {
+                    symbol.conformances.append(protocolSymbol)
+                }
             }
         }
     }

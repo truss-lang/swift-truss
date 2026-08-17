@@ -88,3 +88,22 @@ func runChecks(_ sources: [String]) -> (Context, [AST.Program]) {
     }
     return (context, programs)
 }
+
+func runFullChecks(_ sources: [String], installBuiltin: Bool = false) -> (Context, [AST.Program]) {
+    let (context, programs) = runTypeChecker(sources, installBuiltin: installBuiltin)
+    for program in programs {
+        AttributeChecker(context: context).visitProgram(program)
+    }
+    for program in programs {
+        ModifierChecker(context: context).visitProgram(program)
+    }
+    for program in programs {
+        AccessChecker(context: context).visitProgram(program)
+    }
+    for program in programs {
+        ControlFlowChecker(context: context).visitProgram(program)
+    }
+    let unused = UnusedDeclarationChecker(context: context)
+    unused.checkAll(programs)
+    return (context, programs)
+}

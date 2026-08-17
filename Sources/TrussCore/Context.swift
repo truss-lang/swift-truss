@@ -6,6 +6,7 @@ public final class Context {
     public private(set) var id2Symbol: [Id.SymbolId: Symbol.Symbol] = [:]
     public private(set) var name2Package: [String: Symbol.PackageSymbol] = [:]
     public private(set) var typeTable: [Id.TypeId: TrussType.TrussType] = [:]
+    public private(set) var allowedWarningRanges: [SourceRange] = []
     public init() {}
     @discardableResult
     public func register(source: Source) -> Context {
@@ -63,6 +64,40 @@ public extension Context {
                 notes: notes + token.expansionNotes(in: self)
             )
         )
+    }
+
+    func emitWarning(_ message: String, at range: SourceRange) {
+        diagnositicEngine.emit(Diagnostic(severity: .warning, message: message, range: range))
+    }
+
+    func emitWarning(_ message: String, at token: Token) {
+        emitWarning(message, at: token, notes: [])
+    }
+
+    func emitWarning(_ message: String, at token: Token, notes: [Diagnostic]) {
+        guard let source = sourceTable[token.id] else { return }
+        diagnositicEngine.emit(
+            Diagnostic(
+                severity: .warning, message: message,
+                range: token.sourceRange(in: source.stringSourceBuffer),
+                notes: notes + token.expansionNotes(in: self)
+            )
+        )
+    }
+}
+
+public extension Context {
+    func allowWarning(in range: SourceRange) {
+        allowedWarningRanges.append(range)
+    }
+
+    func isWarningAllowed(at range: SourceRange) -> Bool {
+        allowedWarningRanges.contains { $0.start.offset <= range.start.offset && range.start.offset <= $0.end.offset }
+    }
+
+    func isWarningAllowed(at token: Token) -> Bool {
+        guard let source = sourceTable[token.id] else { return false }
+        return isWarningAllowed(at: token.sourceRange(in: source.stringSourceBuffer))
     }
 }
 

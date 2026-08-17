@@ -499,6 +499,9 @@ public final class TypeChecker: AST.Visitor {
         -> Any?
     {
         let thrownType = infer(throwStatement.expression, at: throwStatement.token)
+        if let thrownType, !doThrownTypeStack.isEmpty {
+            doThrownTypeStack[doThrownTypeStack.count - 1].append(thrownType)
+        }
         if let throwsContext = functionThrowsStack.last {
             if !throwsContext.isThrowing {
                 context.emitError(
@@ -2010,6 +2013,10 @@ public final class TypeChecker: AST.Visitor {
                 }
             }
             expression.ty = join(caseTypes, at: token)
+            checkMatchExhaustive(
+                subjectType: subjectType, cases: matchExpression.cases,
+                at: matchExpression.token
+            )
         case let caseMatch as AST.CaseMatch:
             let subjectType = infer(caseMatch.subject, at: token)
             checkPattern(caseMatch.pattern, against: subjectType, at: caseMatch.token)
@@ -3184,6 +3191,74 @@ public final class TypeChecker: AST.Visitor {
         return replacingGenericParam(forall.body) { genericParam in
             mapping[genericParam.name] ?? genericParam
         }
+    }
+
+    private func checkMatchExhaustive(
+        subjectType: TrussType.TrussType?, cases: [AST.Match.Case], at token: Token
+    ) {
+        guard let subjectType else { return }
+        let resolved = resolve(subjectType)
+        let nominal = (resolved as? TrussType.GenericInstantiation)?.base
+            ?? resolved as? TrussType.NominalType
+        guard let nominal, let symbol = nominal.symbol as? Symbol.EnumSymbol else { return }
+        let enumCaseNames = Set(
+            symbol.scope.values.compactMap { $0.value.first as? Symbol.CaseSymbol }.map(\.name)
+        )
+        guard !enumCaseNames.isEmpty else { return }
+        var covered: Set<String> = []
+        var hasWildcard = false
+        for caseItem in cases {
+            for pattern in caseItem.patterns {
+                if pattern is AST.WildcardPattern || pattern is AST.BindingPattern {
+                    hasWildcard = true
+                } else if let caseName = enumCaseName(of: pattern, in: enumCaseNames) {
+                    covered.insert(caseName)
+                } else if pattern is AST.Variable {
+                    hasWildcard = true
+                }
+            }
+        }
+        if hasWildcard { return }
+        let missing = enumCaseNames.subtracting(covered)
+        if !missing.isEmpty {
+            context.emitError(
+                "match is not exhaustive: missing case(s) "
+                    + missing.sorted().map { "'\($0)'" }.joined(separator: ", "),
+                at: token
+            )
+        }
+    }
+
+    private func enumCaseName(of pattern: AST.Expression, in enumCaseNames: Set<String>) -> String? {
+        switch pattern {
+        case let call as AST.Call:
+            if let implicit = call.callee as? AST.ImplicitMemberAccess {
+                return implicit.name.value
+            }
+            if let member = call.callee as? AST.MemberAccess {
+                return member.member.value
+            }
+            if let variable = call.callee as? AST.Variable,
+               enumCaseNames.contains(variable.name.value)
+            {
+                return variable.name.value
+            }
+        case let member as AST.MemberAccess:
+            if enumCaseNames.contains(member.member.value) {
+                return member.member.value
+            }
+        case let implicit as AST.ImplicitMemberAccess:
+            if enumCaseNames.contains(implicit.name.value) {
+                return implicit.name.value
+            }
+        case let variable as AST.Variable:
+            if enumCaseNames.contains(variable.name.value) {
+                return variable.name.value
+            }
+        default:
+            break
+        }
+        return nil
     }
 
     private func join(

@@ -133,10 +133,20 @@ public final class Driver {
             checker.checkAll(programs)
         }
         if !context.diagnositicEngine.hasErrors {
+            runPass(AttributeChecker(context: context), context: context, programs: programs)
+        }
+        if !context.diagnositicEngine.hasErrors {
             runPass(ModifierChecker(context: context), context: context, programs: programs)
         }
         if !context.diagnositicEngine.hasErrors {
             runPass(AccessChecker(context: context), context: context, programs: programs)
+        }
+        if !context.diagnositicEngine.hasErrors {
+            runPass(ControlFlowChecker(context: context), context: context, programs: programs)
+        }
+        if !context.diagnositicEngine.hasErrors {
+            let unusedChecker = UnusedDeclarationChecker(context: context)
+            unusedChecker.checkAll(programs)
         }
         let tirModules: [TIR.Module]
         if !context.diagnositicEngine.hasErrors {
@@ -180,7 +190,7 @@ public final class Driver {
         }
         let hasErrors = context.diagnositicEngine.hasErrors
         var stderr = ""
-        if hasErrors {
+        if !context.diagnositicEngine.diagnostics.isEmpty {
             stderr = TerminalRenderer(beforeLines: 1, afterLines: 1)
                 .render(context.diagnositicEngine.diagnostics)
         }

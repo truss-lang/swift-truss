@@ -292,6 +292,9 @@ public final class Enter: AST.Visitor {
         super.visitVariableDecl(variableDecl, additional: additional)
         let symbol = Symbol.VariableSymbol(id: context.nextSymbolId, name: variableDecl.name.value)
         AccessExtractor.apply(to: symbol, modifiers: variableDecl.modifiers, context: context)
+        if case .Keyword(.Let) = variableDecl.token.kind {
+            symbol.isMutable = false
+        }
         symbol.isAbstract = variableDecl.modifiers.contains { modifier in
             if case .Abstract = modifier.kind { return true }
             return false

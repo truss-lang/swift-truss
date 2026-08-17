@@ -12,7 +12,7 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
 }
 
 @Test func driverCompilesSingleFile() throws {
-    let file = try writeTemp("main.truss", "func f() {}\n")
+    let file = try writeTemp("main.truss", "func f() { 1 }\n")
     let result = Driver(config: DriverConfig()).run(files: [file])
     #expect(!result.hasErrors)
     #expect(result.stderr.isEmpty)

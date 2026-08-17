@@ -3,6 +3,7 @@ import TrussCore
 
 public final class AccessChecker: AST.Visitor {
     private let context: Context
+    private var initDepth = 0
     private var typeStack: [Symbol.NominalTypeSymbol] = []
     private var scopeStack: [Scope] = []
     private var currentPackageSymbol: Symbol.PackageSymbol? = nil
@@ -332,14 +333,36 @@ public final class AccessChecker: AST.Visitor {
         switch target {
         case let variable as AST.Variable:
             if let symbol = variable.symbol {
+                checkMutable(of: symbol, at: variable.name)
                 checkSetter(of: symbol, at: variable.name)
             }
         case let member as AST.MemberAccess:
             if let symbol = member.symbol ?? memberSymbol(of: member) {
+                let isSelfMemberInInit = initDepth > 0 && member.object is AST.SelfExpression
+                if !isSelfMemberInInit {
+                    checkMutable(of: symbol, at: member.member)
+                }
                 checkSetter(of: symbol, at: member.member)
+            }
+        case let subscriptExpression as AST.Subscript:
+            if let base = subscriptExpression.base as? AST.Variable,
+               let symbol = base.symbol as? Symbol.VariableSymbol, !symbol.isMutable
+            {
+                context.emitError(
+                    "cannot assign to immutable variable '\(symbol.name)'",
+                    at: subscriptExpression.sourceRange
+                )
             }
         default:
             break
+        }
+    }
+
+    private func checkMutable(of symbol: Symbol.Symbol, at token: Token) {
+        if let variable = symbol as? Symbol.VariableSymbol, !variable.isMutable {
+            context.emitError(
+                "cannot assign to immutable variable '\(symbol.name)'", at: token
+            )
         }
     }
 
@@ -395,7 +418,9 @@ public final class AccessChecker: AST.Visitor {
             )
         }
         withFunctionScope(initDecl.symbol) {
+            initDepth += 1
             super.visitInitDecl(initDecl, additional: additional)
+            initDepth -= 1
         }
         return nil
     }

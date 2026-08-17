@@ -155,6 +155,7 @@ public enum Symbol {
 
     public final class VariableSymbol: Symbol {
         public var type: TrussType.TrussType? = nil
+        public var isMutable: Bool = true
         public init(id: Id.SymbolId, name: String) {
             super.init(id, name)
         }
