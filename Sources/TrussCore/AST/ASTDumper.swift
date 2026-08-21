@@ -911,7 +911,9 @@ public extension AST {
             children.append {
                 self.dumpNode("ReturnType", children: [{ self.visit(subscriptDecl.returnType) }])
             }
-            children.append(contentsOf: statementNodes(subscriptDecl.body))
+            for accessor in subscriptDecl.accessors {
+                children.append { self.visitAccessor(accessor, additional: additional) }
+            }
             dumpNode(text, children: children)
             return nil
         }
@@ -1608,16 +1610,39 @@ public extension AST {
                 children.append { self.dumpNode("RootPostfix \(rootPostfix.value)") }
             }
             for component in keyPathExpression.components {
+                let nameText = component.name?.value ?? ""
+                let argumentsText =
+                    component.arguments.isEmpty ? "" : "[\(component.arguments.count)]"
                 let postfixText = component.postfix?.value ?? ""
+                let componentText =
+                    if component.name != nil {
+                        "\(component.dotToken.value)\(nameText)\(argumentsText)\(postfixText)"
+                    } else {
+                        "Subscript\(argumentsText)\(postfixText)"
+                    }
                 children.append {
                     self.dumpNode(
-                        "Component \(component.dotToken.value)\(component.name.value)\(postfixText)"
+                        "Component \(componentText)"
                             + self.symText(component.symbol)
-                            + self.overloadsText(component.overloads)
+                            + self.overloadsText(component.overloads),
+                        children: component.arguments.map { argument in
+                            { self.visit(argument.value) }
+                        }
                     )
                 }
             }
             dumpNode("KeyPathExpression" + tyText(keyPathExpression.ty), children: children)
+            return nil
+        }
+
+        @discardableResult
+        public override func visitSizeofExpression(
+            _ sizeofExpression: SizeofExpression, additional: Any? = nil
+        ) -> Any? {
+            dumpNode(
+                "SizeofExpression" + tyText(sizeofExpression.ty),
+                children: [{ self.visit(sizeofExpression.type) }]
+            )
             return nil
         }
 

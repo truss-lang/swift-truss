@@ -757,7 +757,17 @@ public final class SourcePrinter: AST.Visitor {
         }
         state.write(" -> ")
         visit(subscriptDecl.returnType)
-        appendBlock(subscriptDecl.body)
+        if !subscriptDecl.accessors.isEmpty {
+            state.write(" {")
+            state.indent += 1
+            for accessor in subscriptDecl.accessors {
+                beginLine()
+                visitAccessor(accessor, additional: additional)
+            }
+            state.indent -= 1
+            beginLine()
+            state.write("}")
+        }
         return nil
     }
 
@@ -1407,12 +1417,35 @@ public final class SourcePrinter: AST.Visitor {
             state.write(rootPostfix.value)
         }
         for component in keyPathExpression.components {
-            state.write(component.dotToken.value)
-            state.write(component.name.value)
+            if let name = component.name {
+                state.write(component.dotToken.value)
+                state.write(name.value)
+            }
+            if !component.arguments.isEmpty {
+                state.write("[")
+                for (index, argument) in component.arguments.enumerated() {
+                    if index > 0 { state.write(", ") }
+                    if let label = argument.label {
+                        state.write(label.value + ": ")
+                    }
+                    visit(argument.value)
+                }
+                state.write("]")
+            }
             if let postfix = component.postfix {
                 state.write(postfix.value)
             }
         }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitSizeofExpression(
+        _ sizeofExpression: AST.SizeofExpression, additional: Any? = nil
+    ) -> Any? {
+        state.write("sizeof(")
+        visit(sizeofExpression.type)
+        state.write(")")
         return nil
     }
 

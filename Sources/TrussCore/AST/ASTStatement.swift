@@ -1020,13 +1020,13 @@ public extension AST {
         public let asyncToken: Token?
         public let throwsClause: ThrowsClause?
         public let returnType: Expression
-        public let body: [Statement]
+        public let accessors: [Accessor]
         public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ genericDecl: GenericDecl?, _ parameters: [FunctionDecl.Parameter],
             _ asyncToken: Token?, _ throwsClause: ThrowsClause?, _ returnType: Expression,
-            _ body: [Statement], sourceRange: SourceRange
+            _ accessors: [Accessor], sourceRange: SourceRange
         ) {
             self.token = token
             self.genericDecl = genericDecl
@@ -1034,7 +1034,7 @@ public extension AST {
             self.asyncToken = asyncToken
             self.throwsClause = throwsClause
             self.returnType = returnType
-            self.body = body
+            self.accessors = accessors
             super.init(modifiers, attributes, sourceRange)
         }
 

@@ -1432,7 +1432,8 @@ extension AST {
             let right = rewrite(binary.right)
             if left === binary.left, right === binary.right { return binary }
             let newBinary = AST.Binary(
-                left, right, binary.operatorToken, sourceRange: binary.sourceRange
+                left, right, binary.operatorToken,
+                isAssignment: binary.isAssignment, sourceRange: binary.sourceRange
             )
             return newBinary
         }
@@ -1711,20 +1712,36 @@ extension AST {
             let parameters = rewriteParameters(subscriptDecl.parameters)
             let throwsClause = rewriteThrowsClause(subscriptDecl.throwsClause)
             let returnType = rewrite(subscriptDecl.returnType)
-            let body = rewriteAll(subscriptDecl.body)
+            var accessorsChanged = false
+            let accessors = subscriptDecl.accessors.map { accessor -> AST.Accessor in
+                let rewritten = rewrite(accessor)
+                if rewritten !== accessor { accessorsChanged = true }
+                return rewritten
+            }
             if genericDecl === subscriptDecl.genericDecl,
                parametersUnchanged(subscriptDecl.parameters, parameters),
                throwsClauseUnchanged(subscriptDecl.throwsClause, throwsClause),
-               returnType === subscriptDecl.returnType, unchanged(subscriptDecl.body, body)
+               returnType === subscriptDecl.returnType, !accessorsChanged
             {
                 return subscriptDecl
             }
             let newSubscriptDecl = AST.SubscriptDecl(
                 subscriptDecl.modifiers, subscriptDecl.attributes, subscriptDecl.token,
                 genericDecl, parameters, subscriptDecl.asyncToken, throwsClause, returnType,
-                body, sourceRange: subscriptDecl.sourceRange
+                accessors, sourceRange: subscriptDecl.sourceRange
             )
             return newSubscriptDecl
+        }
+
+        @discardableResult
+        open override func visitSizeofExpression(
+            _ sizeofExpression: AST.SizeofExpression, additional: Any? = nil
+        ) -> Any? {
+            let type = rewrite(sizeofExpression.type)
+            if type === sizeofExpression.type { return sizeofExpression }
+            return AST.SizeofExpression(
+                sizeofExpression.token, type, sourceRange: sizeofExpression.sourceRange
+            )
         }
 
         @discardableResult

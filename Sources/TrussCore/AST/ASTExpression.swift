@@ -678,14 +678,16 @@ public extension AST {
         public let left: Expression
         public let right: Expression
         public let operatorToken: Token
+        public let isAssignment: Bool
         public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ left: Expression, _ right: Expression, _ operatorToken: Token,
-            sourceRange: SourceRange
+            isAssignment: Bool = false, sourceRange: SourceRange
         ) {
             self.left = left
             self.right = right
             self.operatorToken = operatorToken
+            self.isAssignment = isAssignment
             super.init(sourceRange)
         }
 
@@ -991,13 +993,18 @@ public extension AST {
     final class KeyPathExpression: Expression {
         public final class Component {
             public let dotToken: Token
-            public let name: Token
+            public let name: Token?
+            public let arguments: [AST.LabeledArgument]
             public let postfix: Token?
             public var symbol: Symbol.Symbol? = nil
             public var overloads: [Symbol.FunctionSymbol]? = nil
-            public init(dotToken: Token, name: Token, postfix: Token?) {
+            public init(
+                dotToken: Token, name: Token?, arguments: [AST.LabeledArgument],
+                postfix: Token?
+            ) {
                 self.dotToken = dotToken
                 self.name = name
+                self.arguments = arguments
                 self.postfix = postfix
             }
         }
@@ -1025,6 +1032,20 @@ public extension AST {
     enum StringSegment {
         case literal(Token)
         case expression(Expression)
+    }
+
+    final class SizeofExpression: Expression {
+        public let token: Token
+        public let type: Expression
+        public init(_ token: Token, _ type: Expression, sourceRange: SourceRange) {
+            self.token = token
+            self.type = type
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitSizeofExpression(self, additional: additional)
+        }
     }
 
     final class StringInterpolation: Expression {

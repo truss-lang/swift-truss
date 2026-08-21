@@ -1804,28 +1804,21 @@ public final class Parser {
         let returnType =
             parseExpression(isTypeContext: true) ?? errorExpression(from: token, to: last!)
         suppressTrailingClosures = false
-        var body: [AST.Statement] = []
+        var accessors: [AST.Accessor] = []
         if peek?.kind == .Separator(.OpenBrace) {
-            index += 1
-            while let t = peek {
-                if t.kind == .Separator(.CloseBrace) { break }
-                if let stmt = parseStatement() {
-                    body.append(stmt)
-                }
-            }
-            if peek?.kind == .Separator(.CloseBrace) {
-                index += 1
-            } else {
-                if let tok = peek {
-                    emitError("expected '}' after subscript body", at: tok)
-                } else {
-                    emitError("expected '}' after subscript body", at: endOfFile)
+            accessors = parseAccessors()
+            for accessor in accessors {
+                if accessor.kind == .WillSet || accessor.kind == .DidSet {
+                    emitError(
+                        "subscript accessor cannot be '\(accessor.token?.value ?? "accessor")'",
+                        at: accessor.token!
+                    )
                 }
             }
         }
         return AST.SubscriptDecl(
             modifiers, attributes, token, genericDecl, parameters, asyncToken, throwsClause,
-            returnType, body,
+            returnType, accessors,
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
@@ -3996,7 +3989,7 @@ public final class Parser {
             expression = AST.NullLiteral(token, sourceRange: token.sourceRange(in: buffer))
         case .NullptrLiteral:
             index += 1
-            expression = AST.NullPointerLiteral(
+            expression = AST.NullptrLiteral(
                 token, sourceRange: token.sourceRange(in: buffer)
             )
         case let .Keyword(kind):
@@ -4013,6 +4006,8 @@ public final class Parser {
             case .SuperKw:
                 index += 1
                 expression = AST.SuperExpression(token, sourceRange: token.sourceRange(in: buffer))
+            case .Sizeof:
+                expression = parseSizeofExpression()
             case .If:
                 expression = parseIf()
             case .Do:
@@ -4290,6 +4285,37 @@ public final class Parser {
         return parsePostfix(expression, excepts: excepts, isTypeContext: isTypeContext)
     }
 
+    private func parseSizeofExpression() -> AST.Expression {
+        let token = next!
+        guard let openParen = peek, case .Separator(.OpenParen) = openParen.kind else {
+            if let t = peek {
+                emitError("expected '(' after 'sizeof', but got '\(t.value)'", at: t)
+            } else {
+                emitError("expected '(' after 'sizeof'", at: endOfFile)
+            }
+            return errorExpression(from: token, to: last!)
+        }
+        index += 1
+        suppressTrailingClosures = true
+        let typeExpression =
+            parseExpression(isTypeContext: true)
+                ?? errorExpression(from: openParen, to: openParen)
+        suppressTrailingClosures = false
+        if let closeParen = peek, case .Separator(.CloseParen) = closeParen.kind {
+            index += 1
+        } else {
+            if let t = peek {
+                emitError("expected ')' after sizeof type, but got '\(t.value)'", at: t)
+            } else {
+                emitError("expected ')' after sizeof type", at: endOfFile)
+            }
+        }
+        return AST.SizeofExpression(
+            token, typeExpression,
+            sourceRange: SourceRange(from: token, to: last!, in: buffer)
+        )
+    }
+
     private func parseUnaryExpression(
         _ excepts: [OperatorKind]?, isCondition: Bool, isTypeContext: Bool
     ) -> AST.Expression? {
@@ -4423,6 +4449,37 @@ public final class Parser {
         }
         var components: [AST.KeyPathExpression.Component] = []
         _loop: while let t = peek {
+            if case .Separator(.OpenBracket) = t.kind {
+                index += 1
+                var arguments: [AST.LabeledArgument] = []
+                var endToken: Token? = nil
+                if let cb = peek, case .Separator(.CloseBracket) = cb.kind {
+                    index += 1
+                    endToken = cb
+                } else {
+                    arguments = parseArgumentList()
+                    if let cb = peek, case .Separator(.CloseBracket) = cb.kind {
+                        index += 1
+                        endToken = cb
+                    } else if let bad = peek {
+                        emitError(
+                            "expected ']' after keypath subscript arguments, but got '\(bad.value)'",
+                            at: bad
+                        )
+                    } else {
+                        emitError("expected ']' after keypath subscript arguments", at: endOfFile)
+                    }
+                }
+                if let endToken {
+                    lastToken = endToken
+                }
+                components.append(
+                    AST.KeyPathExpression.Component(
+                        dotToken: t, name: nil, arguments: arguments, postfix: nil
+                    )
+                )
+                continue
+            }
             let dot: Token
             switch t.kind {
             case .Operator(.Dot), .Operator(.QuestionMarkDot):
@@ -4453,7 +4510,9 @@ public final class Parser {
                 index += 1
             }
             components.append(
-                AST.KeyPathExpression.Component(dotToken: dot, name: name, postfix: postfix)
+                AST.KeyPathExpression.Component(
+                    dotToken: dot, name: name, arguments: [], postfix: postfix
+                )
             )
         }
         if components.isEmpty {

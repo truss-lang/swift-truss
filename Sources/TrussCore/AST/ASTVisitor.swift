@@ -954,9 +954,17 @@ extension AST {
                 }
             }
             visit(subscriptDecl.returnType, additional: additional)
-            for statement in subscriptDecl.body {
-                visit(statement, additional: additional)
+            for accessor in subscriptDecl.accessors {
+                visitAccessor(accessor, additional: additional)
             }
+            return nil
+        }
+
+        @discardableResult
+        open func visitSizeofExpression(
+            _ sizeofExpression: AST.SizeofExpression, additional: Any? = nil
+        ) -> Any? {
+            visit(sizeofExpression.type, additional: additional)
             return nil
         }
 
