@@ -215,6 +215,14 @@ public extension TIR {
         }
 
         @discardableResult
+        public func buildSizeOf(sizedType: Id.TIRTypeId, name: String? = nil) -> SizeOf {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.SizeOf(registry: registry, sizedType: sizedType, name: freshName(name))
+            insertPoint.instructions.append(attach(instruction))
+            return instruction
+        }
+
+        @discardableResult
         public func buildGlobalAddr(global: GlobalVariable, name: String? = nil) -> GlobalAddr {
             let value = TIR.GlobalAddr(
                 globalId: global.id, ty: registry.pointerType(pointee: global.type).id,
@@ -463,6 +471,5 @@ public extension TIR {
             literal.sourceRange = sourceRange
             return literal
         }
-
     }
 }

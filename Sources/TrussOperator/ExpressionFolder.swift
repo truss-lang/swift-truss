@@ -286,6 +286,7 @@ public final class ExpressionFolder: AST.Rewriter {
     ) -> AST.Binary {
         AST.Binary(
             left, right, op,
+            isAssignment: group(of: op)?.assignment ?? false,
             sourceRange: SourceRange(start: left.sourceRange.start, end: right.sourceRange.end)
         )
     }

@@ -146,7 +146,7 @@ public final class UnusedDeclarationChecker: AST.Visitor {
     }
 
     public override func visitVariableDecl(_ variableDecl: AST.VariableDecl, additional: Any? = nil) -> Any? {
-        if let symbol = variableDecl.symbol as? Symbol.VariableSymbol, functionDepth == 0,
+        if let symbol = variableDecl.symbol, functionDepth == 0,
            isPrivate(symbol.access), !symbol.name.hasPrefix("_")
         {
             let message = symbol.memberOf == nil

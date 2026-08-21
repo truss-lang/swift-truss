@@ -386,12 +386,35 @@ public final class TypeChecker: AST.Visitor {
                 returnType: returnType
             )
             symbol.functionType = functionType
+            if subscriptDecl.accessors.contains(where: { $0.kind == .Set }) {
+                let setterFunctionType = TrussType.FunctionType(
+                    parameters: (subscriptDecl.parameters.map { $0.label?.value } + [nil])
+                        .enumerated()
+                        .map { index, label in
+                            TrussType.FunctionType.Parameter(
+                                label: label, type: index < parameterTypes.count
+                                    ? parameterTypes[index]
+                                    : returnType
+                            )
+                        },
+                    isVariadic: false,
+                    isAsync: subscriptDecl.asyncToken != nil,
+                    isThrowing: subscriptDecl.throwsClause != nil,
+                    throwsTypes: (subscriptDecl.throwsClause?.types ?? []).map(evaluate),
+                    returnType: TrussType.VoidType.INSTANCE
+                )
+                symbol.setterType =
+                    if let forallType = symbol.forallType {
+                        TrussType.ForallType(parameters: forallType.parameters, body: setterFunctionType)
+                    } else {
+                        setterFunctionType
+                    }
+            }
             withFunctionReturnType(returnType) {
                 withFunctionThrows(subscriptDecl.throwsClause != nil, functionType.throwsTypes) {
-                    visitFunctionBody(
-                        .Block(subscriptDecl.body), expectedReturn: returnType,
-                        at: subscriptDecl.token
-                    )
+                    for accessor in subscriptDecl.accessors {
+                        checkAccessor(accessor, returnType, at: subscriptDecl.token)
+                    }
                 }
             }
         }
@@ -1177,6 +1200,47 @@ public final class TypeChecker: AST.Visitor {
         return []
     }
 
+    private func resolveSubscriptAssignment(
+        _ subscriptExpression: AST.Subscript, rhs: AST.Expression, at token: Token
+    ) {
+        _ = infer(subscriptExpression.base, at: token)
+        for argument in subscriptExpression.arguments {
+            _ = infer(argument.value, at: token)
+        }
+        _ = infer(rhs, at: token)
+        if let pointer = subscriptExpression.base.ty.flatMap({
+            resolve($0) as? TrussType.PointerType
+        }), subscriptExpression.arguments.count == 1 {
+            subscriptExpression.ty = pointer.pointee
+            return
+        }
+        var candidates = subscriptExpression.overloads ?? []
+        let baseType: TrussType.TrussType? = subscriptExpression.base.ty
+        if candidates.isEmpty, baseType != nil {
+            candidates = memberFunctionSymbols(of: "subscript", in: baseType)
+        }
+        if candidates.isEmpty {
+            emitNoExactMatch(at: token, name: "subscript", candidates: [])
+            return
+        }
+        let setterCandidates = candidates.filter { $0.setterType != nil }
+        guard !setterCandidates.isEmpty else {
+            context.emitError("cannot assign to subscript: is read-only", at: token)
+            return
+        }
+        var arguments = subscriptExpression.arguments
+        arguments.append(
+            AST.LabeledArgument(label: nil, value: rhs, sourceRange: rhs.sourceRange)
+        )
+        if let resolved = resolveOverloads(
+            setterCandidates, arguments: arguments, trailingClosures: [],
+            expectedReturn: nil, at: token, fallbackName: "subscript", setterContext: true
+        ) {
+            subscriptExpression.symbol = resolved.symbol
+            subscriptExpression.ty = returnType(of: resolved.symbol)
+        }
+    }
+
     private func memberFunctionSymbols(
         of name: String, in type: TrussType.TrussType?
     ) -> [Symbol.FunctionSymbol] {
@@ -1943,7 +2007,7 @@ public final class TypeChecker: AST.Visitor {
                 let narrowed: (id: Id.SymbolId, type: TrussType.PointerType)? =
                     if let binary = ifExpression.condition as? AST.Binary,
                     binary.operatorToken.value == "!=",
-                    binary.right is AST.NullPointerLiteral,
+                    binary.right is AST.NullptrLiteral,
                     let variable = binary.left as? AST.Variable,
                     let symbol = variable.symbol,
                     let pointer = binary.left.ty.map({ resolve($0) })
@@ -2137,8 +2201,13 @@ public final class TypeChecker: AST.Visitor {
                 return expression.ty.map { resolve($0) }
             }
             if subscriptExpression.symbol == nil {
+                var candidates = subscriptExpression.overloads ?? []
+                let baseType: TrussType.TrussType? = subscriptExpression.base.ty
+                if candidates.isEmpty, baseType != nil {
+                    candidates = memberFunctionSymbols(of: "subscript", in: baseType)
+                }
                 if let resolved = resolveOverloads(
-                    subscriptExpression.overloads ?? [], arguments: subscriptExpression.arguments, trailingClosures: [],
+                    candidates, arguments: subscriptExpression.arguments, trailingClosures: [],
                     expectedReturn: nil, at: token, fallbackName: "subscript"
                 ) {
                     subscriptExpression.symbol = resolved.symbol
@@ -2270,14 +2339,65 @@ public final class TypeChecker: AST.Visitor {
                 )
             }
         case let keyPathExpression as AST.KeyPathExpression:
+            var baseType: TrussType.TrussType?
             if let root = keyPathExpression.root {
-                _ = infer(root, at: token)
+                baseType = infer(root, at: token)
             } else {
                 context.emitError(
                     "key path requires a root type",
                     at: keyPathExpression.backslashToken
                 )
+                return nil
             }
+            for component in keyPathExpression.components {
+                guard let current = baseType else { break }
+                if let name = component.name, name.kind == .Keyword(.SelfKw) {
+                    baseType = current
+                    continue
+                }
+                if let name = component.name, component.arguments.isEmpty {
+                    if let member = memberType(of: name.value, in: current) {
+                        component.symbol = memberSymbol(of: name.value, in: current)
+                        baseType = member
+                    } else if let symbol = memberSymbol(of: name.value, in: current) {
+                        component.symbol = symbol
+                        baseType = valueType(of: symbol)
+                    } else {
+                        baseType = nil
+                    }
+                } else {
+                    let candidates = memberFunctionSymbols(
+                        of: "subscript", in: current as TrussType.TrussType?
+                    )
+                    for argument in component.arguments {
+                        _ = infer(argument.value, at: token)
+                    }
+                    if let resolved = resolveOverloads(
+                        candidates, arguments: component.arguments, trailingClosures: [],
+                        expectedReturn: nil, at: token, fallbackName: "subscript"
+                    ) {
+                        component.symbol = resolved.symbol
+                        component.overloads = candidates
+                        baseType = resolved.type.returnType
+                    } else {
+                        baseType = nil
+                    }
+                }
+                if component.postfix != nil, let current = baseType {
+                    baseType = TrussType.OptionalType(current)
+                }
+            }
+            expression.ty = baseType
+        case let sizeofExpression as AST.SizeofExpression:
+            let type = evaluate(sizeofExpression.type)
+            sizeofExpression.typeType = type
+            if type is TrussType.ProtocolType {
+                context.emitError(
+                    "cannot determine size of protocol type '\(typeText(type))'",
+                    at: sizeofExpression.token
+                )
+            }
+            expression.ty = TrussType.BuiltinType("UInt64")
         case let forceUnwrap as AST.ForceUnwrap:
             if let inner = infer(forceUnwrap.expression, at: token) {
                 if let optional = inner as? TrussType.OptionalType {
@@ -2309,7 +2429,7 @@ public final class TypeChecker: AST.Visitor {
             if let inner = infer(addressOf.expression, at: token) {
                 expression.ty = TrussType.PointerType(inner, isNonnull: true)
             }
-        case let nullPointer as AST.NullPointerLiteral:
+        case let nullPointer as AST.NullptrLiteral:
             let variable = freshTypeVariable("nullptr")
             nullablePointerConstraints.insert(ObjectIdentifier(variable))
             nullptrLiteralTokens[ObjectIdentifier(variable)] = nullPointer.token
@@ -2347,6 +2467,13 @@ public final class TypeChecker: AST.Visitor {
             expression.ty = nil
         case let binary as AST.Binary:
             if binary.operatorToken.value == "=" {
+                if let subscriptExpr = binary.left as? AST.Subscript {
+                    resolveSubscriptAssignment(
+                        subscriptExpr, rhs: binary.right, at: binary.operatorToken
+                    )
+                    binary.ty = subscriptExpr.ty
+                    break
+                }
                 binary.left.isLeftValue = true
             }
             _ = infer(binary.left, at: token)
@@ -2441,6 +2568,23 @@ public final class TypeChecker: AST.Visitor {
             if let resolved {
                 binary.symbol = resolved.symbol
                 binary.ty = resolved.type.returnType
+                if binary.isAssignment, let subscriptExpr = binary.left as? AST.Subscript {
+                    if let symbol = subscriptExpr.symbol, symbol.setterType == nil {
+                        context.emitError(
+                            "cannot assign to subscript: is read-only",
+                            at: binary.operatorToken
+                        )
+                    } else {
+                        let resultType = resolved.type.returnType
+                        if let elementType = subscriptExpr.ty,
+                           !canCoerce(resultType, to: elementType, at: binary.operatorToken)
+                        {
+                            emitMismatch(
+                                at: binary.operatorToken, expected: elementType, found: resultType
+                            )
+                        }
+                    }
+                }
             }
         case let prefixExpression as AST.Prefix:
             _ = infer(prefixExpression.expression, at: token)
@@ -3006,7 +3150,8 @@ public final class TypeChecker: AST.Visitor {
         expectedReturn: TrussType.TrussType?,
         at token: Token,
         reportErrors: Bool = true,
-        fallbackName: String? = nil
+        fallbackName: String? = nil,
+        setterContext: Bool = false
     ) -> (symbol: Symbol.FunctionSymbol, type: TrussType.FunctionType)? {
         let allArguments = arguments + trailingClosures.map { label, closure in
             AST.LabeledArgument(label: label, value: closure, sourceRange: closure.sourceRange)
@@ -3023,7 +3168,9 @@ public final class TypeChecker: AST.Visitor {
                 }
             }
             let ty: TrussType.FunctionType
-            if let forallType = candidate.forallType {
+            let setterForall = setterContext ? (candidate.setterType as? TrussType.ForallType) : nil
+            let setterPlain = setterContext ? (candidate.setterType as? TrussType.FunctionType) : nil
+            if let forallType = setterForall ?? (setterContext ? nil : candidate.forallType) {
                 genericParameters = forallType.parameters
                 if let functionType = instantiate(forallType, mapping: &typeMapping)
                     as? TrussType.FunctionType
@@ -3032,14 +3179,27 @@ public final class TypeChecker: AST.Visitor {
                 } else {
                     continue
                 }
-            } else if let functionType = candidate.functionType {
+            } else if let functionType = setterPlain
+                ?? (setterContext ? nil : candidate.functionType)
+            {
                 genericParameters = genericParamSymbols(in: functionType)
                 ty = instantiateGenerics(functionType, mapping: &typeMapping)
                     as! TrussType.FunctionType
             } else {
                 continue
             }
-            guard let argumentMapping = mapArguments(allArguments, to: candidate.signature) else {
+            let signature: Symbol.FunctionSignature =
+                if setterContext {
+                    Symbol.FunctionSignature(
+                        labels: ty.parameters.map(\.label),
+                        hasDefaults: [Bool](repeating: false, count: ty.parameters.count),
+                        isVararg: [Bool](repeating: false, count: ty.parameters.count),
+                        isVariadic: ty.isVariadic
+                    )
+                } else {
+                    candidate.signature
+                }
+            guard let argumentMapping = mapArguments(allArguments, to: signature) else {
                 continue
             }
             var ok = true

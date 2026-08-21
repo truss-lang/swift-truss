@@ -404,8 +404,9 @@ import TrussCore
             |   | `-Variable Int ty:ErrorType
             |   |-ReturnType
             |   | `-Variable Int ty:ErrorType
-            |   `-Return
-            |     `-Variable x ty:ErrorType sym:x#6
+            |   `-Accessor get
+            |     `-Return
+            |       `-Variable x ty:ErrorType sym:x#6
             |-TypeAliasDecl T sym:T#2
             | `-Variable S ty:StructType(S)#0 sym:S#1
             |-ProtocolDecl Q sym:Q#3

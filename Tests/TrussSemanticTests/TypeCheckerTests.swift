@@ -1811,3 +1811,203 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     let messages = context.diagnositicEngine.diagnostics.map(\.message)
     #expect(messages.contains("no exact matches in call to 'builtin_eq_int32'"))
 }
+
+@Test func instanceSubscriptGetAndSet() throws {
+    let source = """
+    precedencegroup Assignment { assignment: true }
+    infix operator =: Assignment
+    struct Buffer {
+        var x: Builtin.Int32
+        subscript(i: Builtin.Int32) -> Builtin.Int32 {
+            get {
+                return x
+            }
+            set {
+                x = newValue
+            }
+        }
+    }
+    func use() {
+        var b: Buffer
+        let v = b[0]
+        b[0] = 42
+    }
+    """
+    let (context, _) = runTypeChecker([source], installBuiltin: true)
+    let errors = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(errors.isEmpty, "unexpected diagnostics: \(errors)")
+}
+
+@Test func readOnlySubscriptAssignmentDiagnosed() throws {
+    let source = """
+    precedencegroup Assignment { assignment: true }
+    infix operator =: Assignment
+    struct Buffer {
+        var x: Builtin.Int32
+        subscript(i: Builtin.Int32) -> Builtin.Int32 {
+            get {
+                return x
+            }
+        }
+    }
+    func use() {
+        var b: Buffer
+        b[0] = 42
+    }
+    """
+    let (context, _) = runTypeChecker([source], installBuiltin: true)
+    let errors = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(errors.contains { $0.contains("cannot assign to subscript") }, "got: \(errors)")
+}
+
+@Test func subscriptWithSetterDeclOnly() throws {
+    let source = """
+    precedencegroup Assignment { assignment: true }
+    infix operator =: Assignment
+    struct Buffer {
+        var x: Builtin.Int32
+        subscript(i: Builtin.Int32) -> Builtin.Int32 {
+            get {
+                return x
+            }
+            set {
+                x = newValue
+            }
+        }
+    }
+    """
+    let (context, _) = runTypeChecker([source], installBuiltin: true)
+    let errors = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(errors.isEmpty, "unexpected diagnostics: \(errors)")
+}
+
+@Test func subscriptOverloadResolutionByArgumentType() throws {
+    let source = """
+    precedencegroup Assignment { assignment: true }
+    infix operator =: Assignment
+    struct Buffer {
+        var x: Builtin.Int32
+        subscript(i: Builtin.Int32) -> Builtin.Int32 {
+            get {
+                return x
+            }
+            set {
+                x = newValue
+            }
+        }
+        subscript(s: Builtin.Int64) -> Builtin.Int64 {
+            get {
+                return 0
+            }
+            set {
+                x = 0
+            }
+        }
+    }
+    func use() {
+        var b: Buffer
+        let a = b[1]
+        let c = b[1]
+        b[2] = 3
+    }
+    """
+    let (context, programs) = runTypeChecker([source], installBuiltin: true)
+    let errors = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(errors.isEmpty, "unexpected diagnostics: \(errors)")
+}
+
+@Test func compoundAssignmentOnSubscript() throws {
+    let source = """
+    precedencegroup Assignment { assignment: true }
+    precedencegroup Additive { higherThan: Assignment }
+    infix operator =: Assignment
+    infix operator +=: Additive
+    func +=(lhs: Builtin.Int32, rhs: Builtin.Int32) -> Builtin.Int32 {
+        return Builtin.builtin_add_int32(lhs, rhs)
+    }
+    struct Buffer {
+        var x: Builtin.Int32
+        subscript(i: Builtin.Int32) -> Builtin.Int32 {
+            get {
+                return x
+            }
+            set {
+                x = newValue
+            }
+        }
+    }
+    func use() {
+        var b: Buffer
+        b[1] += 2
+    }
+    """
+    let (context, _) = runTypeChecker([source], installBuiltin: true)
+    let errors = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(errors.isEmpty, "unexpected diagnostics: \(errors)")
+}
+
+@Test func keyPathSubscriptComponentResolution() throws {
+    let source = """
+    struct Box {
+        var value: Builtin.Int32
+    }
+    struct Holder {
+        var box: Box
+        subscript(i: Builtin.Int32) -> Builtin.Int32 {
+            get {
+                return box.value
+            }
+        }
+    }
+    func use() {
+        var h: Holder
+        let k = \\h[0]
+        let k2 = \\h.box
+    }
+    """
+    let (context, _) = runTypeChecker([source], installBuiltin: true)
+    let errors = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(errors.isEmpty, "unexpected diagnostics: \(errors)")
+}
+
+@Test func sizeofExpressionType() throws {
+    let source = """
+    func f() -> Builtin.UInt64 {
+        return sizeof(Builtin.Int32)
+    }
+    """
+    let (context, programs) = runTypeChecker([source], installBuiltin: true)
+    let errors = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(errors.isEmpty, "unexpected diagnostics: \(errors)")
+    let functionDecl = programs[0].statements[0] as! AST.FunctionDecl
+    let ret = try #require(functionDecl.body as? AST.FunctionDecl.Body)
+    if case let .Block(statements) = ret {
+        let returnStmt = try #require(statements[0] as? AST.Return)
+        let sizeofExpr = try #require(returnStmt.value as? AST.SizeofExpression)
+        #expect(sizeofExpr.ty is TrussType.BuiltinType)
+        #expect((sizeofExpr.ty as! TrussType.BuiltinType).name == "UInt64")
+    }
+}
+
+@Test func sizeofProtocolTypeDiagnosed() throws {
+    let source = """
+    protocol P {}
+    func f() -> Builtin.UInt64 {
+        return sizeof(P)
+    }
+    """
+    let (context, _) = runTypeChecker([source], installBuiltin: true)
+    let errors = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(errors.contains { $0.contains("cannot determine size of protocol type") }, "got: \(errors)")
+}
+
+@Test func sizeofGenericParameterAllowed() throws {
+    let source = """
+    func sizeOf<T>(x: T) -> Builtin.UInt64 {
+        return sizeof(T)
+    }
+    """
+    let (context, _) = runTypeChecker([source], installBuiltin: true)
+    let errors = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(errors.isEmpty, "unexpected diagnostics: \(errors)")
+}

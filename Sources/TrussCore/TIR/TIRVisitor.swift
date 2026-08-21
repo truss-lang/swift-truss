@@ -53,7 +53,6 @@ extension TIR {
             nil
         }
 
-
         @discardableResult
         open func visitReturn(_ instruction: Return, additional: Any? = nil) -> Any? { nil }
 
@@ -123,6 +122,9 @@ extension TIR {
 
         @discardableResult
         open func visitStore(_ instruction: Store, additional: Any? = nil) -> Any? { nil }
+
+        @discardableResult
+        open func visitSizeOf(_ instruction: SizeOf, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
         open func visitStructElementAddr(

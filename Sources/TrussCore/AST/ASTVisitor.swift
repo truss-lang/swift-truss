@@ -533,7 +533,6 @@ extension AST {
             nil
         }
 
-
         @discardableResult
         open func visitVoidLiteral(
             _ voidLiteral: AST.VoidLiteral, additional: Any? = nil

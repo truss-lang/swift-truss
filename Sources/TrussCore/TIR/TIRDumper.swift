@@ -191,6 +191,8 @@ public extension TIR {
                 body = "load \(typeText(load.ty)), ptr \(valueText(load.ptr))"
             case let store as Store:
                 body = "store \(typeText(store.value.ty)) \(valueText(store.value)), ptr \(valueText(store.ptr))"
+            case let sizeOf as SizeOf:
+                body = "sizeof \(typeText(sizeOf.sizedType))"
             case let structAddr as StructElementAddr:
                 body =
                     "structelementaddr \(typeText(structAddr.base.ty)) \(valueText(structAddr.base)), \(structAddr.index)"

@@ -2734,6 +2734,11 @@ public final class Parser {
             guard case .Identifier = t2.kind else {
                 break
             }
+            if t2.value != "get", t2.value != "set", t2.value != "willSet",
+               t2.value != "didSet"
+            {
+                break
+            }
             index += 1
             switch t2.value {
             case "get":

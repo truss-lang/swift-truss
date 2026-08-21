@@ -1041,7 +1041,6 @@ public extension AST {
             return nil
         }
 
-
         @discardableResult
         public override func visitVoidLiteral(
             _ voidLiteral: VoidLiteral, additional: Any? = nil

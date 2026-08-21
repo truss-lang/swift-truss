@@ -438,15 +438,16 @@ public final class NameResolver: AST.Visitor {
         var base = keyPathExpression.root.flatMap { resolvedSymbol($0) }
         for component in keyPathExpression.components {
             guard let baseSymbol = base else { break }
-            if component.name.kind == .Keyword(.SelfKw) {
+            guard let name = component.name else { continue }
+            if component.name?.kind == .Keyword(.SelfKw) {
                 component.symbol = baseSymbol
                 continue
             }
             let (symbol, overloads): (Symbol.Symbol?, [Symbol.FunctionSymbol]?)
             if let typeSymbol = baseSymbol as? Symbol.NominalTypeSymbol {
-                (symbol, overloads) = memberResolution(component.name.value, in: typeSymbol)
+                (symbol, overloads) = memberResolution(name.value, in: typeSymbol)
             } else if let moduleSymbol = baseSymbol as? Symbol.ModuleSymbol {
-                (symbol, overloads) = memberResolution(component.name.value, in: moduleSymbol.scope)
+                (symbol, overloads) = memberResolution(name.value, in: moduleSymbol.scope)
             } else {
                 break
             }

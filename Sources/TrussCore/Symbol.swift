@@ -137,6 +137,7 @@ public enum Symbol {
         public var isBuiltin: Bool = false
         public var functionType: TrussType.FunctionType? = nil
         public var forallType: TrussType.ForallType? = nil
+        public var setterType: TrussType.TrussType? = nil
         public init(
             id: Id.SymbolId, name: String, locals: [VariableSymbol],
             scope: Scope, signature: FunctionSignature, isStatic: Bool = false

@@ -5320,7 +5320,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect((keyPath!.root as? AST.Variable)?.name.value == "Person")
     try #require(keyPath!.components.count == 1)
     #expect(keyPath!.components[0].dotToken.kind == .Operator(.Dot))
-    #expect(keyPath!.components[0].name.value == "name")
+    #expect(keyPath!.components[0].name!.value == "name")
     #expect(keyPath!.components[0].postfix == nil)
 }
 
@@ -5330,7 +5330,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(keyPath != nil)
     #expect(keyPath!.root == nil)
     try #require(keyPath!.components.count == 1)
-    #expect(keyPath!.components[0].name.value == "name")
+    #expect(keyPath!.components[0].name!.value == "name")
 }
 
 @Test func parseKeyPathSelfComponent() throws {
@@ -5339,7 +5339,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(keyPath != nil)
     #expect(keyPath!.root == nil)
     try #require(keyPath!.components.count == 1)
-    #expect(keyPath!.components[0].name.kind == .Keyword(.SelfKw))
+    #expect(keyPath!.components[0].name!.kind == .Keyword(.SelfKw))
 }
 
 @Test func parseKeyPathIntegerComponent() throws {
@@ -5347,7 +5347,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let keyPath = expr as? AST.KeyPathExpression
     try #require(keyPath != nil)
     try #require(keyPath!.components.count == 1)
-    #expect(keyPath!.components[0].name.kind == .IntegerLiteral(0))
+    #expect(keyPath!.components[0].name!.kind == .IntegerLiteral(0))
 }
 
 @Test func parseKeyPathPostfixComponents() throws {
@@ -5355,9 +5355,9 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let keyPath = expr as? AST.KeyPathExpression
     try #require(keyPath != nil)
     try #require(keyPath!.components.count == 2)
-    #expect(keyPath!.components[0].name.value == "name")
+    #expect(keyPath!.components[0].name!.value == "name")
     #expect(keyPath!.components[0].postfix?.kind == .Operator(.Not))
-    #expect(keyPath!.components[1].name.value == "age")
+    #expect(keyPath!.components[1].name!.value == "age")
     #expect(keyPath!.components[1].postfix == nil)
 }
 
@@ -5366,10 +5366,10 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let keyPath = expr as? AST.KeyPathExpression
     try #require(keyPath != nil)
     try #require(keyPath!.components.count == 2)
-    #expect(keyPath!.components[0].name.value == "age")
+    #expect(keyPath!.components[0].name!.value == "age")
     #expect(keyPath!.components[0].postfix == nil)
     #expect(keyPath!.components[1].dotToken.kind == .Operator(.QuestionMarkDot))
-    #expect(keyPath!.components[1].name.value == "city")
+    #expect(keyPath!.components[1].name!.value == "city")
 }
 
 @Test func parseKeyPathRootPostfix() throws {
@@ -5379,7 +5379,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect((keyPath!.root as? AST.Variable)?.name.value == "A")
     #expect(keyPath!.rootPostfix?.kind == .Operator(.Not))
     try #require(keyPath!.components.count == 1)
-    #expect(keyPath!.components[0].name.value == "b")
+    #expect(keyPath!.components[0].name!.value == "b")
 }
 
 @Test func parseKeyPathDottedRoot() throws {
@@ -5388,8 +5388,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(keyPath != nil)
     #expect((keyPath!.root as? AST.Variable)?.name.value == "A")
     try #require(keyPath!.components.count == 2)
-    #expect(keyPath!.components[0].name.value == "b")
-    #expect(keyPath!.components[1].name.value == "c")
+    #expect(keyPath!.components[0].name!.value == "b")
+    #expect(keyPath!.components[1].name!.value == "c")
 }
 
 @Test func parseKeyPathMissingComponentReportsError() {
@@ -6215,7 +6215,13 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let returnType = subDecl!.returnType as? AST.Variable
     try #require(returnType != nil)
     #expect(returnType!.name.value == "Int")
-    #expect(subDecl!.body.count == 1)
+    #expect(subDecl!.accessors.count == 1)
+    #expect(subDecl!.accessors[0].kind == .Get)
+    if case let .Block(statements) = subDecl!.accessors[0].body {
+        #expect(statements.count == 1)
+    } else {
+        Issue.record("expected block getter body")
+    }
 }
 
 @Test func parseSubscriptDeclNoParameters() throws {
@@ -6237,7 +6243,9 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(structDecl != nil)
     let subDecl = structDecl!.body[0] as? AST.SubscriptDecl
     try #require(subDecl != nil)
-    #expect(subDecl!.body.count == 2)
+    #expect(subDecl!.accessors.count == 2)
+    #expect(subDecl!.accessors[0].kind == .Get)
+    #expect(subDecl!.accessors[1].kind == .Set)
 }
 
 @Test func parseSubscriptDeclMultipleParameters() throws {

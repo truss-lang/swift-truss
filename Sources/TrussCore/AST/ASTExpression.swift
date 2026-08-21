@@ -178,7 +178,6 @@ public extension AST {
         }
     }
 
-
     final class VoidLiteral: Literal {
         public let openToken: Token
         public let closeToken: Token
@@ -1037,6 +1036,7 @@ public extension AST {
     final class SizeofExpression: Expression {
         public let token: Token
         public let type: Expression
+        public var typeType: TrussType.TrussType? = nil
         public init(_ token: Token, _ type: Expression, sourceRange: SourceRange) {
             self.token = token
             self.type = type
