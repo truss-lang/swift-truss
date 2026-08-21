@@ -1039,10 +1039,10 @@ extension AST {
         }
 
         @discardableResult
-        open override func visitNullPointerLiteral(
-            _ nullPointerLiteral: AST.NullPointerLiteral, additional: Any? = nil
+        open override func visitNullptrLiteral(
+            _ nullptrLiteral: AST.NullptrLiteral, additional: Any? = nil
         ) -> Any? {
-            nullPointerLiteral
+            nullptrLiteral
         }
 
         @discardableResult

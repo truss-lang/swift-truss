@@ -166,7 +166,7 @@ public extension AST {
         }
     }
 
-    final class NullPointerLiteral: Literal {
+    final class NullptrLiteral: Literal {
         public let token: Token
         public init(_ token: Token, sourceRange: SourceRange) {
             self.token = token
@@ -174,9 +174,10 @@ public extension AST {
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitNullPointerLiteral(self, additional: additional)
+            visitor.visitNullptrLiteral(self, additional: additional)
         }
     }
+
 
     final class VoidLiteral: Literal {
         public let openToken: Token

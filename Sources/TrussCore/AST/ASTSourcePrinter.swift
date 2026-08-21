@@ -868,10 +868,10 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitNullPointerLiteral(
-        _ nullPointerLiteral: AST.NullPointerLiteral, additional: Any? = nil
+    public override func visitNullptrLiteral(
+        _ nullptrLiteral: AST.NullptrLiteral, additional: Any? = nil
     ) -> Any? {
-        state.write(nullPointerLiteral.token.value)
+        state.write(nullptrLiteral.token.value)
         return nil
     }
 

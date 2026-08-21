@@ -1032,12 +1032,13 @@ public extension AST {
         }
 
         @discardableResult
-        public override func visitNullPointerLiteral(
-            _ nullPointerLiteral: NullPointerLiteral, additional: Any? = nil
+        public override func visitNullptrLiteral(
+            _ nullPointerLiteral: NullptrLiteral, additional: Any? = nil
         ) -> Any? {
             dumpNode("NullPointerLiteral" + tyText(nullPointerLiteral.ty))
             return nil
         }
+
 
         @discardableResult
         public override func visitVoidLiteral(

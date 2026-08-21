@@ -527,11 +527,12 @@ extension AST {
         }
 
         @discardableResult
-        open func visitNullPointerLiteral(
-            _ nullPointerLiteral: AST.NullPointerLiteral, additional: Any? = nil
+        open func visitNullptrLiteral(
+            _ nullptrLiteral: AST.NullptrLiteral, additional: Any? = nil
         ) -> Any? {
             nil
         }
+
 
         @discardableResult
         open func visitVoidLiteral(
