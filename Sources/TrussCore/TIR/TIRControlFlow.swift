@@ -1,9 +1,9 @@
 public extension TIR {
     final class Return: Instruction {
         public let value: Value?
-        public init(value: Value? = nil, ty: Id.TIRTypeId) {
+        public init(value: Value? = nil) {
             self.value = value
-            super.init(ty: ty, name: "")
+            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -15,7 +15,7 @@ public extension TIR {
         public let target: BasicBlock
         public init(target: BasicBlock) {
             self.target = target
-            super.init(ty: target.function!.module!.registry.voidType().id, name: "")
+            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -31,7 +31,7 @@ public extension TIR {
             self.condition = condition
             self.trueBranch = trueBranch
             self.falseBranch = falseBranch
-            super.init(ty: trueBranch.function!.module!.registry.voidType().id, name: "")
+            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -40,8 +40,8 @@ public extension TIR {
     }
 
     final class Unreachable: Instruction {
-        public init(registry: Registry) {
-            super.init(ty: registry.voidType().id, name: "")
+        public init() {
+            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -60,10 +60,11 @@ public extension TIR {
         }
 
         public let incomings: [Incoming]
+        public var result: Value
         public init(incomings: [Incoming], ty: Id.TIRTypeId, name: String) {
             self.incomings = incomings
-            super.init(ty: ty, name: name)
             result = InstructionResult(ty: ty, name: name)
+            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -84,11 +85,11 @@ public extension TIR {
         public let value: Value
         public let cases: [Case]
         public let defaultBlock: BasicBlock?
-        public init(registry: Registry, value: Value, cases: [Case], defaultBlock: BasicBlock?) {
+        public init(value: Value, cases: [Case], defaultBlock: BasicBlock?) {
             self.value = value
             self.cases = cases
             self.defaultBlock = defaultBlock
-            super.init(ty: registry.voidType().id, name: "")
+            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -98,10 +99,11 @@ public extension TIR {
 
     final class ExtractPayload: Instruction {
         public let value: Value
+        public var result: Value
         public init(value: Value, ty: Id.TIRTypeId, name: String) {
             self.value = value
-            super.init(ty: ty, name: name)
             result = InstructionResult(ty: ty, name: name)
+            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

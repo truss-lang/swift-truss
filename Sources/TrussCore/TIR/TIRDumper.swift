@@ -159,7 +159,7 @@ public extension TIR {
                 let incomings = phi.incomings.map { incoming in
                     "[" + valueText(incoming.value) + ", %" + incoming.block.name + "]"
                 }
-                body = "phi \(typeText(phi.ty)) " + incomings.joined(separator: ", ")
+                body = "phi \(typeText(phi.result.ty)) " + incomings.joined(separator: ", ")
             case let switchEnum as SwitchEnum:
                 var text = "switch \(typeText(switchEnum.value.ty)) \(valueText(switchEnum.value))"
                 if let defaultBlock = switchEnum.defaultBlock {
@@ -172,9 +172,10 @@ public extension TIR {
             case let extract as ExtractPayload:
                 body = "extractpayload \(typeText(extract.value.ty)) \(valueText(extract.value))"
             case let arith as UnaryArith:
-                body = "\(arith.op.rawValue) \(typeText(arith.ty)) \(valueText(arith.operand))"
+                body = "\(arith.op.rawValue) \(typeText(arith.result.ty)) \(valueText(arith.operand))"
             case let arith as BinaryArith:
-                body = "\(arith.op.rawValue) \(typeText(arith.ty)) \(valueText(arith.lhs)), \(valueText(arith.rhs))"
+                body =
+                    "\(arith.op.rawValue) \(typeText(arith.result.ty)) \(valueText(arith.lhs)), \(valueText(arith.rhs))"
             case let alloc as AllocStack:
                 body = "alloca \(typeText(alloc.allocatedType))"
             case let dealloc as DeallocStack:
@@ -188,7 +189,7 @@ public extension TIR {
             case let dealloc as DeallocCell:
                 body = "dealloccell \(valueText(dealloc.value))"
             case let load as Load:
-                body = "load \(typeText(load.ty)), ptr \(valueText(load.ptr))"
+                body = "load \(typeText(load.result.ty)), ptr \(valueText(load.ptr))"
             case let store as Store:
                 body = "store \(typeText(store.value.ty)) \(valueText(store.value)), ptr \(valueText(store.ptr))"
             case let sizeOf as SizeOf:
@@ -204,22 +205,25 @@ public extension TIR {
             case let project as ProjectCell:
                 body = "projectcell \(valueText(project.cell))"
             case let structValue as StructValue:
-                body = "structvalue \(typeText(structValue.ty)) (" + structValue.fields.map { valueText($0) }
+                body = "structvalue \(typeText(structValue.result.ty)) (" + structValue.fields.map { valueText($0) }
                     .joined(separator: ", ") + ")"
             case let tupleValue as TupleValue:
-                body = "tuplevalue \(typeText(tupleValue.ty)) (" + tupleValue.elements.map { valueText($0) }
+                body = "tuplevalue \(typeText(tupleValue.result.ty)) (" + tupleValue.elements.map { valueText($0) }
                     .joined(separator: ", ") + ")"
             case let enumValue as EnumValue:
-                var text = "enumvalue \(typeText(enumValue.ty)) case \(enumValue.caseIndex)"
+                var text = "enumvalue \(typeText(enumValue.result.ty)) case \(enumValue.caseIndex)"
                 if let payload = enumValue.payload {
                     text += ", \(valueText(payload))"
                 }
                 body = text
             case let call as Call:
-                body = "call \(typeText(call.ty)) \(valueText(call.callee))(" + call.arguments.map { valueText($0) }
+                body = "call \(typeText(call.result?.ty ?? registry!.voidType().id)) \(valueText(call.callee))(" + call
+                    .arguments.map { valueText($0) }
                     .joined(separator: ", ") + ")"
             case let tryCall as TryCall:
-                var text = "trycall \(typeText(tryCall.ty)) \(valueText(tryCall.callee))(" + tryCall.arguments
+                var text =
+                    "trycall \(typeText(tryCall.result?.ty ?? registry!.voidType().id)) \(valueText(tryCall.callee))(" +
+                    tryCall.arguments
                     .map { valueText($0) }
                     .joined(separator: ", ") + ") to " + blockLabel(tryCall.successBlock) + ", error " +
                     blockLabel(tryCall.errorBlock)

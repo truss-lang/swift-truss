@@ -1,9 +1,9 @@
 public extension TIR {
     final class Retain: Instruction {
         public let value: Value
-        public init(registry: Registry, value: Value) {
+        public init(value: Value) {
             self.value = value
-            super.init(ty: registry.voidType().id, name: "")
+            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -13,9 +13,9 @@ public extension TIR {
 
     final class Release: Instruction {
         public let value: Value
-        public init(registry: Registry, value: Value) {
+        public init(value: Value) {
             self.value = value
-            super.init(ty: registry.voidType().id, name: "")
+            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -25,10 +25,11 @@ public extension TIR {
 
     final class Copy: Instruction {
         public let value: Value
+        public var result: Value
         public init(value: Value, name: String) {
             self.value = value
-            super.init(ty: value.ty, name: name)
             result = InstructionResult(ty: value.ty, name: name)
+            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -38,9 +39,9 @@ public extension TIR {
 
     final class Destroy: Instruction {
         public let value: Value
-        public init(registry: Registry, value: Value) {
+        public init(value: Value) {
             self.value = value
-            super.init(ty: registry.voidType().id, name: "")
+            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

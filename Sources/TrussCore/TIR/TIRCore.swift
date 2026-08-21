@@ -163,13 +163,10 @@ public enum TIR {
 
     @abstractClass
     public class Instruction {
-        public let ty: Id.TIRTypeId
         public let name: String
         public var sourceRange: SourceRange = TIR.unknownSourceRange
-        public var result: Value?
         @abstractInit
-        public init(ty: Id.TIRTypeId, name: String) {
-            self.ty = ty
+        public init(name: String) {
             self.name = name
         }
 

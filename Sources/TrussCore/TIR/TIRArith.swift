@@ -49,11 +49,12 @@ public extension TIR {
     final class UnaryArith: Instruction {
         public let op: ArithOp
         public let operand: Value
+        public var result: Value
         public init(op: ArithOp, operand: Value, ty: Id.TIRTypeId, name: String) {
             self.op = op
             self.operand = operand
-            super.init(ty: ty, name: name)
             result = InstructionResult(ty: ty, name: name)
+            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -65,12 +66,13 @@ public extension TIR {
         public let op: ArithOp
         public let lhs: Value
         public let rhs: Value
+        public var result: Value
         public init(op: ArithOp, lhs: Value, rhs: Value, ty: Id.TIRTypeId, name: String) {
             self.op = op
             self.lhs = lhs
             self.rhs = rhs
-            super.init(ty: ty, name: name)
             result = InstructionResult(ty: ty, name: name)
+            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
