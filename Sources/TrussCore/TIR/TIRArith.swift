@@ -46,17 +46,35 @@ public extension TIR {
         }
     }
 
-    final class Arith: Instruction {
+    final class UnaryArith: Instruction {
         public let op: ArithOp
-        public let operands: [Value]
-        public init(_ op: ArithOp, operands: [Value], ty: Id.TIRTypeId, name: String) {
+        public let operand: Value
+        public init(op: ArithOp, operand: Value, ty: Id.TIRTypeId, name: String) {
             self.op = op
-            self.operands = operands
+            self.operand = operand
             super.init(ty: ty, name: name)
+            result = InstructionResult(ty: ty, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitArith(self, additional: additional)
+            visitor.visitUnaryArith(self, additional: additional)
+        }
+    }
+
+    final class BinaryArith: Instruction {
+        public let op: ArithOp
+        public let lhs: Value
+        public let rhs: Value
+        public init(op: ArithOp, lhs: Value, rhs: Value, ty: Id.TIRTypeId, name: String) {
+            self.op = op
+            self.lhs = lhs
+            self.rhs = rhs
+            super.init(ty: ty, name: name)
+            result = InstructionResult(ty: ty, name: name)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitBinaryArith(self, additional: additional)
         }
     }
 }

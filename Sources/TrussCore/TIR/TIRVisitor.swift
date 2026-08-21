@@ -7,9 +7,52 @@ extension TIR {
         public init() {}
 
         @discardableResult
+        open func visit(_ value: TIR.Value, additional: Any? = nil) -> Any? {
+            value.accept(self, additional: additional)
+        }
+
+        @discardableResult
         open func visit(_ instruction: TIR.Instruction, additional: Any? = nil) -> Any? {
             instruction.accept(self, additional: additional)
         }
+
+        @discardableResult
+        open func visitParameter(_ parameter: Parameter, additional: Any? = nil) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitIntegerLiteral(
+            _ literal: IntegerLiteral, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitFloatLiteral(_ literal: FloatLiteral, additional: Any? = nil) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitCharLiteral(_ literal: CharLiteral, additional: Any? = nil) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitBoolLiteral(_ literal: BoolLiteral, additional: Any? = nil) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitStringLiteral(_ literal: StringLiteral, additional: Any? = nil) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitNullptrLiteral(_ literal: NullptrLiteral, additional: Any? = nil) -> Any? {
+            nil
+        }
+
 
         @discardableResult
         open func visitReturn(_ instruction: Return, additional: Any? = nil) -> Any? { nil }
@@ -41,7 +84,13 @@ extension TIR {
         }
 
         @discardableResult
-        open func visitArith(_ instruction: Arith, additional: Any? = nil) -> Any? { nil }
+        open func visitUnaryArith(_ instruction: UnaryArith, additional: Any? = nil) -> Any? { nil }
+
+        @discardableResult
+        open func visitBinaryArith(_ instruction: BinaryArith, additional: Any? = nil) -> Any? { nil }
+
+        @discardableResult
+        open func visitGlobalAddr(_ value: GlobalAddr, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
         open func visitAllocStack(_ instruction: AllocStack, additional: Any? = nil) -> Any? { nil }
@@ -76,9 +125,6 @@ extension TIR {
         open func visitStore(_ instruction: Store, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitGlobalAddr(_ instruction: GlobalAddr, additional: Any? = nil) -> Any? { nil }
-
-        @discardableResult
         open func visitStructElementAddr(
             _ instruction: StructElementAddr, additional: Any? = nil
         ) -> Any? {
@@ -93,8 +139,8 @@ extension TIR {
         }
 
         @discardableResult
-        open func visitRefElementAddr(
-            _ instruction: RefElementAddr, additional: Any? = nil
+        open func visitClassElementAddr(
+            _ instruction: ClassElementAddr, additional: Any? = nil
         ) -> Any? {
             nil
         }
@@ -119,6 +165,9 @@ extension TIR {
 
         @discardableResult
         open func visitCall(_ instruction: Call, additional: Any? = nil) -> Any? { nil }
+
+        @discardableResult
+        open func visitFunctionRef(_ instruction: FunctionRef, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
         open func visitTryCall(_ instruction: TryCall, additional: Any? = nil) -> Any? { nil }

@@ -1,4 +1,16 @@
 public extension TIR {
+    final class FunctionRef: Value {
+        public let functionId: Id.TIRFunctionId
+        public init(functionId: Id.TIRFunctionId, ty: Id.TIRTypeId, name: String) {
+            self.functionId = functionId
+            super.init(ty: ty, name: name)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitFunctionRef(self, additional: additional)
+        }
+    }
+
     final class Call: Instruction {
         public let callee: Value
         public let arguments: [Value]
@@ -6,6 +18,7 @@ public extension TIR {
             self.callee = callee
             self.arguments = arguments
             super.init(ty: ty, name: name)
+            result = InstructionResult(ty: ty, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -29,6 +42,7 @@ public extension TIR {
             self.errorBlock = errorBlock
             self.errorCell = errorCell
             super.init(ty: ty, name: name)
+            result = InstructionResult(ty: ty, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -43,6 +57,7 @@ public extension TIR {
             self.function = function
             self.captures = captures
             super.init(ty: function.ty, name: name)
+            result = InstructionResult(ty: function.ty, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

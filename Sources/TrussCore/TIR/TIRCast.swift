@@ -6,6 +6,7 @@ public extension TIR {
             self.value = value
             self.targetType = targetType
             super.init(ty: targetType, name: name)
+            result = InstructionResult(ty: targetType, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -20,6 +21,7 @@ public extension TIR {
             self.value = value
             self.targetType = targetType
             super.init(ty: targetType, name: name)
+            result = InstructionResult(ty: targetType, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

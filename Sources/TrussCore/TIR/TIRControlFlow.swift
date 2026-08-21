@@ -63,6 +63,7 @@ public extension TIR {
         public init(incomings: [Incoming], ty: Id.TIRTypeId, name: String) {
             self.incomings = incomings
             super.init(ty: ty, name: name)
+            result = InstructionResult(ty: ty, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -100,6 +101,7 @@ public extension TIR {
         public init(value: Value, ty: Id.TIRTypeId, name: String) {
             self.value = value
             super.init(ty: ty, name: name)
+            result = InstructionResult(ty: ty, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

@@ -1,11 +1,16 @@
 public extension TIR {
     final class Registry {
         public var functions: [Id.TIRFunctionId: Function] = [:]
+        public var globals: [Id.TIRGlobalId: GlobalVariable] = [:]
         public var types: [Id.TIRTypeId: TIRType.TIRType] = [:]
         public var typeCache: [AnyHashable: TIRType.TIRType] = [:]
         private var voidTy: TIRType.VoidType?
         public var nextFunctionId: Id.TIRFunctionId {
             .init(UInt64(functions.count))
+        }
+
+        public var nextGlobalId: Id.TIRGlobalId {
+            .init(UInt64(globals.count))
         }
 
         public var nextTypeId: Id.TIRTypeId {

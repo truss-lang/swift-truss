@@ -7,6 +7,9 @@ public extension TIR {
         public override init(ty: Id.TIRTypeId, name: String) {
             super.init(ty: ty, name: name)
         }
+
+        @abstract
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any?
     }
 
     final class IntegerLiteral: Literal {
@@ -14,6 +17,10 @@ public extension TIR {
         public init(value: UInt64, ty: Id.TIRTypeId, name: String) {
             self.value = value
             super.init(ty: ty, name: name)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitIntegerLiteral(self, additional: additional)
         }
     }
 
@@ -23,6 +30,10 @@ public extension TIR {
             self.value = value
             super.init(ty: ty, name: name)
         }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitFloatLiteral(self, additional: additional)
+        }
     }
 
     final class CharLiteral: Literal {
@@ -30,6 +41,10 @@ public extension TIR {
         public init(value: Character, ty: Id.TIRTypeId, name: String) {
             self.value = value
             super.init(ty: ty, name: name)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitCharLiteral(self, additional: additional)
         }
     }
 
@@ -39,6 +54,10 @@ public extension TIR {
             self.value = value
             super.init(ty: ty, name: name)
         }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitBoolLiteral(self, additional: additional)
+        }
     }
 
     final class StringLiteral: Literal {
@@ -47,11 +66,20 @@ public extension TIR {
             self.value = value
             super.init(ty: ty, name: name)
         }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitStringLiteral(self, additional: additional)
+        }
     }
 
     final class NullptrLiteral: Literal {
         public override init(ty: Id.TIRTypeId, name: String) {
             super.init(ty: ty, name: name)
         }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitNullptrLiteral(self, additional: additional)
+        }
     }
+
 }

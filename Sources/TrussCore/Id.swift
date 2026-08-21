@@ -34,6 +34,13 @@ public enum Id {
         }
     }
 
+    public struct TIRGlobalId: Hashable, Sendable, Equatable {
+        public let id: UInt64
+        public init(_ id: UInt64) {
+            self.id = id
+        }
+    }
+
     public struct TIRTypeId: Hashable, Sendable, Equatable {
         public let id: UInt64
         public init(_ id: UInt64) {

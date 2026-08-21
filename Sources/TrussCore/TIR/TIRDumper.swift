@@ -24,7 +24,7 @@ public extension TIR {
                     lines.append(contentsOf: global.initializer.map { "  " + instructionText($0) })
                 }
             }
-            let functions = module.registry.functions.values.sorted { $0.id.id < $1.id.id }
+            let functions = module.functions
             if !module.globals.isEmpty, !functions.isEmpty {
                 lines.append("")
             }
@@ -125,8 +125,10 @@ public extension TIR {
                     .replacingOccurrences(of: "\"", with: "\\\"") + "\""
             case _ as NullptrLiteral:
                 "null"
-            case let function as TIR.Function:
-                "@" + function.name
+            case let function as FunctionRef:
+                registry?.functions[function.functionId].map { "@" + $0.name } ?? "?"
+            case let globalAddr as GlobalAddr:
+                registry?.globals[globalAddr.globalId].map { "@" + $0.name } ?? "?"
             default:
                 "%" + value.name
             }
@@ -169,9 +171,10 @@ public extension TIR {
                 body = text
             case let extract as ExtractPayload:
                 body = "extractpayload \(typeText(extract.value.ty)) \(valueText(extract.value))"
-            case let arith as Arith:
-                let operandText = arith.operands.map { valueText($0) }.joined(separator: ", ")
-                body = "\(arith.op.rawValue) \(typeText(arith.ty)) \(operandText)"
+            case let arith as UnaryArith:
+                body = "\(arith.op.rawValue) \(typeText(arith.ty)) \(valueText(arith.operand))"
+            case let arith as BinaryArith:
+                body = "\(arith.op.rawValue) \(typeText(arith.ty)) \(valueText(arith.lhs)), \(valueText(arith.rhs))"
             case let alloc as AllocStack:
                 body = "alloca \(typeText(alloc.allocatedType))"
             case let dealloc as DeallocStack:
@@ -188,15 +191,13 @@ public extension TIR {
                 body = "load \(typeText(load.ty)), ptr \(valueText(load.ptr))"
             case let store as Store:
                 body = "store \(typeText(store.value.ty)) \(valueText(store.value)), ptr \(valueText(store.ptr))"
-            case let globalAddr as GlobalAddr:
-                body = "globaladdr @\(globalAddr.global.name)"
             case let structAddr as StructElementAddr:
                 body =
                     "structelementaddr \(typeText(structAddr.base.ty)) \(valueText(structAddr.base)), \(structAddr.index)"
             case let tupleAddr as TupleElementAddr:
                 body =
                     "tupleelementaddr \(typeText(tupleAddr.base.ty)) \(valueText(tupleAddr.base)), \(tupleAddr.index)"
-            case let refAddr as RefElementAddr:
+            case let refAddr as ClassElementAddr:
                 body = "refelementaddr \(typeText(refAddr.base.ty)) \(valueText(refAddr.base)), \(refAddr.index)"
             case let project as ProjectCell:
                 body = "projectcell \(valueText(project.cell))"

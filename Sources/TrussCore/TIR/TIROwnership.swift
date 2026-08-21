@@ -28,6 +28,7 @@ public extension TIR {
         public init(value: Value, name: String) {
             self.value = value
             super.init(ty: value.ty, name: name)
+            result = InstructionResult(ty: value.ty, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

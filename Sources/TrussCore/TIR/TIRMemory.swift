@@ -4,6 +4,7 @@ public extension TIR {
         public init(registry: TIR.Registry, allocatedType: Id.TIRTypeId, name: String) {
             self.allocatedType = allocatedType
             super.init(ty: registry.pointerType(pointee: allocatedType).id, name: name)
+            result = InstructionResult(ty: self.ty, name: self.name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -28,6 +29,7 @@ public extension TIR {
         public init(registry: TIR.Registry, allocatedType: Id.TIRTypeId, name: String) {
             self.allocatedType = allocatedType
             super.init(ty: registry.pointerType(pointee: allocatedType).id, name: name)
+            result = InstructionResult(ty: self.ty, name: self.name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -52,6 +54,7 @@ public extension TIR {
         public init(registry: TIR.Registry, allocatedType: Id.TIRTypeId, name: String) {
             self.allocatedType = allocatedType
             super.init(ty: registry.pointerType(pointee: allocatedType).id, name: name)
+            result = InstructionResult(ty: self.ty, name: self.name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -76,6 +79,7 @@ public extension TIR {
         public init(ptr: Value, ty: Id.TIRTypeId, name: String) {
             self.ptr = ptr
             super.init(ty: ty, name: name)
+            result = InstructionResult(ty: ty, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -97,11 +101,11 @@ public extension TIR {
         }
     }
 
-    final class GlobalAddr: Instruction {
-        public let global: GlobalVariable
-        public init(registry: Registry, global: GlobalVariable, name: String) {
-            self.global = global
-            super.init(ty: registry.pointerType(pointee: global.type).id, name: name)
+    final class GlobalAddr: Value {
+        public let globalId: Id.TIRGlobalId
+        public init(globalId: Id.TIRGlobalId, ty: Id.TIRTypeId, name: String) {
+            self.globalId = globalId
+            super.init(ty: ty, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -116,6 +120,7 @@ public extension TIR {
             self.base = base
             self.index = index
             super.init(ty: registry.elementPointerType(base: base.ty, at: index), name: name)
+            result = InstructionResult(ty: self.ty, name: self.name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -130,6 +135,7 @@ public extension TIR {
             self.base = base
             self.index = index
             super.init(ty: registry.elementPointerType(base: base.ty, at: index), name: name)
+            result = InstructionResult(ty: self.ty, name: self.name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -137,17 +143,18 @@ public extension TIR {
         }
     }
 
-    final class RefElementAddr: Instruction {
+    final class ClassElementAddr: Instruction {
         public let base: Value
         public let index: Int
         public init(registry: Registry, base: Value, index: Int, name: String) {
             self.base = base
             self.index = index
             super.init(ty: registry.elementPointerType(base: base.ty, at: index), name: name)
+            result = InstructionResult(ty: self.ty, name: self.name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitRefElementAddr(self, additional: additional)
+            visitor.visitClassElementAddr(self, additional: additional)
         }
     }
 
@@ -156,6 +163,7 @@ public extension TIR {
         public init(registry: Registry, cell: Value, name: String) {
             self.cell = cell
             super.init(ty: cell.ty, name: name)
+            result = InstructionResult(ty: self.ty, name: self.name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
