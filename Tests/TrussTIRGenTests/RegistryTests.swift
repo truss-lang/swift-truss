@@ -79,4 +79,93 @@ import TrussCore
         let registry = TIR.Registry()
         #expect(registry.type(Id.TIRTypeId(99)) == nil)
     }
+
+    @Test func producingInstructionsCarryResultValue() {
+        let registry = TIR.Registry()
+        let i32 = registry.integerType(isSigned: true, bitWidth: 32).id
+        let module = TIR.Module(registry: registry)
+        let f = module.addFunction(
+            name: "f", parameters: [], returnType: i32, isVariadic: false, isExtern: false,
+            callingConvention: nil
+        )
+        let block = f.addBasicBlock(name: "entry")
+        let builder = TIR.Builder(registry: registry)
+        builder.insertPoint = block
+        let lit = builder.buildIntegerLiteral(value: 10, ty: i32)
+        let add = builder.buildBinaryArith(op: .Add, lhs: lit, rhs: lit, name: "add")
+        #expect(add.result.ty == i32)
+        #expect(add.result.name == "add")
+    }
+
+    @Test func voidInstructionsHaveNoResult() {
+        let registry = TIR.Registry()
+        let i32 = registry.integerType(isSigned: true, bitWidth: 32).id
+        let module = TIR.Module(registry: registry)
+        let f = module.addFunction(
+            name: "f", parameters: [], returnType: i32, isVariadic: false, isExtern: false,
+            callingConvention: nil
+        )
+        let block = f.addBasicBlock(name: "entry")
+        let builder = TIR.Builder(registry: registry)
+        builder.insertPoint = block
+        let ret = builder.buildReturn(nil)
+        let branch = builder.buildBranch(to: block)
+        #expect(ret.value == nil)
+        #expect(branch.target === block)
+        #expect(ret is TIR.Return)
+        #expect(branch is TIR.Branch)
+    }
+
+    @Test func literalsAreValuesNotInstructions() {
+        let registry = TIR.Registry()
+        let i32 = registry.integerType(isSigned: true, bitWidth: 32).id
+        let module = TIR.Module(registry: registry)
+        let f = module.addFunction(
+            name: "f", parameters: [], returnType: i32, isVariadic: false, isExtern: false,
+            callingConvention: nil
+        )
+        let block = f.addBasicBlock(name: "entry")
+        let builder = TIR.Builder(registry: registry)
+        builder.insertPoint = block
+        let lit = builder.buildIntegerLiteral(value: 42, ty: i32, name: "c")
+        #expect(lit is TIR.Value)
+        #expect(!(lit is TIR.Instruction))
+        #expect(block.instructions.isEmpty)
+        let add = builder.buildBinaryArith(op: .Add, lhs: lit, rhs: lit, name: "add")
+        #expect(block.instructions.count == 1)
+        #expect(add.lhs === lit)
+    }
+
+    @Test func functionRefAndGlobalAddrAreValues() {
+        let registry = TIR.Registry()
+        let i32 = registry.integerType(isSigned: true, bitWidth: 32).id
+        let module = TIR.Module(registry: registry)
+        let global = module.addGlobal(name: "g", type: i32, isExtern: false)
+        let f = module.addFunction(
+            name: "f", parameters: [], returnType: i32, isVariadic: false, isExtern: false,
+            callingConvention: nil
+        )
+        let block = f.addBasicBlock(name: "entry")
+        let builder = TIR.Builder(registry: registry)
+        builder.insertPoint = block
+        let funcRef = builder.buildFunctionRef(function: f, name: "f")
+        let globalAddr = builder.buildGlobalAddr(global: global, name: "g")
+        #expect(funcRef is TIR.Value)
+        #expect(!(funcRef is TIR.Instruction))
+        #expect(globalAddr is TIR.Value)
+        #expect(!(globalAddr is TIR.Instruction))
+        #expect(block.instructions.isEmpty)
+    }
+
+    @Test func parameterIsValue() {
+        let registry = TIR.Registry()
+        let i32 = registry.integerType(isSigned: true, bitWidth: 32).id
+        let module = TIR.Module(registry: registry)
+        let f = module.addFunction(
+            name: "f", parameters: [TIR.Parameter(ty: i32, name: "p")], returnType: i32,
+            isVariadic: false, isExtern: false, callingConvention: nil
+        )
+        #expect(f.parameters[0] is TIR.Value)
+        #expect(f.parameters[0].ty == i32)
+    }
 }

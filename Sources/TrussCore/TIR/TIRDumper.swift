@@ -45,7 +45,14 @@ public extension TIR {
             }
             lines.append("define " + signature + attributes + " {")
             for block in function.basicBlocks {
-                lines.append(block.name + ":")
+                if block.parameters.isEmpty {
+                    lines.append(block.name + ":")
+                } else {
+                    let parameters = block.parameters.map {
+                        "%" + $0.name + ": " + typeText($0.ty)
+                    }
+                    lines.append(block.name + "(" + parameters.joined(separator: ", ") + "):")
+                }
                 for instruction in block.instructions {
                     lines.append("  " + instructionText(instruction))
                 }
@@ -140,7 +147,7 @@ public extension TIR {
 
         private func instructionText(_ instruction: Instruction) -> String {
             let valuePrefix = instruction.name.isEmpty ? "" : "%" + instruction.name + " = "
-            let body: String
+            var body: String
             switch instruction {
             case let ret as Return:
                 if let value = ret.value {
@@ -150,9 +157,20 @@ public extension TIR {
                 }
             case let branch as Branch:
                 body = "br " + blockLabel(branch.target)
+                if !branch.arguments.isEmpty {
+                    body += "(" + branch.arguments.map { valueText($0) }.joined(separator: ", ") + ")"
+                }
             case let cond as ConditionalBranch:
+                var trueTarget = blockLabel(cond.trueBranch)
+                if !cond.trueArguments.isEmpty {
+                    trueTarget += "(" + cond.trueArguments.map { valueText($0) }.joined(separator: ", ") + ")"
+                }
+                var falseTarget = blockLabel(cond.falseBranch)
+                if !cond.falseArguments.isEmpty {
+                    falseTarget += "(" + cond.falseArguments.map { valueText($0) }.joined(separator: ", ") + ")"
+                }
                 body = "br \(typeText(cond.condition.ty)) \(valueText(cond.condition)), "
-                    + blockLabel(cond.trueBranch) + ", " + blockLabel(cond.falseBranch)
+                    + trueTarget + ", " + falseTarget
             case _ as Unreachable:
                 body = "unreachable"
             case let phi as Phi:
@@ -166,7 +184,13 @@ public extension TIR {
                     text += ", " + blockLabel(defaultBlock)
                 }
                 text += " [ "
-                text += switchEnum.cases.map { "i32 \($0.tag), " + blockLabel($0.block) }.joined(separator: ", ")
+                text += switchEnum.cases.map { caseInfo in
+                    var label = blockLabel(caseInfo.block)
+                    if !caseInfo.arguments.isEmpty {
+                        label += "(" + caseInfo.arguments.map { valueText($0) }.joined(separator: ", ") + ")"
+                    }
+                    return "i32 \(caseInfo.tag), " + label
+                }.joined(separator: ", ")
                 text += " ]"
                 body = text
             case let extract as ExtractPayload:

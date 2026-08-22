@@ -22,6 +22,13 @@ extension TIR {
         }
 
         @discardableResult
+        open func visitBlockArgument(
+            _ argument: BlockArgument, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
+
+        @discardableResult
         open func visitIntegerLiteral(
             _ literal: IntegerLiteral, additional: Any? = nil
         ) -> Any? {

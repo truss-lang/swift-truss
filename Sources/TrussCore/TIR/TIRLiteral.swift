@@ -81,5 +81,4 @@ public extension TIR {
             visitor.visitNullptrLiteral(self, additional: additional)
         }
     }
-
 }

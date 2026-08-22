@@ -134,8 +134,18 @@ public enum TIR {
             self.callingConvention = callingConvention
         }
 
-        public func addBasicBlock(name: String? = nil) -> BasicBlock {
-            let bb = BasicBlock(function: self, name: name ?? String(basicBlocks.count))
+        public func addBasicBlock(
+            name: String? = nil,
+            parameters: [(name: String, ty: Id.TIRTypeId)] = []
+        ) -> BasicBlock {
+            let blockName = name ?? String(basicBlocks.count)
+            let blockArguments = parameters.enumerated().map { index, parameter in
+                BlockArgument(
+                    ty: parameter.ty,
+                    name: parameter.name.isEmpty ? String(index) : parameter.name
+                )
+            }
+            let bb = BasicBlock(function: self, name: blockName, parameters: blockArguments)
             basicBlocks.append(bb)
             return bb
         }
@@ -151,13 +161,27 @@ public enum TIR {
         }
     }
 
+    public final class BlockArgument: Value {
+        public let index: Int
+        public init(ty: Id.TIRTypeId, name: String, index: Int = 0) {
+            self.index = index
+            super.init(ty: ty, name: name)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitBlockArgument(self, additional: additional)
+        }
+    }
+
     public final class BasicBlock {
         public weak var function: Function?
         public let name: String
+        public let parameters: [Value]
         public var instructions: [Instruction] = []
-        public init(function: Function, name: String) {
+        public init(function: Function, name: String, parameters: [Value] = []) {
             self.function = function
             self.name = name
+            self.parameters = parameters
         }
     }
 

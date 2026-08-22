@@ -13,8 +13,10 @@ public extension TIR {
 
     final class Branch: Instruction {
         public let target: BasicBlock
-        public init(target: BasicBlock) {
+        public let arguments: [Value]
+        public init(target: BasicBlock, arguments: [Value] = []) {
             self.target = target
+            self.arguments = arguments
             super.init(name: "")
         }
 
@@ -27,10 +29,17 @@ public extension TIR {
         public let condition: Value
         public let trueBranch: BasicBlock
         public let falseBranch: BasicBlock
-        public init(condition: Value, trueBranch: BasicBlock, falseBranch: BasicBlock) {
+        public let trueArguments: [Value]
+        public let falseArguments: [Value]
+        public init(
+            condition: Value, trueBranch: BasicBlock, falseBranch: BasicBlock,
+            trueArguments: [Value] = [], falseArguments: [Value] = []
+        ) {
             self.condition = condition
             self.trueBranch = trueBranch
             self.falseBranch = falseBranch
+            self.trueArguments = trueArguments
+            self.falseArguments = falseArguments
             super.init(name: "")
         }
 
@@ -76,9 +85,11 @@ public extension TIR {
         public struct Case {
             public let tag: Int
             public let block: BasicBlock
-            public init(tag: Int, block: BasicBlock) {
+            public let arguments: [Value]
+            public init(tag: Int, block: BasicBlock, arguments: [Value] = []) {
                 self.tag = tag
                 self.block = block
+                self.arguments = arguments
             }
         }
 

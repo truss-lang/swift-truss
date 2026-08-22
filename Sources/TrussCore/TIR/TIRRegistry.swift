@@ -151,21 +151,25 @@ public extension TIR {
         }
 
         public func elementPointerType(base: Id.TIRTypeId, at index: Int) -> Id.TIRTypeId {
-            guard let baseTy = types[base] as? TIRType.PointerType,
-                  let aggregate = types[baseTy.pointee]
-            else {
+            guard let baseTy = types[base] else {
                 return base
             }
-            let elementType: Id.TIRTypeId = switch aggregate {
-            case let structType as TIRType.StructType:
-                structType.fields[index].type
-            case let classType as TIRType.ClassType:
-                classType.fields[index].type
-            case let tupleType as TIRType.TupleType:
-                tupleType.elements[index].type
-            default:
-                base
+            let aggregate: TIRType.TIRType = if let pointerType = baseTy as? TIRType.PointerType {
+                types[pointerType.pointee] ?? baseTy
+            } else {
+                baseTy
             }
+            let elementType: Id.TIRTypeId =
+                switch aggregate {
+                case let structType as TIRType.StructType:
+                    structType.fields[index].type
+                case let classType as TIRType.ClassType:
+                    classType.fields[index].type
+                case let tupleType as TIRType.TupleType:
+                    tupleType.elements[index].type
+                default:
+                    base
+                }
             return pointerType(pointee: elementType).id
         }
 

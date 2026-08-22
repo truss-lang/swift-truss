@@ -53,20 +53,22 @@ public extension TIR {
         }
 
         @discardableResult
-        public func buildBranch(to target: BasicBlock) -> Branch {
+        public func buildBranch(to target: BasicBlock, arguments: [Value] = []) -> Branch {
             guard let insertPoint else { fatalError("no insert point") }
-            let instruction = TIR.Branch(target: target)
+            let instruction = TIR.Branch(target: target, arguments: arguments)
             insertPoint.instructions.append(attach(instruction))
             return instruction
         }
 
         @discardableResult
         public func buildConditionalBranch(
-            condition: Value, trueBranch: BasicBlock, falseBranch: BasicBlock
+            condition: Value, trueBranch: BasicBlock, falseBranch: BasicBlock,
+            trueArguments: [Value] = [], falseArguments: [Value] = []
         ) -> ConditionalBranch {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.ConditionalBranch(
-                condition: condition, trueBranch: trueBranch, falseBranch: falseBranch
+                condition: condition, trueBranch: trueBranch, falseBranch: falseBranch,
+                trueArguments: trueArguments, falseArguments: falseArguments
             )
             insertPoint.instructions.append(attach(instruction))
             return instruction
