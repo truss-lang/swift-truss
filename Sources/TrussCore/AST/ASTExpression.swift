@@ -245,10 +245,15 @@ public extension AST {
         public struct Case {
             public let patterns: [Expression]
             public let body: [Statement]
+            public let whereCondition: Expression?
             public let sourceRange: SourceRange
-            public init(_ patterns: [Expression], _ body: [Statement], sourceRange: SourceRange) {
+            public init(
+                _ patterns: [Expression], _ body: [Statement],
+                whereCondition: Expression? = nil, sourceRange: SourceRange
+            ) {
                 self.patterns = patterns
                 self.body = body
+                self.whereCondition = whereCondition
                 self.sourceRange = sourceRange
             }
         }

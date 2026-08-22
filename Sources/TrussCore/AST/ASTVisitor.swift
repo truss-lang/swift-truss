@@ -568,6 +568,9 @@ extension AST {
                 for pattern in matchCase.patterns {
                     visit(pattern, additional: additional)
                 }
+                if let whereCondition = matchCase.whereCondition {
+                    visit(whereCondition, additional: additional)
+                }
                 for statement in matchCase.body {
                     visit(statement, additional: additional)
                 }

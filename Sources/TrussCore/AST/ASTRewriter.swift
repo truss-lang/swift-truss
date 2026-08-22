@@ -173,8 +173,18 @@ extension AST {
             if !unchanged(matchCase.patterns, patterns) { changed = true }
             let body = rewriteAll(matchCase.body)
             if !unchanged(matchCase.body, body) { changed = true }
+            let whereCondition: Expression?
+            if let oldCondition = matchCase.whereCondition {
+                let newCondition = rewrite(oldCondition)
+                whereCondition = newCondition
+                if newCondition !== oldCondition { changed = true }
+            } else {
+                whereCondition = nil
+            }
             if !changed { return matchCase }
-            return AST.Match.Case(patterns, body, sourceRange: matchCase.sourceRange)
+            return AST.Match.Case(
+                patterns, body, whereCondition: whereCondition, sourceRange: matchCase.sourceRange
+            )
         }
 
         private func rewriteCatchClause(
@@ -1112,7 +1122,16 @@ extension AST {
         private func matchCaseUnchanged(
             _ old: AST.Match.Case, _ new: AST.Match.Case
         ) -> Bool {
-            unchanged(old.patterns, new.patterns) && unchanged(old.body, new.body)
+            if !unchanged(old.patterns, new.patterns) { return false }
+            switch (old.whereCondition, new.whereCondition) {
+            case let (oldCondition?, newCondition?):
+                if oldCondition !== newCondition { return false }
+            case (nil, nil):
+                break
+            default:
+                return false
+            }
+            return unchanged(old.body, new.body)
         }
 
         @discardableResult

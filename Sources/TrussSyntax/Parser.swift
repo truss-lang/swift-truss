@@ -5122,6 +5122,11 @@ public final class Parser {
             }
         }
         inPatternContext = false
+        var whereCondition: AST.Expression?
+        if let whereToken = peek, case .Keyword(.Where) = whereToken.kind {
+            index += 1
+            whereCondition = parseExpression() ?? errorExpression(from: whereToken, to: whereToken)
+        }
         guard let arrowToken = next else {
             emitError("expected '=>' after match case pattern", at: endOfFile)
             return nil
@@ -5168,7 +5173,7 @@ public final class Parser {
                 }
             }
             return AST.Match.Case(
-                patterns, body,
+                patterns, body, whereCondition: whereCondition,
                 sourceRange: SourceRange(from: beginToken, to: last!, in: buffer)
             )
         } else {

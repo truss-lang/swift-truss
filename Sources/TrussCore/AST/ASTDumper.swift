@@ -1086,6 +1086,11 @@ public extension AST {
                             self.dumpNode("Pattern", children: [{ self.visit(pattern) }])
                         }
                     }
+                    if let whereCondition = matchCase.whereCondition {
+                        caseChildren.append {
+                            self.dumpNode("Where", children: [{ self.visit(whereCondition) }])
+                        }
+                    }
                     caseChildren.append(contentsOf: self.statementNodes(matchCase.body))
                     self.dumpNode("Case", children: caseChildren)
                 }

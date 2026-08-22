@@ -2064,6 +2064,9 @@ public final class TypeChecker: AST.Visitor {
                 for pattern in caseItem.patterns {
                     checkPattern(pattern, against: subjectType, at: matchExpression.token)
                 }
+                if let whereCondition = caseItem.whereCondition {
+                    _ = infer(whereCondition, at: matchExpression.token)
+                }
                 for statement in caseItem.body {
                     visit(statement)
                 }

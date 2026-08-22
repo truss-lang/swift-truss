@@ -923,6 +923,10 @@ public final class SourcePrinter: AST.Visitor {
                 if index > 0 { state.write(", ") }
                 visit(pattern)
             }
+            if let whereCondition = matchCase.whereCondition {
+                state.write(" where ")
+                visit(whereCondition)
+            }
             state.write(" =>")
             appendBlock(matchCase.body)
         }
