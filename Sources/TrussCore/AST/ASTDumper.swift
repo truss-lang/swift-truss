@@ -342,19 +342,19 @@ public extension AST {
             var text = "Import "
             text += importStatement.path.components.map { component in
                 switch component {
-                case let .identifier(token), let .self_(token): token.value
+                case let .Identifier(token), let .Self_(token): token.value
                 }
             }.joined(separator: ".")
             switch importStatement.selector {
-            case let .wholeModule(alias):
+            case let .WholeModule(alias):
                 if let alias { text += " as \(alias.value)" }
-            case .wildcard:
+            case .Wildcard:
                 text += ".*"
-            case let .explicit(items):
+            case let .Explicit(items):
                 let rendered = items.map { item in
                     var itemText: String =
                         switch item.kind {
-                        case let .self_(token), let .name(token): token.value
+                        case let .Self_(token), let .Name(token): token.value
                         }
                     if let alias = item.alias { itemText += " as \(alias.value)" }
                     return itemText
@@ -369,7 +369,11 @@ public extension AST {
             _ operatorImport: OperatorImport, additional: Any? = nil
         ) -> Any? {
             var text = "OperatorImport "
-            text += operatorImport.path.map(\.value).joined(separator: ".")
+            text += operatorImport.path.components.map { component in
+                switch component {
+                case let .Identifier(token), let .Self_(token): token.value
+                }
+            }.joined(separator: ".")
             text += renderOperatorSelector(operatorImport.selector)
             dumpNode(text)
             return nil

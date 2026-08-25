@@ -336,16 +336,16 @@ public final class Parser {
         switch first.kind {
         case .Identifier:
             index += 1
-            components.append(.identifier(first))
+            components.append(.Identifier(first))
         case .Keyword(.SelfTypeKw):
             index += 1
-            components.append(.self_(first))
+            components.append(.Self_(first))
         case .Keyword(.SelfKw):
             emitError(
                 "'self' is not allowed in import path, use 'Self' instead", at: first
             )
             index += 1
-            components.append(.self_(first))
+            components.append(.Self_(first))
         default:
             emitError(
                 "expected module path after 'import', but got '\(first.value)'", at: first
@@ -362,7 +362,7 @@ public final class Parser {
             switch afterDot.kind {
             case .Operator(.Multiply):
                 index += 2
-                selector = .wildcard
+                selector = .Wildcard
                 endToken = afterDot
                 if let asToken = peek, case .Keyword(.As) = asToken.kind {
                     emitError("cannot alias a wildcard import", at: asToken)
@@ -401,7 +401,7 @@ public final class Parser {
                 } else {
                     emitError("expected '}' after import items", at: endOfFile)
                 }
-                selector = .explicit(items)
+                selector = .Explicit(items)
                 break _pathLoop
             default:
                 index += 1
@@ -413,21 +413,21 @@ public final class Parser {
                 switch comp.kind {
                 case .Identifier:
                     index += 1
-                    components.append(.identifier(comp))
+                    components.append(.Identifier(comp))
                     endToken = comp
                 case .Keyword(.SelfTypeKw):
                     emitError(
                         "'Self' can only appear at the beginning of an import path", at: comp
                     )
                     index += 1
-                    components.append(.self_(comp))
+                    components.append(.Self_(comp))
                     endToken = comp
                 case .Keyword(.SelfKw):
                     emitError(
                         "'self' is not allowed in import path, use 'Self' instead", at: comp
                     )
                     index += 1
-                    components.append(.self_(comp))
+                    components.append(.Self_(comp))
                     endToken = comp
                 default:
                     emitError(
@@ -468,7 +468,7 @@ public final class Parser {
                     }
                 }
             }
-            selector = .wholeModule(alias: alias)
+            selector = .WholeModule(alias: alias)
         }
 
         return AST.Import(
@@ -478,7 +478,7 @@ public final class Parser {
     }
 
     private func parseOperatorImport(_ importToken: Token) -> AST.Statement {
-        var path: [Token] = []
+        var path: [AST.PathComponent] = []
         guard let first = peek else {
             emitError("expected module name after 'import operator', but got end of file", at: endOfFile)
             return errorStatement(from: importToken, to: endOfFile)
@@ -486,13 +486,13 @@ public final class Parser {
         switch first.kind {
         case .Identifier, .Keyword(.Module):
             index += 1
-            path.append(first)
+            path.append(.Identifier(first))
         case .Keyword(.SelfKw), .Keyword(.SelfTypeKw):
             emitError(
                 "'\(first.value)' is not allowed in operator import path", at: first
             )
             index += 1
-            path.append(first)
+            path.append(.Self_(first))
         default:
             emitError(
                 "expected module name after 'import operator', but got '\(first.value)'",
@@ -515,13 +515,13 @@ public final class Parser {
             }
             if case .Identifier = afterDot.kind {
                 index += 1
-                path.append(afterDot)
+                path.append(.Identifier(afterDot))
                 endToken = afterDot
                 continue
             }
             if case .Keyword(.Module) = afterDot.kind {
                 index += 1
-                path.append(afterDot)
+                path.append(.Identifier(afterDot))
                 endToken = afterDot
                 continue
             }
@@ -557,7 +557,7 @@ public final class Parser {
         }
         if let selector {
             return AST.OperatorImport(
-                importToken, path, selector,
+                importToken, AST.ImportPath(path), selector,
                 sourceRange: SourceRange(from: importToken, to: endToken, in: buffer)
             )
         }
@@ -676,28 +676,28 @@ public final class Parser {
 
     private func parseImportItem() -> AST.ImportItem {
         guard let t = peek else {
-            return AST.ImportItem(.name(errorToken()), alias: nil)
+            return AST.ImportItem(.Name(errorToken()), alias: nil)
         }
         let kind: AST.ImportItem.Kind
         switch t.kind {
         case .Keyword(.SelfKw):
             index += 1
-            kind = .self_(t)
+            kind = .Self_(t)
         case .Identifier:
             index += 1
-            kind = .name(t)
+            kind = .Name(t)
         case .Keyword(.SelfTypeKw):
             emitError(
                 "'Self' is not allowed in import selector, use 'self' instead", at: t
             )
             index += 1
-            kind = .self_(t)
+            kind = .Self_(t)
         default:
             emitError(
                 "expected import item name, but got '\(t.value)'", at: t
             )
             index += 1
-            kind = .name(t)
+            kind = .Name(t)
         }
         var alias: Token? = nil
         if let asToken = peek, case .Keyword(.As) = asToken.kind {

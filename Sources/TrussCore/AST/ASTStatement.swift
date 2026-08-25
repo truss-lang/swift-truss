@@ -47,8 +47,8 @@ public extension AST {
     }
 
     enum PathComponent {
-        case identifier(Token)
-        case self_(Token)
+        case Identifier(Token)
+        case Self_(Token)
     }
 
     struct ImportPath {
@@ -67,15 +67,15 @@ public extension AST {
         }
 
         public enum Kind {
-            case self_(Token)
-            case name(Token)
+            case Self_(Token)
+            case Name(Token)
         }
     }
 
     enum ImportSelector {
-        case wholeModule(alias: Token?)
-        case wildcard
-        case explicit([ImportItem])
+        case WholeModule(alias: Token?)
+        case Wildcard
+        case Explicit([ImportItem])
     }
 
     final class Import: Statement {
@@ -110,10 +110,10 @@ public extension AST {
 
     final class OperatorImport: Statement {
         public let token: Token
-        public let path: [Token]
+        public let path: ImportPath
         public let selector: OperatorImportSelector
         public init(
-            _ token: Token, _ path: [Token], _ selector: OperatorImportSelector,
+            _ token: Token, _ path: ImportPath, _ selector: OperatorImportSelector,
             sourceRange: SourceRange
         ) {
             self.token = token

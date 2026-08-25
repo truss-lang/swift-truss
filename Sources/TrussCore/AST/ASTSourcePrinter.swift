@@ -225,19 +225,19 @@ public final class SourcePrinter: AST.Visitor {
         for (index, component) in importStatement.path.components.enumerated() {
             if index > 0 { state.write(".") }
             switch component {
-            case let .identifier(token), let .self_(token):
+            case let .Identifier(token), let .Self_(token):
                 state.write(token.value)
             }
         }
         switch importStatement.selector {
-        case let .wholeModule(alias):
+        case let .WholeModule(alias):
             if let alias { state.write(" as " + alias.value) }
-        case .wildcard:
+        case .Wildcard:
             state.write(".*")
-        case let .explicit(items):
+        case let .Explicit(items):
             let rendered = items.map { item in
                 var text: String = switch item.kind {
-                case let .self_(token), let .name(token): token.value
+                case let .Self_(token), let .Name(token): token.value
                 }
                 if let alias = item.alias { text += " as " + alias.value }
                 return text
@@ -252,9 +252,12 @@ public final class SourcePrinter: AST.Visitor {
         _ operatorImport: AST.OperatorImport, additional: Any? = nil
     ) -> Any? {
         state.write("import operator ")
-        for (index, component) in operatorImport.path.enumerated() {
+        for (index, component) in operatorImport.path.components.enumerated() {
             if index > 0 { state.write(".") }
-            state.write(component.value)
+            switch component {
+            case let .Identifier(token), let .Self_(token):
+                state.write(token.value)
+            }
         }
         writeOperatorSelector(operatorImport.selector)
         return nil
