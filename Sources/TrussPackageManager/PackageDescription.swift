@@ -1,15 +1,15 @@
 import Foundation
 
 public enum TargetKind: Equatable, Sendable {
-    case executable
-    case staticLibrary
-    case dynamicLibrary
+    case Executable
+    case StaticLibrary
+    case DynamicLibrary
 }
 
 public enum ProductKind: Equatable, Sendable {
-    case executable
-    case staticLibrary
-    case dynamicLibrary
+    case Executable
+    case StaticLibrary
+    case DynamicLibrary
 }
 
 public struct PackageTarget: Equatable, Sendable {

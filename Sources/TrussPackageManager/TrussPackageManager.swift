@@ -202,9 +202,9 @@ public final class TrussPackageManager {
 private extension PackageTarget {
     var kindName: String {
         switch kind {
-        case .executable: "executable"
-        case .staticLibrary: "staticLibrary"
-        case .dynamicLibrary: "dynamicLibrary"
+        case .Executable: "executable"
+        case .StaticLibrary: "staticLibrary"
+        case .DynamicLibrary: "dynamicLibrary"
         }
     }
 }

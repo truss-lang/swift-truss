@@ -17,19 +17,19 @@ struct Truss: AsyncParsableCommand {
             targets: [
                 PackageTarget(
                     name: "Library",
-                    kind: .staticLibrary,
+                    kind: .StaticLibrary,
                     sourcesDirectory: "Sources/Library"
                 ),
                 PackageTarget(
                     name: "App",
-                    kind: .executable,
+                    kind: .Executable,
                     sourcesDirectory: "Sources/App",
                     dependencies: ["Library"]
                 ),
             ],
             products: [
-                PackageProduct(name: "Library", kind: .staticLibrary, targets: ["Library"]),
-                PackageProduct(name: "App", kind: .executable, targets: ["App"]),
+                PackageProduct(name: "Library", kind: .StaticLibrary, targets: ["Library"]),
+                PackageProduct(name: "App", kind: .Executable, targets: ["App"]),
             ]
         )
     }
@@ -75,7 +75,7 @@ struct Run: ParsableCommand {
         guard Truss.examplePackage().targets.contains(where: { $0.name == target }) else {
             throw ValidationError("unknown target '\(target)'")
         }
-        guard Truss.examplePackage().targets.first(where: { $0.name == target })?.kind == .executable else {
+        guard Truss.examplePackage().targets.first(where: { $0.name == target })?.kind == .Executable else {
             throw ValidationError("only executable targets can be run")
         }
         _ = try manager.build()
