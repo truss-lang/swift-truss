@@ -1,671 +1,1194 @@
 import LLVMSwiftBinding
+import SwiftBetterDiagnostic
 import TrussCore
 
 public final class CodeGen: TIR.Visitor {
-    private static let ReferenceHeaderSize = 2
-    private let context: TrussCore.Context
-    private let llvmContext: LLVMSwiftBinding.Context
-    private var currentModule: LLVMSwiftBinding.Module? = nil
-    private var currentRegistry: TIR.Registry? = nil
-    private var builder: LLVMSwiftBinding.Builder? = nil
-    private var currentFunction: FunctionBinding? = nil
-    private var typeMap: [Int: LLVMSwiftBinding.LLVMType] = [:]
-    private var functionMap: [Int: FunctionBinding] = [:]
-    private var valueMap: [ObjectIdentifier: LLVMSwiftBinding.Value] = [:]
+  private static let defaultDataLayout =
+    "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 
-    private struct FunctionBinding {
-        public let function: LLVMSwiftBinding.Function
-        public let basicBlockMap: [ObjectIdentifier: LLVMSwiftBinding.BasicBlock]?
-        public init(
-            function: LLVMSwiftBinding.Function,
-            basicBlockMap: [ObjectIdentifier: LLVMSwiftBinding.BasicBlock]? = nil
-        ) {
-            self.function = function
-            self.basicBlockMap = basicBlockMap
-        }
+  private let context: TrussCore.Context
+  private let llvmContext: LLVMSwiftBinding.Context
+  private let targetTriple: String?
+  private var module: LLVMSwiftBinding.Module?
+  private var registry: TIR.Registry?
+  private var dataLayout: LLVMSwiftBinding.DataLayout?
+  private var builder: LLVMSwiftBinding.Builder?
+  private var currentFunction: LLVMSwiftBinding.Function?
+  private var currentLLVMBlock: LLVMSwiftBinding.BasicBlock?
+  private var typeMap: [Int: LLVMSwiftBinding.LLVMType] = [:]
+  private var functionMap: [Id.TIRFunctionId: LLVMSwiftBinding.Function] = [:]
+  private var globalMap: [Id.TIRGlobalId: LLVMSwiftBinding.GlobalVariable] = [:]
+  private var valueMap: [ObjectIdentifier: LLVMSwiftBinding.Value] = [:]
+  private var blockMap: [ObjectIdentifier: LLVMSwiftBinding.BasicBlock] = [:]
+  private var blockParamPhi: [ObjectIdentifier: [LLVMSwiftBinding.PHINode]] = [:]
+  private var blockArgEdges: [ObjectIdentifier: [BlockArgEdge]] = [:]
+  private var pendingPhiIncoming: [PendingIncoming] = []
+
+  private struct BlockArgEdge {
+    let target: TIR.BasicBlock
+    let args: [TIR.Value]
+    let from: LLVMSwiftBinding.BasicBlock
+  }
+
+  private struct PendingIncoming {
+    let phi: LLVMSwiftBinding.PHINode
+    let value: TIR.Value
+    let block: TIR.BasicBlock
+  }
+
+  public init(
+    context: TrussCore.Context, llvmContext: LLVMSwiftBinding.Context,
+    target: String? = nil
+  ) {
+    self.context = context
+    self.llvmContext = llvmContext
+    targetTriple = target
+    builder = LLVMSwiftBinding.Builder(in: llvmContext)
+  }
+
+  public func generate(_ mod: TIR.Module) -> LLVMSwiftBinding.Module {
+    let llvmModule: LLVMSwiftBinding.Module = .init(name: "module", in: llvmContext)
+    llvmModule.setDataLayout(Self.defaultDataLayout)
+    if let targetTriple {
+      llvmModule.target = LLVMSwiftBinding.TargetMachine.normalizedTriple(targetTriple)
     }
-
-    public init(context: TrussCore.Context, llvmContext: LLVMSwiftBinding.Context) {
-        self.context = context
-        self.llvmContext = llvmContext
+    module = llvmModule
+    registry = mod.registry
+    dataLayout = LLVMSwiftBinding.DataLayout(string: llvmModule.dataLayout.string)
+    typeMap = [:]
+    functionMap = [:]
+    globalMap = [:]
+    valueMap = [:]
+    for global in mod.globals {
+      lowerGlobal(global)
     }
-
-    public func generate(_ mod: TIR.Module) -> LLVMSwiftBinding.Module {
-        let llvmModule: LLVMSwiftBinding.Module = .init(name: "module", in: llvmContext)
-        currentModule = llvmModule
-        currentRegistry = mod.registry
-        typeMap = [:]
-        functionMap = mod.functions.reduce(into: [:]) {
-            $0[$1.id] = createFunction($1)
-        }
-        for tirFunction in mod.functions {
-            guard let llvmFunction = functionMap[tirFunction.id] else { continue }
-            let builder: LLVMSwiftBinding.Builder = .init(in: llvmContext)
-            currentFunction = llvmFunction
-            self.builder = builder
-            valueMap = [:]
-            for (tirArgument, llvmArgument) in zip(tirFunction.arguments, llvmFunction.function.parameters) {
-                valueMap[ObjectIdentifier(tirArgument)] = llvmArgument
-            }
-            for basicBlock in tirFunction.blocks {
-                guard let llvmBasicBlock = llvmFunction.basicBlockMap![ObjectIdentifier(basicBlock)] else {
-                    continue
-                }
-                builder.positionAtEnd(of: llvmBasicBlock)
-                for instruction in basicBlock.instructions {
-                    visit(instruction)
-                }
-            }
-        }
-        return llvmModule
+    for tirFunction in mod.functions {
+      functionMap[tirFunction.id] = createFunctionDecl(tirFunction)
     }
-
-    private func createFunction(_ function: TIR.Function) -> FunctionBinding {
-        let f = createFunctionDecl(function)
-        let basicBlockMap = function.blocks.reduce(into: [:]) {
-            $0[ObjectIdentifier($1)] = f.appendBasicBlock($1.name)
-        }
-        return FunctionBinding(function: f, basicBlockMap: basicBlockMap)
+    for tirFunction in mod.functions {
+      emitFunctionBody(tirFunction)
     }
-
-    private func createFunctionDecl(_ function: TIR.Function) -> LLVMSwiftBinding.Function {
-        guard let currentModule else {
-            fatalError("unreachable")
-        }
-        let returnType = lowerType(function.returnType)
-        let parameterTypes = function.arguments.map {
-            lowerType($0.type)
-        }
-        let functionType = llvmContext.functionType(
-            returnType: returnType,
-            parameterTypes: parameterTypes,
-            isVariadic: function.isVariadic
-        )
-        return currentModule.addFunction(function.name, type: functionType)
+    do {
+      try llvmModule.verify()
+    } catch {
+      context.emitError("verification failed: \(error)", at: TIR.unknownSourceRange)
     }
+    module = nil
+    registry = nil
+    dataLayout = nil
+    currentFunction = nil
+    currentLLVMBlock = nil
+    return llvmModule
+  }
 
-    private func lowerType(_ typeId: Int) -> LLVMSwiftBinding.LLVMType {
-        if let ty = typeMap[typeId] {
-            return ty
+  private func lowerGlobal(_ global: TIR.GlobalVariable) {
+    guard let module else { fatalError("unreachable") }
+    let valueType = lowerType(global.type)
+    let globalType: LLVMSwiftBinding.LLVMType =
+      valueType is LLVMSwiftBinding.FunctionType ? llvmContext.pointerType() : valueType
+    let llvmGlobal = module.addGlobal(global.name, type: globalType)
+    if !global.isExtern {
+      llvmGlobal.initializer = llvmContext.constantNull(globalType)
+    }
+    globalMap[global.id] = llvmGlobal
+  }
+
+  private func createFunctionDecl(_ tirFunction: TIR.Function) -> LLVMSwiftBinding.Function {
+    guard let module else { fatalError("unreachable") }
+    let returnType = lowerType(tirFunction.returnType)
+    let parameterTypes = tirFunction.parameters.map { lowerType($0.ty) }
+    let functionType = llvmContext.functionType(
+      returnType: returnType,
+      parameterTypes: parameterTypes,
+      isVariadic: tirFunction.isVariadic
+    )
+    return module.addFunction(tirFunction.name, type: functionType)
+  }
+
+  private func emitFunctionBody(_ tirFunction: TIR.Function) {
+    let blocks = reachableBlocks(tirFunction)
+    guard !blocks.isEmpty,
+      let llvmFunction = functionMap[tirFunction.id]
+    else { return }
+    currentFunction = llvmFunction
+    currentLLVMBlock = nil
+    valueMap = [:]
+    blockMap = [:]
+    blockParamPhi = [:]
+    blockArgEdges = [:]
+    pendingPhiIncoming = []
+    for (tirParameter, llvmArgument) in zip(
+      tirFunction.parameters, llvmFunction.parameters
+    ) {
+      valueMap[ObjectIdentifier(tirParameter)] = llvmArgument
+    }
+    for block in blocks {
+      blockMap[ObjectIdentifier(block)] = llvmFunction.appendBasicBlock(block.name)
+    }
+    for block in blocks {
+      guard let llvmBlock = blockMap[ObjectIdentifier(block)] else { continue }
+      builder?.positionAtEnd(of: llvmBlock)
+      var phis: [LLVMSwiftBinding.PHINode] = []
+      for parameter in block.parameters {
+        let phi = builder?.buildPhi(lowerType(parameter.ty), name: parameter.name) ?? nil
+        if let phi {
+          valueMap[ObjectIdentifier(parameter)] = phi
+          phis.append(phi)
         }
-        guard let currentRegistry else {
-            fatalError("unreachable")
+      }
+      if !phis.isEmpty {
+        blockParamPhi[ObjectIdentifier(block)] = phis
+      }
+      for instruction in block.instructions {
+        if let phiInstruction = instruction as? TIR.Phi {
+          let phi = builder?.buildPhi(lowerType(phiInstruction.result.ty)) ?? nil
+          if let phi {
+            valueMap[ObjectIdentifier(phiInstruction.result)] = phi
+            for incoming in phiInstruction.incomings {
+              pendingPhiIncoming.append(
+                PendingIncoming(
+                  phi: phi, value: incoming.value, block: incoming.block
+                )
+              )
+            }
+          }
         }
-        guard let type = currentRegistry.type(typeId) else {
-            let lowered = llvmContext.int8
-            typeMap[typeId] = lowered
-            return lowered
+      }
+    }
+    for block in blocks {
+      guard let llvmBlock = blockMap[ObjectIdentifier(block)] else { continue }
+      builder?.positionAtEnd(of: llvmBlock)
+      currentLLVMBlock = llvmBlock
+      for instruction in block.instructions {
+        if instruction is TIR.Phi {
+          continue
         }
-        switch type {
-        case is TIRType.VoidType:
-            let lowered = llvmContext.void
-            typeMap[typeId] = lowered
-            return lowered
-        case let primitive as TIRType.PrimitiveType:
-            let lowered: LLVMSwiftBinding.LLVMType
-            switch primitive.kind {
-            case .Bool:
-                lowered = llvmContext.int1
-            case .Char:
-                lowered = llvmContext.int32
-            case .Signed, .Unsigned:
-                lowered = llvmContext.intType(width: UInt32(primitive.bitWidth))
-            case .Float:
-                switch primitive.bitWidth {
-                case 32:
-                    lowered = llvmContext.float
-                case 64:
-                    lowered = llvmContext.double
-                default:
-                    fatalError("unreachable")
-                }
-            }
-            typeMap[typeId] = lowered
-            return lowered
-        case let functionType as TIRType.FunctionType:
-            let returnType = lowerType(functionType.returnType)
-            let parameterTypes = functionType.parameters.map {
-                lowerType($0.type)
-            }
-            let lowered = llvmContext.functionType(
-                returnType: returnType,
-                parameterTypes: parameterTypes,
-                isVariadic: functionType.isVariadic
-            )
-            typeMap[typeId] = lowered
-            return lowered
-        case let addressType as TIRType.AddressType:
-            let lowered = lowerType(addressType.pointee)
-            typeMap[typeId] = lowered
-            return lowered
-        case let structType as TIRType.StructType:
-            let lowered = llvmContext.namedStructType(name: structType.name)
-            typeMap[typeId] = lowered
-            let elementTypes = structType.fields.map {
-                lowerType($0.type)
-            }
-            lowered.setElementTypes(elementTypes, isPacked: false)
-            return lowered
-        case let refType as TIRType.ReferenceType:
-            let lowered = llvmContext.namedStructType(name: refType.name)
-            typeMap[typeId] = lowered
-            let elementTypes = [llvmContext.pointerType(), llvmContext.int64] + refType.fields.map {
-                lowerType($0.type)
-            }
-            lowered.setElementTypes(elementTypes, isPacked: false)
-            return lowered
+        _ = visit(instruction)
+      }
+    }
+    for (blockID, phis) in blockParamPhi {
+      for edge in blockArgEdges[blockID] ?? [] {
+        for (index, phi) in phis.enumerated() {
+          guard index < edge.args.count,
+            let incoming = value(edge.args[index])
+          else { continue }
+          phi.addIncoming(incoming, from: edge.from)
+        }
+      }
+    }
+    for pending in pendingPhiIncoming {
+      guard let from = blockMap[ObjectIdentifier(pending.block)],
+        let incoming = value(pending.value)
+      else { continue }
+      pending.phi.addIncoming(incoming, from: from)
+    }
+    currentFunction = nil
+    currentLLVMBlock = nil
+  }
+
+  private func reachableBlocks(_ function: TIR.Function) -> [TIR.BasicBlock] {
+    guard let entry = function.basicBlocks.first else { return [] }
+    var visited: Set<ObjectIdentifier> = []
+    var queue: [TIR.BasicBlock] = [entry]
+    var result: [TIR.BasicBlock] = []
+    while let block = queue.first {
+      queue.removeFirst()
+      let id = ObjectIdentifier(block)
+      if visited.contains(id) {
+        continue
+      }
+      visited.insert(id)
+      result.append(block)
+      for instruction in block.instructions {
+        switch instruction {
+        case let branch as TIR.Branch:
+          queue.append(branch.target)
+        case let conditional as TIR.ConditionalBranch:
+          queue.append(conditional.trueBranch)
+          queue.append(conditional.falseBranch)
+        case let switchEnum as TIR.SwitchEnum:
+          for caseInfo in switchEnum.cases {
+            queue.append(caseInfo.block)
+          }
+          if let defaultBlock = switchEnum.defaultBlock {
+            queue.append(defaultBlock)
+          }
         default:
-            let lowered = llvmContext.int8
-            typeMap[typeId] = lowered
-            return lowered
+          break
         }
+      }
     }
+    return result
+  }
 
-    public override func visitIntegerLiteral(_ instruction: TIR.IntegerLiteral, additional: Any? = nil) -> Any? {
-        let type = lowerType(instruction.literalType.id)
-        guard let result = instruction.result else {
-            context.emitError("integer literal: missing result value", at: instruction.sourceRange)
-            return nil
-        }
-        switch type {
-        case let floatType as LLVMSwiftBinding.FloatType:
-            valueMap[ObjectIdentifier(result)] = llvmContext.constantFP(
-                Double(instruction.value),
-                type: floatType
-            )
-        case let integerType as LLVMSwiftBinding.IntegerType:
-            valueMap[ObjectIdentifier(result)] = llvmContext.constantInt(
-                signed: instruction.value,
-                type: integerType
-            )
+  private func lowerType(_ typeId: Id.TIRTypeId) -> LLVMSwiftBinding.LLVMType {
+    let key = Int(typeId.id)
+    if let existing = typeMap[key] {
+      return existing
+    }
+    guard let registry, let type = registry.type(typeId) else {
+      let fallback: LLVMSwiftBinding.LLVMType = llvmContext.int8
+      typeMap[key] = fallback
+      return fallback
+    }
+    switch type {
+    case is TIRType.VoidType:
+      let lowered: LLVMSwiftBinding.LLVMType = llvmContext.void
+      typeMap[key] = lowered
+      return lowered
+    case let primitive as TIRType.PrimitiveType:
+      let lowered: LLVMSwiftBinding.LLVMType
+      switch primitive.kind {
+      case .Bool:
+        lowered = llvmContext.int1
+      case .Char:
+        lowered = llvmContext.int32
+      case .Signed, .Unsigned:
+        lowered = llvmContext.intType(width: UInt32(primitive.bitWidth))
+      case .Float:
+        switch primitive.bitWidth {
+        case 32:
+          lowered = llvmContext.float
         default:
-            context.emitError("integer literal: unsupported lowered type", at: instruction.sourceRange)
+          lowered = llvmContext.double
         }
-        return nil
+      }
+      typeMap[key] = lowered
+      return lowered
+    case is TIRType.PointerType:
+      let lowered: LLVMSwiftBinding.LLVMType = llvmContext.pointerType()
+      typeMap[key] = lowered
+      return lowered
+    case let functionType as TIRType.FunctionType:
+      let returnType = lowerType(functionType.returnType)
+      let parameterTypes = functionType.parameters.map { lowerType($0) }
+      let lowered = llvmContext.functionType(
+        returnType: returnType,
+        parameterTypes: parameterTypes,
+        isVariadic: functionType.isVariadic
+      )
+      typeMap[key] = lowered
+      return lowered
+    case let structType as TIRType.StructType:
+      let named = llvmContext.namedStructType(name: structType.name)
+      typeMap[key] = named
+      let elementTypes = structType.fields.map { lowerType($0.type) }
+      named.setElementTypes(elementTypes, isPacked: false)
+      return named
+    case let enumType as TIRType.EnumType:
+      let lowered = enumLLVMType(enumType)
+      typeMap[key] = lowered
+      return lowered
+    case let tupleType as TIRType.TupleType:
+      let elementTypes = tupleType.elements.map { lowerType($0.type) }
+      let lowered = llvmContext.structType(elementTypes: elementTypes, isPacked: false)
+      typeMap[key] = lowered
+      return lowered
+    default:
+      let lowered: LLVMSwiftBinding.LLVMType = llvmContext.int8
+      typeMap[key] = lowered
+      return lowered
     }
+  }
 
-    public override func visitFloatLiteral(_ instruction: TIR.FloatLiteral, additional: Any? = nil) -> Any? {
-        let type = lowerType(instruction.literalType.id)
-        guard let result = instruction.result else {
-            context.emitError("float literal: missing result value", at: instruction.sourceRange)
-            return nil
-        }
-        guard let floatType = type as? LLVMSwiftBinding.FloatType else {
-            context.emitError("float literal: unsupported lowered type", at: instruction.sourceRange)
-            return nil
-        }
-        valueMap[ObjectIdentifier(result)] = llvmContext.constantFP(
-            instruction.value,
-            type: floatType
-        )
-        return nil
+  private func discriminantType(_ enumType: TIRType.EnumType) -> LLVMSwiftBinding.IntegerType {
+    let count = enumType.cases.count
+    let width: UInt32
+    if count <= 256 {
+      width = 8
+    } else if count <= 65536 {
+      width = 16
+    } else if count <= 4_294_967_296 {
+      width = 32
+    } else {
+      width = 64
     }
+    return llvmContext.intType(width: width)
+  }
 
-    public override func visitCharLiteral(_ instruction: TIR.CharLiteral, additional: Any? = nil) -> Any? {
-        guard let result = instruction.result else {
-            context.emitError("char literal: missing result value", at: instruction.sourceRange)
-            return nil
-        }
-        let packed = String(instruction.value).utf8.reduce(UInt32(0)) {
-            ($0 << 8) | UInt32($1)
-        }
-        valueMap[ObjectIdentifier(result)] = llvmContext.constantInt(
-            signed: Int64(packed),
-            type: llvmContext.int32
-        )
-        return nil
+  private func enumHasPayload(_ enumType: TIRType.EnumType) -> Bool {
+    enumType.cases.contains { caseInfo in
+      !caseInfo.associatedTypes.isEmpty
     }
+  }
 
-    public override func visitBoolLiteral(_ instruction: TIR.BoolLiteral, additional: Any? = nil) -> Any? {
-        guard let result = instruction.result else {
-            context.emitError("bool literal: missing result value", at: instruction.sourceRange)
-            return nil
+  private func payloadByteSize(_ enumType: TIRType.EnumType) -> Int {
+    var maximum = 0
+    for caseInfo in enumType.cases {
+      for associatedType in caseInfo.associatedTypes {
+        let bits = dataLayout?.sizeOfTypeInBits(lowerType(associatedType)) ?? 0
+        let bytes = (Int(bits) + 7) / 8
+        if bytes > maximum {
+          maximum = bytes
         }
-        valueMap[ObjectIdentifier(result)] = llvmContext.constantInt(
-            instruction.value ? 1 : 0,
-            type: llvmContext.int1
-        )
-        return nil
+      }
     }
+    return maximum
+  }
 
-    public override func visitNullptrLiteral(_ instruction: TIR.NullptrLiteral, additional: Any? = nil) -> Any? {
-        guard let result = instruction.result else {
-            context.emitError("null pointer literal: missing result value", at: instruction.sourceRange)
-            return nil
-        }
-        valueMap[ObjectIdentifier(result)] = llvmContext.constantNull(lowerType(instruction.pointerType.id))
-        return nil
+  private func enumLLVMType(_ enumType: TIRType.EnumType) -> LLVMSwiftBinding.LLVMType {
+    let discriminant = discriminantType(enumType)
+    if enumHasPayload(enumType) {
+      let buffer = llvmContext.arrayType(
+        elementType: llvmContext.int8, count: UInt32(max(payloadByteSize(enumType), 1))
+      )
+      return llvmContext.namedStructType(
+        name: enumType.name,
+        elementTypes: [discriminant, buffer],
+        isPacked: false
+      )
     }
+    return discriminant
+  }
 
-    public override func visitAllocStack(_ instruction: TIR.AllocStack, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
-        guard let result = instruction.result else {
-            context.emitError("alloc stack: missing result value", at: instruction.sourceRange)
-            return nil
-        }
-        guard !(instruction.allocatedType is TIRType.VoidType) else {
-            return nil
-        }
-        valueMap[ObjectIdentifier(result)] = builder.buildAlloca(lowerType(instruction.allocatedType.id))
-        return nil
+  private func pointeeTypeID(_ typeId: Id.TIRTypeId) -> Id.TIRTypeId {
+    if let pointer = registry?.type(typeId) as? TIRType.PointerType {
+      return pointer.pointee
     }
+    return typeId
+  }
 
-    public override func visitLoad(_ instruction: TIR.Load, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
-        guard let result = instruction.result else {
-            context.emitError("load: missing result value", at: instruction.sourceRange)
-            return nil
-        }
-        guard let v = valueMap[ObjectIdentifier(instruction.address)] else {
-            context.emitError("load: missing address value", at: instruction.sourceRange)
-            return nil
-        }
-        valueMap[ObjectIdentifier(result)] = builder.buildLoad(lowerType(instruction.address.type), v)
-        return nil
+  private func enumType(of value: TIR.Value) -> TIRType.EnumType? {
+    guard let registry else { return nil }
+    if let enumType = registry.type(pointeeTypeID(value.ty)) as? TIRType.EnumType {
+      return enumType
     }
+    return nil
+  }
 
-    public override func visitStore(_ instruction: TIR.Store, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
-        guard let value = valueMap[ObjectIdentifier(instruction.value)] else {
-            context.emitError("store: missing value operand", at: instruction.sourceRange)
-            return nil
-        }
-        guard let address = valueMap[ObjectIdentifier(instruction.address)] else {
-            context.emitError("store: missing address operand", at: instruction.sourceRange)
-            return nil
-        }
-        builder.buildStore(value, to: address)
-        return nil
+  private func loadDiscriminant(
+    from slot: LLVMSwiftBinding.Value, enumType: TIRType.EnumType
+  ) -> LLVMSwiftBinding.Value? {
+    guard let builder else { return nil }
+    let discriminant = discriminantType(enumType)
+    if enumHasPayload(enumType) {
+      let structType = lowerType(enumType.id)
+      let discriminantPointer = builder.buildStructGEP(
+        structType, slot, index: 0
+      )
+      return builder.buildLoad(discriminant, discriminantPointer)
     }
+    return builder.buildLoad(discriminant, slot)
+  }
 
-    public override func visitStructElementAddr(_ instruction: TIR.StructElementAddr, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
-        guard let structAddress = valueMap[ObjectIdentifier(instruction.structAddress)] else {
-            context.emitError("struct element addr: missing address operand", at: instruction.sourceRange)
-            return nil
-        }
-        guard let structType = lowerType(instruction.structAddress.type) as? LLVMSwiftBinding.StructType else {
-            context.emitError("struct element addr: unsupported operand type", at: instruction.sourceRange)
-            return nil
-        }
-        guard let result = instruction.result else {
-            // TODO: emit error
-            return nil
-        }
-        valueMap[ObjectIdentifier(result)] = builder.buildStructGEP(
-            structType,
-            structAddress,
-            index: UInt32(instruction.fieldIndex + 2)
-        )
-        return nil
+  private func discriminantValue(
+    from enumValue: TIR.Value, enumType: TIRType.EnumType
+  ) -> LLVMSwiftBinding.Value? {
+    guard let builder, let resolved = value(enumValue) else { return nil }
+    if lowerType(enumValue.ty) is LLVMSwiftBinding.PointerType {
+      return loadDiscriminant(from: resolved, enumType: enumType)
     }
+    if enumHasPayload(enumType) {
+      return builder.buildExtractValue(resolved, index: 0)
+    }
+    return resolved
+  }
 
-    public override func visitRefElementAddr(_ instruction: TIR.RefElementAddr, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
-        guard let structAddress = valueMap[ObjectIdentifier(instruction.reference)] else {
-            context.emitError("ref element addr: missing address operand", at: instruction.sourceRange)
-            return nil
-        }
-        guard let structType = lowerType(instruction.reference.type) as? LLVMSwiftBinding.StructType else {
-            context.emitError("ref element addr: unsupported operand type", at: instruction.sourceRange)
-            return nil
-        }
-        guard let result = instruction.result else {
-            // TODO: emit error
-            return nil
-        }
-        valueMap[ObjectIdentifier(result)] = builder.buildStructGEP(
-            structType,
-            structAddress,
-            index: UInt32(instruction.fieldIndex + CodeGen.ReferenceHeaderSize)
-        )
-        return nil
+  private func slotPointer(
+    from enumValue: TIR.Value, structType: LLVMSwiftBinding.LLVMType
+  ) -> LLVMSwiftBinding.Value? {
+    guard let builder, let resolved = value(enumValue) else { return nil }
+    if lowerType(enumValue.ty) is LLVMSwiftBinding.PointerType {
+      return resolved
     }
+    let slot = builder.buildAlloca(structType, name: "enum.slot")
+    builder.buildStore(resolved, to: slot)
+    return slot
+  }
 
-    public override func visitReturn(_ instruction: TIR.Return, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
-        if let value = instruction.value {
-            guard let v = valueMap[ObjectIdentifier(value)] else {
-                context.emitError("return: missing value operand", at: instruction.sourceRange)
-                return nil
-            }
-            builder.buildRet(v)
-        } else {
-            builder.buildRetVoid()
-        }
-        return nil
+  private func value(_ value: TIR.Value) -> LLVMSwiftBinding.Value? {
+    let key = ObjectIdentifier(value)
+    if let existing = valueMap[key] {
+      return existing
     }
+    switch value {
+    case let literal as TIR.IntegerLiteral:
+      return materialize(literal)
+    case let literal as TIR.FloatLiteral:
+      return materialize(literal)
+    case let literal as TIR.CharLiteral:
+      return materialize(literal)
+    case let literal as TIR.BoolLiteral:
+      return materialize(literal)
+    case let literal as TIR.NullptrLiteral:
+      return materialize(literal)
+    case let literal as TIR.StringLiteral:
+      unsupported("string literal", at: literal.sourceRange)
+      return nil
+    case let globalAddress as TIR.GlobalAddr:
+      return globalValue(for: globalAddress.globalId, at: globalAddress.sourceRange)
+    case let functionReference as TIR.FunctionRef:
+      return functionValue(for: functionReference.functionId)
+    default:
+      unsupported("value of kind \(type(of: value))", at: value.sourceRange)
+      return nil
+    }
+  }
 
-    public override func visitBranch(_ instruction: TIR.Branch, additional: Any? = nil) -> Any? {
-        guard let builder, let currentFunction else {
-            fatalError("unreachable")
-        }
-        guard let target = currentFunction.basicBlockMap![ObjectIdentifier(instruction.target)] else {
-            context.emitError("branch: missing target basic block", at: instruction.sourceRange)
-            return nil
-        }
-        builder.buildBr(target)
-        return nil
+  private func globalValue(
+    for globalId: Id.TIRGlobalId, at range: SourceRange
+  ) -> LLVMSwiftBinding.Value? {
+    if let existing = globalMap[globalId] {
+      return existing
     }
+    guard let module, let tirGlobal = registry?.globals[globalId] else {
+      unsupported("global \(globalId)", at: range)
+      return nil
+    }
+    let valueType = lowerType(tirGlobal.type)
+    let globalType: LLVMSwiftBinding.LLVMType =
+      valueType is LLVMSwiftBinding.FunctionType ? llvmContext.pointerType() : valueType
+    let llvmGlobal = module.addGlobal(tirGlobal.name, type: globalType)
+    globalMap[globalId] = llvmGlobal
+    return llvmGlobal
+  }
 
-    public override func visitCondBranch(_ instruction: TIR.CondBranch, additional: Any? = nil) -> Any? {
-        guard let builder, let currentFunction else {
-            fatalError("unreachable")
-        }
-        guard let condValue = valueMap[ObjectIdentifier(instruction.condition)] else {
-            context.emitError("cond branch: missing condition value", at: instruction.sourceRange)
-            return nil
-        }
-        guard let trueBranch = currentFunction.basicBlockMap![ObjectIdentifier(instruction.trueBlock)] else {
-            context.emitError("cond branch: missing true target basic block", at: instruction.sourceRange)
-            return nil
-        }
-        guard let falseBranch = currentFunction.basicBlockMap![ObjectIdentifier(instruction.falseBlock)] else {
-            context.emitError("cond branch: missing false target basic block", at: instruction.sourceRange)
-            return nil
-        }
-        builder.buildCondBr(condValue, then: trueBranch, else: falseBranch)
-        return nil
+  private func functionValue(for functionId: Id.TIRFunctionId) -> LLVMSwiftBinding.Function? {
+    if let existing = functionMap[functionId] {
+      return existing
     }
+    guard let registry, let tirFunction = registry.functions[functionId] else {
+      return nil
+    }
+    let declared = createFunctionDecl(tirFunction)
+    functionMap[functionId] = declared
+    return declared
+  }
 
-    public override func visitUnreachable(_ instruction: TIR.Unreachable, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
-        builder.buildUnreachable()
-        return nil
+  private func materialize(_ literal: TIR.IntegerLiteral) -> LLVMSwiftBinding.Value? {
+    let type = lowerType(literal.ty)
+    switch type {
+    case let floatType as LLVMSwiftBinding.FloatType:
+      return llvmContext.constantFP(Double(literal.value), type: floatType)
+    case let integerType as LLVMSwiftBinding.IntegerType:
+      return llvmContext.constantInt(literal.value, type: integerType)
+    default:
+      unsupported("integer literal", at: literal.sourceRange)
+      return nil
     }
+  }
 
-    public override func visitPhi(_ instruction: TIR.Phi, additional: Any? = nil) -> Any? {
-        guard let builder, let currentFunction else {
-            fatalError("unreachable")
-        }
-        guard let result = instruction.result else {
-            context.emitError("phi: missing result value", at: instruction.sourceRange)
-            return nil
-        }
-        let phi = builder.buildPhi(lowerType(result.type))
-        for incoming in instruction.incomings {
-            guard let v = valueMap[ObjectIdentifier(incoming.value)] else {
-                context.emitError("phi: missing incoming value", at: instruction.sourceRange)
-                continue
-            }
-            guard let from = currentFunction.basicBlockMap![ObjectIdentifier(incoming.block)] else {
-                context.emitError("phi: missing incoming basic block", at: instruction.sourceRange)
-                continue
-            }
-            phi.addIncoming(v, from: from)
-        }
-        valueMap[ObjectIdentifier(result)] = phi
-        return nil
+  private func materialize(_ literal: TIR.FloatLiteral) -> LLVMSwiftBinding.Value? {
+    guard let floatType = lowerType(literal.ty) as? LLVMSwiftBinding.FloatType else {
+      unsupported("float literal", at: literal.sourceRange)
+      return nil
     }
+    return llvmContext.constantFP(literal.value, type: floatType)
+  }
 
-    public override func visitFunctionRef(_ instruction: TIR.FunctionRef, additional: Any? = nil) -> Any? {
-        guard let currentRegistry else {
-            fatalError("unreachable")
-        }
-        guard let result = instruction.result else {
-            context.emitError("function ref: missing result value", at: instruction.sourceRange)
-            return nil
-        }
-        guard let f = currentRegistry.functions[instruction.functionId] else {
-            context.emitError(
-                "function ref: function \(instruction.functionId) not found in registry",
-                at: instruction.sourceRange
-            )
-            return nil
-        }
-        if let binding = functionMap[f.id] {
-            valueMap[ObjectIdentifier(result)] = binding.function
-        } else {
-            let llvmFunction = createFunctionDecl(f)
-            functionMap[f.id] = FunctionBinding(function: llvmFunction)
-            valueMap[ObjectIdentifier(result)] = llvmFunction
-        }
-        return nil
+  private func materialize(_ literal: TIR.CharLiteral) -> LLVMSwiftBinding.Value? {
+    let packed = String(literal.value).utf8.reduce(UInt32(0)) { partial, byte in
+      (partial << 8) | UInt32(byte)
     }
+    return llvmContext.constantInt(UInt64(packed), type: llvmContext.int32)
+  }
 
-    public override func visitArith(_ instruction: TIR.Arith, additional: Any? = nil) -> Any? {
-        guard let builder, let currentRegistry else {
-            fatalError("unreachable")
-        }
-        guard let result = instruction.result else {
-            context.emitError("arith: missing result value", at: instruction.sourceRange)
-            return nil
-        }
-        guard instruction.operands.count == 2 || instruction.op.isUnary else {
-            context.emitError("arith: wrong operand count", at: instruction.sourceRange)
-            return nil
-        }
-        guard let lhs = valueMap[ObjectIdentifier(instruction.operands[0])],
-              let operandTypeId = currentRegistry.type(instruction.operands[0].type)
-        else {
-            context.emitError("arith: missing operand value", at: instruction.sourceRange)
-            return nil
-        }
-        let kind = (operandTypeId as? TIRType.PrimitiveType)?.kind
-        let built: LLVMSwiftBinding.Value? = switch instruction.op {
-        case .Neg, .Not, .Bitnot:
-            emitUnaryArith(instruction, lhs: lhs, kind: kind)
-        case .Add, .Sub, .Mul, .Div, .Rem:
-            emitBinaryArith(instruction, lhs: lhs, kind: kind)
-        case .Eq, .Ne, .Lt, .Le, .Gt, .Ge:
-            emitCompareArith(instruction, lhs: lhs, kind: kind)
-        }
-        if let built {
-            valueMap[ObjectIdentifier(result)] = built
-        }
-        return nil
-    }
+  private func materialize(_ literal: TIR.BoolLiteral) -> LLVMSwiftBinding.Value? {
+    return llvmContext.constantInt(literal.value ? 1 : 0, type: llvmContext.int1)
+  }
 
-    private func emitUnaryArith(
-        _ instruction: TIR.Arith, lhs: LLVMSwiftBinding.Value, kind: TIRType.PrimitiveKind?
-    ) -> LLVMSwiftBinding.Value? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
-        switch instruction.op {
-        case .Neg:
-            if kind == .Float {
-                return builder.buildFNeg(lhs)
-            }
-            if kind == .Signed || kind == .Unsigned {
-                return builder.buildNeg(lhs)
-            }
-            context.emitError("arith neg: unsupported operand type", at: instruction.sourceRange)
-            return nil
-        case .Not:
-            if kind == .Bool {
-                return builder.buildNot(lhs)
-            }
-            context.emitError("arith not: unsupported operand type", at: instruction.sourceRange)
-            return nil
-        case .Bitnot:
-            if kind == .Signed || kind == .Unsigned {
-                return builder.buildNot(lhs)
-            }
-            context.emitError("arith bitnot: unsupported operand type", at: instruction.sourceRange)
-            return nil
-        default:
-            return nil
-        }
-    }
+  private func materialize(_ literal: TIR.NullptrLiteral) -> LLVMSwiftBinding.Value? {
+    return llvmContext.constantNull(lowerType(literal.ty))
+  }
 
-    private func emitBinaryArith(
-        _ instruction: TIR.Arith, lhs: LLVMSwiftBinding.Value, kind: TIRType.PrimitiveKind?
-    ) -> LLVMSwiftBinding.Value? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
-        guard let rhs = valueMap[ObjectIdentifier(instruction.operands[1])] else {
-            context.emitError("arith: missing operand value", at: instruction.sourceRange)
-            return nil
-        }
-        guard let kind else {
-            context.emitError("arith: unsupported operand type", at: instruction.sourceRange)
-            return nil
-        }
-        switch (instruction.op, kind) {
-        case (.Add, .Signed), (.Add, .Unsigned):
-            return builder.buildAdd(lhs, rhs)
-        case (.Add, .Float):
-            return builder.buildFAdd(lhs, rhs)
-        case (.Sub, .Signed), (.Sub, .Unsigned):
-            return builder.buildSub(lhs, rhs)
-        case (.Sub, .Float):
-            return builder.buildFSub(lhs, rhs)
-        case (.Mul, .Signed), (.Mul, .Unsigned):
-            return builder.buildMul(lhs, rhs)
-        case (.Mul, .Float):
-            return builder.buildFMul(lhs, rhs)
-        case (.Div, .Signed):
-            return builder.buildSDiv(lhs, rhs)
-        case (.Div, .Unsigned):
-            return builder.buildUDiv(lhs, rhs)
-        case (.Div, .Float):
-            return builder.buildFDiv(lhs, rhs)
-        case (.Rem, .Signed):
-            return builder.buildSRem(lhs, rhs)
-        case (.Rem, .Unsigned):
-            return builder.buildURem(lhs, rhs)
-        case (.Rem, .Float):
-            return builder.buildFRem(lhs, rhs)
-        default:
-            context.emitError("arith: unsupported operand type", at: instruction.sourceRange)
-            return nil
-        }
-    }
+  private func recordBlockArgEdge(
+    target: TIR.BasicBlock, arguments: [TIR.Value]
+  ) {
+    guard let currentLLVMBlock else { return }
+    blockArgEdges[ObjectIdentifier(target), default: []].append(
+      BlockArgEdge(target: target, args: arguments, from: currentLLVMBlock)
+    )
+  }
 
-    private func emitCompareArith(
-        _ instruction: TIR.Arith, lhs: LLVMSwiftBinding.Value, kind: TIRType.PrimitiveKind?
-    ) -> LLVMSwiftBinding.Value? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
-        guard let rhs = valueMap[ObjectIdentifier(instruction.operands[1])] else {
-            context.emitError("arith: missing operand value", at: instruction.sourceRange)
-            return nil
-        }
-        guard let kind else {
-            context.emitError("arith: unsupported operand type", at: instruction.sourceRange)
-            return nil
-        }
-        switch kind {
-        case .Float:
-            guard let predicate = realPredicate(for: instruction.op) else {
-                context.emitError("arith compare: unsupported operand type", at: instruction.sourceRange)
-                return nil
-            }
-            return builder.buildFCmp(predicate, lhs, rhs)
-        case .Signed:
-            guard let predicate = intPredicate(for: instruction.op, unsigned: false) else {
-                context.emitError("arith compare: unsupported operand type", at: instruction.sourceRange)
-                return nil
-            }
-            return builder.buildICmp(predicate, lhs, rhs)
-        case .Unsigned:
-            guard let predicate = intPredicate(for: instruction.op, unsigned: true) else {
-                context.emitError("arith compare: unsupported operand type", at: instruction.sourceRange)
-                return nil
-            }
-            return builder.buildICmp(predicate, lhs, rhs)
-        case .Bool, .Char:
-            switch instruction.op {
-            case .Eq:
-                return builder.buildICmp(.EQ, lhs, rhs)
-            case .Ne:
-                return builder.buildICmp(.NE, lhs, rhs)
-            default:
-                context.emitError("arith compare: unsupported operand type", at: instruction.sourceRange)
-                return nil
-            }
-        }
-    }
+  private func unsupported(_ what: String, at range: SourceRange) {
+    context.emitError("unsupported: cannot lower \(what)", at: range)
+  }
 
-    private func intPredicate(
-        for op: TIR.ArithOp, unsigned: Bool
-    ) -> LLVMSwiftBinding.IntPredicate? {
-        switch (op, unsigned) {
-        case (.Eq, _):
-            .EQ
-        case (.Ne, _):
-            .NE
-        case (.Lt, false):
-            .SLT
-        case (.Lt, true):
-            .ULT
-        case (.Le, false):
-            .SLE
-        case (.Le, true):
-            .ULE
-        case (.Gt, false):
-            .SGT
-        case (.Gt, true):
-            .UGT
-        case (.Ge, false):
-            .SGE
-        case (.Ge, true):
-            .UGE
-        default:
-            nil
-        }
-    }
+  private func aggregateLLVMType(of instruction: TIR.StructElementAddr) -> LLVMSwiftBinding.LLVMType
+  {
+    lowerType(pointeeTypeID(instruction.base.ty))
+  }
 
-    private func realPredicate(for op: TIR.ArithOp) -> LLVMSwiftBinding.RealPredicate? {
-        switch op {
-        case .Eq:
-            .OEQ
-        case .Ne:
-            .ONE
-        case .Lt:
-            .OLT
-        case .Le:
-            .OLE
-        case .Gt:
-            .OGT
-        case .Ge:
-            .OGE
-        default:
-            nil
-        }
-    }
+  private func aggregateLLVMType(of instruction: TIR.TupleElementAddr) -> LLVMSwiftBinding.LLVMType
+  {
+    lowerType(pointeeTypeID(instruction.base.ty))
+  }
 
-    public override func visitApply(_ instruction: TIR.Apply, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
-        guard let result = instruction.result else {
-            context.emitError("apply: missing result value", at: instruction.sourceRange)
-            return nil
-        }
-        guard let callee = valueMap[ObjectIdentifier(instruction.callee)] else {
-            context.emitError("apply: missing callee value", at: instruction.sourceRange)
-            return nil
-        }
-        guard let functionType = lowerType(instruction.callee.type) as? LLVMSwiftBinding.FunctionType else {
-            context.emitError("apply: callee is not a function type", at: instruction.sourceRange)
-            return nil
-        }
-        let args = instruction.arguments.compactMap {
-            let v = valueMap[ObjectIdentifier($0)]
-            if v == nil {
-                context.emitError("apply: missing argument value", at: instruction.sourceRange)
-            }
-            return v
-        }
-        valueMap[ObjectIdentifier(result)] = builder.buildCall(callee, type: functionType, args)
-        return nil
+  public override func visitReturn(_ instruction: TIR.Return, additional: Any? = nil) -> Any? {
+    guard let builder else { return nil }
+    if let returned = instruction.value {
+      guard let value = value(returned) else { return nil }
+      builder.buildRet(value)
+    } else {
+      builder.buildRetVoid()
     }
+    return nil
+  }
+
+  public override func visitBranch(_ instruction: TIR.Branch, additional: Any? = nil) -> Any? {
+    guard let builder, let target = blockMap[ObjectIdentifier(instruction.target)] else {
+      return nil
+    }
+    builder.buildBr(target)
+    recordBlockArgEdge(target: instruction.target, arguments: instruction.arguments)
+    return nil
+  }
+
+  public override func visitConditionalBranch(
+    _ instruction: TIR.ConditionalBranch, additional: Any? = nil
+  ) -> Any? {
+    guard let builder,
+      let condition = value(instruction.condition),
+      let trueBlock = blockMap[ObjectIdentifier(instruction.trueBranch)],
+      let falseBlock = blockMap[ObjectIdentifier(instruction.falseBranch)]
+    else { return nil }
+    builder.buildCondBr(condition, then: trueBlock, else: falseBlock)
+    recordBlockArgEdge(target: instruction.trueBranch, arguments: instruction.trueArguments)
+    recordBlockArgEdge(target: instruction.falseBranch, arguments: instruction.falseArguments)
+    return nil
+  }
+
+  public override func visitUnreachable(
+    _ instruction: TIR.Unreachable, additional: Any? = nil
+  ) -> Any? {
+    builder?.buildUnreachable()
+    return nil
+  }
+
+  public override func visitPhi(_ instruction: TIR.Phi, additional: Any? = nil) -> Any? {
+    nil
+  }
+
+  public override func visitSwitchEnum(
+    _ instruction: TIR.SwitchEnum, additional: Any? = nil
+  ) -> Any? {
+    guard let builder, let enumType = enumType(of: instruction.value)
+    else { return nil }
+    let discriminant = discriminantType(enumType)
+    guard let condition = discriminantValue(from: instruction.value, enumType: enumType)
+    else { return nil }
+    let defaultBlock: LLVMSwiftBinding.BasicBlock
+    if let tirDefault = instruction.defaultBlock,
+      let llvmDefault = blockMap[ObjectIdentifier(tirDefault)]
+    {
+      defaultBlock = llvmDefault
+    } else {
+      guard let currentFunction, let currentLLVMBlock else { return nil }
+      defaultBlock = currentFunction.appendBasicBlock("default")
+      builder.positionAtEnd(of: defaultBlock)
+      builder.buildUnreachable()
+      builder.positionAtEnd(of: currentLLVMBlock)
+    }
+    let switchInstruction = builder.buildSwitch(
+      condition, default: defaultBlock, numCases: UInt32(instruction.cases.count)
+    )
+    for caseInfo in instruction.cases {
+      guard let caseBlock = blockMap[ObjectIdentifier(caseInfo.block)] else { continue }
+      switchInstruction.addCase(
+        llvmContext.constantInt(UInt64(caseInfo.tag), type: discriminant),
+        caseBlock
+      )
+      recordBlockArgEdge(target: caseInfo.block, arguments: caseInfo.arguments)
+    }
+    return nil
+  }
+
+  public override func visitExtractPayload(
+    _ instruction: TIR.ExtractPayload, additional: Any? = nil
+  ) -> Any? {
+    guard let builder, let enumType = enumType(of: instruction.value)
+    else { return nil }
+    let payloadType = lowerType(instruction.result.ty)
+    let structType = lowerType(enumType.id)
+    guard let slot = slotPointer(from: instruction.value, structType: structType) else {
+      return nil
+    }
+    let bufferPointer = builder.buildStructGEP(structType, slot, index: 1)
+    let loaded = builder.buildLoad(payloadType, bufferPointer)
+    valueMap[ObjectIdentifier(instruction.result)] = loaded
+    return nil
+  }
+
+  public override func visitAllocStack(
+    _ instruction: TIR.AllocStack, additional: Any? = nil
+  ) -> Any? {
+    guard let builder else { return nil }
+    let lowered = lowerType(instruction.allocatedType)
+    guard lowered is LLVMSwiftBinding.VoidType == false else { return nil }
+    let alloca = builder.buildAlloca(lowered, name: instruction.result.name)
+    valueMap[ObjectIdentifier(instruction.result)] = alloca
+    return nil
+  }
+
+  public override func visitDeallocStack(
+    _ instruction: TIR.DeallocStack, additional: Any? = nil
+  ) -> Any? {
+    nil
+  }
+
+  public override func visitLoad(_ instruction: TIR.Load, additional: Any? = nil) -> Any? {
+    guard let builder, let pointer = value(instruction.ptr) else { return nil }
+    let loaded = builder.buildLoad(lowerType(instruction.result.ty), pointer)
+    valueMap[ObjectIdentifier(instruction.result)] = loaded
+    return nil
+  }
+
+  public override func visitStore(_ instruction: TIR.Store, additional: Any? = nil) -> Any? {
+    guard let builder,
+      let stored = value(instruction.value),
+      let pointer = value(instruction.ptr)
+    else { return nil }
+    builder.buildStore(stored, to: pointer)
+    return nil
+  }
+
+  public override func visitSizeOf(_ instruction: TIR.SizeOf, additional: Any? = nil) -> Any? {
+    let sized = llvmContext.sizeOf(lowerType(instruction.sizedType))
+    valueMap[ObjectIdentifier(instruction.result)] = sized
+    return nil
+  }
+
+  public override func visitStructElementAddr(
+    _ instruction: TIR.StructElementAddr, additional: Any? = nil
+  ) -> Any? {
+    guard let builder, let base = value(instruction.base) else { return nil }
+    let structType = aggregateLLVMType(of: instruction)
+    let address = builder.buildStructGEP(structType, base, index: UInt32(instruction.index))
+    valueMap[ObjectIdentifier(instruction.result)] = address
+    return nil
+  }
+
+  public override func visitTupleElementAddr(
+    _ instruction: TIR.TupleElementAddr, additional: Any? = nil
+  ) -> Any? {
+    guard let builder, let base = value(instruction.base) else { return nil }
+    let tupleType = aggregateLLVMType(of: instruction)
+    let address = builder.buildStructGEP(tupleType, base, index: UInt32(instruction.index))
+    valueMap[ObjectIdentifier(instruction.result)] = address
+    return nil
+  }
+
+  public override func visitStructValue(
+    _ instruction: TIR.StructValue, additional: Any? = nil
+  ) -> Any? {
+    guard let builder else { return nil }
+    let structType = lowerType(instruction.result.ty)
+    let slot = builder.buildAlloca(structType, name: instruction.result.name)
+    for (index, field) in instruction.fields.enumerated() {
+      guard let fieldValue = value(field) else { continue }
+      let fieldPointer = builder.buildStructGEP(structType, slot, index: UInt32(index))
+      builder.buildStore(fieldValue, to: fieldPointer)
+    }
+    valueMap[ObjectIdentifier(instruction.result)] = slot
+    return nil
+  }
+
+  public override func visitTupleValue(
+    _ instruction: TIR.TupleValue, additional: Any? = nil
+  ) -> Any? {
+    guard let builder else { return nil }
+    let tupleType = lowerType(instruction.result.ty)
+    let slot = builder.buildAlloca(tupleType, name: instruction.result.name)
+    for (index, element) in instruction.elements.enumerated() {
+      guard let elementValue = value(element) else { continue }
+      let elementPointer = builder.buildStructGEP(tupleType, slot, index: UInt32(index))
+      builder.buildStore(elementValue, to: elementPointer)
+    }
+    valueMap[ObjectIdentifier(instruction.result)] = slot
+    return nil
+  }
+
+  public override func visitEnumValue(
+    _ instruction: TIR.EnumValue, additional: Any? = nil
+  ) -> Any? {
+    guard let builder, let enumType = registry?.type(instruction.result.ty) as? TIRType.EnumType
+    else { return nil }
+    let discriminant = discriminantType(enumType)
+    if enumHasPayload(enumType) {
+      let structType = lowerType(enumType.id)
+      let slot = builder.buildAlloca(structType, name: instruction.result.name)
+      let discriminantPointer = builder.buildStructGEP(structType, slot, index: 0)
+      builder.buildStore(
+        llvmContext.constantInt(UInt64(instruction.caseIndex), type: discriminant),
+        to: discriminantPointer
+      )
+      if let payload = instruction.payload, let payloadValue = value(payload) {
+        let bufferPointer = builder.buildStructGEP(structType, slot, index: 1)
+        builder.buildStore(payloadValue, to: bufferPointer)
+      }
+      valueMap[ObjectIdentifier(instruction.result)] = slot
+    } else {
+      let slot = builder.buildAlloca(discriminant, name: instruction.result.name)
+      builder.buildStore(
+        llvmContext.constantInt(UInt64(instruction.caseIndex), type: discriminant),
+        to: slot
+      )
+      valueMap[ObjectIdentifier(instruction.result)] = slot
+    }
+    return nil
+  }
+
+  public override func visitUnaryArith(
+    _ instruction: TIR.UnaryArith, additional: Any? = nil
+  ) -> Any? {
+    guard let builder, let operand = value(instruction.operand) else { return nil }
+    let kind = (registry?.type(instruction.operand.ty) as? TIRType.PrimitiveType)?.kind
+    let built: LLVMSwiftBinding.Value?
+    switch instruction.op {
+    case .Neg:
+      built = kind == .Float ? builder.buildFNeg(operand) : builder.buildNeg(operand)
+    case .Not:
+      built = builder.buildNot(operand)
+    case .Bitnot:
+      built = builder.buildNot(operand)
+    default:
+      built = nil
+    }
+    if let built {
+      valueMap[ObjectIdentifier(instruction.result)] = built
+    }
+    return nil
+  }
+
+  public override func visitBinaryArith(
+    _ instruction: TIR.BinaryArith, additional: Any? = nil
+  ) -> Any? {
+    guard let builder,
+      let lhs = value(instruction.lhs),
+      let rhs = value(instruction.rhs)
+    else { return nil }
+    let kind = (registry?.type(instruction.lhs.ty) as? TIRType.PrimitiveType)?.kind
+    let built: LLVMSwiftBinding.Value?
+    switch instruction.op {
+    case .Add:
+      built = kind == .Float ? builder.buildFAdd(lhs, rhs) : builder.buildAdd(lhs, rhs)
+    case .Sub:
+      built = kind == .Float ? builder.buildFSub(lhs, rhs) : builder.buildSub(lhs, rhs)
+    case .Mul:
+      built = kind == .Float ? builder.buildFMul(lhs, rhs) : builder.buildMul(lhs, rhs)
+    case .SDiv:
+      built = kind == .Float ? builder.buildFDiv(lhs, rhs) : builder.buildSDiv(lhs, rhs)
+    case .UDiv:
+      built = kind == .Float ? builder.buildFDiv(lhs, rhs) : builder.buildUDiv(lhs, rhs)
+    case .SRem:
+      built = kind == .Float ? builder.buildFRem(lhs, rhs) : builder.buildSRem(lhs, rhs)
+    case .URem:
+      built = kind == .Float ? builder.buildFRem(lhs, rhs) : builder.buildURem(lhs, rhs)
+    case .FDiv:
+      built = builder.buildFDiv(lhs, rhs)
+    case .FRem:
+      built = builder.buildFRem(lhs, rhs)
+    case .And:
+      built = builder.buildAnd(lhs, rhs)
+    case .Or:
+      built = builder.buildOr(lhs, rhs)
+    case .Xor:
+      built = builder.buildXor(lhs, rhs)
+    case .Shl:
+      built = builder.buildShl(lhs, rhs)
+    case .Shr:
+      built = kind == .Unsigned ? builder.buildLShr(lhs, rhs) : builder.buildAShr(lhs, rhs)
+    case .Eq:
+      built = compare(instruction, lhs: lhs, rhs: rhs, kind: kind, predicate: .EQ)
+    case .Ne:
+      built = compare(instruction, lhs: lhs, rhs: rhs, kind: kind, predicate: .NE)
+    case .Lt:
+      built = compare(instruction, lhs: lhs, rhs: rhs, kind: kind, predicate: nil)
+    case .Le:
+      built = compare(instruction, lhs: lhs, rhs: rhs, kind: kind, predicate: nil)
+    case .Gt:
+      built = compare(instruction, lhs: lhs, rhs: rhs, kind: kind, predicate: nil)
+    case .Ge:
+      built = compare(instruction, lhs: lhs, rhs: rhs, kind: kind, predicate: nil)
+    default:
+      built = nil
+    }
+    if let built {
+      valueMap[ObjectIdentifier(instruction.result)] = built
+    }
+    return nil
+  }
+
+  private func compare(
+    _ instruction: TIR.BinaryArith, lhs: LLVMSwiftBinding.Value,
+    rhs: LLVMSwiftBinding.Value, kind: TIRType.PrimitiveKind?,
+    predicate: LLVMSwiftBinding.IntPredicate?
+  ) -> LLVMSwiftBinding.Value? {
+    guard let builder else { return nil }
+    switch kind {
+    case .Float:
+      return builder.buildFCmp(realPredicate(for: instruction.op), lhs, rhs)
+    case .Signed, .Unsigned:
+      let isUnsigned = kind == .Unsigned
+      return builder.buildICmp(intPredicate(for: instruction.op, unsigned: isUnsigned), lhs, rhs)
+    default:
+      if let predicate {
+        return builder.buildICmp(predicate, lhs, rhs)
+      }
+      return builder.buildICmp(intPredicate(for: instruction.op, unsigned: false), lhs, rhs)
+    }
+  }
+
+  private func intPredicate(
+    for op: TIR.ArithOp, unsigned: Bool
+  ) -> LLVMSwiftBinding.IntPredicate {
+    switch op {
+    case .Eq:
+      return .EQ
+    case .Ne:
+      return .NE
+    case .Lt:
+      return unsigned ? .ULT : .SLT
+    case .Le:
+      return unsigned ? .ULE : .SLE
+    case .Gt:
+      return unsigned ? .UGT : .SGT
+    case .Ge:
+      return unsigned ? .UGE : .SGE
+    default:
+      return .EQ
+    }
+  }
+
+  private func realPredicate(for op: TIR.ArithOp) -> LLVMSwiftBinding.RealPredicate {
+    switch op {
+    case .Eq:
+      return .OEQ
+    case .Ne:
+      return .ONE
+    case .Lt:
+      return .OLT
+    case .Le:
+      return .OLE
+    case .Gt:
+      return .OGT
+    case .Ge:
+      return .OGE
+    default:
+      return .OEQ
+    }
+  }
+
+  public override func visitCall(_ instruction: TIR.Call, additional: Any? = nil) -> Any? {
+    guard let builder,
+      let callee = value(instruction.callee)
+    else { return nil }
+    if let functionReference = instruction.callee as? TIR.FunctionRef,
+      let tirFunction = registry?.functions[functionReference.functionId],
+      let builtinOp = builtinArithOp(from: tirFunction.name)
+    {
+      emitBuiltin(builtinOp, instruction)
+      return nil
+    }
+    guard let functionType = lowerType(instruction.callee.ty) as? LLVMSwiftBinding.FunctionType
+    else { return nil }
+    let arguments = instruction.arguments.compactMap { value($0) }
+    let call = builder.buildCall(callee, type: functionType, arguments, name: "")
+    if let result = instruction.result {
+      valueMap[ObjectIdentifier(result)] = call
+    }
+    return nil
+  }
+
+  private func builtinArithOp(from name: String) -> TIR.ArithOp? {
+    guard name.hasPrefix("builtin_") else { return nil }
+    let rest = String(name.dropFirst("builtin_".count))
+    guard
+      let opName = rest.split(separator: "_", maxSplits: 1, omittingEmptySubsequences: true).first
+    else { return nil }
+    switch opName {
+    case "add":
+      return .Add
+    case "sub":
+      return .Sub
+    case "mul":
+      return .Mul
+    case "div":
+      return .SDiv
+    case "rem":
+      return .SRem
+    case "neg":
+      return .Neg
+    case "not":
+      return .Not
+    case "bitnot":
+      return .Bitnot
+    case "and":
+      return .And
+    case "or":
+      return .Or
+    case "xor":
+      return .Xor
+    case "shl":
+      return .Shl
+    case "shr":
+      return .Shr
+    case "eq":
+      return .Eq
+    case "ne":
+      return .Ne
+    case "lt":
+      return .Lt
+    case "le":
+      return .Le
+    case "gt":
+      return .Gt
+    case "ge":
+      return .Ge
+    default:
+      return nil
+    }
+  }
+
+  private func emitBuiltin(_ op: TIR.ArithOp, _ instruction: TIR.Call) {
+    guard let builder else { return }
+    if op.isUnary {
+      guard let argument = instruction.arguments.first,
+        let operand = value(argument)
+      else { return }
+      let kind = (registry?.type(argument.ty) as? TIRType.PrimitiveType)?.kind
+      let built = emitBuiltinUnary(op: op, operand: operand, kind: kind)
+      if let built, let result = instruction.result {
+        valueMap[ObjectIdentifier(result)] = built
+      }
+      return
+    }
+    guard let lhs = instruction.arguments.first,
+      let rhs = instruction.arguments.dropFirst().first,
+      let lhsValue = value(lhs), let rhsValue = value(rhs)
+    else { return }
+    let kind = (registry?.type(lhs.ty) as? TIRType.PrimitiveType)?.kind
+    let built: LLVMSwiftBinding.Value?
+    if op.isCompare {
+      built = emitBuiltinCompare(op: op, lhs: lhsValue, rhs: rhsValue, kind: kind)
+    } else {
+      built = emitBuiltinBinary(op: op, lhs: lhsValue, rhs: rhsValue, kind: kind)
+    }
+    if let built, let result = instruction.result {
+      valueMap[ObjectIdentifier(result)] = built
+    }
+  }
+
+  private func emitBuiltinUnary(
+    op: TIR.ArithOp, operand: LLVMSwiftBinding.Value, kind: TIRType.PrimitiveKind?
+  ) -> LLVMSwiftBinding.Value? {
+    guard let builder else { return nil }
+    switch op {
+    case .Neg:
+      return kind == .Float ? builder.buildFNeg(operand) : builder.buildNeg(operand)
+    case .Not, .Bitnot:
+      return builder.buildNot(operand)
+    default:
+      return nil
+    }
+  }
+
+  private func emitBuiltinBinary(
+    op: TIR.ArithOp, lhs: LLVMSwiftBinding.Value,
+    rhs: LLVMSwiftBinding.Value, kind: TIRType.PrimitiveKind?
+  ) -> LLVMSwiftBinding.Value? {
+    guard let builder else { return nil }
+    switch op {
+    case .Add:
+      return kind == .Float ? builder.buildFAdd(lhs, rhs) : builder.buildAdd(lhs, rhs)
+    case .Sub:
+      return kind == .Float ? builder.buildFSub(lhs, rhs) : builder.buildSub(lhs, rhs)
+    case .Mul:
+      return kind == .Float ? builder.buildFMul(lhs, rhs) : builder.buildMul(lhs, rhs)
+    case .SDiv:
+      return kind == .Float
+        ? builder.buildFDiv(lhs, rhs)
+        : (kind == .Unsigned ? builder.buildUDiv(lhs, rhs) : builder.buildSDiv(lhs, rhs))
+    case .SRem:
+      return kind == .Float
+        ? builder.buildFRem(lhs, rhs)
+        : (kind == .Unsigned ? builder.buildURem(lhs, rhs) : builder.buildSRem(lhs, rhs))
+    case .And:
+      return builder.buildAnd(lhs, rhs)
+    case .Or:
+      return builder.buildOr(lhs, rhs)
+    case .Xor:
+      return builder.buildXor(lhs, rhs)
+    case .Shl:
+      return builder.buildShl(lhs, rhs)
+    case .Shr:
+      return kind == .Unsigned ? builder.buildLShr(lhs, rhs) : builder.buildAShr(lhs, rhs)
+    default:
+      return nil
+    }
+  }
+
+  private func emitBuiltinCompare(
+    op: TIR.ArithOp, lhs: LLVMSwiftBinding.Value,
+    rhs: LLVMSwiftBinding.Value, kind: TIRType.PrimitiveKind?
+  ) -> LLVMSwiftBinding.Value? {
+    guard let builder else { return nil }
+    switch kind {
+    case .Float:
+      return builder.buildFCmp(realPredicate(for: op), lhs, rhs)
+    default:
+      return builder.buildICmp(intPredicate(for: op, unsigned: kind == .Unsigned), lhs, rhs)
+    }
+  }
+
+  public override func visitFunctionRef(
+    _ instruction: TIR.FunctionRef, additional: Any? = nil
+  ) -> Any? {
+    if let function = functionValue(for: instruction.functionId) {
+      valueMap[ObjectIdentifier(instruction)] = function
+    }
+    return nil
+  }
+
+  public override func visitGlobalAddr(
+    _ value: TIR.GlobalAddr, additional: Any? = nil
+  ) -> Any? {
+    if let llvmGlobal = globalMap[value.globalId] {
+      self.valueMap[ObjectIdentifier(value)] = llvmGlobal
+    }
+    return nil
+  }
+
+  public override func visitAllocHeap(
+    _ instruction: TIR.AllocHeap, additional: Any? = nil
+  ) -> Any? {
+    unsupported("AllocHeap", at: instruction.sourceRange)
+    return nil
+  }
+
+  public override func visitDeallocHeap(
+    _ instruction: TIR.DeallocHeap, additional: Any? = nil
+  ) -> Any? {
+    unsupported("DeallocHeap", at: instruction.sourceRange)
+    return nil
+  }
+
+  public override func visitAllocCell(
+    _ instruction: TIR.AllocCell, additional: Any? = nil
+  ) -> Any? {
+    unsupported("AllocCell", at: instruction.sourceRange)
+    return nil
+  }
+
+  public override func visitDeallocCell(
+    _ instruction: TIR.DeallocCell, additional: Any? = nil
+  ) -> Any? {
+    unsupported("DeallocCell", at: instruction.sourceRange)
+    return nil
+  }
+
+  public override func visitClassElementAddr(
+    _ instruction: TIR.ClassElementAddr, additional: Any? = nil
+  ) -> Any? {
+    unsupported("ClassElementAddr", at: instruction.sourceRange)
+    return nil
+  }
+
+  public override func visitProjectCell(
+    _ instruction: TIR.ProjectCell, additional: Any? = nil
+  ) -> Any? {
+    unsupported("ProjectCell", at: instruction.sourceRange)
+    return nil
+  }
+
+  public override func visitTryCall(_ instruction: TIR.TryCall, additional: Any? = nil) -> Any? {
+    unsupported("TryCall", at: instruction.sourceRange)
+    return nil
+  }
+
+  public override func visitClosure(_ instruction: TIR.Closure, additional: Any? = nil) -> Any? {
+    unsupported("Closure", at: instruction.sourceRange)
+    return nil
+  }
+
+  public override func visitUpcast(_ instruction: TIR.Upcast, additional: Any? = nil) -> Any? {
+    unsupported("Upcast", at: instruction.sourceRange)
+    return nil
+  }
+
+  public override func visitUncheckedRefCast(
+    _ instruction: TIR.UncheckedRefCast, additional: Any? = nil
+  ) -> Any? {
+    unsupported("UncheckedRefCast", at: instruction.sourceRange)
+    return nil
+  }
+
+  public override func visitRetain(_ instruction: TIR.Retain, additional: Any? = nil) -> Any? {
+    unsupported("Retain", at: instruction.sourceRange)
+    return nil
+  }
+
+  public override func visitRelease(_ instruction: TIR.Release, additional: Any? = nil) -> Any? {
+    unsupported("Release", at: instruction.sourceRange)
+    return nil
+  }
+
+  public override func visitCopy(_ instruction: TIR.Copy, additional: Any? = nil) -> Any? {
+    unsupported("Copy", at: instruction.sourceRange)
+    return nil
+  }
+
+  public override func visitDestroy(_ instruction: TIR.Destroy, additional: Any? = nil) -> Any? {
+    unsupported("Destroy", at: instruction.sourceRange)
+    return nil
+  }
+
+  public override func visitInlineAsm(
+    _ instruction: TIR.InlineAsm, additional: Any? = nil
+  ) -> Any? {
+    unsupported("InlineAsm", at: instruction.sourceRange)
+    return nil
+  }
+
+  public override func visitIntegerLiteral(
+    _ literal: TIR.IntegerLiteral, additional: Any? = nil
+  ) -> Any? {
+    if let materialized = materialize(literal) {
+      valueMap[ObjectIdentifier(literal)] = materialized
+    }
+    return nil
+  }
+
+  public override func visitFloatLiteral(
+    _ literal: TIR.FloatLiteral, additional: Any? = nil
+  ) -> Any? {
+    if let materialized = materialize(literal) {
+      valueMap[ObjectIdentifier(literal)] = materialized
+    }
+    return nil
+  }
+
+  public override func visitCharLiteral(
+    _ literal: TIR.CharLiteral, additional: Any? = nil
+  ) -> Any? {
+    if let materialized = materialize(literal) {
+      valueMap[ObjectIdentifier(literal)] = materialized
+    }
+    return nil
+  }
+
+  public override func visitBoolLiteral(
+    _ literal: TIR.BoolLiteral, additional: Any? = nil
+  ) -> Any? {
+    if let materialized = materialize(literal) {
+      valueMap[ObjectIdentifier(literal)] = materialized
+    }
+    return nil
+  }
+
+  public override func visitNullptrLiteral(
+    _ literal: TIR.NullptrLiteral, additional: Any? = nil
+  ) -> Any? {
+    if let materialized = materialize(literal) {
+      valueMap[ObjectIdentifier(literal)] = materialized
+    }
+    return nil
+  }
+
+  public override func visitStringLiteral(
+    _ literal: TIR.StringLiteral, additional: Any? = nil
+  ) -> Any? {
+    unsupported("string literal", at: literal.sourceRange)
+    return nil
+  }
 }

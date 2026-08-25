@@ -125,6 +125,12 @@ let package = Package(
                 .product(name: "SwiftBetterDiagnostic", package: "swift-better-diagnostic"),
             ]
         ),
+        .testTarget(
+            name: "TrussCodeGenTests",
+            dependencies: [
+                "TrussDriver", "TrussCodeGen", "TrussTIRGen", "TrussCore",
+            ]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )
