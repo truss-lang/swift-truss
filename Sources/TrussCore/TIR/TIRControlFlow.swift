@@ -110,9 +110,11 @@ public extension TIR {
 
     final class ExtractPayload: Instruction {
         public let value: Value
+        public let caseIndex: Int
         public var result: Value
-        public init(value: Value, ty: Id.TIRTypeId, name: String) {
+        public init(value: Value, caseIndex: Int, ty: Id.TIRTypeId, name: String) {
             self.value = value
+            self.caseIndex = caseIndex
             result = InstructionResult(ty: ty, name: name)
             super.init(name: name)
         }

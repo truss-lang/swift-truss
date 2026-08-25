@@ -1209,7 +1209,9 @@ public final class TIRGen: AST.Visitor {
             return
         }
         guard let symbol = findVariableSymbol(name: name, in: body) else { return }
-        let extract = builder.buildExtractPayload(value: subject, ty: payloadType, name: name)
+        let extract = builder.buildExtractPayload(
+            value: subject, caseIndex: index, ty: payloadType, name: name
+        )
         let alloc = builder.buildAllocStack(allocatedType: payloadType, name: name)
         builder.buildStore(value: extract.result, to: alloc.result)
         env[symbol.id] = alloc.result

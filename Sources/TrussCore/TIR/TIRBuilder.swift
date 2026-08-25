@@ -105,10 +105,12 @@ public extension TIR {
 
         @discardableResult
         public func buildExtractPayload(
-            value: Value, ty: Id.TIRTypeId, name: String? = nil
+            value: Value, caseIndex: Int, ty: Id.TIRTypeId, name: String? = nil
         ) -> ExtractPayload {
             guard let insertPoint else { fatalError("no insert point") }
-            let instruction = TIR.ExtractPayload(value: value, ty: ty, name: freshName(name))
+            let instruction = TIR.ExtractPayload(
+                value: value, caseIndex: caseIndex, ty: ty, name: freshName(name)
+            )
             insertPoint.instructions.append(attach(instruction, result: instruction.result))
             return instruction
         }
