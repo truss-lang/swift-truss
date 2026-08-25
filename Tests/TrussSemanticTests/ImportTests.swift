@@ -24,6 +24,27 @@ func runImports(
     return (context, program)
 }
 
+private func trussInterface() -> ModuleInterface {
+    ModuleInterface(
+        name: "Truss",
+        root: InterfaceScope(
+            modules: [
+                InterfaceModule(
+                    name: "Core",
+                    scope: InterfaceScope(
+                        types: [.nominal(InterfaceNominal(kind: .structType, name: "Vector"))]
+                    )
+                ),
+            ],
+            types: [.nominal(InterfaceNominal(kind: .structType, name: "Int"))],
+            values: [.function(InterfaceFunction(
+                name: "print", labels: [nil], hasDefaults: [false],
+                isVararg: [false], isVariadic: false, isStatic: true
+            ))]
+        )
+    )
+}
+
 private func fooInterface() -> ModuleInterface {
     ModuleInterface(
         name: "Foo",
@@ -97,4 +118,28 @@ private func fooInterface() -> ModuleInterface {
     #expect(context.diagnositicEngine.diagnostics.contains {
         $0.message.contains("unresolved import 'Foo.Missing'")
     })
+}
+
+@Test func autoImportsTrussPackageWhenPresent() {
+    let (context, program) = runImports("", interfaces: [trussInterface()])
+    let scope = program.packageSymbol!.scope
+    #expect(scope.types["Int"] != nil)
+    #expect(scope.modules["Core"] != nil)
+    #expect(scope.values["print"] != nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func autoImportSkipsWhenTrussPackageAbsent() {
+    let (context, program) = runImports("", interfaces: [fooInterface()])
+    let scope = program.packageSymbol!.scope
+    #expect(scope.types["FooType"] == nil)
+    #expect(scope.modules["Bar"] == nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func autoImportDoesNotShadowExplicitNames() {
+    let (context, program) = runImports("import Foo.FooType", interfaces: [fooInterface(), trussInterface()])
+    let scope = program.packageSymbol!.scope
+    #expect(scope.types["FooType"] != nil)
+    #expect(!context.diagnositicEngine.hasErrors)
 }

@@ -13,9 +13,18 @@ public final class ImportProcessor: AST.Visitor {
         guard let packageSymbol = program.packageSymbol else { return nil }
         let lastScope = currentScope
         currentScope = packageSymbol.scope
+        importStd(into: currentScope!)
         super.visitProgram(program, additional: additional)
         currentScope = lastScope
         return nil
+    }
+
+    private func importStd(into scope: Scope) {
+        guard let package = context.name2Package["Truss"] else { return }
+        let namespace = Namespace(
+            name: package.name, symbol: package, scope: package.scope
+        )
+        importAll(from: namespace, into: scope)
     }
 
     public override func visitImport(_ importStatement: AST.Import, additional: Any? = nil) -> Any? {
