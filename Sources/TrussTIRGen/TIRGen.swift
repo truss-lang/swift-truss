@@ -567,7 +567,29 @@ public final class TIRGen: AST.Visitor {
     }
 
     private func functionRefValue(_ symbol: Symbol.FunctionSymbol, at range: SourceRange) -> TIR.Value? {
-        guard let builder, let function = gen.functionsBySymbol[symbol.id] else { return nil }
+        guard let builder else { return nil }
+        let function: TIR.Function
+        if let existing = gen.functionsBySymbol[symbol.id] {
+            function = existing
+        } else {
+            guard let module = gen.currentModule else { return nil }
+            let functionType = symbol.functionType
+            let parameters: [TIR.Parameter] = (functionType?.parameters ?? []).enumerated().map {
+                index, parameter in
+                TIR.Parameter(ty: gen.typeLower.lower(parameter.type).id, name: "arg\(index)")
+            }
+            let returnType = functionType.map { gen.typeLower.lower($0.returnType).id }
+                ?? gen.registry.voidType().id
+            function = module.addFunction(
+                name: symbol.name,
+                parameters: parameters,
+                returnType: returnType,
+                isVariadic: false,
+                isExtern: true,
+                callingConvention: nil
+            )
+            gen.functionsBySymbol[symbol.id] = function
+        }
         return builder.buildFunctionRef(function: function)
     }
 
@@ -586,7 +608,7 @@ public final class TIRGen: AST.Visitor {
         guard let builder else { return nil }
         guard let calleeValue = lowerCallee(call.callee, at: call.sourceRange) else { return nil }
         let arguments: [TIR.Value] = call.arguments.compactMap { visitExpression($0.value) }
-        return builder.buildCall(callee: calleeValue, arguments: arguments)
+        return builder.buildCall(callee: calleeValue, arguments: arguments).result
     }
 
     private func lowerCallee(_ callee: AST.Expression, at range: SourceRange) -> TIR.Value? {
