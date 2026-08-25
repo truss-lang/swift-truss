@@ -6,6 +6,27 @@ public final class TIRGen: AST.Visitor {
     private let gen: GenerationContext
     private let collector: TypeCollector
 
+    private struct DeferFrame {
+        var bodies: [[AST.Statement]] = []
+    }
+
+    private struct LoopContext {
+        let breakTarget: TIR.BasicBlock
+        let continueTarget: TIR.BasicBlock
+        let bodyDeferDepth: Int
+    }
+
+    private struct LabelTarget {
+        let block: TIR.BasicBlock
+        let loop: LoopContext?
+    }
+
+    private var currentFunction: TIR.Function?
+    private var blockCounter = 0
+    private var deferStack: [DeferFrame] = []
+    private var loopStack: [LoopContext] = []
+    private var labelMap: [String: LabelTarget] = [:]
+
     public init(context: Context) {
         self.context = context
         let mangler = TypeMangler(context: context)
@@ -24,11 +45,10 @@ public final class TIRGen: AST.Visitor {
         }
         gen.typeLower.setStoredProperties(collector.storedProperties)
         gen.typeLower.setEnumCases(collector.enumCases)
-        var modules: [TIR.Module] = []
-        for program in programs {
+        let modules: [TIR.Module] = programs.map {
             let module = gen.makeModule()
-            modules.append(module)
-            collectFunctions(in: program)
+            collectFunctions(in: $0)
+            return module
         }
         for program in programs {
             gen.builder = nil
@@ -192,6 +212,7 @@ public final class TIRGen: AST.Visitor {
         )
     }
 
+    @discardableResult
     private func createFunction(
         _ symbol: Symbol.FunctionSymbol?, name: String, returnType: TIRType.TIRType,
         parameters: [AST.FunctionDecl.Parameter] = [], symbolType: Symbol.FunctionSymbol? = nil,
@@ -266,7 +287,10 @@ public final class TIRGen: AST.Visitor {
     }
 
     private func emitReturn(_ value: TIR.Value?, range: SourceRange) {
-        builder?.buildReturn(value)
+        guard let builder else { return }
+        if blockTerminated() { return }
+        emitDefersDownTo(0)
+        builder.buildReturn(value)
     }
 
     private func isTerminator(_ instruction: TIR.Instruction) -> Bool {
@@ -342,11 +366,20 @@ public final class TIRGen: AST.Visitor {
         b.insertPoint = entryBlock
         builder = b
         env = [:]
+        currentFunction = function
+        blockCounter = 0
+        deferStack = []
+        loopStack = []
+        labelMap = [:]
+        deferStack.append(DeferFrame())
 
         bindParameters(function: function, symbol: symbol, parameters: parameters)
 
         switch body {
         case let .Block(statements):
+            let savedLabelInsert = builder?.insertPoint
+            collectForwardLabels(statements)
+            builder?.insertPoint = savedLabelInsert
             visitBodyStatements(statements, implicitReturn: shouldImplicitReturn(symbol?.functionType?.returnType))
         case let .Expression(expression):
             if let value = visitExpression(expression) {
@@ -402,6 +435,9 @@ public final class TIRGen: AST.Visitor {
                 return
             }
             visit(statement)
+            if blockTerminated() {
+                _ = newBlock()
+            }
         }
     }
 
@@ -578,6 +614,645 @@ public final class TIRGen: AST.Visitor {
 
     private func isReferenceType(_ type: TrussType.TrussType?) -> Bool {
         type is TrussType.ClassType || type is TrussType.ActorType
+    }
+
+    private func newBlock(_ name: String? = nil) -> TIR.BasicBlock {
+        let function = currentFunction!
+        let blockName = name ?? "bb\(blockCounter)"
+        blockCounter += 1
+        let block = function.addBasicBlock(name: blockName)
+        builder?.insertPoint = block
+        return block
+    }
+
+    private func blockTerminated() -> Bool {
+        guard let block = builder?.insertPoint, let last = block.instructions.last else { return false }
+        return isTerminator(last)
+    }
+
+    private func pushDeferFrame() {
+        deferStack.append(DeferFrame())
+    }
+
+    private func popDeferFrame() {
+        deferStack.removeLast()
+    }
+
+    private func emitDefersDownTo(_ minDepth: Int) {
+        guard !deferStack.isEmpty, minDepth < deferStack.count else { return }
+        if blockTerminated() { return }
+        for index in stride(from: deferStack.count - 1, through: minDepth, by: -1) {
+            let frame = deferStack[index]
+            for body in frame.bodies.reversed() {
+                for statement in body {
+                    visit(statement)
+                    if blockTerminated() { return }
+                }
+            }
+        }
+    }
+
+    private func deferBodyHasExit(_ body: [AST.Statement]) -> Bool {
+        body.contains { statement in
+            statement is AST.Return || statement is AST.Break || statement is AST.Continue
+                || statement is AST.Goto
+        }
+    }
+
+    private func visitValueStatements(_ statements: [AST.Statement]) -> TIR.Value? {
+        var lastValue: TIR.Value? = nil
+        for statement in statements {
+            if blockTerminated() { _ = newBlock() }
+            if let expressionStatement = statement as? AST.ExpressionStatement {
+                lastValue = visitExpression(expressionStatement.expression)
+            } else {
+                visit(statement)
+                lastValue = nil
+            }
+        }
+        return lastValue
+    }
+
+    private func collectForwardLabels(inIf ifExpr: AST.If) {
+        collectForwardLabels(ifExpr.then)
+        if let elseKind = ifExpr.elseKind {
+            switch elseKind {
+            case let .Block(statements):
+                collectForwardLabels(statements)
+            case let .If(elseIf):
+                collectForwardLabels(inIf: elseIf)
+            }
+        }
+    }
+
+    private func collectForwardLabels(_ statements: [AST.Statement]) {
+        for statement in statements {
+            if let labeled = statement as? AST.LabeledStatement {
+                let isLoop = labeled.body is AST.While || labeled.body is AST.RepeatWhile
+                if !isLoop, labelMap[labeled.label.value] == nil {
+                    let block = newBlock("label_\(labeled.label.value)")
+                    labelMap[labeled.label.value] = LabelTarget(block: block, loop: nil)
+                }
+                collectForwardLabels([labeled.body])
+            } else if let expressionStatement = statement as? AST.ExpressionStatement,
+                      let ifNode = expressionStatement.expression as? AST.If
+            {
+                collectForwardLabels(inIf: ifNode)
+            } else if let expressionStatement = statement as? AST.ExpressionStatement,
+                      let matchNode = expressionStatement.expression as? AST.Match
+            {
+                for caseNode in matchNode.cases {
+                    collectForwardLabels(caseNode.body)
+                }
+            } else if let whileStmt = statement as? AST.While {
+                collectForwardLabels(whileStmt.body)
+            } else if let repeatWhile = statement as? AST.RepeatWhile {
+                collectForwardLabels(repeatWhile.body)
+            } else if let guardStmt = statement as? AST.Guard {
+                collectForwardLabels(guardStmt.body)
+            }
+        }
+    }
+
+    @discardableResult
+    public override func visitIf(_ ifExpression: AST.If, additional: Any? = nil) -> Any? {
+        guard let builder else { return nil }
+        let producesValue = ifExpression.ty.map { type in
+            !(type is TrussType.VoidType) && !(type is TrussType.NeverType)
+        } ?? false
+        let hasElse = ifExpression.elseKind != nil
+        if producesValue, !hasElse {
+            context.emitError("if used as a value must have an else branch", at: ifExpression.token)
+        }
+        guard let cond = visitExpression(ifExpression.condition) else { return nil }
+        let preBlock = builder.insertPoint!
+
+        let thenBlock = newBlock()
+        let elseBlock = hasElse ? newBlock() : nil
+        let joinBlock = newBlock()
+        builder.insertPoint = preBlock
+        builder.buildConditionalBranch(
+            condition: cond, trueBranch: thenBlock, falseBranch: elseBlock ?? joinBlock
+        )
+
+        var incomings: [TIR.Phi.Incoming] = []
+
+        builder.insertPoint = thenBlock
+        pushDeferFrame()
+        let thenValue = visitValueStatements(ifExpression.then)
+        emitDefersDownTo(deferStack.count - 1)
+        if !blockTerminated() {
+            if producesValue, let thenValue {
+                incomings.append(TIR.Phi.Incoming(value: thenValue, block: thenBlock))
+            }
+            builder.buildBranch(to: joinBlock)
+        }
+        popDeferFrame()
+
+        if let elseBlock {
+            builder.insertPoint = elseBlock
+            switch ifExpression.elseKind {
+            case let .Block(statements)?:
+                pushDeferFrame()
+                let elseValue = visitValueStatements(statements)
+                emitDefersDownTo(deferStack.count - 1)
+                if !blockTerminated() {
+                    if producesValue, let elseValue {
+                        incomings.append(TIR.Phi.Incoming(value: elseValue, block: elseBlock))
+                    }
+                    builder.buildBranch(to: joinBlock)
+                }
+                popDeferFrame()
+            case let .If(elseIf)?:
+                let elseValue = visitExpression(elseIf)
+                if !blockTerminated() {
+                    if producesValue, let elseValue {
+                        incomings.append(
+                            TIR.Phi.Incoming(value: elseValue, block: builder.insertPoint!)
+                        )
+                    }
+                    builder.buildBranch(to: joinBlock)
+                }
+            case nil:
+                break
+            }
+        }
+
+        builder.insertPoint = joinBlock
+        if producesValue {
+            if incomings.count >= 2 {
+                return builder.buildPhi(incomings: incomings).result
+            } else if incomings.count == 1 {
+                return incomings[0].value
+            }
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitWhile(_ whileStatement: AST.While, additional: Any? = nil) -> Any? {
+        lowerWhile(whileStatement, label: nil, additional: additional)
+        return nil
+    }
+
+    private func lowerWhile(_ whileStatement: AST.While, label: String?, additional: Any?) {
+        guard let builder else { return }
+        let preBlock = builder.insertPoint!
+        let condBlock = newBlock()
+        let bodyBlock = newBlock()
+        let exitBlock = newBlock()
+        let bodyDeferDepth = deferStack.count
+        builder.insertPoint = preBlock
+        builder.buildBranch(to: condBlock)
+
+        let loop = LoopContext(
+            breakTarget: exitBlock, continueTarget: condBlock, bodyDeferDepth: bodyDeferDepth
+        )
+        loopStack.append(loop)
+        if let label, labelMap[label] == nil {
+            labelMap[label] = LabelTarget(block: condBlock, loop: loop)
+        }
+
+        builder.insertPoint = bodyBlock
+        pushDeferFrame()
+        visitBodyStatements(whileStatement.body, implicitReturn: false)
+        emitDefersDownTo(deferStack.count - 1)
+        if !blockTerminated() {
+            builder.buildBranch(to: condBlock)
+        }
+        popDeferFrame()
+
+        builder.insertPoint = condBlock
+        if let cond = visitExpression(whileStatement.condition) {
+            builder.buildConditionalBranch(
+                condition: cond, trueBranch: bodyBlock, falseBranch: exitBlock
+            )
+        } else {
+            builder.buildBranch(to: exitBlock)
+        }
+
+        builder.insertPoint = exitBlock
+        loopStack.removeLast()
+    }
+
+    @discardableResult
+    public override func visitRepeatWhile(
+        _ repeatWhile: AST.RepeatWhile, additional: Any? = nil
+    ) -> Any? {
+        lowerRepeatWhile(repeatWhile, label: nil, additional: additional)
+        return nil
+    }
+
+    private func lowerRepeatWhile(_ repeatWhile: AST.RepeatWhile, label: String?, additional: Any?) {
+        guard let builder else { return }
+        let preBlock = builder.insertPoint!
+        let bodyBlock = newBlock()
+        let condBlock = newBlock()
+        let exitBlock = newBlock()
+        let bodyDeferDepth = deferStack.count
+        builder.insertPoint = preBlock
+        builder.buildBranch(to: bodyBlock)
+
+        let loop = LoopContext(
+            breakTarget: exitBlock, continueTarget: condBlock, bodyDeferDepth: bodyDeferDepth
+        )
+        loopStack.append(loop)
+        if let label, labelMap[label] == nil {
+            labelMap[label] = LabelTarget(block: bodyBlock, loop: loop)
+        }
+
+        builder.insertPoint = bodyBlock
+        pushDeferFrame()
+        visitBodyStatements(repeatWhile.body, implicitReturn: false)
+        emitDefersDownTo(deferStack.count - 1)
+        if !blockTerminated() {
+            builder.buildBranch(to: condBlock)
+        }
+        popDeferFrame()
+
+        builder.insertPoint = condBlock
+        if let cond = visitExpression(repeatWhile.condition) {
+            builder.buildConditionalBranch(
+                condition: cond, trueBranch: bodyBlock, falseBranch: exitBlock
+            )
+        } else {
+            builder.buildBranch(to: exitBlock)
+        }
+
+        builder.insertPoint = exitBlock
+        loopStack.removeLast()
+    }
+
+    @discardableResult
+    public override func visitGuard(_ guardStatement: AST.Guard, additional: Any? = nil) -> Any? {
+        guard let builder else { return nil }
+        guard let cond = visitExpression(guardStatement.condition) else { return nil }
+        let preBlock = builder.insertPoint!
+        let failureBlock = newBlock()
+        let continueBlock = newBlock()
+        builder.insertPoint = preBlock
+        builder.buildConditionalBranch(
+            condition: cond, trueBranch: continueBlock, falseBranch: failureBlock
+        )
+        builder.insertPoint = failureBlock
+        pushDeferFrame()
+        visitBodyStatements(guardStatement.body, implicitReturn: false)
+        if !blockTerminated() {
+            context.emitError("guard's else body must not fall through", at: guardStatement.token)
+            emitDefersDownTo(deferStack.count - 1)
+            builder.buildBranch(to: continueBlock)
+        }
+        popDeferFrame()
+        builder.insertPoint = continueBlock
+        return nil
+    }
+
+    @discardableResult
+    public override func visitDefer(_ deferStatement: AST.Defer, additional: Any? = nil) -> Any? {
+        guard !deferStack.isEmpty else { return nil }
+        if deferBodyHasExit(deferStatement.body) {
+            context.emitError(
+                "defer body must not contain return, break, continue, or goto",
+                at: deferStatement.token
+            )
+        }
+        deferStack[deferStack.count - 1].bodies.append(deferStatement.body)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitBreak(_ breakStatement: AST.Break, additional: Any? = nil) -> Any? {
+        guard let builder else { return nil }
+        if let labelToken = breakStatement.label {
+            guard let target = labelMap[labelToken.value] else {
+                context.emitError("use of undeclared label '\(labelToken.value)'", at: labelToken)
+                return nil
+            }
+            guard let loop = target.loop else {
+                context.emitError("label '\(labelToken.value)' is not a loop", at: labelToken)
+                return nil
+            }
+            emitDefersDownTo(loop.bodyDeferDepth)
+            if !blockTerminated() { builder.buildBranch(to: loop.breakTarget) }
+            return nil
+        }
+        guard let loop = loopStack.last else {
+            context.emitError("'break' outside of a loop", at: breakStatement.token)
+            return nil
+        }
+        emitDefersDownTo(loop.bodyDeferDepth)
+        if !blockTerminated() { builder.buildBranch(to: loop.breakTarget) }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitContinue(
+        _ continueStatement: AST.Continue, additional: Any? = nil
+    ) -> Any? {
+        guard let builder else { return nil }
+        if let labelToken = continueStatement.label {
+            guard let target = labelMap[labelToken.value] else {
+                context.emitError("use of undeclared label '\(labelToken.value)'", at: labelToken)
+                return nil
+            }
+            guard let loop = target.loop else {
+                context.emitError("label '\(labelToken.value)' is not a loop", at: labelToken)
+                return nil
+            }
+            emitDefersDownTo(loop.bodyDeferDepth)
+            if !blockTerminated() { builder.buildBranch(to: loop.continueTarget) }
+            return nil
+        }
+        guard let loop = loopStack.last else {
+            context.emitError("'continue' outside of a loop", at: continueStatement.token)
+            return nil
+        }
+        emitDefersDownTo(loop.bodyDeferDepth)
+        if !blockTerminated() { builder.buildBranch(to: loop.continueTarget) }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitGoto(_ gotoStatement: AST.Goto, additional: Any? = nil) -> Any? {
+        guard let builder else { return nil }
+        let name = gotoStatement.label.value
+        guard let target = labelMap[name] else {
+            context.emitError("use of undeclared label '\(name)'", at: gotoStatement.label)
+            return nil
+        }
+        if deferStack.contains(where: { !$0.bodies.isEmpty }) {
+            context.emitError(
+                "cannot use 'goto' to jump out of a scope containing 'defer'",
+                at: gotoStatement.label
+            )
+            return nil
+        }
+        if !blockTerminated() { builder.buildBranch(to: target.block) }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitLabeledStatement(
+        _ labeledStatement: AST.LabeledStatement, additional: Any? = nil
+    ) -> Any? {
+        guard let builder else { return nil }
+        let name = labeledStatement.label.value
+        if let loop = labeledStatement.body as? AST.While {
+            lowerWhile(loop, label: name, additional: additional)
+        } else if let loop = labeledStatement.body as? AST.RepeatWhile {
+            lowerRepeatWhile(loop, label: name, additional: additional)
+        } else {
+            if let existing = labelMap[name] {
+                builder.insertPoint = existing.block
+            } else {
+                let block = newBlock("label_\(name)")
+                labelMap[name] = LabelTarget(block: block, loop: nil)
+            }
+            visit(labeledStatement.body)
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitMatch(_ match: AST.Match, additional: Any? = nil) -> Any? {
+        guard let builder else { return nil }
+        let producesValue = match.ty.map { type in
+            !(type is TrussType.VoidType) && !(type is TrussType.NeverType)
+        } ?? false
+        guard let subject = visitExpression(match.subject) else { return nil }
+        if let enumType = gen.registry.types[subject.ty] as? TIRType.EnumType {
+            return lowerEnumMatch(
+                match, subject: subject, enumType: enumType, producesValue: producesValue,
+                additional: additional
+            )
+        }
+        return lowerValueMatch(
+            match, subject: subject, producesValue: producesValue, additional: additional
+        )
+    }
+
+    private func lowerEnumMatch(
+        _ match: AST.Match, subject: TIR.Value, enumType: TIRType.EnumType,
+        producesValue: Bool, additional: Any?
+    ) -> Any? {
+        guard let builder else { return nil }
+        let preBlock = builder.insertPoint!
+        let joinBlock = newBlock()
+        var incomings: [TIR.Phi.Incoming] = []
+        var switchCases: [TIR.SwitchEnum.Case] = []
+        var defaultBlock: TIR.BasicBlock? = nil
+        var bodyBlocks: [(TIR.BasicBlock, AST.Match.Case)] = []
+
+        for matchCase in match.cases {
+            let bodyBlock = newBlock()
+            bodyBlocks.append((bodyBlock, matchCase))
+            for pattern in matchCase.patterns {
+                if isWildcard(pattern) {
+                    defaultBlock = bodyBlock
+                    continue
+                }
+                if let name = caseName(from: pattern),
+                   let tag = enumType.cases.firstIndex(where: { $0.name == name })
+                {
+                    switchCases.append(TIR.SwitchEnum.Case(tag: tag, block: bodyBlock))
+                }
+            }
+        }
+
+        let coveredTags = Set(switchCases.map(\.tag))
+        let allCovered = coveredTags.count == enumType.cases.count
+        builder.insertPoint = preBlock
+        builder.buildSwitchEnum(value: subject, cases: switchCases, defaultBlock: defaultBlock)
+        if defaultBlock == nil, !allCovered {
+            context.emitError("non-exhaustive match", at: match.token)
+            builder.buildUnreachable()
+        }
+
+        for (bodyBlock, matchCase) in bodyBlocks {
+            builder.insertPoint = bodyBlock
+            pushDeferFrame()
+            for pattern in matchCase.patterns {
+                if let name = bindingName(from: pattern) {
+                    bindMatchPayload(
+                        name: name,
+                        from: pattern,
+                        subject: subject,
+                        enumType: enumType,
+                        body: matchCase.body
+                    )
+                }
+            }
+            let caseValue = visitValueStatements(matchCase.body)
+            emitDefersDownTo(deferStack.count - 1)
+            if !blockTerminated() {
+                if producesValue, let caseValue {
+                    incomings.append(TIR.Phi.Incoming(value: caseValue, block: bodyBlock))
+                }
+                builder.buildBranch(to: joinBlock)
+            }
+            popDeferFrame()
+        }
+
+        builder.insertPoint = joinBlock
+        if producesValue {
+            if incomings.count >= 2 {
+                return builder.buildPhi(incomings: incomings).result
+            } else if incomings.count == 1 {
+                return incomings[0].value
+            }
+        }
+        return nil
+    }
+
+    private func lowerValueMatch(
+        _ match: AST.Match, subject: TIR.Value, producesValue: Bool, additional: Any?
+    ) -> Any? {
+        guard let builder else { return nil }
+        let joinBlock = newBlock()
+        var incomings: [TIR.Phi.Incoming] = []
+        var current = builder.insertPoint!
+        var defaultBlock: TIR.BasicBlock? = nil
+        var bodyBlocks: [(TIR.BasicBlock, AST.Match.Case)] = []
+
+        for matchCase in match.cases {
+            let bodyBlock = newBlock()
+            bodyBlocks.append((bodyBlock, matchCase))
+            let isDefault = matchCase.patterns.contains { isWildcard($0) }
+            if isDefault {
+                defaultBlock = bodyBlock
+                continue
+            }
+            builder.insertPoint = current
+            for pattern in matchCase.patterns where !isWildcard(pattern) {
+                guard let patternValue = visitExpression(pattern) else { continue }
+                let eq = builder.buildBinaryArith(op: .Eq, lhs: subject, rhs: patternValue)
+                let nextBlock = newBlock()
+                builder.buildConditionalBranch(
+                    condition: eq.result, trueBranch: bodyBlock, falseBranch: nextBlock
+                )
+                current = nextBlock
+                builder.insertPoint = current
+            }
+        }
+
+        builder.insertPoint = current
+        if let defaultBlock {
+            builder.buildBranch(to: defaultBlock)
+        } else {
+            context.emitError("non-exhaustive match", at: match.token)
+            builder.buildUnreachable()
+        }
+
+        for (bodyBlock, matchCase) in bodyBlocks {
+            builder.insertPoint = bodyBlock
+            pushDeferFrame()
+            let caseValue = visitValueStatements(matchCase.body)
+            emitDefersDownTo(deferStack.count - 1)
+            if !blockTerminated() {
+                if producesValue, let caseValue {
+                    incomings.append(TIR.Phi.Incoming(value: caseValue, block: bodyBlock))
+                }
+                builder.buildBranch(to: joinBlock)
+            }
+            popDeferFrame()
+        }
+
+        builder.insertPoint = joinBlock
+        if producesValue {
+            if incomings.count >= 2 {
+                return builder.buildPhi(incomings: incomings).result
+            } else if incomings.count == 1 {
+                return incomings[0].value
+            }
+        }
+        return nil
+    }
+
+    private func isWildcard(_ pattern: AST.Expression) -> Bool {
+        pattern is AST.WildcardPattern
+    }
+
+    private func caseName(from pattern: AST.Expression) -> String? {
+        if let implicit = pattern as? AST.ImplicitMemberAccess {
+            return implicit.symbol?.name
+        }
+        if let member = pattern as? AST.MemberAccess {
+            return member.member.value
+        }
+        if let variable = pattern as? AST.Variable, let caseSymbol = variable.symbol as? Symbol.CaseSymbol {
+            return caseSymbol.name
+        }
+        if let call = pattern as? AST.Call {
+            return caseName(from: call.callee)
+        }
+        return nil
+    }
+
+    private func bindingName(from pattern: AST.Expression) -> String? {
+        guard let call = pattern as? AST.Call else { return nil }
+        for argument in call.arguments {
+            if let binding = argument.value as? AST.BindingPattern {
+                return binding.name.value
+            }
+        }
+        return nil
+    }
+
+    private func bindMatchPayload(
+        name: String, from pattern: AST.Expression, subject: TIR.Value, enumType: TIRType.EnumType,
+        body: [AST.Statement]
+    ) {
+        guard let builder, let caseName = caseName(from: pattern),
+              let index = enumType.cases.firstIndex(where: { $0.name == caseName }),
+              let payloadType = enumType.cases[index].associatedTypes.first
+        else {
+            return
+        }
+        guard let symbol = findVariableSymbol(name: name, in: body) else { return }
+        let extract = builder.buildExtractPayload(value: subject, ty: payloadType, name: name)
+        let alloc = builder.buildAllocStack(allocatedType: payloadType, name: name)
+        builder.buildStore(value: extract.result, to: alloc.result)
+        env[symbol.id] = alloc.result
+    }
+
+    private func findVariableSymbol(name: String, in statements: [AST.Statement]) -> Symbol.VariableSymbol? {
+        for statement in statements {
+            if let symbol = findVariableSymbol(name: name, in: statement) { return symbol }
+        }
+        return nil
+    }
+
+    private func findVariableSymbol(name: String, in statement: AST.Statement) -> Symbol.VariableSymbol? {
+        if let expressionStatement = statement as? AST.ExpressionStatement {
+            return findVariableSymbol(name: name, in: expressionStatement.expression)
+        }
+        if let variableDecl = statement as? AST.VariableDecl {
+            return findVariableSymbol(name: name, in: variableDecl.initializer)
+        }
+        if let ifExpression = statement as? AST.If {
+            for s in ifExpression.then {
+                if let symbol = findVariableSymbol(name: name, in: s) { return symbol }
+            }
+            return nil
+        }
+        if let returnStatement = statement as? AST.Return {
+            return findVariableSymbol(name: name, in: returnStatement.value)
+        }
+        return nil
+    }
+
+    private func findVariableSymbol(name: String, in expression: AST.Expression?) -> Symbol.VariableSymbol? {
+        guard let expression else { return nil }
+        if let variable = expression as? AST.Variable,
+           variable.name.value == name,
+           let symbol = variable.symbol as? Symbol.VariableSymbol
+        {
+            return symbol
+        }
+        if let parenthetical = expression as? AST.Parenthetical {
+            return findVariableSymbol(name: name, in: parenthetical.inner)
+        }
+        return nil
     }
 
     private var emptyRange: SourceRange {

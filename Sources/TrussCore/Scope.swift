@@ -37,6 +37,12 @@ public extension Scope {
                 values[symbol.name]!.append(symbol)
                 return true
             }
+            if symbol is Symbol.VariableSymbol, symbol.memberOf == nil,
+               existing.allSatisfy({ $0 is Symbol.VariableSymbol && $0.memberOf == nil })
+            {
+                values[symbol.name]!.append(symbol)
+                return true
+            }
             context.emitError("invalid redeclaration of '\(symbol.name)'", at: token)
             return false
         }

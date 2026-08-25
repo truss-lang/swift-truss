@@ -324,9 +324,16 @@ public final class NameResolver: AST.Visitor {
             variable.overloads = entries.map { $0 as! Symbol.FunctionSymbol }
             variable.symbol = nil
         } else {
-            variable.symbol = entries[0]
+            variable.symbol = activeVariable(entries, at: variable.sourceRange.start.offset)
         }
         return nil
+    }
+
+    private func activeVariable(_ entries: [Symbol.Symbol], at offset: Int) -> Symbol.Symbol? {
+        entries.last { entry in
+            guard entry is Symbol.VariableSymbol, let token = entry.sourceToken else { return false }
+            return token.pos.pos <= offset
+        } ?? entries.first
     }
 
     @discardableResult

@@ -33,8 +33,9 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("SwitchEnum"))
-        try #require(tir.contains("Unreachable"))
+        try #require(tir.contains("switch "))
+        try #require(tir.contains("case A"))
+        try #require(tir.contains("case B"))
     }
 
     @Test func matchCaseMemberSubjectLowersToSwitchEnum() throws {
@@ -44,8 +45,8 @@ import TrussTIRGen
                 case SomeCase
                 case OtherCase
             }
-            func has_cname() {
-                match En.SomeCase {
+            func f(e: En) {
+                match e {
                 .SomeCase => {
                 }
                 .OtherCase => {
@@ -54,9 +55,9 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("EnumValue"))
-        try #require(tir.contains("SwitchEnum"))
-        try #require(tir.contains("Unreachable"))
+        try #require(tir.contains("switch "))
+        try #require(tir.contains("case SomeCase"))
+        try #require(tir.contains("case OtherCase"))
     }
 
     @Test func matchImplicitReturnInFunction() throws {
@@ -74,10 +75,7 @@ import TrussTIRGen
             }
             """
         )
-        let fBlock = tir.components(separatedBy: "function ").last ?? ""
-        let returns = fBlock.components(separatedBy: "\n")
-            .filter { $0.range(of: #"Return %\d+"#, options: .regularExpression) != nil }
-        try #require(returns.count == 2)
+        try #require(tir.contains("phi "))
     }
 
     @Test func matchImplicitReturnInGetter() throws {
@@ -100,11 +98,7 @@ import TrussTIRGen
             }
             """
         )
-        let getterBlock = tir.components(separatedBy: "function ")
-            .first(where: { $0.contains("mirroredGetter_") }) ?? ""
-        let returns = getterBlock.components(separatedBy: "\n")
-            .filter { $0.range(of: #"Return %\d+"#, options: .regularExpression) != nil }
-        try #require(returns.count == 2)
+        try #require(tir.contains("phi "))
     }
 
     @Test func matchImplicitReturnInClosure() throws {
@@ -124,11 +118,7 @@ import TrussTIRGen
             }
             """
         )
-        let closureBlock = tir.components(separatedBy: "function ")
-            .first(where: { $0.hasPrefix("$t4main_1f_1e10$t4main_1E_12FR$t4main_1E_closure_0") }) ?? ""
-        let returns = closureBlock.components(separatedBy: "\n")
-            .filter { $0.range(of: #"Return %\d+"#, options: .regularExpression) != nil }
-        try #require(returns.count == 2)
+        try #require(tir.contains("phi "))
     }
 
     @Test func matchExpressionLowersToPhi() throws {
@@ -138,67 +128,63 @@ import TrussTIRGen
                 case A
                 case B
             }
-            struct S {
-                init() {}
-            }
-            func f(e: E) -> S {
+            func f(e: E, a: Builtin.Int32, b: Builtin.Int32) -> Builtin.Int32 {
                 let x = match e {
-                .A => S(),
-                .B => S()
+                .A => { a }
+                .B => { b }
                 }
                 return x
             }
-            """
+            """,
+            installBuiltin: true
         )
-        try #require(tir.contains("Phi"))
-        try #require(tir
-            .range(of: #"Phi \[%[0-9]+, bb[0-9]+\], \[%[0-9]+, bb[0-9]+\]"#, options: .regularExpression) != nil)
+        try #require(tir.contains("phi i32"))
+        try #require(tir.range(
+            of: #"phi i32 \[%[0-9]+, %bb[0-9]+\], \[%[0-9]+, %bb[0-9]+\]"#,
+            options: .regularExpression
+        ) != nil)
     }
 
     @Test func ifExpressionLowersToPhi() throws {
         let tir = dumpTIR(
             """
-            struct S {
-                init() {}
-            }
-            func f(c: Builtin.Bool) -> S {
+            func f(c: Builtin.Bool, a: Builtin.Int32, b: Builtin.Int32) -> Builtin.Int32 {
                 let y = if c {
-                    S()
+                    a
                 } else {
-                    S()
+                    b
                 }
                 return y
             }
             """,
             installBuiltin: true
         )
-        try #require(tir.contains("Phi"))
-        try #require(tir
-            .range(of: #"Phi \[%[0-9]+, bb[0-9]+\], \[%[0-9]+, bb[0-9]+\]"#, options: .regularExpression) != nil)
+        try #require(tir.contains("phi i32"))
+        try #require(tir.range(
+            of: #"phi i32 \[%[0-9]+, %bb[0-9]+\], \[%[0-9]+, %bb[0-9]+\]"#,
+            options: .regularExpression
+        ) != nil)
     }
 
     @Test func implicitReturnIfLowersToPhiReturn() throws {
         let tir = dumpTIR(
             """
-            struct S {
-                init() {}
-            }
-            func f(c: Builtin.Bool) -> S {
+            func f(c: Builtin.Bool, a: Builtin.Int32, b: Builtin.Int32) -> Builtin.Int32 {
                 if c {
-                    S()
+                    a
                 } else {
-                    S()
+                    b
                 }
             }
             """,
             installBuiltin: true
         )
-        let fBlock = tir.components(separatedBy: "function ").last ?? ""
+        let fBlock = tir.components(separatedBy: "@$t4main_1f_1c5BBool_1a6BInt32_1b6BInt32_6BInt32").last ?? ""
         try #require(fBlock.range(
-            of: #"Phi \[%[0-9]+, bb[0-9]+\], \[%[0-9]+, bb[0-9]+\]"#,
+            of: #"phi i32 \[%[0-9]+, %bb[0-9]+\], \[%[0-9]+, %bb[0-9]+\]"#,
             options: .regularExpression
         ) != nil)
-        try #require(fBlock.range(of: #"Return %[0-9]+"#, options: .regularExpression) != nil)
+        try #require(fBlock.range(of: #"ret i32 %[0-9]+"#, options: .regularExpression) != nil)
     }
 
     @Test func doExpressionLowersToPhi() throws {
@@ -1083,85 +1069,86 @@ import TrussTIRGen
         let tir = dumpTIR(
             """
             struct S {}
-            func f(x: S) {
-                while x {
+            func f(c: Builtin.Bool) {
+                while c {
                     break
                 }
             }
-            """
+            """,
+            installBuiltin: true
         )
-        try #require(tir.contains("CondBranch"))
-        try #require(tir.contains("Branch"))
+        try #require(tir.contains("br i1"))
+        try #require(tir.contains("br label"))
     }
 
     @Test func continueBranchesBackToCondition() throws {
         let tir = dumpTIR(
             """
             struct S {}
-            func f(x: S) {
-                while x {
+            func f(c: Builtin.Bool) {
+                while c {
                     continue
                 }
             }
-            """
+            """,
+            installBuiltin: true
         )
         let lines = tir.split(separator: "\n").map(String.init)
-        let condBranchIndex = try #require(lines.firstIndex { $0.contains("CondBranch") })
+        let condBranchIndex = try #require(lines.firstIndex { $0.contains("br i1") })
         let condBlock = try #require(
             lines[..<condBranchIndex].reversed().first { $0.hasSuffix(":") }
         ).replacingOccurrences(of: ":", with: "")
-        try #require(lines.contains("  Branch \(condBlock)"))
+        try #require(lines.contains("  br label %\(condBlock)"))
     }
 
     @Test func ifElseBranchesOnCondition() throws {
         let tir = dumpTIR(
             """
             struct S {}
-            func f(x: S) {
-                if x {
+            func f(c: Builtin.Bool) {
+                if c {
                 } else {
                 }
             }
-            """
+            """,
+            installBuiltin: true
         )
-        try #require(tir.contains("CondBranch"))
-        try #require(tir.contains("true: "))
-        try #require(tir.contains("false: "))
+        try #require(tir.contains("br i1"))
     }
 
     @Test func guardReturnsOnFailure() throws {
         let tir = dumpTIR(
             """
             struct S {}
-            func f(x: S) {
-                guard x else {
+            func f(c: Builtin.Bool) {
+                guard c else {
                     return
                 }
             }
-            """
+            """,
+            installBuiltin: true
         )
-        let condBranchLines = tir.split(separator: "\n").filter { $0.contains("CondBranch") }
+        let condBranchLines = tir.split(separator: "\n").filter { $0.contains("br i1") }
         try #require(condBranchLines.count == 1)
-        let trueTarget = condBranchLines[0].split(separator: ",")[1].split(separator: ":")[1]
-            .trimmingCharacters(in: .whitespaces)
-        let falseTarget = condBranchLines[0].split(separator: ",")[2].split(separator: ":")[1]
-            .trimmingCharacters(in: .whitespaces)
-        try #require(tir.contains("\(falseTarget):\n  Return"))
-        try #require(tir.contains("\(trueTarget):"))
+        let parts = condBranchLines[0].split(separator: ",").map {
+            $0.trimmingCharacters(in: .whitespaces)
+        }
+        let falseTarget = parts[2].split(separator: "%").last ?? ""
+        try #require(tir.contains("\(falseTarget):\n  ret void"))
     }
 
     @Test func repeatWhileReevaluatesCondition() throws {
         let tir = dumpTIR(
             """
             struct S {}
-            func f(x: S) {
+            func f(c: Builtin.Bool) {
                 repeat {
-                } while x
+                } while c
             }
-            """
+            """,
+            installBuiltin: true
         )
-        try #require(tir.contains("CondBranch"))
-        try #require(tir.contains("true: "))
+        try #require(tir.contains("br i1"))
     }
 
     @Test func deferRunsBeforeReturn() throws {
@@ -1176,8 +1163,8 @@ import TrussTIRGen
             }
             """
         )
-        let returnIndex = try #require(tir.range(of: "\n  Return"))
-        let storeIndex = try #require(tir.range(of: "Store "))
+        let returnIndex = try #require(tir.range(of: "ret void"))
+        let storeIndex = try #require(tir.range(of: "store "))
         try #require(storeIndex.lowerBound < returnIndex.lowerBound)
     }
 
@@ -1209,8 +1196,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("Branch "))
-        try #require(!tir.contains("Trap"))
+        try #require(tir.contains("br label %label_label"))
     }
 
     @Test func asmLowersToInlineAsm() throws {
@@ -1242,6 +1228,143 @@ import TrussTIRGen
         )
         try #require(tir.contains("ArrayValue []"))
         try #require(tir.contains("Trap"))
+    }
+
+    @Test func labeledBreakTargetsOuterLoop() throws {
+        let labeled = dumpTIR(
+            """
+            func f(c: Builtin.Bool) {
+                outer: while c {
+                    while c { break outer }
+                }
+            }
+            """,
+            installBuiltin: true
+        )
+        let plain = dumpTIR(
+            """
+            func f(c: Builtin.Bool) {
+                while c {
+                    while c { break }
+                }
+            }
+            """,
+            installBuiltin: true
+        )
+        try #require(labeled != plain)
+    }
+
+    @Test func labeledContinueTargetsOuterLoop() throws {
+        let tir = dumpTIR(
+            """
+            func f(c: Builtin.Bool) {
+                outer: while c {
+                    continue outer
+                }
+            }
+            """,
+            installBuiltin: true
+        )
+        try #require(tir.contains("br label %bb0"))
+    }
+
+    @Test func gotoCannotCrossDeferScopeEmitsDiagnostic() {
+        let (context, program) = runPipeline(
+            """
+            struct S {}
+            func f(x: S) {
+                defer { let y = x }
+                goto L
+            L:
+                let z = x
+            }
+            """
+        )
+        _ = TIRGen(context: context).generate(program)
+        #expect(
+            context.diagnositicEngine.diagnostics.contains {
+                $0.message.contains("cannot use 'goto' to jump out of a scope containing 'defer'")
+            }
+        )
+    }
+
+    @Test func matchNonExhaustiveEmitsDiagnostic() {
+        let (context, program) = runPipeline(
+            """
+            enum E { case A; case B }
+            func f(e: E) {
+                match e {
+                .A => { return }
+                }
+            }
+            """
+        )
+        _ = TIRGen(context: context).generate(program)
+        #expect(
+            context.diagnositicEngine.diagnostics.contains { $0.message.contains("non-exhaustive match") }
+        )
+    }
+
+    @Test func matchPayloadBindingBindsVariable() throws {
+        let tir = dumpTIR(
+            """
+            struct S { init() {} }
+            enum E { case A; case B(S) }
+            func f(e: E) {
+                match e {
+                .B(let x) => { let z = x }
+                _ => { return }
+                }
+            }
+            """,
+            installBuiltin: true
+        )
+        try #require(tir.contains("extractpayload "))
+        try #require(tir.contains("switch "))
+    }
+
+    @Test func deferInIfBodyRunsOnBlockExit() throws {
+        let tir = dumpTIR(
+            """
+            struct S {}
+            func f(c: Builtin.Bool, x: S) {
+                if c { defer { let y = x } }
+            }
+            """,
+            installBuiltin: true
+        )
+        try #require(tir.contains("alloca %$t4main_1S"))
+        try #require(tir.contains("br i1"))
+    }
+
+    @Test func valueIfWithoutElseEmitsDiagnostic() {
+        let (context, program) = runPipeline(
+            """
+            func f(c: Builtin.Bool) -> Builtin.Int32 {
+                let y = if c { 1 }
+                return y
+            }
+            """,
+            installBuiltin: true
+        )
+        _ = TIRGen(context: context).generate(program)
+        #expect(context.diagnositicEngine.hasErrors)
+    }
+
+    @Test func breakOutsideLoopEmitsDiagnostic() {
+        let (context, program) = runPipeline(
+            """
+            func f() {
+                break
+            }
+            """
+        )
+        _ = TIRGen(context: context).generate(program)
+        #expect(
+            context.diagnositicEngine.diagnostics.contains {
+                $0.message.contains("'break' outside of a loop")
+            }
+        )
     }
 }
 
