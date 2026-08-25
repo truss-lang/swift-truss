@@ -2,23 +2,36 @@ import TrussCore
 
 final class GenerationContext {
     let context: Context
-    let registry: TIR.Registry
-    let builder: TIR.Builder
+    let mangler: TypeMangler
     let typeLower: TypeLower
-    let index: DeclarationIndex
-    var module: TIR.Module
-    var metadataGlobals: [Id.TIRTypeId: TIR.GlobalVariable] = [:]
-    var errUnionByFunction: [Id.SymbolId: TIRType.EnumType] = [:]
+    let registry: TIR.Registry
+    var modules: [TIR.Module] = []
+    var currentModule: TIR.Module?
+    var builder: TIR.Builder?
+    var functionsBySymbol: [Id.SymbolId: TIR.Function] = [:]
+    var globalsBySymbol: [Id.SymbolId: TIR.GlobalVariable] = [:]
+    var env: [Id.SymbolId: TIR.Value] = [:]
+    var modulePathStack: [Symbol.ModuleSymbol] = []
+    var externContextStack: [String] = []
+    var collectTypeStack: [Symbol.NominalTypeSymbol] = []
+    var staticVariableSymbols: Set<Id.SymbolId> = []
+    var initFunctionsByType: [Id.SymbolId: TIR.Function] = [:]
+    var deinitFunctions: [ObjectIdentifier: TIR.Function] = [:]
+    var deinitOwners: [ObjectIdentifier: Symbol.NominalTypeSymbol] = [:]
 
-    init(
-        context: Context, registry: TIR.Registry, builder: TIR.Builder, typeLower: TypeLower,
-        index: DeclarationIndex, module: TIR.Module
-    ) {
+    init(context: Context, mangler: TypeMangler, typeLower: TypeLower) {
         self.context = context
-        self.registry = registry
-        self.builder = builder
+        self.mangler = mangler
         self.typeLower = typeLower
-        self.index = index
-        self.module = module
+        registry = TIR.Registry()
+        typeLower.registry = registry
+    }
+
+    func makeModule() -> TIR.Module {
+        let module = TIR.Module(registry: registry)
+        modules.append(module)
+        currentModule = module
+        typeLower.registry = registry
+        return module
     }
 }

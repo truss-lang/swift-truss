@@ -11,11 +11,11 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1f_1a10$t4main_1S_10$t4main_1S"))
+        try #require(tir.contains("@$t4main_1f_1a10$t4main_1S_10$t4main_1S"))
         try #require(tir.contains("entry:"))
-        try #require(tir.contains("AllocStack"))
-        try #require(tir.contains("Load"))
-        try #require(tir.contains("Return"))
+        try #require(tir.contains("alloca"))
+        try #require(tir.contains("load "))
+        try #require(tir.contains("ret "))
     }
 
     @Test func matchStatement() throws {
@@ -366,8 +366,8 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main1A1B_1f_1a10$t4main_1S_10$t4main_1S"))
-        try #require(!tir.contains("function $t4main_1f_1a10$t4main_1S_10$t4main_1S"))
+        try #require(tir.contains("@$t4main1A1B_1f_1a10$t4main_1S_10$t4main_1S"))
+        try #require(!tir.contains("@$t4main_1f_1a10$t4main_1S_10$t4main_1S"))
     }
 
     @Test func nestedModuleGlobalMangled() throws {
@@ -400,7 +400,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main1A1B_1T_1xGetter_10$t4main_1S"))
+        try #require(tir.contains("@$t4main1A1B_1T_1xGetter_10$t4main_1S"))
     }
 
     @Test func nestedModuleDoesNotCollideWithTopLevel() throws {
@@ -417,8 +417,8 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1f_1a10$t4main_1S_10$t4main_1S"))
-        try #require(tir.contains("function $t4main1A1B_1f_1a10$t4main_1S_10$t4main_1S"))
+        try #require(tir.contains("@$t4main_1f_1a10$t4main_1S_10$t4main_1S"))
+        try #require(tir.contains("@$t4main1A1B_1f_1a10$t4main_1S_10$t4main_1S"))
     }
 
     @Test func cnameOverridesMangledName() throws {
@@ -428,7 +428,7 @@ import TrussTIRGen
             func f() {}
             """
         )
-        try #require(tir.contains("function my_name"))
+        try #require(tir.contains("@my_name"))
     }
 
     @Test func cnameWithWrongArgumentCountReportsError() {
@@ -459,8 +459,8 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("global g_name"))
-        try #require(tir.contains("GlobalAddr g_name"))
+        try #require(tir.contains("@g_name = global"))
+        try #require(tir.contains("@g_name"))
     }
 
     @Test func staticVarLoweredWithMangledName() throws {
@@ -477,8 +477,8 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("global $t4main_1S_1s"))
-        try #require(tir.contains("GlobalAddr $t4main_1S_1s"))
+        try #require(tir.contains("@$t4main_1S_1s = global"))
+        try #require(tir.contains("@$t4main_1S_1s"))
     }
 
     @Test func staticVarCnameOverridesMangledName() throws {
@@ -531,7 +531,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function foo "))
+        try #require(tir.contains("@foo"))
     }
 
     @Test func externFunctionUsesCnameWhenPresent() throws {
@@ -543,8 +543,8 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function bar "))
-        try #require(!tir.contains("function foo "))
+        try #require(tir.contains("@bar"))
+        try #require(!tir.contains("@foo"))
     }
 
     @Test func externFunctionWithBodyIsLowered() throws {
@@ -557,8 +557,8 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function foo "))
-        try #require(tir.contains("Return "))
+        try #require(tir.contains("@foo"))
+        try #require(tir.contains("ret "))
     }
 
     @Test func externFunctionCallUsesExternName() throws {
@@ -572,7 +572,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function foo "))
+        try #require(tir.contains("@foo"))
         try #require(tir.contains("FunctionRef"))
         try #require(tir.contains("Apply "))
     }
@@ -656,7 +656,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1S_6deinit_4Void"))
+        try #require(tir.contains("@$t4main_1S_6deinit_4Void"))
         try #require(tir.contains("ReleaseValue") == false)
         let fBody = tir.components(separatedBy: "function $t4main_1f_4Void").last ?? ""
         try #require(fBody.contains("FunctionRef $t4main_1S_6deinit_4Void"))
@@ -800,8 +800,8 @@ import TrussTIRGen
             func f(a: T?) {}
             """
         )
-        try #require(tir.contains("function $t4main_1f_1a11O$t4main_1S_4Void"))
-        try #require(tir.contains("function $t4main_1f_1a11O$t4main_1T_4Void"))
+        try #require(tir.contains("@$t4main_1f_1a11O$t4main_1S_4Void"))
+        try #require(tir.contains("@$t4main_1f_1a11O$t4main_1T_4Void"))
     }
 
     @Test func genericInstantiationOverloadMangled() throws {
@@ -814,8 +814,8 @@ import TrussTIRGen
             func f(a: Box<T>) {}
             """
         )
-        try #require(tir.contains("function $t4main_1f_1a23G$t4main_3Box$t4main_1S_4Void"))
-        try #require(tir.contains("function $t4main_1f_1a23G$t4main_3Box$t4main_1T_4Void"))
+        try #require(tir.contains("@$t4main_1f_1a23G$t4main_3Box$t4main_1S_4Void"))
+        try #require(tir.contains("@$t4main_1f_1a23G$t4main_3Box$t4main_1T_4Void"))
     }
 
     @Test func functionTypeParameterOverloadMangled() throws {
@@ -827,8 +827,8 @@ import TrussTIRGen
             func f(cb: (T) -> Void) {}
             """
         )
-        try #require(tir.contains("function $t4main_1f_2cb16F$t4main_1SRVoid_4Void"))
-        try #require(tir.contains("function $t4main_1f_2cb16F$t4main_1TRVoid_4Void"))
+        try #require(tir.contains("@$t4main_1f_2cb16F$t4main_1SRVoid_4Void"))
+        try #require(tir.contains("@$t4main_1f_2cb16F$t4main_1TRVoid_4Void"))
     }
 
     @Test func tupleParameterOverloadMangled() throws {
@@ -840,8 +840,8 @@ import TrussTIRGen
             func f(t: (T, S)) {}
             """
         )
-        try #require(tir.contains("function $t4main_1f_1t21T$t4main_1S$t4main_1T_4Void"))
-        try #require(tir.contains("function $t4main_1f_1t21T$t4main_1T$t4main_1S_4Void"))
+        try #require(tir.contains("@$t4main_1f_1t21T$t4main_1S$t4main_1T_4Void"))
+        try #require(tir.contains("@$t4main_1f_1t21T$t4main_1T$t4main_1S_4Void"))
     }
 
     @Test func crossModuleSameNameTypeMangled() throws {
@@ -853,8 +853,8 @@ import TrussTIRGen
             func f(a: B.S) {}
             """
         )
-        try #require(tir.contains("function $t4main_1f_1a12$t4main1A_1S_4Void"))
-        try #require(tir.contains("function $t4main_1f_1a12$t4main1B_1S_4Void"))
+        try #require(tir.contains("@$t4main_1f_1a12$t4main1A_1S_4Void"))
+        try #require(tir.contains("@$t4main_1f_1a12$t4main1B_1S_4Void"))
     }
 
     @Test func nestedTypeMangled() throws {
@@ -866,8 +866,8 @@ import TrussTIRGen
             func f(a: Inner) {}
             """
         )
-        try #require(tir.contains("function $t4main_1f_1a21$t4main_5Outer_5Inner_4Void"))
-        try #require(tir.contains("function $t4main_1f_1a14$t4main_5Inner_4Void"))
+        try #require(tir.contains("@$t4main_1f_1a21$t4main_5Outer_5Inner_4Void"))
+        try #require(tir.contains("@$t4main_1f_1a14$t4main_5Inner_4Void"))
     }
 
     @Test func asyncThrowsFunctionTypeOverloadMangled() throws {
@@ -879,9 +879,9 @@ import TrussTIRGen
             func f(cb: (S) throws -> Void) {}
             """
         )
-        try #require(tir.contains("function $t4main_1f_2cb16F$t4main_1SRVoid_4Void"))
-        try #require(tir.contains("function $t4main_1f_2cb17F$t4main_1SRVoidA_4Void"))
-        try #require(tir.contains("function $t4main_1f_2cb17F$t4main_1SRVoidT_4Void"))
+        try #require(tir.contains("@$t4main_1f_2cb16F$t4main_1SRVoid_4Void"))
+        try #require(tir.contains("@$t4main_1f_2cb17F$t4main_1SRVoidA_4Void"))
+        try #require(tir.contains("@$t4main_1f_2cb17F$t4main_1SRVoidT_4Void"))
     }
 }
 
@@ -900,8 +900,8 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1T_1xGetter_10$t4main_1S"))
-        try #require(tir.contains("function $t4main_1T_1xSetter_4Void"))
+        try #require(tir.contains("@$t4main_1T_1xGetter_10$t4main_1S"))
+        try #require(tir.contains("@$t4main_1T_1xSetter_4Void"))
     }
 
     @Test func observerFunctionsMangled() throws {
@@ -917,8 +917,8 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1T_1xWillSet_4Void"))
-        try #require(tir.contains("function $t4main_1T_1xDidSet_4Void"))
+        try #require(tir.contains("@$t4main_1T_1xWillSet_4Void"))
+        try #require(tir.contains("@$t4main_1T_1xDidSet_4Void"))
     }
 
     @Test func assignmentCallsSetter() throws {
@@ -1075,7 +1075,7 @@ import TrussTIRGen
         }
         """
     )
-    try #require(tir.contains("function $t4main_1f_1a10$t4main_1S_10$t4main_1S (%0 t4main_1S) -> t4main_1S"))
+    try #require(tir.contains("@$t4main_1f_1a10$t4main_1S_10$t4main_1S (%0 t4main_1S) -> t4main_1S"))
 }
 
 @Suite struct ControlFlowTests {
@@ -1591,7 +1591,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1C_6deinit_4Void"))
+        try #require(tir.contains("@$t4main_1C_6deinit_4Void"))
     }
 
     @Test func deinitBindsSelfAndAccessesMembers() throws {
@@ -1611,7 +1611,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1C_6deinit_4Void"))
+        try #require(tir.contains("@$t4main_1C_6deinit_4Void"))
         try #require(tir.contains("RefElementAddr"))
         try #require(tir.contains("Store "))
     }
@@ -1634,8 +1634,8 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1C_6deinit_4Void"))
-        try #require(tir.contains("function $t4main_1D_6deinit_4Void"))
+        try #require(tir.contains("@$t4main_1C_6deinit_4Void"))
+        try #require(tir.contains("@$t4main_1D_6deinit_4Void"))
     }
 
     @Test func subscriptDeclLoweredToFunction() throws {
@@ -1652,7 +1652,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1T_9subscript_1i10$t4main_1S_10$t4main_1S"))
+        try #require(tir.contains("@$t4main_1T_9subscript_1i10$t4main_1S_10$t4main_1S"))
     }
 
     @Test func initCallLowered() throws {
@@ -1666,7 +1666,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1S_4init_4Void"))
+        try #require(tir.contains("@$t4main_1S_4init_4Void"))
         try #require(tir.contains("FunctionRef $t4main_1S_4init_4Void"))
         try #require(tir.contains("Apply "))
     }
@@ -1779,7 +1779,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1+_3lhs10$t4main_1S_3rhs10$t4main_1S_10$t4main_1S"))
+        try #require(tir.contains("@$t4main_1+_3lhs10$t4main_1S_3rhs10$t4main_1S_10$t4main_1S"))
         try #require(tir.contains("FunctionRef $t4main_1+_3lhs10$t4main_1S_3rhs10$t4main_1S_10$t4main_1S"))
         try #require(tir.contains("Apply "))
     }
@@ -1798,7 +1798,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1-_11prefixValue10$t4main_1S_10$t4main_1S"))
+        try #require(tir.contains("@$t4main_1-_11prefixValue10$t4main_1S_10$t4main_1S"))
         try #require(tir.contains("Apply "))
     }
 
@@ -1862,7 +1862,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1f_4Void_closure_0"))
+        try #require(tir.contains("@$t4main_1f_4Void_closure_0"))
         try #require(tir.contains("Closure $t4main_1f_4Void_closure_0"))
         try #require(tir.contains("Return "))
     }
@@ -1899,7 +1899,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("function $t4main_1S_4make_10$t4main_1S"))
+        try #require(tir.contains("@$t4main_1S_4make_10$t4main_1S"))
         try #require(tir.contains("FunctionRef $t4main_1S_4make_10$t4main_1S"))
         try #require(tir.contains("Apply "))
     }

@@ -76,13 +76,18 @@ public extension TIR {
         private func nominalBody(_ type: TIRType.NominalType) -> String {
             switch type {
             case let structType as TIRType.StructType:
-                return "{ " + structType.fields.map { typeText($0.type) }.joined(separator: ", ") + " }"
+                return "{ " + structType.fields.map { $0.name + ": " + typeText($0.type) }
+                    .joined(separator: ", ") + " }"
             case let classType as TIRType.ClassType:
-                return "{ ptr" + (classType.fields.isEmpty ? "" : ", ") + classType.fields.map { typeText($0.type) }
+                return "{ ptr" + (classType.fields.isEmpty ? "" : ", ") + classType.fields
+                    .map { $0.name + ": " + typeText($0.type) }
                     .joined(separator: ", ") + " }"
             case let enumType as TIRType.EnumType:
                 let cases = enumType.cases.map { caseInfo in
-                    caseInfo.associatedTypes.map { typeText($0) }.joined(separator: ", ")
+                    "." + caseInfo
+                        .name +
+                        (caseInfo.associatedTypes.isEmpty ? "" : "(" + caseInfo.associatedTypes.map { typeText($0) }
+                            .joined(separator: ", ") + ")")
                 }
                 return "{ i32" + (cases.isEmpty ? "" : ", ") + cases.joined(separator: " | ") + " }"
             default:
@@ -114,6 +119,15 @@ public extension TIR {
             default:
                 return "?"
             }
+        }
+
+        private func enumCaseName(_ ty: Id.TIRTypeId, _ tag: Int) -> String {
+            guard let type = registry?.types[ty] as? TIRType.EnumType,
+                  tag >= 0, tag < type.cases.count
+            else {
+                return String(tag)
+            }
+            return type.cases[tag].name
         }
 
         private func valueText(_ value: Value) -> String {
@@ -189,7 +203,7 @@ public extension TIR {
                     if !caseInfo.arguments.isEmpty {
                         label += "(" + caseInfo.arguments.map { valueText($0) }.joined(separator: ", ") + ")"
                     }
-                    return "i32 \(caseInfo.tag), " + label
+                    return "case \(enumCaseName(switchEnum.value.ty, caseInfo.tag)), " + label
                 }.joined(separator: ", ")
                 text += " ]"
                 body = text
@@ -235,7 +249,8 @@ public extension TIR {
                 body = "tuplevalue \(typeText(tupleValue.result.ty)) (" + tupleValue.elements.map { valueText($0) }
                     .joined(separator: ", ") + ")"
             case let enumValue as EnumValue:
-                var text = "enumvalue \(typeText(enumValue.result.ty)) case \(enumValue.caseIndex)"
+                var text =
+                    "enumvalue \(typeText(enumValue.result.ty)) case \(enumCaseName(enumValue.result.ty, enumValue.caseIndex))"
                 if let payload = enumValue.payload {
                     text += ", \(valueText(payload))"
                 }

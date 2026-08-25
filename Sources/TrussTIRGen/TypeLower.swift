@@ -2,106 +2,94 @@ import TrussCore
 
 final class TypeLower {
     private let context: Context
-    private var archetypes: [String: TIRType.ArchetypeType] = [:]
-    private var nominalInProgress: [Id.TypeId: TIRType.NominalType] = [:]
-    var registry: TIR.Registry?
-    var storedProperties: [Id.TypeId: [(name: String, type: TrussType.TrussType)]] = [:]
-    var enumCases: [Id.TypeId: [(name: String, types: [TrussType.TrussType])]] = [:]
+    private var nominalInProgress: [Id.ASTTypeId: TIRType.NominalType] = [:]
+    private var storedProperties: [Id.ASTTypeId: [(name: String, type: TrussType.TrussType)]] = [:]
+    private var enumCases: [Id.ASTTypeId: [(name: String, types: [TrussType.TrussType])]] = [:]
+    private let mangler: TypeMangler
+    private var modulePath: [Symbol.ModuleSymbol] = []
+    weak var registry: TIR.Registry?
 
-    init(context: Context) {
+    init(context: Context, mangler: TypeMangler) {
         self.context = context
+        self.mangler = mangler
+    }
+
+    func setStoredProperties(_ stored: [Id.ASTTypeId: [(name: String, type: TrussType.TrussType)]]) {
+        storedProperties = stored
+    }
+
+    func setEnumCases(_ cases: [Id.ASTTypeId: [(name: String, types: [TrussType.TrussType])]]) {
+        enumCases = cases
+    }
+
+    func setModulePath(_ path: [Symbol.ModuleSymbol]) {
+        modulePath = path
     }
 
     func lower(_ type: TrussType.TrussType) -> TIRType.TIRType {
         let lowered = lowerUnregistered(type)
-        register(lowered)
         return lowered
-    }
-
-    @discardableResult
-    func register(_ type: TIRType.TIRType) -> Int {
-        guard let registry else {
-            fatalError("type registry is not configured")
-        }
-        return registry.registerType(type)
     }
 
     func lowerUnregistered(_ type: TrussType.TrussType) -> TIRType.TIRType {
         switch type {
         case is TrussType.VoidType, is TrussType.NeverType, is TrussType.ErrorType:
-            return TIRType.VoidType()
+            return registry!.voidType()
         case let builtin as TrussType.BuiltinType:
             if let info = Builtin.typeInfos.first(where: { $0.name == builtin.name }) {
-                return TIRType.PrimitiveType(kind: info.kind, bitWidth: info.bitWidth)
+                return registry!.primitiveType(kind: info.kind, bitWidth: info.bitWidth)
             }
-            return TIRType.VoidType()
+            return registry!.voidType()
         case let nominal as TrussType.NominalType:
             return nominalType(nominal)
         case let optional as TrussType.OptionalType:
-            return TIRType.OptionalType(lower(optional.wrapped).id)
-        case let tuple as TrussType.TupleType:
-            return TIRType.TupleType(
-                tuple.elements.map {
-                    TIRType.TupleType.Element(label: $0.label, type: lower($0.type).id)
-                }
-            )
-        case let function as TrussType.FunctionType:
-            return TIRType.FunctionType(
-                parameters: function.parameters.map {
-                    TIRType.FunctionType.Parameter(label: $0.label, type: lower($0.type).id)
-                },
-                isVariadic: function.isVariadic,
-                isAsync: function.isAsync,
-                isThrowing: function.isThrowing,
-                throwsTypes: function.throwsTypes.map { lower($0).id },
-                returnType: lower(function.returnType).id
-            )
+            return lower(optional.wrapped)
         case let pointer as TrussType.PointerType:
-            return TIRType.PointerType(lower(pointer.pointee).id)
+            return registry!.pointerType(pointee: lower(pointer.pointee).id)
+        case let tuple as TrussType.TupleType:
+            return registry!.tupleType(elements: tuple.elements.map {
+                TIRType.TupleType.Element(label: $0.label, type: lower($0.type).id)
+            })
+        case let function as TrussType.FunctionType:
+            return registry!.functionType(
+                parameters: function.parameters.map { lower($0.type).id },
+                returnType: lower(function.returnType).id,
+                isVariadic: function.isVariadic
+            )
         case let composition as TrussType.CompositionType:
-            return TIRType.ExistentialType(composition.members.map { lower($0).id })
+            return lower(composition.members.first ?? TrussType.VoidType.INSTANCE)
         case let instantiation as TrussType.GenericInstantiation:
             return lower(instantiation.base)
         case let variable as TrussType.TypeVariableType:
             if let binding = variable.binding {
                 return lower(binding)
             }
-            return TIRType.VoidType()
+            return registry!.voidType()
         case let forall as TrussType.ForallType:
             return lower(forall.body)
-        case let genericParam as TrussType.GenericParamType:
-            if let archetype = archetypes[genericParam.name] {
-                return archetype
-            }
-            let archetype = TIRType.ArchetypeType(genericParam.name)
-            archetypes[genericParam.name] = archetype
-            return archetype
+        case _ as TrussType.GenericParamType:
+            return registry!.voidType()
         default:
-            return TIRType.VoidType()
+            return registry!.voidType()
         }
     }
 
-    private func nominalType(_ type: TrussType.NominalType) -> TIRType.TIRType {
+    private func nominalType(_ type: TrussType.NominalType) -> TIRType.NominalType {
         if let existing = nominalInProgress[type.id] {
             return existing
         }
-        let mangledName = mangleTypeName(type)
+        let mangledName = mangler.nominalPath(type, modulePath: modulePath)
         let lowered: TIRType.NominalType = switch type {
         case is TrussType.StructType:
-            TIRType.StructType(mangledName)
+            registry!.structType(name: mangledName)
         case is TrussType.ClassType:
-            TIRType.ReferenceType(mangledName)
+            registry!.classType(name: mangledName)
         case is TrussType.EnumType:
-            TIRType.EnumType(mangledName)
-        case is TrussType.ProtocolType:
-            TIRType.ProtocolType(mangledName)
-        case is TrussType.ActorType:
-            TIRType.ReferenceType(mangledName)
+            registry!.enumType(name: mangledName)
         default:
-            TIRType.ReferenceType(mangledName)
+            registry!.structType(name: mangledName)
         }
         nominalInProgress[type.id] = lowered
-        register(lowered)
         fillMembers(lowered, type: type)
         return lowered
     }
@@ -109,24 +97,24 @@ final class TypeLower {
     private func fillMembers(_ lowered: TIRType.NominalType, type: TrussType.NominalType) {
         if let structType = lowered as? TIRType.StructType {
             structType.fields = (storedProperties[type.id] ?? []).map {
-                (name: $0.name, type: register(lower($0.type)))
+                (name: $0.name, type: lower($0.type).id)
             }
-        } else if let referenceType = lowered as? TIRType.ReferenceType {
-            var fields: [(name: String, type: Int)] = []
+        } else if let classType = lowered as? TIRType.ClassType {
+            var fields: [(name: String, type: Id.TIRTypeId)] = []
             if let superclassType = superclassType(of: type),
-               let superLowered = nominalType(superclassType) as? TIRType.ReferenceType
+               let superLowered = nominalType(superclassType) as? TIRType.ClassType
             {
                 fields = superLowered.fields
             }
             fields.append(
                 contentsOf: (storedProperties[type.id] ?? []).map {
-                    (name: $0.name, type: register(lower($0.type)))
+                    (name: $0.name, type: lower($0.type).id)
                 }
             )
-            referenceType.fields = fields
+            classType.fields = fields
         } else if let enumType = lowered as? TIRType.EnumType {
             enumType.cases = (enumCases[type.id] ?? []).map {
-                (name: $0.name, associatedTypeIds: $0.types.map { register(lower($0)) })
+                (name: $0.name, associatedTypes: $0.types.map { lower($0).id })
             }
         }
     }
@@ -139,22 +127,5 @@ final class TypeLower {
             return nil
         }
         return context.typeTable[typeId] as? TrussType.ClassType
-    }
-
-    private func mangleTypeName(_ type: TrussType.NominalType) -> String {
-        TypeMangler.nominalPath(type, context: context)
-    }
-
-    func ownership(for type: TIRType.TIRType) -> TIRType.Ownership {
-        switch type {
-        case is TIRType.ReferenceType:
-            .Owned
-        default:
-            .Trivial
-        }
-    }
-
-    func archetype(named name: String) -> TIRType.ArchetypeType? {
-        archetypes[name]
     }
 }
