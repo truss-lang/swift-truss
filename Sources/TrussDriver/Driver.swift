@@ -129,6 +129,9 @@ public final class Driver {
             runPass(DeclCollector(context: context), context: context, programs: programs)
         }
         if !context.diagnositicEngine.hasErrors {
+            runPass(ImportProcessor(context: context), context: context, programs: programs)
+        }
+        if !context.diagnositicEngine.hasErrors {
             runPass(Enter(context: context), context: context, programs: programs)
         }
         if !context.diagnositicEngine.hasErrors {
@@ -180,7 +183,7 @@ public final class Driver {
             llvmContext = .init()
             do {
                 let codeGen = try CodeGen(
-                    context: context, llvmContext: llvmContext!, target: config.target
+                    context: context, llvmContext: llvmContext!
                 )
                 llvmModules = tirModules.map {
                     codeGen.generate($0)
@@ -253,6 +256,11 @@ public final class Driver {
         let table = OperatorTable()
         runPass(
             TrussOperator.DeclCollector(table: table, context: context),
+            context: context, programs: programs
+        )
+        if context.diagnositicEngine.hasErrors { return }
+        runPass(
+            TrussOperator.OperatorImportProcessor(table: table, context: context),
             context: context, programs: programs
         )
         if context.diagnositicEngine.hasErrors { return }
