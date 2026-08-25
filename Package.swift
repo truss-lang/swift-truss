@@ -48,7 +48,11 @@ let package = Package(
             ]
         ),
         .target(
-            name: "TrussPackageManager"
+            name: "TrussPackageManager",
+            dependencies: [
+                "TrussCore", "TrussDriver",
+                .product(name: "SwiftGraph", package: "SwiftGraph"),
+            ]
         ),
         .target(
             name: "TrussDriver",
@@ -59,8 +63,16 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "truss",
+            name: "TrussExample",
             dependencies: ["TrussDriver"]
+        ),
+        .executableTarget(
+            name: "truss",
+            dependencies: [
+                "TrussPackageManager",
+                "TrussDriver",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ]
         ),
         .executableTarget(
             name: "trussc",
@@ -100,6 +112,10 @@ let package = Package(
         .testTarget(
             name: "TrussDriverTests",
             dependencies: ["truss", "TrussDriver"]
+        ),
+        .testTarget(
+            name: "TrussPackageManagerTests",
+            dependencies: ["TrussPackageManager", "TrussDriver", "TrussCore"]
         ),
         .testTarget(
             name: "TrussTIRGenTests",

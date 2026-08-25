@@ -19,6 +19,8 @@ public struct DriverConfig {
     public var dumpLLVMIR: Bool
     public var dumpSource: Bool
     public var dumpOnError: Bool
+    public var moduleName: String
+    public var importedInterfaces: [ModuleInterface]
 
     public init(
         target: String = DriverConfig.hostTarget,
@@ -28,7 +30,9 @@ public struct DriverConfig {
         dumpTIR: Bool = false,
         dumpLLVMIR: Bool = false,
         dumpSource: Bool = false,
-        dumpOnError: Bool = false
+        dumpOnError: Bool = false,
+        moduleName: String = "main",
+        importedInterfaces: [ModuleInterface] = []
     ) {
         self.target = target
         self.defines = defines
@@ -38,6 +42,8 @@ public struct DriverConfig {
         self.dumpLLVMIR = dumpLLVMIR
         self.dumpSource = dumpSource
         self.dumpOnError = dumpOnError
+        self.moduleName = moduleName
+        self.importedInterfaces = importedInterfaces
     }
 }
 
@@ -45,6 +51,13 @@ public struct DriverResult {
     public let stdout: String
     public let stderr: String
     public let hasErrors: Bool
+    public let packageInterface: ModuleInterface?
+    public init(stdout: String, stderr: String, hasErrors: Bool, packageInterface: ModuleInterface? = nil) {
+        self.stdout = stdout
+        self.stderr = stderr
+        self.hasErrors = hasErrors
+        self.packageInterface = packageInterface
+    }
 }
 
 public final class Driver {
@@ -57,6 +70,9 @@ public final class Driver {
     public func run(files: [String]) -> DriverResult {
         let context = TrussCore.Context()
         Builtin.install(context: context)
+        for interface in config.importedInterfaces {
+            InterfaceLoader(context: context).load(interface)
+        }
         var programs: [AST.Program] = []
         for file in files {
             guard let content = try? String(contentsOfFile: file, encoding: .utf8) else {
@@ -78,6 +94,9 @@ public final class Driver {
     public func runString(_ source: String, filename: String = "<main>") -> DriverResult {
         let context = TrussCore.Context()
         Builtin.install(context: context)
+        for interface in config.importedInterfaces {
+            InterfaceLoader(context: context).load(interface)
+        }
         var programs: [AST.Program] = []
         parseSource(
             source, filepath: filename, workingDirectory: "",
@@ -101,7 +120,7 @@ public final class Driver {
                 workingDirectory: workingDirectory
             )
         )
-        programs.append(Parser(context: context, packageName: "main", preprocessed).parse())
+        programs.append(Parser(context: context, packageName: config.moduleName, preprocessed).parse())
     }
 
     private func runPasses(programs: [AST.Program], context: TrussCore.Context) -> DriverResult {
@@ -209,7 +228,12 @@ public final class Driver {
             stderr = TerminalRenderer(beforeLines: 1, afterLines: 1)
                 .render(context.diagnositicEngine.diagnostics)
         }
-        return DriverResult(stdout: stdout, stderr: stderr, hasErrors: hasErrors)
+        let packageInterface: ModuleInterface? = if !hasErrors, let first = programs.first {
+            InterfaceExtractor(context: context).extract(from: first)
+        } else {
+            nil
+        }
+        return DriverResult(stdout: stdout, stderr: stderr, hasErrors: hasErrors, packageInterface: packageInterface)
     }
 
     private func runPass(

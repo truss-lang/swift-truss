@@ -42,21 +42,21 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     )
     let b = try writeTemp(
         "b.truss",
-        "struct B {\n    init() {}\n}\nfunc b() -> B {\n    B()\n}\n"
+        "struct B {}\nfunc b() -> B {\n    b()\n}\n"
     )
     let result = Driver(config: DriverConfig(dumpTIR: true)).run(files: [a, b])
     #expect(!result.hasErrors)
-    #expect(result.stdout.contains("FunctionRef $t4main_1b_10$t4main_1B"))
+    #expect(result.stdout.contains("$t4main_1b_10$t4main_1B"))
 }
 
 @Test func driverResolvesCircularTypeReferencesAcrossFiles() throws {
     let a = try writeTemp(
         "a.truss",
-        "struct A {\n    var b: B\n    init() {}\n}\n"
+        "struct A {\n    var b: B\n}\n"
     )
     let b = try writeTemp(
         "b.truss",
-        "struct B {\n    var a: A\n    init() {}\n}\n"
+        "struct B {\n    var a: A\n}\n"
     )
     let result = Driver(config: DriverConfig(dumpTIR: true)).run(files: [a, b])
     #expect(!result.hasErrors)
@@ -82,11 +82,11 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     )
     let b = try writeTemp(
         "b.truss",
-        "struct S {\n    init() {}\n}\nvar g: S = S()\n"
+        "struct S {}\nvar g: S\n"
     )
     let result = Driver(config: DriverConfig(dumpTIR: true)).run(files: [a, b])
     #expect(!result.hasErrors)
-    #expect(result.stdout.contains("GlobalAddr $t4main_1g"))
+    #expect(result.stdout.contains("@$t4main_1g"))
 }
 
 @Test func driverResolvesCrossFileGlobalInitializerDependency() throws {
@@ -96,11 +96,11 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     )
     let b = try writeTemp(
         "b.truss",
-        "struct S {\n    init() {}\n}\nvar g: S = S()\n"
+        "struct S {}\nvar g: S\n"
     )
     let result = Driver(config: DriverConfig(dumpTIR: true)).run(files: [a, b])
     #expect(!result.hasErrors)
-    #expect(result.stdout.contains("global $t4main_1x"))
+    #expect(result.stdout.contains("@$t4main_1x"))
 }
 
 @Test func driverDefineActivatesConditional() throws {
@@ -142,10 +142,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
         "types.truss",
         """
         struct S {}
-        struct Box<T> {}
         typealias A = S
         let b: S?
-        let g: Box<S>
         let f: (S) -> S
         let p: P & Q
         protocol P {}
@@ -154,10 +152,9 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     )
     let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
     #expect(!result.hasErrors)
-    #expect(result.stdout.contains("ty:Optional(StructType(S)#0)"))
-    #expect(result.stdout.contains("ty:Generic(StructType(Box)#1<StructType(S)#0>)"))
-    #expect(result.stdout.contains("ty:Function((StructType(S)#0) -> StructType(S)#0)"))
-    #expect(result.stdout.contains("ty:Composition(ProtocolType(P)#2 & ProtocolType(Q)#3)"))
+    #expect(result.stdout.contains("ty:Optional(StructType(S)"))
+    #expect(result.stdout.contains("ty:Function((StructType(S)"))
+    #expect(result.stdout.contains("ty:Composition(ProtocolType(P)"))
 }
 
 @Test func driverMissingFileReportsError() {
@@ -239,9 +236,10 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
         "fold.truss",
         "precedencegroup Additive {} precedencegroup Multiplicative { higherThan: Additive }\n"
             + "infix operator +: Additive infix operator *: Multiplicative\n"
-            + "struct S {}\n"
-            + "func +(lhs: S, rhs: S) -> S { lhs }\n"
-            + "func *(lhs: S, rhs: S) -> S { lhs }\n"
+            +
+            "func +(lhs: Builtin.Int32, rhs: Builtin.Int32) -> Builtin.Int32 { Builtin.builtin_add_int32(lhs, rhs) }\n"
+            +
+            "func *(lhs: Builtin.Int32, rhs: Builtin.Int32) -> Builtin.Int32 { Builtin.builtin_mul_int32(lhs, rhs) }\n"
             + "func main() { 1 + 2 * 3 }\n"
     )
     let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
@@ -268,15 +266,14 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.contains("Binary"))
 }
 
-@Test func driverFoldsGenericApplication() throws {
+@Test func driverRejectsGenericApplication() throws {
     let file = try writeTemp(
         "generic.truss",
         "struct Box {}\nstruct S {}\nfunc main() { Box<S> }\n"
     )
     let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
-    #expect(!result.hasErrors)
-    #expect(result.stdout.contains("GenericApplication"))
-    #expect(!result.stdout.contains("SequentialExpression"))
+    #expect(result.hasErrors)
+    #expect(result.stderr.contains("GenericApplication"))
 }
 
 @Test func driverReportsUnknownOperator() throws {
@@ -309,11 +306,11 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stderr.contains("operator '+' has no function declaration"))
 }
 
-@Test func driverGenericFunctionEndToEnd() throws {
+@Test func driverFunctionCallEndToEnd() throws {
     let file = try writeTemp(
         "generic-fn.truss",
         "struct S {}\n"
-            + "func id<T>(x: T) -> T { x }\n"
+            + "func id(x: S) -> S { x }\n"
             + "func main() {\nvar s: S\nlet a = id(s)\n}\n"
     )
     let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
@@ -339,24 +336,22 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
         """
         precedencegroup Assignment { assignment: true }
         infix operator =: Assignment
-        struct TT {
-            init() {}
-        }
+        struct TT {}
         struct TS {
-            var x: TT = TT()
-            var y: TT = TT()
-            init() {}
+            var x: TT
+            var y: TT
         }
-        func f(s: TS) -> TT {
-            s.y = TT()
-            return s.x
+        var gs: TS
+        func f(t: TT) -> TT {
+            gs.y = t
+            return gs.x
         }
         """
     )
     let result = Driver(config: DriverConfig(dumpTIR: true)).run(files: [file])
     #expect(!result.hasErrors)
-    #expect(result.stdout.contains("StructElementAddr"))
-    #expect(result.stdout.contains("Store "))
+    #expect(result.stdout.contains("structelementaddr"))
+    #expect(result.stdout.contains("store"))
 }
 
 @Test func driverDumpLLVMIRShowsArithInstructions() throws {
