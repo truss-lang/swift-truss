@@ -832,7 +832,7 @@ public final class TypeChecker: AST.Visitor {
             let wrapped = evaluate(optionalType.wrappedType)
             result =
                 wrapped is TrussType.ErrorType
-                    ? TrussType.ErrorType.INSTANCE : TrussType.OptionalType(wrapped)
+                    ? TrussType.ErrorType.INSTANCE : makeOptional(wrapped)
         case let pointerType as AST.PointerType:
             let pointee = evaluate(pointerType.wrappedType)
             result =
@@ -1010,7 +1010,7 @@ public final class TypeChecker: AST.Visitor {
         else {
             return
         }
-        let unwrapped = (valueType as? TrussType.OptionalType)?.wrapped ?? valueType
+        let unwrapped = optionalWrapped(valueType) ?? valueType
         if let existing = variableSymbol.type {
             _ = unify(existing, unwrapped, at: token)
         } else {
@@ -1182,7 +1182,7 @@ public final class TypeChecker: AST.Visitor {
     private func memberOperatorCandidates(
         _ name: String, in type: TrussType.TrussType?, isStatic: Bool
     ) -> [Symbol.FunctionSymbol] {
-        let base = (type as? TrussType.OptionalType)?.wrapped ?? type
+        let base = type.flatMap(optionalWrapped) ?? type
         guard let nominal = base as? TrussType.NominalType, let symbol = nominal.symbol else {
             return []
         }
@@ -1244,7 +1244,7 @@ public final class TypeChecker: AST.Visitor {
     private func memberFunctionSymbols(
         of name: String, in type: TrussType.TrussType?
     ) -> [Symbol.FunctionSymbol] {
-        let base = (type as? TrussType.OptionalType)?.wrapped ?? type
+        let base = type.flatMap(optionalWrapped) ?? type
         if let genericParam = base as? TrussType.GenericParamType {
             guard let symbol = genericParam.symbol else { return [] }
             var result: [Symbol.FunctionSymbol] = []
@@ -1287,7 +1287,7 @@ public final class TypeChecker: AST.Visitor {
     }
 
     private func memberSymbol(of name: String, in type: TrussType.TrussType?) -> Symbol.Symbol? {
-        let base = (type as? TrussType.OptionalType)?.wrapped ?? type
+        let base = type.flatMap(optionalWrapped) ?? type
         let nominal: TrussType.NominalType
         if let generic = base as? TrussType.GenericInstantiation {
             nominal = generic.base
@@ -1311,7 +1311,7 @@ public final class TypeChecker: AST.Visitor {
     }
 
     private func memberType(of name: String, in type: TrussType.TrussType?) -> TrussType.TrussType? {
-        let base = (type as? TrussType.OptionalType)?.wrapped ?? type
+        let base = type.flatMap(optionalWrapped) ?? type
         if let genericParam = base as? TrussType.GenericParamType {
             return memberType(of: name, in: genericParam)
         }
@@ -1466,8 +1466,12 @@ public final class TypeChecker: AST.Visitor {
             return nominal.name
         case let builtin as TrussType.BuiltinType:
             return "\(Builtin.packageName).\(builtin.name)"
-        case let optional as TrussType.OptionalType:
-            return "\(typeText(optional.wrapped))?"
+        case let optional as TrussType.GenericInstantiation
+            where optional.base.name == "Optional":
+            if let wrapped = optional.arguments.first {
+                return "\(typeText(wrapped))?"
+            }
+            return "Optional<?>"
         case let pointer as TrussType.PointerType:
             return "\(typeText(pointer.pointee))*\(pointer.isNonnull ? "!" : "")"
         case let variable as TrussType.TypeVariableType:
@@ -1497,6 +1501,40 @@ public final class TypeChecker: AST.Visitor {
         let root = resolve(binding)
         variable.binding = root
         return root
+    }
+
+    private func isOptional(_ type: TrussType.TrussType) -> Bool {
+        guard let generic = resolve(type) as? TrussType.GenericInstantiation else {
+            return false
+        }
+        return generic.base.name == "Optional"
+    }
+
+    private func optionalWrapped(_ type: TrussType.TrussType) -> TrussType.TrussType? {
+        guard let generic = resolve(type) as? TrussType.GenericInstantiation,
+              generic.base.name == "Optional"
+        else {
+            return nil
+        }
+        return generic.arguments.first
+    }
+
+    private func optionalSymbol() -> Symbol.EnumSymbol? {
+        guard let package = context.name2Package["Truss"] else { return nil }
+        return package.scope.types["Optional"] as? Symbol.EnumSymbol
+    }
+
+    private func makeOptional(_ wrapped: TrussType.TrussType) -> TrussType.TrussType {
+        if let enumSymbol = optionalSymbol(),
+           let typeId = enumSymbol.typeId,
+           let enumType = context.typeTable[typeId] as? TrussType.EnumType
+        {
+            return TrussType.GenericInstantiation(base: enumType, arguments: [wrapped])
+        }
+        return TrussType.GenericInstantiation(
+            base: TrussType.EnumType(id: context.nextTypeId, name: "Optional"),
+            arguments: [wrapped]
+        )
     }
 
     private func unify(
@@ -1578,8 +1616,6 @@ public final class TypeChecker: AST.Visitor {
                 }
             }
             return true
-        case let (l as TrussType.OptionalType, r as TrussType.OptionalType):
-            return unify(l.wrapped, r.wrapped, at: token)
         case let (l as TrussType.PointerType, r as TrussType.PointerType):
             guard l.isNonnull == r.isNonnull else {
                 return false
@@ -1653,8 +1689,9 @@ public final class TypeChecker: AST.Visitor {
             return true
         }
         switch resolved {
-        case let optional as TrussType.OptionalType:
-            return occurs(variable, in: optional.wrapped)
+        case let optional as TrussType.GenericInstantiation
+            where optional.base.name == "Optional":
+            return optional.arguments.contains { occurs(variable, in: $0) }
         case let pointer as TrussType.PointerType:
             return occurs(variable, in: pointer.pointee)
         case let tuple as TrussType.TupleType:
@@ -1683,8 +1720,12 @@ public final class TypeChecker: AST.Visitor {
         switch type {
         case let genericParam as TrussType.GenericParamType:
             replace(genericParam)
-        case let optional as TrussType.OptionalType:
-            TrussType.OptionalType(replacingGenericParam(optional.wrapped, replace))
+        case let optional as TrussType.GenericInstantiation
+            where optional.base.name == "Optional":
+            TrussType.GenericInstantiation(
+                base: optional.base,
+                arguments: optional.arguments.map { replacingGenericParam($0, replace) }
+            )
         case let pointer as TrussType.PointerType:
             TrussType.PointerType(
                 replacingGenericParam(pointer.pointee, replace), isNonnull: pointer.isNonnull
@@ -1757,8 +1798,8 @@ public final class TypeChecker: AST.Visitor {
         {
             return canCoerce(actualPointer.pointee, to: expectedPointer.pointee, at: token)
         }
-        if let optional = expected as? TrussType.OptionalType {
-            return canCoerce(actual, to: optional.wrapped, at: token)
+        if let wrapped = optionalWrapped(expected) {
+            return canCoerce(actual, to: wrapped, at: token)
         }
         if let variadic = expected as? TrussType.VariadicType {
             return canCoerce(actual, to: variadic.base, at: token)
@@ -1967,7 +2008,7 @@ public final class TypeChecker: AST.Visitor {
             if let member = call.callee as? AST.MemberAccess, member.isOptional,
                let ty = expression.ty
             {
-                expression.ty = TrussType.OptionalType(ty)
+                expression.ty = makeOptional(ty)
             }
             return expression.ty.map { resolve($0) }
         case let variable as AST.Variable:
@@ -2172,7 +2213,7 @@ public final class TypeChecker: AST.Visitor {
             }
             if memberAccess.isOptional {
                 if let objectType,
-                   !(objectType is TrussType.OptionalType),
+                   !isOptional(objectType),
                    !(objectType is TrussType.ErrorType)
                 {
                     context.emitError(
@@ -2180,7 +2221,7 @@ public final class TypeChecker: AST.Visitor {
                     )
                 }
                 if let ty = expression.ty {
-                    expression.ty = TrussType.OptionalType(ty)
+                    expression.ty = makeOptional(ty)
                 }
             }
             if expression.ty == nil, let objectType {
@@ -2253,14 +2294,14 @@ public final class TypeChecker: AST.Visitor {
             case .AsBitCast:
                 expression.ty = target
             case .OptionalAs:
-                expression.ty = TrussType.OptionalType(target)
+                expression.ty = makeOptional(target)
             }
         case let tryExpression as AST.Try:
             tryContextDepth += 1
             let inferred = infer(tryExpression.expression, at: token)
             tryContextDepth -= 1
             if tryExpression.kind == .OptionalTry, let inferred {
-                expression.ty = TrussType.OptionalType(inferred)
+                expression.ty = makeOptional(inferred)
             } else {
                 expression.ty = inferred
             }
@@ -2387,7 +2428,7 @@ public final class TypeChecker: AST.Visitor {
                     }
                 }
                 if component.postfix != nil, let current = baseType {
-                    baseType = TrussType.OptionalType(current)
+                    baseType = makeOptional(current)
                 }
             }
             expression.ty = baseType
@@ -2403,8 +2444,8 @@ public final class TypeChecker: AST.Visitor {
             expression.ty = TrussType.BuiltinType("UInt64")
         case let forceUnwrap as AST.ForceUnwrap:
             if let inner = infer(forceUnwrap.expression, at: token) {
-                if let optional = inner as? TrussType.OptionalType {
-                    expression.ty = optional.wrapped
+                if let wrapped = optionalWrapped(inner) {
+                    expression.ty = wrapped
                 } else if let pointer = resolve(inner) as? TrussType.PointerType,
                           !pointer.isNonnull
                 {
@@ -2880,7 +2921,7 @@ public final class TypeChecker: AST.Visitor {
             return true
         }
         guard let caseName else { return true }
-        let baseType = (caseType as? TrussType.OptionalType)?.wrapped ?? caseType
+        let baseType = caseType.flatMap(optionalWrapped) ?? caseType
         let nominal = (baseType as? TrussType.GenericInstantiation)?.base
             ?? (baseType as? TrussType.NominalType)
         guard let nominal else {
@@ -3127,8 +3168,9 @@ public final class TypeChecker: AST.Visitor {
         switch type {
         case is TrussType.TypeVariableType, is TrussType.GenericParamType:
             false
-        case let optional as TrussType.OptionalType:
-            isResolved(optional.wrapped)
+        case let optional as TrussType.GenericInstantiation
+            where optional.base.name == "Optional":
+            optional.arguments.allSatisfy { isResolved($0) }
         case let tuple as TrussType.TupleType:
             tuple.elements.allSatisfy { isResolved($0.type) }
         case let function as TrussType.FunctionType:
@@ -3606,8 +3648,11 @@ public final class TypeChecker: AST.Visitor {
             return
         }
         switch type {
-        case let optional as TrussType.OptionalType:
-            collectTypeVariables(optional.wrapped, into: &snapshots)
+        case let optional as TrussType.GenericInstantiation
+            where optional.base.name == "Optional":
+            for argument in optional.arguments {
+                collectTypeVariables(argument, into: &snapshots)
+            }
         case let tuple as TrussType.TupleType:
             for element in tuple.elements {
                 collectTypeVariables(element.type, into: &snapshots)

@@ -42,8 +42,10 @@ final class TypeLower {
             return registry!.voidType()
         case let nominal as TrussType.NominalType:
             return nominalType(nominal)
-        case let optional as TrussType.OptionalType:
-            return lower(optional.wrapped)
+        case let optional as TrussType.GenericInstantiation
+            where optional.base.name == "Optional":
+            if let wrapped = optional.arguments.first { return lower(wrapped) }
+            return registry!.voidType()
         case let pointer as TrussType.PointerType:
             return registry!.pointerType(pointee: lower(pointer.pointee).id)
         case let tuple as TrussType.TupleType:

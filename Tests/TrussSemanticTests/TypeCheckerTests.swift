@@ -112,8 +112,9 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
 @Test func optionalAnnotation() throws {
     let (_, programs) = runTypeChecker(["struct S {}\nlet x: S?"])
     let variableDecl = programs[0].statements[1] as! AST.VariableDecl
-    let optional = try #require(variableDecl.symbol?.type as? TrussType.OptionalType)
-    #expect(optional.wrapped is TrussType.StructType)
+    let optional = try #require(variableDecl.symbol?.type as? TrussType.GenericInstantiation)
+    #expect(optional.base.name == "Optional")
+    #expect(optional.arguments.first is TrussType.StructType)
 }
 
 @Test func tupleAnnotationWithLabels() throws {
@@ -150,8 +151,11 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     #expect(functionType.parameters.count == 2)
     #expect(functionType.parameters[0].label == "a")
     #expect(functionType.parameters[0].type is TrussType.StructType)
-    let optional = try #require(functionType.parameters[1].type as? TrussType.OptionalType)
-    #expect(optional.wrapped is TrussType.StructType)
+    let optional = try #require(
+        functionType.parameters[1].type as? TrussType.GenericInstantiation
+    )
+    #expect(optional.base.name == "Optional")
+    #expect(optional.arguments.first is TrussType.StructType)
     #expect(functionType.returnType is TrussType.StructType)
     let paramSymbol = try #require(symbol.scope.values["a"]?.first as? Symbol.VariableSymbol)
     #expect(paramSymbol.type is TrussType.StructType)
@@ -501,8 +505,9 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
         )
     #expect(!context.diagnositicEngine.hasErrors)
     let variableDecl = programs[0].statements[4] as! AST.VariableDecl
-    let optional = try #require(variableDecl.symbol?.type as? TrussType.OptionalType)
-    #expect(optional.wrapped is TrussType.StructType)
+    let optional = try #require(variableDecl.symbol?.type as? TrussType.GenericInstantiation)
+    #expect(optional.base.name == "Optional")
+    #expect(optional.arguments.first is TrussType.StructType)
 }
 
 @Test func ifElseJoinProducesBranchType() throws {
@@ -1263,7 +1268,7 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     )
     let variableDecl = programs[0].statements[3] as! AST.VariableDecl
     let type = try #require(variableDecl.symbol?.type)
-    #expect(type is TrussType.OptionalType)
+    #expect((type as? TrussType.GenericInstantiation)?.base.name == "Optional")
 }
 
 @Test func tryExclamationKeepsPlainType() throws {

@@ -26,6 +26,12 @@ public struct ModuleInterfaceDumper {
                 }
                 if let sup = n.superclass { out += " : \(sup)" }
                 out += " {\n"
+                for c in n.cases {
+                    let assoc = c.associatedTypes.isEmpty
+                        ? ""
+                        : "(\(c.associatedTypes.map(typeText).joined(separator: ", ")))"
+                    out += "\(pad)    case \(c.name)\(assoc)\n"
+                }
                 dumpScope(n.scope, into: &out, indent: indent + 1)
                 out += "\(pad)}\n"
             case let .typeAlias(a):
@@ -80,7 +86,6 @@ public struct ModuleInterfaceDumper {
         case let .builtin(n): n
         case let .nominal(n, args):
             args.isEmpty ? n : "\(n)<\(args.map(typeText).joined(separator: ", "))>"
-        case let .optional(w): "\(typeText(w))?"
         case let .pointer(p, nn): nn ? "&\(typeText(p))" : "&mut \(typeText(p))"
         case let .tuple(els):
             "(\(els.map { ($0.label.map { "\($0): " } ?? "") + typeText($0.type) }.joined(separator: ", ")))"

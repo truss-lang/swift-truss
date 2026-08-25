@@ -57,6 +57,15 @@ public struct InterfaceLoader {
             symbol.typeId = type.id
             context.register(type: type)
             scope.registerType(symbol, at: syntheticToken(n.name), context: context)
+            for c in n.cases {
+                let caseSymbol = Symbol.CaseSymbol(id: context.nextSymbolId, name: c.name)
+                caseSymbol.access = .Public
+                caseSymbol.packageId = package.id
+                caseSymbol.associatedTypes = c.associatedTypes.map(makeTypeRef)
+                caseSymbol.associatedLabels = c.associatedTypes.map { _ in nil }
+                context.register(symbol: caseSymbol)
+                symbol.scope.values[c.name, default: []].append(caseSymbol)
+            }
             loadScope(n.scope, into: symbol.scope, package: package)
         case let .typeAlias(a):
             let symbol = Symbol.TypeAliasSymbol(id: context.nextSymbolId, name: a.name)
@@ -143,7 +152,6 @@ public struct InterfaceLoader {
             }
             let t = TrussType.StructType(id: context.nextTypeId, name: n)
             return t
-        case let .optional(w): return TrussType.OptionalType(makeTypeRef(w))
         case let .pointer(p, nn): return TrussType.PointerType(makeTypeRef(p), isNonnull: nn)
         case let .tuple(els):
             return TrussType

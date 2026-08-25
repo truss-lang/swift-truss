@@ -1,6 +1,18 @@
 import ArgumentParser
 import Foundation
+import TrussCore
 import TrussDriver
+import TrussPackageManager
+
+enum TrussStd {
+    static let packageName = "Truss"
+    static let source = """
+    public enum Optional<T> {
+        case None
+        case Some(T)
+    }
+    """
+}
 
 @main
 struct Trussc: ParsableCommand {
@@ -40,6 +52,12 @@ struct Trussc: ParsableCommand {
     @Flag(help: "Print the round-tripped source.")
     var dumpSource = false
 
+    @Flag(
+        name: .customLong("no-stdlib"),
+        help: "Do not preload the Truss standard library."
+    )
+    var noStdlib = false
+
     func run() throws {
         let defineMap = Dictionary(
             defines.map { raw -> (String, String) in
@@ -50,6 +68,17 @@ struct Trussc: ParsableCommand {
             },
             uniquingKeysWith: { _, new in new }
         )
+        var importedInterfaces: [ModuleInterface] = []
+        if !noStdlib {
+            let stdResult = Driver(config: DriverConfig(moduleName: TrussStd.packageName))
+                .runString(TrussStd.source)
+            if stdResult.hasErrors {
+                throw ValidationError("standard library failed to compile:\n\(stdResult.stderr)")
+            }
+            if let interface = stdResult.packageInterface {
+                importedInterfaces.append(interface)
+            }
+        }
         let config = DriverConfig(
             target: target,
             defines: defineMap,
@@ -57,7 +86,9 @@ struct Trussc: ParsableCommand {
             dumpSymbols: dumpSymbols,
             dumpTIR: dumpTIR,
             dumpLLVMIR: dumpLLVMIR,
-            dumpSource: dumpSource
+            dumpSource: dumpSource,
+            moduleName: "main",
+            importedInterfaces: importedInterfaces
         )
         let result = Driver(config: config).run(files: files)
         if !result.stdout.isEmpty {

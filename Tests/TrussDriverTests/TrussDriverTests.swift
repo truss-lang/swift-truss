@@ -150,7 +150,12 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
         protocol Q {}
         """
     )
-    let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
+    let stdSource = "public enum Optional<T> { case None; case Some(T) }"
+    let stdResult = Driver(config: DriverConfig(moduleName: "Truss")).runString(stdSource)
+    #expect(!stdResult.hasErrors)
+    let stdInterface = try #require(stdResult.packageInterface)
+    let result = Driver(config: DriverConfig(dumpAST: true, importedInterfaces: [stdInterface]))
+        .run(files: [file])
     #expect(!result.hasErrors)
     #expect(result.stdout.contains("ty:Optional(StructType(S)"))
     #expect(result.stdout.contains("ty:Function((StructType(S)"))
@@ -266,14 +271,13 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.contains("Binary"))
 }
 
-@Test func driverRejectsGenericApplication() throws {
+@Test func driverSupportsGenericApplication() throws {
     let file = try writeTemp(
         "generic.truss",
         "struct Box {}\nstruct S {}\nfunc main() { Box<S> }\n"
     )
     let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
-    #expect(result.hasErrors)
-    #expect(result.stderr.contains("GenericApplication"))
+    #expect(!result.hasErrors)
 }
 
 @Test func driverReportsUnknownOperator() throws {

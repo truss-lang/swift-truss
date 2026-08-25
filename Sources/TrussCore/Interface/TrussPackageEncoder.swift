@@ -34,7 +34,11 @@ public final class TrussPackageEncoder {
     private func collectTypes(in scope: InterfaceScope) {
         for type in scope.types {
             switch type {
-            case let .nominal(n): collectTypes(in: n.scope)
+            case let .nominal(n):
+                for c in n.cases {
+                    for t in c.associatedTypes { indexType(t) }
+                }
+                collectTypes(in: n.scope)
             case let .typeAlias(a): if let t = a.target { indexType(t) }
             case .associatedType, .builtin, .genericParam: break
             }
@@ -63,7 +67,6 @@ public final class TrussPackageEncoder {
         switch t {
         case .void, .never, .error, .builtin, .genericParam, .typeVariable: []
         case let .nominal(_, args): args
-        case let .optional(w): [w]
         case let .pointer(p, _): [p]
         case let .tuple(els): els.map(\.type)
         case let .function(f): f.parameters.map(\.type) + f.throwsTypes + [f.returnType]
@@ -75,20 +78,22 @@ public final class TrussPackageEncoder {
 
     private func encodeType(_ t: InterfaceTypeRef, into w: BitWriter) {
         switch t {
-        case .void: w.u8(0)
-        case .never: w.u8(1)
-        case .error: w.u8(2)
-        case let .builtin(n): w.u8(3); w.string(n)
-        case let .nominal(n, args): w.u8(4); w.string(n); encodeRefs(args, w)
-        case let .optional(x): w.u8(5); encodeRef(x, w)
-        case let .pointer(x, nn): w.u8(6); encodeRef(x, w); w.bool(nn)
+        case .void: w.u8(InterfaceTypeRefCode.void.rawValue)
+        case .never: w.u8(InterfaceTypeRefCode.never.rawValue)
+        case .error: w.u8(InterfaceTypeRefCode.error.rawValue)
+        case let .builtin(n): w.u8(InterfaceTypeRefCode.builtin.rawValue); w.string(n)
+        case let .nominal(n, args):
+            w.u8(InterfaceTypeRefCode.nominal.rawValue); w.string(n); encodeRefs(args, w)
+        case let .pointer(x, nn):
+            w.u8(InterfaceTypeRefCode.pointer.rawValue); encodeRef(x, w); w.bool(nn)
         case let .tuple(els):
-            w.u8(7); w.u32(UInt32(els.count))
+            w.u8(InterfaceTypeRefCode.tuple.rawValue); w.u32(UInt32(els.count))
             for e in els {
                 w.stringOpt(e.label); encodeRef(e.type, w)
             }
         case let .function(f):
-            w.u8(8); w.bool(f.isVariadic); w.bool(f.isAsync); w.bool(f.isThrowing)
+            w.u8(InterfaceTypeRefCode.function.rawValue)
+            w.bool(f.isVariadic); w.bool(f.isAsync); w.bool(f.isThrowing)
             w.u32(UInt32(f.throwsTypes.count)); for x in f.throwsTypes {
                 encodeRef(x, w)
             }
@@ -97,13 +102,14 @@ public final class TrussPackageEncoder {
                 w.stringOpt(p.label); encodeRef(p.type, w)
             }
             encodeRef(f.returnType, w)
-        case let .composition(m): w.u8(9); encodeRefs(m, w)
-        case let .variadic(b): w.u8(10); encodeRef(b, w)
-        case let .genericParam(n): w.u8(11); w.string(n)
-        case let .forall(ps, b): w.u8(12); w.u32(UInt32(ps.count)); for p in ps {
+        case let .composition(m): w.u8(InterfaceTypeRefCode.composition.rawValue); encodeRefs(m, w)
+        case let .variadic(b): w.u8(InterfaceTypeRefCode.variadic.rawValue); encodeRef(b, w)
+        case let .genericParam(n): w.u8(InterfaceTypeRefCode.genericParam.rawValue); w.string(n)
+        case let .forall(ps, b):
+            w.u8(InterfaceTypeRefCode.forall.rawValue); w.u32(UInt32(ps.count)); for p in ps {
                 w.string(p)
             }; encodeRef(b, w)
-        case let .typeVariable(i): w.u8(13); w.u32(UInt32(i))
+        case let .typeVariable(i): w.u8(InterfaceTypeRefCode.typeVariable.rawValue); w.u32(UInt32(i))
         }
     }
 
@@ -149,24 +155,31 @@ public final class TrussPackageEncoder {
     private func encodeTypeDecl(_ t: InterfaceType, into w: BitWriter) {
         switch t {
         case let .nominal(n):
-            w.u8(0); w.u8(kindCode(n.kind)); w.string(n.name)
+            w.u8(InterfaceTypeDeclCode.nominal.rawValue); w.u8(n.kind.rawValue); w.string(n.name)
             w.u32(UInt32(n.conformances.count)); for c in n.conformances {
                 w.string(c)
             }
             w.stringOpt(n.superclass)
+            w.u32(UInt32(n.cases.count))
+            for c in n.cases {
+                w.string(c.name)
+                encodeRefs(c.associatedTypes, w)
+            }
             encodeScope(n.scope, into: w, toc: TocBuilder(), prefix: n.name)
         case let .typeAlias(a):
-            w.u8(1); w.string(a.name); w.bool(a.target != nil); if let t = a.target { encodeRef(t, w) }
-        case let .associatedType(s): w.u8(2); w.string(s.name)
-        case let .builtin(s): w.u8(3); w.string(s.name)
-        case let .genericParam(s): w.u8(4); w.string(s.name)
+            w.u8(InterfaceTypeDeclCode.typeAlias.rawValue)
+            w.string(a.name); w.bool(a.target != nil); if let t = a.target { encodeRef(t, w) }
+        case let .associatedType(s):
+            w.u8(InterfaceTypeDeclCode.associatedType.rawValue); w.string(s.name)
+        case let .builtin(s): w.u8(InterfaceTypeDeclCode.builtin.rawValue); w.string(s.name)
+        case let .genericParam(s): w.u8(InterfaceTypeDeclCode.genericParam.rawValue); w.string(s.name)
         }
     }
 
     private func encodeValueDecl(_ v: InterfaceValue, into w: BitWriter) {
         switch v {
         case let .function(f):
-            w.u8(0); w.string(f.name)
+            w.u8(InterfaceValueDeclCode.function.rawValue); w.string(f.name)
             w.u32(UInt32(f.labels.count)); for l in f.labels {
                 w.stringOpt(l)
             }
@@ -179,18 +192,9 @@ public final class TrussPackageEncoder {
             w.bool(f.isVariadic); w.bool(f.isStatic)
             w.bool(f.functionType != nil); if let t = f.functionType { encodeRef(t, w) }
         case let .variable(v):
-            w.u8(1); w.string(v.name); w.bool(v.isMutable)
+            w.u8(InterfaceValueDeclCode.variable.rawValue)
+            w.string(v.name); w.bool(v.isMutable)
             w.bool(v.type != nil); if let t = v.type { encodeRef(t, w) }
-        }
-    }
-
-    private func kindCode(_ k: InterfaceNominalKind) -> UInt8 {
-        switch k {
-        case .structType: 0
-        case .classType: 1
-        case .enumType: 2
-        case .protocolType: 3
-        case .actorType: 4
         }
     }
 

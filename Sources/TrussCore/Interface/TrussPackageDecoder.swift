@@ -43,22 +43,23 @@ public struct TrussPackageDecoder {
     }
 
     private func decodeTypeRef(_ reader: inout BitReader) throws -> InterfaceTypeRef {
-        let kind = try reader.u8()
+        guard let kind = InterfaceTypeRefCode(rawValue: try reader.u8()) else {
+            throw TrussPackageCodecError.truncated
+        }
         switch kind {
-        case 0: return .void
-        case 1: return .never
-        case 2: return .error
-        case 3: return try .builtin(reader.string())
-        case 4:
+        case .void: return .void
+        case .never: return .never
+        case .error: return .error
+        case .builtin: return try .builtin(reader.string())
+        case .nominal:
             let n = try reader.string()
             let args = try decodeRefs(&reader)
             return .nominal(n, args)
-        case 5: return try .optional(decodeRef(&reader))
-        case 6:
+        case .pointer:
             let p = try decodeRef(&reader)
             let nn = try reader.bool()
             return .pointer(p, nn)
-        case 7:
+        case .tuple:
             let count = try Int(reader.u32())
             var els: [InterfaceTupleElement] = []
             for _ in 0 ..< count {
@@ -67,7 +68,7 @@ public struct TrussPackageDecoder {
                 els.append(InterfaceTupleElement(label: l, type: t))
             }
             return .tuple(els)
-        case 8:
+        case .function:
             let isVar = try reader.bool()
             let isAsync = try reader.bool()
             let isThrow = try reader.bool()
@@ -92,10 +93,10 @@ public struct TrussPackageDecoder {
                 throwsTypes: throwsTypes,
                 returnType: ret
             ))
-        case 9: return try .composition(decodeRefs(&reader))
-        case 10: return try .variadic(decodeRef(&reader))
-        case 11: return try .genericParam(reader.string())
-        case 12:
+        case .composition: return try .composition(decodeRefs(&reader))
+        case .variadic: return try .variadic(decodeRef(&reader))
+        case .genericParam: return try .genericParam(reader.string())
+        case .forall:
             let count = try Int(reader.u32())
             var ps: [String] = []
             for _ in 0 ..< count {
@@ -103,8 +104,7 @@ public struct TrussPackageDecoder {
             }
             let b = try decodeRef(&reader)
             return .forall(ps, b)
-        case 13: return try .typeVariable(Int(reader.u32()))
-        default: throw TrussPackageCodecError.truncated
+        case .typeVariable: return try .typeVariable(Int(reader.u32()))
         }
     }
 
@@ -148,10 +148,14 @@ public struct TrussPackageDecoder {
     }
 
     private func decodeTypeDecl(_ reader: inout BitReader) throws -> InterfaceType {
-        let kind = try reader.u8()
+        guard let kind = InterfaceTypeDeclCode(rawValue: try reader.u8()) else {
+            throw TrussPackageCodecError.truncated
+        }
         switch kind {
-        case 0:
-            let nkind = try decodeKind(reader.u8())
+        case .nominal:
+            guard let nkind = InterfaceNominalKind(rawValue: try reader.u8()) else {
+                throw TrussPackageCodecError.truncated
+            }
             let name = try reader.string()
             let confCount = try Int(reader.u32())
             var confs: [String] = []
@@ -159,41 +163,39 @@ public struct TrussPackageDecoder {
                 try confs.append(reader.string())
             }
             let superclass = try reader.stringOpt()
+            let caseCount = try Int(reader.u32())
+            var cases: [InterfaceCase] = []
+            for _ in 0 ..< caseCount {
+                let caseName = try reader.string()
+                let assocTypes = try decodeRefs(&reader)
+                cases.append(InterfaceCase(name: caseName, associatedTypes: assocTypes))
+            }
             let scope = try decodeScope(&reader)
             return .nominal(InterfaceNominal(
                 kind: nkind,
                 name: name,
                 conformances: confs,
                 superclass: superclass,
+                cases: cases,
                 scope: scope
             ))
-        case 1:
+        case .typeAlias:
             let name = try reader.string()
             let hasTarget = try reader.bool()
             let target = hasTarget ? try decodeRef(&reader) : nil
             return .typeAlias(InterfaceTypealias(name: name, target: target))
-        case 2: return try .associatedType(InterfaceSimple(name: reader.string()))
-        case 3: return try .builtin(InterfaceSimple(name: reader.string()))
-        case 4: return try .genericParam(InterfaceSimple(name: reader.string()))
-        default: throw TrussPackageCodecError.truncated
-        }
-    }
-
-    private func decodeKind(_ raw: UInt8) throws -> InterfaceNominalKind {
-        switch raw {
-        case 0: .structType
-        case 1: .classType
-        case 2: .enumType
-        case 3: .protocolType
-        case 4: .actorType
-        default: throw TrussPackageCodecError.truncated
+        case .associatedType: return try .associatedType(InterfaceSimple(name: reader.string()))
+        case .builtin: return try .builtin(InterfaceSimple(name: reader.string()))
+        case .genericParam: return try .genericParam(InterfaceSimple(name: reader.string()))
         }
     }
 
     private func decodeValueDecl(_ reader: inout BitReader) throws -> InterfaceValue {
-        let kind = try reader.u8()
+        guard let kind = InterfaceValueDeclCode(rawValue: try reader.u8()) else {
+            throw TrussPackageCodecError.truncated
+        }
         switch kind {
-        case 0:
+        case .function:
             let name = try reader.string()
             let labelCount = try Int(reader.u32())
             var labels: [String?] = []
@@ -223,13 +225,12 @@ public struct TrussPackageDecoder {
                 isStatic: isStatic,
                 functionType: ft
             ))
-        case 1:
+        case .variable:
             let name = try reader.string()
             let isMutable = try reader.bool()
             let hasType = try reader.bool()
             let t = hasType ? try decodeRef(&reader) : nil
             return .variable(InterfaceVariable(name: name, isMutable: isMutable, type: t))
-        default: throw TrussPackageCodecError.truncated
         }
     }
 }

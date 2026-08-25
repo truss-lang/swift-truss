@@ -70,13 +70,6 @@ public enum TrussType {
         }
     }
 
-    public final class OptionalType: TrussType {
-        public let wrapped: TrussType
-        public init(_ wrapped: TrussType) {
-            self.wrapped = wrapped
-        }
-    }
-
     public final class PointerType: TrussType {
         public let pointee: TrussType
         public let isNonnull: Bool

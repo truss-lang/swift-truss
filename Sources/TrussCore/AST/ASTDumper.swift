@@ -103,8 +103,12 @@ public extension AST {
                 return "\(nominalKind(nominal))(\(nominal.name))#\(nominal.id.id)"
             case let builtin as TrussType.BuiltinType:
                 return "Builtin.\(builtin.name)"
-            case let optional as TrussType.OptionalType:
-                return "Optional(\(typeText(optional.wrapped)))"
+            case let optional as TrussType.GenericInstantiation
+                where optional.base.name == "Optional":
+                if let wrapped = optional.arguments.first {
+                    return "Optional(\(typeText(wrapped)))"
+                }
+                return "Optional(?)"
             case let pointer as TrussType.PointerType:
                 return "Pointer(\(typeText(pointer.pointee))\(pointer.isNonnull ? "!" : ""))"
             case let tuple as TrussType.TupleType:

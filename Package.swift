@@ -78,6 +78,7 @@ let package = Package(
             name: "trussc",
             dependencies: [
                 "TrussDriver",
+                "TrussPackageManager",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),

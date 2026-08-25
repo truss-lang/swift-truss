@@ -42,8 +42,12 @@ final class TypeMangler {
             return "B" + builtin.name
         case let nominal as TrussType.NominalType:
             return nominalPath(nominal, modulePath: modulePath)
-        case let optional as TrussType.OptionalType:
-            return "O" + typeName(optional.wrapped, modulePath: modulePath)
+        case let optional as TrussType.GenericInstantiation
+            where optional.base.name == "Optional":
+            if let wrapped = optional.arguments.first {
+                return "O" + typeName(wrapped, modulePath: modulePath)
+            }
+            return "O"
         case let pointer as TrussType.PointerType:
             return "P" + (pointer.isNonnull ? "n" : "u") + typeName(pointer.pointee, modulePath: modulePath)
         case let tuple as TrussType.TupleType:

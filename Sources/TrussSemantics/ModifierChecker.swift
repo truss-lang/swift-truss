@@ -499,7 +499,9 @@ public final class ModifierChecker: AST.Visitor {
                 }
                 if let type = variableDecl.symbol?.type {
                     let isClass = type is TrussType.ClassType
-                        || (type as? TrussType.OptionalType)?.wrapped is TrussType.ClassType
+                        || (type as? TrussType.GenericInstantiation).flatMap { generic in
+                            generic.base.name == "Optional" ? generic.arguments.first : nil
+                        } is TrussType.ClassType
                     if !isClass {
                         context.emitError(
                             "'weak' property must be of class type", at: modifier.token

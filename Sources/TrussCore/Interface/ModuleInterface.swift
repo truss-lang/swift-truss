@@ -37,8 +37,37 @@ public enum InterfaceType: Equatable, Hashable {
     case genericParam(InterfaceSimple)
 }
 
-public enum InterfaceNominalKind: Equatable, Hashable {
-    case structType, classType, enumType, protocolType, actorType
+public enum InterfaceNominalKind: UInt8, Equatable, Hashable {
+    case structType = 0, classType = 1, enumType = 2, protocolType = 3, actorType = 4
+}
+
+public enum InterfaceTypeRefCode: UInt8 {
+    case void = 0
+    case never = 1
+    case error = 2
+    case builtin = 3
+    case nominal = 4
+    case pointer = 5
+    case tuple = 6
+    case function = 7
+    case composition = 8
+    case variadic = 9
+    case genericParam = 10
+    case forall = 11
+    case typeVariable = 12
+}
+
+public enum InterfaceTypeDeclCode: UInt8 {
+    case nominal = 0
+    case typeAlias = 1
+    case associatedType = 2
+    case builtin = 3
+    case genericParam = 4
+}
+
+public enum InterfaceValueDeclCode: UInt8 {
+    case function = 0
+    case variable = 1
 }
 
 public struct InterfaceNominal: Equatable, Hashable {
@@ -46,19 +75,31 @@ public struct InterfaceNominal: Equatable, Hashable {
     public var name: String
     public var conformances: [String]
     public var superclass: String?
+    public var cases: [InterfaceCase]
     public var scope: InterfaceScope
     public init(
         kind: InterfaceNominalKind,
         name: String,
         conformances: [String] = [],
         superclass: String? = nil,
+        cases: [InterfaceCase] = [],
         scope: InterfaceScope = InterfaceScope()
     ) {
         self.kind = kind
         self.name = name
         self.conformances = conformances
         self.superclass = superclass
+        self.cases = cases
         self.scope = scope
+    }
+}
+
+public struct InterfaceCase: Equatable, Hashable {
+    public var name: String
+    public var associatedTypes: [InterfaceTypeRef]
+    public init(name: String, associatedTypes: [InterfaceTypeRef] = []) {
+        self.name = name
+        self.associatedTypes = associatedTypes
     }
 }
 
@@ -158,7 +199,6 @@ public indirect enum InterfaceTypeRef: Equatable, Hashable {
     case error
     case builtin(String)
     case nominal(String, [InterfaceTypeRef])
-    case optional(InterfaceTypeRef)
     case pointer(InterfaceTypeRef, Bool)
     case tuple([InterfaceTupleElement])
     case function(InterfaceFunctionType)

@@ -122,7 +122,7 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
                             ]
                         )
                     )),
-                    .typeAlias(InterfaceTypealias(name: "Alias", target: .optional(.builtin("Int64")))),
+                    .typeAlias(InterfaceTypealias(name: "Alias", target: .nominal("Optional", [.builtin("Int64")]))),
                 ],
                 values: [
                     .function(InterfaceFunction(
@@ -136,6 +136,38 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         #expect(bytes.count > 0)
         let decoded = try TrussPackageDecoder().decode(bytes)
         #expect(canonicalize(decoded.interface) == canonicalize(interface))
+    }
+
+    @Test func roundTripEnumCases() throws {
+        let interface = ModuleInterface(
+            name: "M",
+            root: InterfaceScope(
+                types: [
+                    .nominal(InterfaceNominal(
+                        kind: .enumType, name: "Optional",
+                        conformances: [], superclass: nil,
+                        cases: [
+                            InterfaceCase(name: "None", associatedTypes: []),
+                            InterfaceCase(name: "Some", associatedTypes: [.genericParam("T")]),
+                        ],
+                        scope: InterfaceScope()
+                    )),
+                ]
+            )
+        )
+        let bytes = TrussPackageEncoder(interface: interface).encode()
+        let decoded = try TrussPackageDecoder().decode(bytes)
+        let nominal = try #require(
+            decoded.interface.root.types.first.flatMap { t -> InterfaceNominal? in
+                switch t {
+                case let .nominal(n): n
+                default: nil
+                }
+            }
+        )
+        #expect(nominal.kind == .enumType)
+        #expect(nominal.cases.map(\.name) == ["None", "Some"])
+        #expect(nominal.cases[1].associatedTypes == [.genericParam("T")])
     }
 
     @Test func roundTripEmpty() throws {
@@ -154,6 +186,45 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         } catch TrussPackageCodecError.badMagic {
             // expected
         }
+    }
+}
+
+@Suite struct StdPreloadTests {
+    @Test func preloadsOptionalSymbolFromShrunkStd() throws {
+        let stdSource = """
+        public enum Optional<T> {
+            case None
+            case Some(T)
+        }
+        """
+        let stdResult = Driver(config: DriverConfig(moduleName: "Truss")).runString(stdSource)
+        #expect(!stdResult.hasErrors, "std diagnostics: \(stdResult.stderr)")
+        guard let stdInterface = stdResult.packageInterface else {
+            Issue.record("no std interface")
+            return
+        }
+        let bytes = TrussPackageEncoder(interface: stdInterface).encode()
+        let decoded = try TrussPackageDecoder().decode(bytes)
+        let optNominal = try #require(
+            decoded.interface.root.types.compactMap { t -> InterfaceNominal? in
+                switch t {
+                case let .nominal(n): n
+                default: nil
+                }
+            }.first { $0.name == "Optional" }
+        )
+        #expect(optNominal.kind == .enumType)
+        #expect(optNominal.cases.map(\.name) == ["None", "Some"])
+        #expect(optNominal.cases[1].associatedTypes == [.genericParam("T")])
+
+        let userSource = """
+        func g(_ x: Optional<Builtin.Int64>) -> Optional<Builtin.Int64> { x }
+        """
+        let userResult = Driver(config: DriverConfig(
+            moduleName: "App",
+            importedInterfaces: [decoded.interface]
+        )).runString(userSource)
+        #expect(!userResult.hasErrors, "user diagnostics: \(userResult.stderr)")
     }
 }
 
@@ -226,10 +297,10 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         let package = PackageDescription(
             name: "Sample",
             targets: [
-                PackageTarget(name: "Library", kind: .staticLibrary, sourcesDirectory: "Sources/Library"),
+                PackageTarget(name: "Library", kind: .StaticLibrary, sourcesDirectory: "Sources/Library"),
                 PackageTarget(
                     name: "App",
-                    kind: .executable,
+                    kind: .Executable,
                     sourcesDirectory: "Sources/App",
                     dependencies: ["Library"]
                 ),
@@ -283,8 +354,8 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         let package = PackageDescription(
             name: "Cyc",
             targets: [
-                PackageTarget(name: "A", kind: .staticLibrary, sourcesDirectory: "Sources/A", dependencies: ["B"]),
-                PackageTarget(name: "B", kind: .staticLibrary, sourcesDirectory: "Sources/B", dependencies: ["A"]),
+                PackageTarget(name: "A", kind: .StaticLibrary, sourcesDirectory: "Sources/A", dependencies: ["B"]),
+                PackageTarget(name: "B", kind: .StaticLibrary, sourcesDirectory: "Sources/B", dependencies: ["A"]),
             ]
         )
         let manager = TrussPackageManager(package: package, packageRoot: URL(fileURLWithPath: "/tmp"))

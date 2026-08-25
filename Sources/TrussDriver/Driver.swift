@@ -132,6 +132,9 @@ public final class Driver {
             runPass(ImportProcessor(context: context), context: context, programs: programs)
         }
         if !context.diagnositicEngine.hasErrors {
+            runRewriter(OptionalDesugarPass(), context: context, programs: &programs)
+        }
+        if !context.diagnositicEngine.hasErrors {
             runPass(Enter(context: context), context: context, programs: programs)
         }
         if !context.diagnositicEngine.hasErrors {
@@ -250,6 +253,14 @@ public final class Driver {
                 return
             }
         }
+    }
+
+    private func runRewriter(
+        _ rewriter: AST.Rewriter,
+        context: TrussCore.Context,
+        programs: inout [AST.Program]
+    ) {
+        programs = programs.map { rewriter.rewrite($0) }
     }
 
     private func runOperatorPasses(_ programs: inout [AST.Program], context: TrussCore.Context) {

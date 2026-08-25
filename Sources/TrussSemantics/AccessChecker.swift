@@ -619,7 +619,9 @@ public final class AccessChecker: AST.Visitor {
         guard let ty = expression.ty else { return nil }
         let nominal: TrussType.NominalType? =
             ty as? TrussType.NominalType
-                ?? (ty as? TrussType.OptionalType)?.wrapped as? TrussType.NominalType
+                ?? (ty as? TrussType.GenericInstantiation).flatMap { generic in
+                    generic.base.name == "Optional" ? generic.arguments.first : nil
+                } as? TrussType.NominalType
                 ?? (ty as? TrussType.GenericInstantiation)?.base as? TrussType.NominalType
         guard let nominal else { return nil }
         for symbol in context.id2Symbol.values {

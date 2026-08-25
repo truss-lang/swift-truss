@@ -70,10 +70,27 @@ public struct InterfaceExtractor {
 
     private func extractNominal(_ s: Symbol.NominalTypeSymbol, kind: InterfaceNominalKind) -> InterfaceNominal {
         let conformances = s.conformances.map(\.name)
+        let cases = extractCases(from: s)
         return InterfaceNominal(
             kind: kind, name: s.name, conformances: conformances, superclass: nil,
-            scope: extractScope(s.scope)
+            cases: cases, scope: extractScope(s.scope)
         )
+    }
+
+    private func extractCases(from symbol: Symbol.NominalTypeSymbol) -> [InterfaceCase] {
+        var result: [InterfaceCase] = []
+        for (_, values) in symbol.scope.values.sorted(by: { $0.key < $1.key }) {
+            for value in values {
+                guard let caseSymbol = value as? Symbol.CaseSymbol else { continue }
+                result.append(
+                    InterfaceCase(
+                        name: caseSymbol.name,
+                        associatedTypes: caseSymbol.associatedTypes.map(typeRef)
+                    )
+                )
+            }
+        }
+        return result
     }
 
     private func extractValue(_ name: String, _ symbol: Symbol.Symbol) -> InterfaceValue? {
@@ -102,7 +119,6 @@ public struct InterfaceExtractor {
         case is TrussType.NeverType: .never
         case is TrussType.ErrorType: .error
         case let b as TrussType.BuiltinType: .builtin(b.name)
-        case let o as TrussType.OptionalType: .optional(typeRef(o.wrapped))
         case let p as TrussType.PointerType: .pointer(typeRef(p.pointee), p.isNonnull)
         case let t as TrussType.TupleType:
             .tuple(t.elements.map { InterfaceTupleElement(label: $0.label, type: typeRef($0.type)) })
