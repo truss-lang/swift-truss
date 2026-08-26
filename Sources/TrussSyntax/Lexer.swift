@@ -73,14 +73,14 @@ public final class Lexer {
     private var interpolationDepth: Int = 0
     private var emitInterpolationOpen: Bool = false
     private var pendingStringResume: Bool = false
-    private var stringMode: StringMode = .singleLine
+    private var stringMode: StringMode = .SingleLine
     private var multilineState: MultilineState?
 
     private enum StringMode {
-        case singleLine
-        case multiLine
-        case rawSingleLine
-        case rawMultiLine
+        case SingleLine
+        case MultiLine
+        case RawSingleLine
+        case RawMultiLine
     }
 
     private struct MultilineState {
@@ -124,7 +124,7 @@ public final class Lexer {
         if pendingStringResume {
             pendingStringResume = false
             switch stringMode {
-            case .singleLine:
+            case .SingleLine:
                 if input.peek == "\"" {
                     input.incrementPosition()
                     return Token(
@@ -133,7 +133,7 @@ public final class Lexer {
                     )
                 }
                 return resumeStringLiteral()
-            case .rawSingleLine:
+            case .RawSingleLine:
                 if input.peek == "\"", input.peek2 == "#" {
                     input.incrementPosition()
                     input.incrementPosition()
@@ -143,7 +143,7 @@ public final class Lexer {
                     )
                 }
                 return resumeRawStringLiteral()
-            case .multiLine, .rawMultiLine:
+            case .MultiLine, .RawMultiLine:
                 return resumeMultilineString()
             }
         }
@@ -343,7 +343,7 @@ public final class Lexer {
     private func parseStringLiteral() -> Token {
         let begin = input.currentPosition
         if interpolationDepth == 0 {
-            stringMode = .singleLine
+            stringMode = .SingleLine
         }
         input.incrementPosition()
         return scanSingleLineBody(begin: begin)
@@ -400,7 +400,7 @@ public final class Lexer {
     private func parseRawStringLiteral() -> Token {
         let begin = input.currentPosition
         if interpolationDepth == 0 {
-            stringMode = .rawSingleLine
+            stringMode = .RawSingleLine
         }
         input.incrementPosition()
         input.incrementPosition()
@@ -438,12 +438,12 @@ public final class Lexer {
     private func parseMultilineStringLiteral() -> Token {
         let begin = input.currentPosition
         if interpolationDepth == 0 {
-            stringMode = .multiLine
+            stringMode = .MultiLine
         }
         input.incrementPosition()
         input.incrementPosition()
         input.incrementPosition()
-        multilineState = MultilineState(mode: .multiLine)
+        multilineState = MultilineState(mode: .MultiLine)
         if input.peek == "\n" {
             input.incrementPosition()
         }
@@ -453,13 +453,13 @@ public final class Lexer {
     private func parseRawMultilineStringLiteral() -> Token {
         let begin = input.currentPosition
         if interpolationDepth == 0 {
-            stringMode = .rawMultiLine
+            stringMode = .RawMultiLine
         }
         input.incrementPosition()
         input.incrementPosition()
         input.incrementPosition()
         input.incrementPosition()
-        multilineState = MultilineState(mode: .rawMultiLine)
+        multilineState = MultilineState(mode: .RawMultiLine)
         if input.peek == "\n" {
             input.incrementPosition()
         }
@@ -469,7 +469,7 @@ public final class Lexer {
     private func resumeMultilineString() -> Token {
         if multilineState == nil {
             multilineState = MultilineState(
-                mode: stringMode == .rawMultiLine ? .rawMultiLine : .multiLine
+                mode: stringMode == .RawMultiLine ? .RawMultiLine : .MultiLine
             )
             multilineState!.currentIsLineStart = false
         }
@@ -477,7 +477,7 @@ public final class Lexer {
     }
 
     private func scanMultilineBody(begin: Position) -> Token {
-        let isRaw = multilineState!.mode == .rawMultiLine
+        let isRaw = multilineState!.mode == .RawMultiLine
         while let c = input.peek {
             if c == "\"" {
                 if input.peek2 == "\"", input.peek3 == "\"" {
@@ -524,7 +524,7 @@ public final class Lexer {
 
     private func emitMultilineSegment(begin: Position) -> Token {
         let state = multilineState!
-        let isRaw = state.mode == .rawMultiLine
+        let isRaw = state.mode == .RawMultiLine
         if isRaw {
             input.incrementPosition()
         }
@@ -547,7 +547,7 @@ public final class Lexer {
 
     private func finishMultilineSegment(begin: Position, indentCol: Int) -> Token {
         let state = multilineState!
-        let isRaw = state.mode == .rawMultiLine
+        let isRaw = state.mode == .RawMultiLine
         let content = assembleMultilineSegment(
             lines: state.lines, lineStarts: state.lineStarts,
             currentLine: state.currentLine, currentIsLineStart: state.currentIsLineStart,

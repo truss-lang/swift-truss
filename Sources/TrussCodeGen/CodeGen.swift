@@ -105,6 +105,9 @@ public final class CodeGen: TIR.Visitor {
     }
 
     private func emitFunctionBody(_ tirFunction: TIR.Function) {
+        guard let builder else {
+            fatalError("unreachable")
+        }
         let blocks = reachableBlocks(tirFunction)
         guard !blocks.isEmpty,
               let llvmFunction = functionMap[tirFunction.id]
@@ -126,37 +129,33 @@ public final class CodeGen: TIR.Visitor {
         }
         for block in blocks {
             guard let llvmBlock = blockMap[ObjectIdentifier(block)] else { continue }
-            builder?.positionAtEnd(of: llvmBlock)
+            builder.positionAtEnd(of: llvmBlock)
             var phis: [LLVMSwiftBinding.PHINode] = []
             for parameter in block.parameters {
-                let phi = builder?.buildPhi(lowerType(parameter.ty), name: parameter.name) ?? nil
-                if let phi {
-                    valueMap[ObjectIdentifier(parameter)] = phi
-                    phis.append(phi)
-                }
+                let phi = builder.buildPhi(lowerType(parameter.ty), name: parameter.name)
+                valueMap[ObjectIdentifier(parameter)] = phi
+                phis.append(phi)
             }
             if !phis.isEmpty {
                 blockParamPhi[ObjectIdentifier(block)] = phis
             }
             for instruction in block.instructions {
                 if let phiInstruction = instruction as? TIR.Phi {
-                    let phi = builder?.buildPhi(lowerType(phiInstruction.result.ty)) ?? nil
-                    if let phi {
-                        valueMap[ObjectIdentifier(phiInstruction.result)] = phi
-                        for incoming in phiInstruction.incomings {
-                            pendingPhiIncoming.append(
-                                PendingIncoming(
-                                    phi: phi, value: incoming.value, block: incoming.block
-                                )
+                    let phi = builder.buildPhi(lowerType(phiInstruction.result.ty))
+                    valueMap[ObjectIdentifier(phiInstruction.result)] = phi
+                    for incoming in phiInstruction.incomings {
+                        pendingPhiIncoming.append(
+                            PendingIncoming(
+                                phi: phi, value: incoming.value, block: incoming.block
                             )
-                        }
+                        )
                     }
                 }
             }
         }
         for block in blocks {
             guard let llvmBlock = blockMap[ObjectIdentifier(block)] else { continue }
-            builder?.positionAtEnd(of: llvmBlock)
+            builder.positionAtEnd(of: llvmBlock)
             currentLLVMBlock = llvmBlock
             for instruction in block.instructions {
                 if instruction is TIR.Phi {
@@ -534,7 +533,10 @@ public final class CodeGen: TIR.Visitor {
     public override func visitUnreachable(
         _ instruction: TIR.Unreachable, additional: Any? = nil
     ) -> Any? {
-        builder?.buildUnreachable()
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        builder.buildUnreachable()
         return nil
     }
 
@@ -1150,7 +1152,7 @@ public final class CodeGen: TIR.Visitor {
     public override func visitInlineAsm(
         _ instruction: TIR.InlineAsm, additional: Any? = nil
     ) -> Any? {
-        guard let builder, let module else { return nil }
+        guard let builder else { return nil }
         let operandValues = instruction.operands.compactMap { value($0) }
         let operandTypes = instruction.operands.compactMap { lowerType($0.ty) }
         let functionType = llvmContext.functionType(

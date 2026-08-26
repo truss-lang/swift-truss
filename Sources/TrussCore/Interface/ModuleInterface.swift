@@ -30,44 +30,48 @@ public struct InterfaceModule: Equatable, Hashable {
 }
 
 public enum InterfaceType: Equatable, Hashable {
-    case nominal(InterfaceNominal)
-    case typeAlias(InterfaceTypealias)
-    case associatedType(InterfaceSimple)
-    case builtin(InterfaceSimple)
-    case genericParam(InterfaceSimple)
+    case Nominal(InterfaceNominal)
+    case TypeAlias(InterfaceTypealias)
+    case AssociatedType(InterfaceSimple)
+    case Builtin(InterfaceSimple)
+    case GenericParam(InterfaceSimple)
 }
 
 public enum InterfaceNominalKind: UInt8, Equatable, Hashable {
-    case structType = 0, classType = 1, enumType = 2, protocolType = 3, actorType = 4
+    case StructType = 0
+    case ClassType = 1
+    case EnumType = 2
+    case ProtocolType = 3
+    case ActorType = 4
 }
 
 public enum InterfaceTypeRefCode: UInt8 {
-    case void = 0
-    case never = 1
-    case error = 2
-    case builtin = 3
-    case nominal = 4
-    case pointer = 5
-    case tuple = 6
-    case function = 7
-    case composition = 8
-    case variadic = 9
-    case genericParam = 10
-    case forall = 11
-    case typeVariable = 12
+    case Void = 0
+    case Never = 1
+    case Error = 2
+    case Builtin = 3
+    case Nominal = 4
+    case Pointer = 5
+    case Tuple = 6
+    case Function = 7
+    case Composition = 8
+    case Variadic = 9
+    case GenericParam = 10
+    case Forall = 11
+    case TypeVariable = 12
 }
 
 public enum InterfaceTypeDeclCode: UInt8 {
-    case nominal = 0
-    case typeAlias = 1
-    case associatedType = 2
-    case builtin = 3
-    case genericParam = 4
+    case Nominal = 0
+    case TypeAlias = 1
+    case AssociatedType = 2
+    case Builtin = 3
+    case GenericParam = 4
 }
 
 public enum InterfaceValueDeclCode: UInt8 {
-    case function = 0
-    case variable = 1
+    case Function = 0
+    case Variable = 1
 }
 
 public struct InterfaceNominal: Equatable, Hashable {
@@ -118,8 +122,8 @@ public struct InterfaceSimple: Equatable, Hashable {
 }
 
 public enum InterfaceValue: Equatable, Hashable {
-    case function(InterfaceFunction)
-    case variable(InterfaceVariable)
+    case Function(InterfaceFunction)
+    case Variable(InterfaceVariable)
 }
 
 public struct InterfaceFunction: Equatable, Hashable {
@@ -194,19 +198,19 @@ public struct InterfaceFunctionType: Equatable, Hashable {
 }
 
 public indirect enum InterfaceTypeRef: Equatable, Hashable {
-    case void
-    case never
-    case error
-    case builtin(String)
-    case nominal(String, [InterfaceTypeRef])
-    case pointer(InterfaceTypeRef, Bool)
-    case tuple([InterfaceTupleElement])
-    case function(InterfaceFunctionType)
-    case composition([InterfaceTypeRef])
-    case variadic(InterfaceTypeRef)
-    case genericParam(String)
-    case forall([String], InterfaceTypeRef)
-    case typeVariable(Int)
+    case Void
+    case Never
+    case Error
+    case Builtin(String)
+    case Nominal(String, [InterfaceTypeRef])
+    case Pointer(InterfaceTypeRef, Bool)
+    case Tuple([InterfaceTupleElement])
+    case Function(InterfaceFunctionType)
+    case Composition([InterfaceTypeRef])
+    case Variadic(InterfaceTypeRef)
+    case GenericParam(String)
+    case Forall([String], InterfaceTypeRef)
+    case TypeVariable(Int)
 }
 
 public struct TrussPackageDocument {

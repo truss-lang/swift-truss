@@ -32,12 +32,12 @@ private func trussInterface() -> ModuleInterface {
                 InterfaceModule(
                     name: "Core",
                     scope: InterfaceScope(
-                        types: [.nominal(InterfaceNominal(kind: .structType, name: "Vector"))]
+                        types: [.Nominal(InterfaceNominal(kind: .StructType, name: "Vector"))]
                     )
                 ),
             ],
-            types: [.nominal(InterfaceNominal(kind: .structType, name: "Int"))],
-            values: [.function(InterfaceFunction(
+            types: [.Nominal(InterfaceNominal(kind: .StructType, name: "Int"))],
+            values: [.Function(InterfaceFunction(
                 name: "print", labels: [nil], hasDefaults: [false],
                 isVararg: [false], isVariadic: false, isStatic: true
             ))]
@@ -53,15 +53,15 @@ private func fooInterface() -> ModuleInterface {
                 InterfaceModule(
                     name: "Bar",
                     scope: InterfaceScope(
-                        types: [.nominal(InterfaceNominal(kind: .structType, name: "Point"))],
-                        values: [.function(InterfaceFunction(
+                        types: [.Nominal(InterfaceNominal(kind: .StructType, name: "Point"))],
+                        values: [.Function(InterfaceFunction(
                             name: "makePoint", labels: [nil], hasDefaults: [false],
                             isVararg: [false], isVariadic: false, isStatic: true
                         ))]
                     )
                 ),
             ],
-            types: [.nominal(InterfaceNominal(kind: .structType, name: "FooType"))]
+            types: [.Nominal(InterfaceNominal(kind: .StructType, name: "FooType"))]
         )
     )
 }

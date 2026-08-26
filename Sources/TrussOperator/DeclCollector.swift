@@ -83,9 +83,9 @@ public final class DeclCollector: AST.Visitor {
 
     private func kind(of kind: AST.OperatorDecl.Kind) -> Kind {
         switch kind {
-        case .Infix: .infix
-        case .Prefix: .prefix
-        case .Postfix: .postfix
+        case .Infix: .Infix
+        case .Prefix: .Prefix
+        case .Postfix: .Postfix
         }
     }
 
@@ -98,8 +98,8 @@ public final class DeclCollector: AST.Visitor {
     }
 
     private enum Kind {
-        case infix
-        case prefix
-        case postfix
+        case Infix
+        case Prefix
+        case Postfix
     }
 }

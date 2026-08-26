@@ -1873,7 +1873,7 @@ public final class Parser {
                     parseExpression(isTypeContext: true) ?? errorExpression(from: op!, to: op!)
                 suppressTrailingClosures = false
                 requirements.append(
-                    AST.WhereRequirement(left, .conformance(right))
+                    AST.WhereRequirement(left, .Conformance(right))
                 )
             case .Operator(.Equal):
                 index += 1
@@ -1882,7 +1882,7 @@ public final class Parser {
                     parseExpression(isTypeContext: true) ?? errorExpression(from: op!, to: op!)
                 suppressTrailingClosures = false
                 requirements.append(
-                    AST.WhereRequirement(left, .equality(right))
+                    AST.WhereRequirement(left, .Equality(right))
                 )
             default:
                 emitError(
@@ -5183,7 +5183,7 @@ public final class Parser {
     }
 
     private func parseStringInterpolation(_ firstToken: Token) -> AST.Expression {
-        var segments: [AST.StringSegment] = [.literal(firstToken)]
+        var segments: [AST.StringSegment] = [.Literal(firstToken)]
         while true {
             if let t = peek {
                 guard case .Separator(.OpenParen) = t.kind else {
@@ -5192,7 +5192,7 @@ public final class Parser {
                 }
                 index += 1
                 let expr = parseExpression() ?? errorExpression(from: t, to: t)
-                segments.append(.expression(expr))
+                segments.append(.Expression(expr))
             } else {
                 emitError("expected '(' for string interpolation", at: endOfFile)
                 return errorExpression(from: firstToken, to: firstToken)
@@ -5217,7 +5217,7 @@ public final class Parser {
                 break
             }
             index += 1
-            segments.append(.literal(nextToken))
+            segments.append(.Literal(nextToken))
             if !nextToken.isUnterminated {
                 break
             }

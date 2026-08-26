@@ -59,7 +59,7 @@ private func write(_ file: URL, _ content: String) throws {
         #expect(decoded.interface.name == "Dep")
         let typeNames = decoded.interface.root.types.compactMap { t -> String? in
             switch t {
-            case let .nominal(n): n.name
+            case let .Nominal(n): n.name
             default: nil
             }
         }
@@ -81,18 +81,18 @@ private func canonScope(_ s: InterfaceScope) -> InterfaceScope {
 
 private func nameOf(_ t: InterfaceType) -> String {
     switch t {
-    case let .nominal(n): n.name
-    case let .typeAlias(a): a.name
-    case let .associatedType(s): s.name
-    case let .builtin(s): s.name
-    case let .genericParam(s): s.name
+    case let .Nominal(n): n.name
+    case let .TypeAlias(a): a.name
+    case let .AssociatedType(s): s.name
+    case let .Builtin(s): s.name
+    case let .GenericParam(s): s.name
     }
 }
 
 private func nameOfValue(_ v: InterfaceValue) -> String {
     switch v {
-    case let .function(f): f.name
-    case let .variable(x): x.name
+    case let .Function(f): f.name
+    case let .Variable(x): x.name
     }
 }
 
@@ -102,32 +102,32 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
             name: "M",
             root: InterfaceScope(
                 types: [
-                    .nominal(InterfaceNominal(
-                        kind: .structType, name: "S",
+                    .Nominal(InterfaceNominal(
+                        kind: .StructType, name: "S",
                         conformances: ["P"], superclass: nil,
                         scope: InterfaceScope(
                             values: [
-                                .function(InterfaceFunction(
+                                .Function(InterfaceFunction(
                                     name: "f", labels: ["a", nil], hasDefaults: [false, true],
                                     isVararg: [false, false], isVariadic: false,
-                                    functionType: .function(InterfaceFunctionType(
+                                    functionType: .Function(InterfaceFunctionType(
                                         parameters: [
-                                            InterfaceTupleElement(label: "a", type: .builtin("Int64")),
-                                            InterfaceTupleElement(label: nil, type: .builtin("Int64")),
+                                            InterfaceTupleElement(label: "a", type: .Builtin("Int64")),
+                                            InterfaceTupleElement(label: nil, type: .Builtin("Int64")),
                                         ],
-                                        returnType: .builtin("Int64")
+                                        returnType: .Builtin("Int64")
                                     ))
                                 )),
-                                .variable(InterfaceVariable(name: "x", isMutable: true, type: .builtin("Int64"))),
+                                .Variable(InterfaceVariable(name: "x", isMutable: true, type: .Builtin("Int64"))),
                             ]
                         )
                     )),
-                    .typeAlias(InterfaceTypealias(name: "Alias", target: .nominal("Optional", [.builtin("Int64")]))),
+                    .TypeAlias(InterfaceTypealias(name: "Alias", target: .Nominal("Optional", [.Builtin("Int64")]))),
                 ],
                 values: [
-                    .function(InterfaceFunction(
+                    .Function(InterfaceFunction(
                         name: "top", labels: [], hasDefaults: [], isVararg: [], isVariadic: false,
-                        functionType: .function(InterfaceFunctionType(parameters: [], returnType: .void))
+                        functionType: .Function(InterfaceFunctionType(parameters: [], returnType: .Void))
                     )),
                 ]
             )
@@ -143,12 +143,12 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
             name: "M",
             root: InterfaceScope(
                 types: [
-                    .nominal(InterfaceNominal(
-                        kind: .enumType, name: "Optional",
+                    .Nominal(InterfaceNominal(
+                        kind: .EnumType, name: "Optional",
                         conformances: [], superclass: nil,
                         cases: [
                             InterfaceCase(name: "None", associatedTypes: []),
-                            InterfaceCase(name: "Some", associatedTypes: [.genericParam("T")]),
+                            InterfaceCase(name: "Some", associatedTypes: [.GenericParam("T")]),
                         ],
                         scope: InterfaceScope()
                     )),
@@ -160,14 +160,14 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         let nominal = try #require(
             decoded.interface.root.types.first.flatMap { t -> InterfaceNominal? in
                 switch t {
-                case let .nominal(n): n
+                case let .Nominal(n): n
                 default: nil
                 }
             }
         )
-        #expect(nominal.kind == .enumType)
+        #expect(nominal.kind == .EnumType)
         #expect(nominal.cases.map(\.name) == ["None", "Some"])
-        #expect(nominal.cases[1].associatedTypes == [.genericParam("T")])
+        #expect(nominal.cases[1].associatedTypes == [.GenericParam("T")])
     }
 
     @Test func roundTripEmpty() throws {
@@ -183,7 +183,7 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         do {
             _ = try TrussPackageDecoder().decode(bytes)
             Issue.record("expected badMagic")
-        } catch TrussPackageCodecError.badMagic {
+        } catch TrussPackageCodecError.BadMagic {
             // expected
         }
     }
@@ -208,14 +208,14 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         let optNominal = try #require(
             decoded.interface.root.types.compactMap { t -> InterfaceNominal? in
                 switch t {
-                case let .nominal(n): n
+                case let .Nominal(n): n
                 default: nil
                 }
             }.first { $0.name == "Optional" }
         )
-        #expect(optNominal.kind == .enumType)
+        #expect(optNominal.kind == .EnumType)
         #expect(optNominal.cases.map(\.name) == ["None", "Some"])
-        #expect(optNominal.cases[1].associatedTypes == [.genericParam("T")])
+        #expect(optNominal.cases[1].associatedTypes == [.GenericParam("T")])
 
         let userSource = """
         func g(_ x: Optional<Builtin.Int64>) -> Optional<Builtin.Int64> { x }
@@ -250,8 +250,8 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         }
         let names = interface.root.types.compactMap { t -> String? in
             switch t {
-            case let .nominal(n): n.name
-            case let .typeAlias(a): a.name
+            case let .Nominal(n): n.name
+            case let .TypeAlias(a): a.name
             default: nil
             }
         }
@@ -362,7 +362,7 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         do {
             _ = try manager.topologicalOrder()
             Issue.record("expected cycle error")
-        } catch PackageBuildError.dependencyCycle {
+        } catch PackageBuildError.DependencyCycle {
             // expected
         }
     }

@@ -19,7 +19,7 @@ public struct ModuleInterfaceDumper {
         }
         for t in scope.types {
             switch t {
-            case let .nominal(n):
+            case let .Nominal(n):
                 out += "\(pad)\(kindName(n.kind)) \(n.name)"
                 if !n.conformances.isEmpty {
                     out += ": \(n.conformances.joined(separator: ", "))"
@@ -34,24 +34,24 @@ public struct ModuleInterfaceDumper {
                 }
                 dumpScope(n.scope, into: &out, indent: indent + 1)
                 out += "\(pad)}\n"
-            case let .typeAlias(a):
+            case let .TypeAlias(a):
                 out += "\(pad)typealias \(a.name)"
                 if let tgt = a.target { out += " = \(typeText(tgt))" }
                 out += "\n"
-            case let .associatedType(s): out += "\(pad)associatedtype \(s.name)\n"
-            case let .builtin(s): out += "\(pad)builtin \(s.name)\n"
-            case let .genericParam(s): out += "\(pad)generic \(s.name)\n"
+            case let .AssociatedType(s): out += "\(pad)associatedtype \(s.name)\n"
+            case let .Builtin(s): out += "\(pad)builtin \(s.name)\n"
+            case let .GenericParam(s): out += "\(pad)generic \(s.name)\n"
             }
         }
         for v in scope.values {
             switch v {
-            case let .function(f):
+            case let .Function(f):
                 if let ft = f.functionType {
                     out += "\(pad)func \(f.name)\(typeText(ft))\n"
                 } else {
                     out += "\(pad)func \(f.name)\(signatureText(f))\n"
                 }
-            case let .variable(x):
+            case let .Variable(x):
                 out += "\(pad)var \(x.name)"
                 if let ty = x.type { out += ": \(typeText(ty))" }
                 out += "\n"
@@ -61,11 +61,11 @@ public struct ModuleInterfaceDumper {
 
     private func kindName(_ k: InterfaceNominalKind) -> String {
         switch k {
-        case .structType: "struct"
-        case .classType: "class"
-        case .enumType: "enum"
-        case .protocolType: "protocol"
-        case .actorType: "actor"
+        case .StructType: "struct"
+        case .ClassType: "class"
+        case .EnumType: "enum"
+        case .ProtocolType: "protocol"
+        case .ActorType: "actor"
         }
     }
 
@@ -80,22 +80,22 @@ public struct ModuleInterfaceDumper {
 
     public func typeText(_ ref: InterfaceTypeRef) -> String {
         switch ref {
-        case .void: "Void"
-        case .never: "Never"
-        case .error: "Error"
-        case let .builtin(n): n
-        case let .nominal(n, args):
+        case .Void: "Void"
+        case .Never: "Never"
+        case .Error: "Error"
+        case let .Builtin(n): n
+        case let .Nominal(n, args):
             args.isEmpty ? n : "\(n)<\(args.map(typeText).joined(separator: ", "))>"
-        case let .pointer(p, nn): nn ? "&\(typeText(p))" : "&mut \(typeText(p))"
-        case let .tuple(els):
+        case let .Pointer(p, nn): nn ? "&\(typeText(p))" : "&mut \(typeText(p))"
+        case let .Tuple(els):
             "(\(els.map { ($0.label.map { "\($0): " } ?? "") + typeText($0.type) }.joined(separator: ", ")))"
-        case let .function(f):
+        case let .Function(f):
             "(\(f.parameters.map { typeText($0.type) }.joined(separator: ", "))) -> \(typeText(f.returnType))"
-        case let .composition(m): m.map(typeText).joined(separator: " & ")
-        case let .variadic(b): "\(typeText(b))..."
-        case let .genericParam(n): n
-        case let .forall(ps, b): "<\(ps.joined(separator: ", "))> \(typeText(b))"
-        case let .typeVariable(i): "T\(i)"
+        case let .Composition(m): m.map(typeText).joined(separator: " & ")
+        case let .Variadic(b): "\(typeText(b))..."
+        case let .GenericParam(n): n
+        case let .Forall(ps, b): "<\(ps.joined(separator: ", "))> \(typeText(b))"
+        case let .TypeVariable(i): "T\(i)"
         }
     }
 }

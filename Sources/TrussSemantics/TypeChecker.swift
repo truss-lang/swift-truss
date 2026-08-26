@@ -758,7 +758,7 @@ public final class TypeChecker: AST.Visitor {
                 let type = evaluate(constraint)
                 if !(type is TrussType.ErrorType) {
                     symbol.constraints.append(
-                        Symbol.GenericParamSymbol.Constraint.conformance(type)
+                        Symbol.GenericParamSymbol.Constraint.Conformance(type)
                     )
                 }
             }
@@ -771,18 +771,18 @@ public final class TypeChecker: AST.Visitor {
                 continue
             }
             switch requirement.constraint {
-            case let .conformance(expression):
+            case let .Conformance(expression):
                 let type = evaluate(expression)
                 if !(type is TrussType.ErrorType) {
                     symbol.constraints.append(
-                        Symbol.GenericParamSymbol.Constraint.conformance(type)
+                        Symbol.GenericParamSymbol.Constraint.Conformance(type)
                     )
                 }
-            case let .equality(expression):
+            case let .Equality(expression):
                 let type = evaluate(expression)
                 if !(type is TrussType.ErrorType) {
                     symbol.constraints.append(
-                        Symbol.GenericParamSymbol.Constraint.equality(type)
+                        Symbol.GenericParamSymbol.Constraint.Equality(type)
                     )
                 }
             }
@@ -1249,7 +1249,7 @@ public final class TypeChecker: AST.Visitor {
             guard let symbol = genericParam.symbol else { return [] }
             var result: [Symbol.FunctionSymbol] = []
             for constraint in symbol.constraints {
-                guard case let .conformance(declared) = constraint else { continue }
+                guard case let .Conformance(declared) = constraint else { continue }
                 result.append(contentsOf: memberFunctionSymbols(of: name, in: declared))
             }
             return result
@@ -1374,7 +1374,7 @@ public final class TypeChecker: AST.Visitor {
     ) -> TrussType.TrussType? {
         guard let symbol = genericParam.symbol else { return nil }
         for constraint in symbol.constraints {
-            guard case let .conformance(declared) = constraint else { continue }
+            guard case let .Conformance(declared) = constraint else { continue }
             if let member = memberType(of: name, in: declared) {
                 return member
             }
@@ -1877,7 +1877,7 @@ public final class TypeChecker: AST.Visitor {
     ) -> Bool {
         guard let symbol = genericParam.symbol else { return false }
         for constraint in symbol.constraints {
-            guard case let .conformance(declared) = constraint else { continue }
+            guard case let .Conformance(declared) = constraint else { continue }
             if declaredConformance(declared, includes: required) {
                 return true
             }
@@ -2509,7 +2509,7 @@ public final class TypeChecker: AST.Visitor {
             expression.ty = TrussType.VoidType.INSTANCE
         case let interpolation as AST.StringInterpolation:
             for segment in interpolation.segments {
-                if case let .expression(expression) = segment {
+                if case let .Expression(expression) = segment {
                     _ = infer(expression, at: token)
                 }
             }
@@ -3538,7 +3538,7 @@ public final class TypeChecker: AST.Visitor {
             guard !parameter.constraints.isEmpty else { continue }
             for constraint in parameter.constraints {
                 switch constraint {
-                case let .conformance(protocolType):
+                case let .Conformance(protocolType):
                     if !canCoerce(argument, to: protocolType, at: token) {
                         context.emitError(
                             "type '\(typeText(argument))' does not conform to protocol "
@@ -3546,7 +3546,7 @@ public final class TypeChecker: AST.Visitor {
                             at: token
                         )
                     }
-                case let .equality(target):
+                case let .Equality(target):
                     let instantiated = replacingGenericParam(target) { genericParam in
                         if let targetIndex = parameters.firstIndex(where: {
                             $0.name == genericParam.name
@@ -3710,7 +3710,7 @@ public final class TypeChecker: AST.Visitor {
             guard let bound else { continue }
             for constraint in parameter.constraints {
                 switch constraint {
-                case let .conformance(protocolType):
+                case let .Conformance(protocolType):
                     if !canCoerce(bound, to: protocolType, at: token) {
                         return (
                             false,
@@ -3718,7 +3718,7 @@ public final class TypeChecker: AST.Visitor {
                                 + "'\(typeText(protocolType))'"
                         )
                     }
-                case let .equality(target):
+                case let .Equality(target):
                     let instantiated = replacingGenericParam(target) { genericParam in
                         mapping[genericParam.name] ?? genericParam
                     }

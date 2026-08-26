@@ -254,11 +254,11 @@ public extension AST {
         private func whereRequirementNode(_ requirement: WhereRequirement) {
             var children: [() -> Void] = [{ self.visit(requirement.left) }]
             switch requirement.constraint {
-            case let .conformance(expression):
+            case let .Conformance(expression):
                 children.append {
                     self.dumpNode("Conformance", children: [{ self.visit(expression) }])
                 }
-            case let .equality(expression):
+            case let .Equality(expression):
                 children.append {
                     self.dumpNode("Equality", children: [{ self.visit(expression) }])
                 }
@@ -1665,12 +1665,12 @@ public extension AST {
             var children: [() -> Void] = []
             for segment in interpolation.segments {
                 switch segment {
-                case let .literal(token):
+                case let .Literal(token):
                     let rawMarker = token.isRaw ? " [raw]" : ""
                     children.append {
                         self.dumpNode("Literal \"\(self.escapeString(token.value))\"" + rawMarker)
                     }
-                case let .expression(expression):
+                case let .Expression(expression):
                     children.append {
                         self.dumpNode("Interpolation", children: [{ self.visit(expression) }])
                     }

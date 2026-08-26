@@ -1034,8 +1034,8 @@ public extension AST {
     }
 
     enum StringSegment {
-        case literal(Token)
-        case expression(Expression)
+        case Literal(Token)
+        case Expression(Expression)
     }
 
     final class SizeofExpression: Expression {

@@ -6,11 +6,11 @@ public enum TrussPackageFormat {
 }
 
 public enum TrussPackageCodecError: Error, Equatable {
-    case badMagic
-    case badVersion
-    case truncated
-    case typeIndexOutOfRange(Int)
-    case tocLookupFailed(String)
+    case BadMagic
+    case BadVersion
+    case Truncated
+    case TypeIndexOutOfRange(Int)
+    case TocLookupFailed(String)
 }
 
 public final class BitWriter {
@@ -57,7 +57,7 @@ public final class BitReader {
     public func seek(_ p: Int) { index = p }
     public func hasMore() -> Bool { index < bytes.count }
     public func u8() throws -> UInt8 {
-        guard index < bytes.count else { throw TrussPackageCodecError.truncated }
+        guard index < bytes.count else { throw TrussPackageCodecError.Truncated }
         defer { index += 1 }
         return bytes[index]
     }
@@ -81,7 +81,7 @@ public final class BitReader {
     public func bool() throws -> Bool { try u8() != 0 }
     public func string() throws -> String {
         let len = try Int(u32())
-        guard index + len <= bytes.count else { throw TrussPackageCodecError.truncated }
+        guard index + len <= bytes.count else { throw TrussPackageCodecError.Truncated }
         let data = Array(bytes[index ..< (index + len)])
         index += len
         return String(decoding: data, as: UTF8.self)

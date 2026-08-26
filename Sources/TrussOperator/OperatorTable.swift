@@ -67,22 +67,22 @@ public final class PrecedenceGroupInfo: Equatable, Codable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case name
-        case associativity
-        case assignment
+        case Name
+        case Associativity
+        case Assignment
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(name.value, forKey: .name)
-        try container.encode(associativity.code, forKey: .associativity)
-        try container.encode(assignment, forKey: .assignment)
+        try container.encode(name.value, forKey: .Name)
+        try container.encode(associativity.code, forKey: .Associativity)
+        try container.encode(assignment, forKey: .Assignment)
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let nameValue = try container.decode(String.self, forKey: .name)
-        let code = try container.decode(String.self, forKey: .associativity)
+        let nameValue = try container.decode(String.self, forKey: .Name)
+        let code = try container.decode(String.self, forKey: .Associativity)
         name = Token(
             value: nameValue, kind: .Identifier,
             pos: Position(pos: 0, line: 0, col: 0, len: 0), id: Id.SourceId(0)
@@ -92,7 +92,7 @@ public final class PrecedenceGroupInfo: Equatable, Codable {
         case "right": .Right
         default: .None
         }
-        assignment = try container.decode(Bool.self, forKey: .assignment)
+        assignment = try container.decode(Bool.self, forKey: .Assignment)
         higherThan = []
         lowerThan = []
         resolvedHigherThan = []

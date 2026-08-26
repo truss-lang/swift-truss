@@ -98,8 +98,8 @@ public enum Symbol {
 
     public final class GenericParamSymbol: Symbol {
         public enum Constraint {
-            case conformance(TrussType.TrussType)
-            case equality(TrussType.TrussType)
+            case Conformance(TrussType.TrussType)
+            case Equality(TrussType.TrussType)
         }
 
         public var constraints: [Constraint] = []

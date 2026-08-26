@@ -19,9 +19,9 @@ public struct TrussPackageDecoder {
     public func decode(_ bytes: [UInt8]) throws -> TrussPackageDocument {
         var reader = BitReader(bytes)
         let magic = try (0 ..< 4).map { _ in try reader.u8() }
-        guard magic == TrussPackageFormat.magic else { throw TrussPackageCodecError.badMagic }
+        guard magic == TrussPackageFormat.magic else { throw TrussPackageCodecError.BadMagic }
         let version = try reader.u32()
-        guard version == TrussPackageFormat.version else { throw TrussPackageCodecError.badVersion }
+        guard version == TrussPackageFormat.version else { throw TrussPackageCodecError.BadVersion }
         let name = try reader.string()
         let tocCount = try Int(reader.u32())
         for _ in 0 ..< tocCount {
@@ -44,22 +44,22 @@ public struct TrussPackageDecoder {
 
     private func decodeTypeRef(_ reader: inout BitReader) throws -> InterfaceTypeRef {
         guard let kind = try InterfaceTypeRefCode(rawValue: reader.u8()) else {
-            throw TrussPackageCodecError.truncated
+            throw TrussPackageCodecError.Truncated
         }
         switch kind {
-        case .void: return .void
-        case .never: return .never
-        case .error: return .error
-        case .builtin: return try .builtin(reader.string())
-        case .nominal:
+        case .Void: return .Void
+        case .Never: return .Never
+        case .Error: return .Error
+        case .Builtin: return try .Builtin(reader.string())
+        case .Nominal:
             let n = try reader.string()
             let args = try decodeRefs(&reader)
-            return .nominal(n, args)
-        case .pointer:
+            return .Nominal(n, args)
+        case .Pointer:
             let p = try decodeRef(&reader)
             let nn = try reader.bool()
-            return .pointer(p, nn)
-        case .tuple:
+            return .Pointer(p, nn)
+        case .Tuple:
             let count = try Int(reader.u32())
             var els: [InterfaceTupleElement] = []
             for _ in 0 ..< count {
@@ -67,8 +67,8 @@ public struct TrussPackageDecoder {
                 let t = try decodeRef(&reader)
                 els.append(InterfaceTupleElement(label: l, type: t))
             }
-            return .tuple(els)
-        case .function:
+            return .Tuple(els)
+        case .Function:
             let isVar = try reader.bool()
             let isAsync = try reader.bool()
             let isThrow = try reader.bool()
@@ -85,7 +85,7 @@ public struct TrussPackageDecoder {
                 params.append(InterfaceTupleElement(label: l, type: t))
             }
             let ret = try decodeRef(&reader)
-            return .function(InterfaceFunctionType(
+            return .Function(InterfaceFunctionType(
                 parameters: params,
                 isVariadic: isVar,
                 isAsync: isAsync,
@@ -93,18 +93,18 @@ public struct TrussPackageDecoder {
                 throwsTypes: throwsTypes,
                 returnType: ret
             ))
-        case .composition: return try .composition(decodeRefs(&reader))
-        case .variadic: return try .variadic(decodeRef(&reader))
-        case .genericParam: return try .genericParam(reader.string())
-        case .forall:
+        case .Composition: return try .Composition(decodeRefs(&reader))
+        case .Variadic: return try .Variadic(decodeRef(&reader))
+        case .GenericParam: return try .GenericParam(reader.string())
+        case .Forall:
             let count = try Int(reader.u32())
             var ps: [String] = []
             for _ in 0 ..< count {
                 try ps.append(reader.string())
             }
             let b = try decodeRef(&reader)
-            return .forall(ps, b)
-        case .typeVariable: return try .typeVariable(Int(reader.u32()))
+            return .Forall(ps, b)
+        case .TypeVariable: return try .TypeVariable(Int(reader.u32()))
         }
     }
 
@@ -119,9 +119,9 @@ public struct TrussPackageDecoder {
 
     private func decodeRef(_ reader: inout BitReader) throws -> InterfaceTypeRef {
         let idx = try Int(reader.u32())
-        guard idx != Int(UInt32.max) else { throw TrussPackageCodecError.typeIndexOutOfRange(-1) }
+        guard idx != Int(UInt32.max) else { throw TrussPackageCodecError.TypeIndexOutOfRange(-1) }
         guard idx >= 0, idx < typeTable.count else {
-            throw TrussPackageCodecError.typeIndexOutOfRange(idx)
+            throw TrussPackageCodecError.TypeIndexOutOfRange(idx)
         }
         return typeTable[idx]
     }
@@ -149,12 +149,12 @@ public struct TrussPackageDecoder {
 
     private func decodeTypeDecl(_ reader: inout BitReader) throws -> InterfaceType {
         guard let kind = try InterfaceTypeDeclCode(rawValue: reader.u8()) else {
-            throw TrussPackageCodecError.truncated
+            throw TrussPackageCodecError.Truncated
         }
         switch kind {
-        case .nominal:
+        case .Nominal:
             guard let nkind = try InterfaceNominalKind(rawValue: reader.u8()) else {
-                throw TrussPackageCodecError.truncated
+                throw TrussPackageCodecError.Truncated
             }
             let name = try reader.string()
             let confCount = try Int(reader.u32())
@@ -171,7 +171,7 @@ public struct TrussPackageDecoder {
                 cases.append(InterfaceCase(name: caseName, associatedTypes: assocTypes))
             }
             let scope = try decodeScope(&reader)
-            return .nominal(InterfaceNominal(
+            return .Nominal(InterfaceNominal(
                 kind: nkind,
                 name: name,
                 conformances: confs,
@@ -179,23 +179,23 @@ public struct TrussPackageDecoder {
                 cases: cases,
                 scope: scope
             ))
-        case .typeAlias:
+        case .TypeAlias:
             let name = try reader.string()
             let hasTarget = try reader.bool()
             let target = hasTarget ? try decodeRef(&reader) : nil
-            return .typeAlias(InterfaceTypealias(name: name, target: target))
-        case .associatedType: return try .associatedType(InterfaceSimple(name: reader.string()))
-        case .builtin: return try .builtin(InterfaceSimple(name: reader.string()))
-        case .genericParam: return try .genericParam(InterfaceSimple(name: reader.string()))
+            return .TypeAlias(InterfaceTypealias(name: name, target: target))
+        case .AssociatedType: return try .AssociatedType(InterfaceSimple(name: reader.string()))
+        case .Builtin: return try .Builtin(InterfaceSimple(name: reader.string()))
+        case .GenericParam: return try .GenericParam(InterfaceSimple(name: reader.string()))
         }
     }
 
     private func decodeValueDecl(_ reader: inout BitReader) throws -> InterfaceValue {
         guard let kind = try InterfaceValueDeclCode(rawValue: reader.u8()) else {
-            throw TrussPackageCodecError.truncated
+            throw TrussPackageCodecError.Truncated
         }
         switch kind {
-        case .function:
+        case .Function:
             let name = try reader.string()
             let labelCount = try Int(reader.u32())
             var labels: [String?] = []
@@ -216,7 +216,7 @@ public struct TrussPackageDecoder {
             let isStatic = try reader.bool()
             let hasType = try reader.bool()
             let ft = hasType ? try decodeRef(&reader) : nil
-            return .function(InterfaceFunction(
+            return .Function(InterfaceFunction(
                 name: name,
                 labels: labels,
                 hasDefaults: defs,
@@ -225,12 +225,12 @@ public struct TrussPackageDecoder {
                 isStatic: isStatic,
                 functionType: ft
             ))
-        case .variable:
+        case .Variable:
             let name = try reader.string()
             let isMutable = try reader.bool()
             let hasType = try reader.bool()
             let t = hasType ? try decodeRef(&reader) : nil
-            return .variable(InterfaceVariable(name: name, isMutable: isMutable, type: t))
+            return .Variable(InterfaceVariable(name: name, isMutable: isMutable, type: t))
         }
     }
 }

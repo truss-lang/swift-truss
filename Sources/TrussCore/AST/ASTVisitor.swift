@@ -44,7 +44,7 @@ extension AST {
             for requirement in requirements {
                 visit(requirement.left, additional: additional)
                 switch requirement.constraint {
-                case let .conformance(e), let .equality(e):
+                case let .Conformance(e), let .Equality(e):
                     visit(e, additional: additional)
                 }
             }
@@ -927,8 +927,8 @@ extension AST {
         ) -> Any? {
             for segment in interpolation.segments {
                 switch segment {
-                case .literal: break
-                case let .expression(expr):
+                case .Literal: break
+                case let .Expression(expr):
                     visit(expr, additional: additional)
                 }
             }
@@ -981,7 +981,7 @@ extension AST {
                 for requirement in whereClause {
                     visit(requirement.left, additional: additional)
                     switch requirement.constraint {
-                    case let .conformance(e), let .equality(e):
+                    case let .Conformance(e), let .Equality(e):
                         visit(e, additional: additional)
                     }
                 }

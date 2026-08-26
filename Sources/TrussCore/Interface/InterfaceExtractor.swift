@@ -46,23 +46,23 @@ public struct InterfaceExtractor {
     private func extractType(_ name: String, _ symbol: Symbol.Symbol) -> InterfaceType? {
         switch symbol {
         case let s as Symbol.StructSymbol:
-            return .nominal(extractNominal(s, kind: .structType))
+            return .Nominal(extractNominal(s, kind: .StructType))
         case let s as Symbol.ClassSymbol:
-            var n = extractNominal(s, kind: .classType)
+            var n = extractNominal(s, kind: .ClassType)
             n.superclass = s.superclass?.name
-            return .nominal(n)
+            return .Nominal(n)
         case let s as Symbol.EnumSymbol:
-            return .nominal(extractNominal(s, kind: .enumType))
+            return .Nominal(extractNominal(s, kind: .EnumType))
         case let s as Symbol.ProtocolSymbol:
-            return .nominal(extractNominal(s, kind: .protocolType))
+            return .Nominal(extractNominal(s, kind: .ProtocolType))
         case let s as Symbol.ActorSymbol:
-            return .nominal(extractNominal(s, kind: .actorType))
+            return .Nominal(extractNominal(s, kind: .ActorType))
         case let s as Symbol.TypeAliasSymbol:
-            return .typeAlias(InterfaceTypealias(name: s.name, target: s.targetType.map(typeRef)))
+            return .TypeAlias(InterfaceTypealias(name: s.name, target: s.targetType.map(typeRef)))
         case let s as Symbol.AssociatedTypeSymbol:
-            return .associatedType(InterfaceSimple(name: s.name))
+            return .AssociatedType(InterfaceSimple(name: s.name))
         case let s as Symbol.BuiltinTypeSymbol:
-            return .builtin(InterfaceSimple(name: s.name))
+            return .Builtin(InterfaceSimple(name: s.name))
         default:
             return nil
         }
@@ -99,13 +99,13 @@ public struct InterfaceExtractor {
             let labels = f.signature.labels
             let defs = f.signature.hasDefaults
             let vars = f.signature.isVararg
-            return .function(InterfaceFunction(
+            return .Function(InterfaceFunction(
                 name: f.name, labels: labels, hasDefaults: defs, isVararg: vars,
                 isVariadic: f.signature.isVariadic, isStatic: f.isStatic,
                 functionType: f.functionType.map(typeRef)
             ))
         case let v as Symbol.VariableSymbol:
-            return .variable(InterfaceVariable(
+            return .Variable(InterfaceVariable(
                 name: v.name, isMutable: v.isMutable, type: v.type.map(typeRef)
             ))
         default:
@@ -115,35 +115,35 @@ public struct InterfaceExtractor {
 
     public func typeRef(_ type: TrussType.TrussType) -> InterfaceTypeRef {
         switch type {
-        case is TrussType.VoidType: .void
-        case is TrussType.NeverType: .never
-        case is TrussType.ErrorType: .error
-        case let b as TrussType.BuiltinType: .builtin(b.name)
-        case let p as TrussType.PointerType: .pointer(typeRef(p.pointee), p.isNonnull)
+        case is TrussType.VoidType: .Void
+        case is TrussType.NeverType: .Never
+        case is TrussType.ErrorType: .Error
+        case let b as TrussType.BuiltinType: .Builtin(b.name)
+        case let p as TrussType.PointerType: .Pointer(typeRef(p.pointee), p.isNonnull)
         case let t as TrussType.TupleType:
-            .tuple(t.elements.map { InterfaceTupleElement(label: $0.label, type: typeRef($0.type)) })
+            .Tuple(t.elements.map { InterfaceTupleElement(label: $0.label, type: typeRef($0.type)) })
         case let f as TrussType.FunctionType:
-            .function(InterfaceFunctionType(
+            .Function(InterfaceFunctionType(
                 parameters: f.parameters.map { InterfaceTupleElement(label: $0.label, type: typeRef($0.type)) },
                 isVariadic: f.isVariadic, isAsync: f.isAsync, isThrowing: f.isThrowing,
                 throwsTypes: f.throwsTypes.map(typeRef), returnType: typeRef(f.returnType)
             ))
         case let n as TrussType.NominalType:
-            .nominal(n.name, [])
+            .Nominal(n.name, [])
         case let gi as TrussType.GenericInstantiation:
-            .nominal(gi.base.name, gi.arguments.map(typeRef))
+            .Nominal(gi.base.name, gi.arguments.map(typeRef))
         case let c as TrussType.CompositionType:
-            .composition(c.members.map(typeRef))
+            .Composition(c.members.map(typeRef))
         case let v as TrussType.VariadicType:
-            .variadic(typeRef(v.base))
+            .Variadic(typeRef(v.base))
         case let gp as TrussType.GenericParamType:
-            .genericParam(gp.name)
+            .GenericParam(gp.name)
         case let f as TrussType.ForallType:
-            .forall(f.parameters.map(\.name), typeRef(f.body))
+            .Forall(f.parameters.map(\.name), typeRef(f.body))
         case let tv as TrussType.TypeVariableType:
-            .typeVariable(Int(tv.id.id))
+            .TypeVariable(Int(tv.id.id))
         default:
-            .builtin("unknown")
+            .Builtin("unknown")
         }
     }
 }

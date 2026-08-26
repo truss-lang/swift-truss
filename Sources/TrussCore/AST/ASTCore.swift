@@ -136,8 +136,8 @@ public enum AST {
         public let left: Expression
         public let constraint: Constraint
         public enum Constraint {
-            case conformance(Expression)
-            case equality(Expression)
+            case Conformance(Expression)
+            case Equality(Expression)
         }
 
         public init(_ left: Expression, _ constraint: Constraint) {

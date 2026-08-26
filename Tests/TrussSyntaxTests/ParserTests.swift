@@ -5211,17 +5211,17 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let interp = expr as? AST.StringInterpolation
     try #require(interp != nil)
     try #require(interp!.segments.count == 3)
-    guard case let .literal(first) = interp!.segments[0] else {
+    guard case let .Literal(first) = interp!.segments[0] else {
         #expect(Bool(false))
         return
     }
     #expect(first.value == "hello ")
-    guard case let .expression(e) = interp!.segments[1] else {
+    guard case let .Expression(e) = interp!.segments[1] else {
         #expect(Bool(false))
         return
     }
     #expect(e is AST.Variable)
-    guard case let .literal(last) = interp!.segments[2] else {
+    guard case let .Literal(last) = interp!.segments[2] else {
         #expect(Bool(false))
         return
     }
@@ -5234,17 +5234,17 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let interp = expr as? AST.StringInterpolation
     try #require(interp != nil)
     try #require(interp!.segments.count == 5)
-    guard case let .literal(first) = interp!.segments[0] else {
+    guard case let .Literal(first) = interp!.segments[0] else {
         #expect(Bool(false))
         return
     }
     #expect(first.value == "")
     #expect(first.isUnterminated)
-    guard case .expression = interp!.segments[1] else {
+    guard case .Expression = interp!.segments[1] else {
         #expect(Bool(false))
         return
     }
-    guard case let .literal(mid) = interp!.segments[2] else {
+    guard case let .Literal(mid) = interp!.segments[2] else {
         #expect(Bool(false))
         return
     }
@@ -5265,18 +5265,18 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let interp = expr as? AST.StringInterpolation
     try #require(interp != nil)
     try #require(interp!.segments.count == 3)
-    guard case let .literal(first) = interp!.segments[0] else {
+    guard case let .Literal(first) = interp!.segments[0] else {
         #expect(Bool(false))
         return
     }
     #expect(first.value == "a")
     #expect(first.isRaw)
-    guard case let .expression(e) = interp!.segments[1] else {
+    guard case let .Expression(e) = interp!.segments[1] else {
         #expect(Bool(false))
         return
     }
     #expect(e is AST.Variable)
-    guard case let .literal(last) = interp!.segments[2] else {
+    guard case let .Literal(last) = interp!.segments[2] else {
         #expect(Bool(false))
         return
     }
@@ -5297,12 +5297,12 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let interp = expr as? AST.StringInterpolation
     try #require(interp != nil)
     try #require(interp!.segments.count == 3)
-    guard case let .literal(first) = interp!.segments[0] else {
+    guard case let .Literal(first) = interp!.segments[0] else {
         #expect(Bool(false))
         return
     }
     #expect(first.value == "hello ")
-    guard case let .literal(last) = interp!.segments[2] else {
+    guard case let .Literal(last) = interp!.segments[2] else {
         #expect(Bool(false))
         return
     }
@@ -5904,7 +5904,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let left = whereClause![0].left as? AST.Variable
     try #require(left != nil)
     #expect(left!.name.value == "T")
-    if case let .conformance(right) = whereClause![0].constraint {
+    if case let .Conformance(right) = whereClause![0].constraint {
         let rightVar = right as? AST.Variable
         try #require(rightVar != nil)
         #expect(rightVar!.name.value == "Equatable")
@@ -5926,7 +5926,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let left = whereClause![0].left as? AST.Variable
     try #require(left != nil)
     #expect(left!.name.value == "T")
-    if case let .equality(right) = whereClause![0].constraint {
+    if case let .Equality(right) = whereClause![0].constraint {
         let rightVar = right as? AST.Variable
         try #require(rightVar != nil)
         #expect(rightVar!.name.value == "Int32")
@@ -5942,7 +5942,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(protocolDecl != nil)
     let assoc = protocolDecl!.body[0] as? AST.AssociatedTypeDecl
     #expect(assoc != nil)
-    if case let .equality(right) = assoc!.whereClause![0].constraint {
+    if case let .Equality(right) = assoc!.whereClause![0].constraint {
         let seq = right as? AST.Sequential
         try #require(seq != nil)
         #expect(seq!.ops.count == 2)
@@ -5965,7 +5965,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let whereClause = decl!.whereClause
     try #require(whereClause != nil)
     try #require(whereClause!.count == 1)
-    if case .equality = whereClause![0].constraint {
+    if case .Equality = whereClause![0].constraint {
     } else {
         Issue.record("expected equality constraint")
     }
@@ -6011,7 +6011,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let left = whereClause![0].left as? AST.Variable
     try #require(left != nil)
     #expect(left!.name.value == "T")
-    if case let .conformance(right) = whereClause![0].constraint {
+    if case let .Conformance(right) = whereClause![0].constraint {
         let rightVar = right as? AST.Variable
         try #require(rightVar != nil)
         #expect(rightVar!.name.value == "Equatable")
@@ -6835,7 +6835,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let interp = expr as? AST.StringInterpolation
     try #require(interp != nil)
     try #require(interp!.segments.count == 3)
-    guard case let .expression(e) = interp!.segments[1] else {
+    guard case let .Expression(e) = interp!.segments[1] else {
         Issue.record("expected expression segment")
         return
     }
@@ -6850,7 +6850,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let interp = expr as? AST.StringInterpolation
     try #require(interp != nil)
     try #require(interp!.segments.count == 3)
-    guard case let .expression(e) = interp!.segments[1] else {
+    guard case let .Expression(e) = interp!.segments[1] else {
         Issue.record("expected expression segment")
         return
     }
@@ -6862,7 +6862,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(call!.arguments.count == 1)
     let inner = call!.arguments[0].value as? AST.StringInterpolation
     try #require(inner != nil)
-    guard case let .expression(innerExpr) = inner!.segments[1] else {
+    guard case let .Expression(innerExpr) = inner!.segments[1] else {
         Issue.record("expected inner expression segment")
         return
     }
@@ -6876,7 +6876,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let interp = expr as? AST.StringInterpolation
     try #require(interp != nil)
     try #require(interp!.segments.count == 3)
-    guard case let .expression(e) = interp!.segments[1] else {
+    guard case let .Expression(e) = interp!.segments[1] else {
         Issue.record("expected expression segment")
         return
     }
@@ -6886,7 +6886,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(innerCall != nil)
     let nested = innerCall!.arguments[0].value as? AST.StringInterpolation
     try #require(nested != nil)
-    guard case let .expression(nestedExpr) = nested!.segments[1] else {
+    guard case let .Expression(nestedExpr) = nested!.segments[1] else {
         Issue.record("expected nested expression segment")
         return
     }

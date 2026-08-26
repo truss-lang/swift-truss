@@ -51,13 +51,13 @@ extension AST {
             var changed = left !== requirement.left
             let constraint: AST.WhereRequirement.Constraint
             switch requirement.constraint {
-            case let .conformance(expression):
+            case let .Conformance(expression):
                 let rewritten = rewrite(expression)
-                constraint = .conformance(rewritten)
+                constraint = .Conformance(rewritten)
                 if rewritten !== expression { changed = true }
-            case let .equality(expression):
+            case let .Equality(expression):
                 let rewritten = rewrite(expression)
-                constraint = .equality(rewritten)
+                constraint = .Equality(rewritten)
                 if rewritten !== expression { changed = true }
             }
             return changed
@@ -302,12 +302,12 @@ extension AST {
 
         private func rewriteStringSegment(_ segment: AST.StringSegment) -> AST.StringSegment {
             switch segment {
-            case .literal:
+            case .Literal:
                 return segment
-            case let .expression(expression):
+            case let .Expression(expression):
                 let rewritten = rewrite(expression)
                 if rewritten === expression { return segment }
-                return .expression(rewritten)
+                return .Expression(rewritten)
             }
         }
 
@@ -514,8 +514,8 @@ extension AST {
             _ old: AST.WhereRequirement.Constraint, _ new: AST.WhereRequirement.Constraint
         ) -> Bool {
             switch (old, new) {
-            case let (.conformance(oldExpression), .conformance(newExpression)),
-                 let (.equality(oldExpression), .equality(newExpression)):
+            case let (.Conformance(oldExpression), .Conformance(newExpression)),
+                 let (.Equality(oldExpression), .Equality(newExpression)):
                 oldExpression === newExpression
             default:
                 false
@@ -1714,9 +1714,9 @@ extension AST {
             _ old: AST.StringSegment, _ new: AST.StringSegment
         ) -> Bool {
             switch (old, new) {
-            case (.literal, .literal):
+            case (.Literal, .Literal):
                 true
-            case let (.expression(oldExpression), .expression(newExpression)):
+            case let (.Expression(oldExpression), .Expression(newExpression)):
                 oldExpression === newExpression
             default:
                 false

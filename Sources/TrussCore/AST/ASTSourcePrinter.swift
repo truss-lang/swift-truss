@@ -165,8 +165,8 @@ public final class SourcePrinter: AST.Visitor {
             + requirements.map { requirement in
                 var text = render(requirement.left)
                 switch requirement.constraint {
-                case let .conformance(expression): text += ": " + render(expression)
-                case let .equality(expression): text += " == " + render(expression)
+                case let .Conformance(expression): text += ": " + render(expression)
+                case let .Equality(expression): text += " == " + render(expression)
                 }
                 return text
             }.joined(separator: ", ")
@@ -1461,7 +1461,7 @@ public final class SourcePrinter: AST.Visitor {
         _ interpolation: AST.StringInterpolation, additional: Any? = nil
     ) -> Any? {
         let isRaw = interpolation.segments.contains {
-            if case let .literal(token) = $0 {
+            if case let .Literal(token) = $0 {
                 return token.isRaw
             }
             return false
@@ -1469,13 +1469,13 @@ public final class SourcePrinter: AST.Visitor {
         state.write(isRaw ? "#\"" : "\"")
         for segment in interpolation.segments {
             switch segment {
-            case let .literal(token):
+            case let .Literal(token):
                 if isRaw {
                     state.write(token.value)
                 } else {
                     state.write(encodeString(token.value))
                 }
-            case let .expression(expression):
+            case let .Expression(expression):
                 state.write(isRaw ? "\\#(" : "\\(")
                 visit(expression)
                 state.write(")")

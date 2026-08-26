@@ -33,13 +33,13 @@ public struct InterfaceLoader {
 
     private func loadType(_ t: InterfaceType, into scope: Scope, package: Symbol.PackageSymbol) {
         switch t {
-        case let .nominal(n):
+        case let .Nominal(n):
             let symbol: Symbol.NominalTypeSymbol = switch n.kind {
-            case .structType: Symbol.StructSymbol(id: context.nextSymbolId, name: n.name)
-            case .classType: Symbol.ClassSymbol(id: context.nextSymbolId, name: n.name)
-            case .enumType: Symbol.EnumSymbol(id: context.nextSymbolId, name: n.name)
-            case .protocolType: Symbol.ProtocolSymbol(id: context.nextSymbolId, name: n.name)
-            case .actorType: Symbol.ActorSymbol(id: context.nextSymbolId, name: n.name)
+            case .StructType: Symbol.StructSymbol(id: context.nextSymbolId, name: n.name)
+            case .ClassType: Symbol.ClassSymbol(id: context.nextSymbolId, name: n.name)
+            case .EnumType: Symbol.EnumSymbol(id: context.nextSymbolId, name: n.name)
+            case .ProtocolType: Symbol.ProtocolSymbol(id: context.nextSymbolId, name: n.name)
+            case .ActorType: Symbol.ActorSymbol(id: context.nextSymbolId, name: n.name)
             }
             symbol.access = .Public
             symbol.packageId = package.id
@@ -67,26 +67,26 @@ public struct InterfaceLoader {
                 symbol.scope.values[c.name, default: []].append(caseSymbol)
             }
             loadScope(n.scope, into: symbol.scope, package: package)
-        case let .typeAlias(a):
+        case let .TypeAlias(a):
             let symbol = Symbol.TypeAliasSymbol(id: context.nextSymbolId, name: a.name)
             symbol.access = .Public
             symbol.packageId = package.id
             symbol.targetType = a.target.map(makeTypeRef)
             context.register(symbol: symbol)
             scope.registerType(symbol, at: syntheticToken(a.name), context: context)
-        case let .associatedType(s):
+        case let .AssociatedType(s):
             let symbol = Symbol.AssociatedTypeSymbol(id: context.nextSymbolId, name: s.name)
             symbol.access = .Public
             symbol.packageId = package.id
             context.register(symbol: symbol)
             scope.registerType(symbol, at: syntheticToken(s.name), context: context)
-        case let .builtin(s):
+        case let .Builtin(s):
             let symbol = Symbol.BuiltinTypeSymbol(id: context.nextSymbolId, name: s.name)
             symbol.access = .Public
             symbol.packageId = package.id
             context.register(symbol: symbol)
             scope.registerType(symbol, at: syntheticToken(s.name), context: context)
-        case let .genericParam(s):
+        case let .GenericParam(s):
             let symbol = Symbol.GenericParamSymbol(id: context.nextSymbolId, name: s.name)
             symbol.access = .Public
             symbol.packageId = package.id
@@ -99,17 +99,17 @@ public struct InterfaceLoader {
         .NominalType
     {
         switch kind {
-        case .structType: TrussType.StructType(id: id, name: name)
-        case .classType: TrussType.ClassType(id: id, name: name)
-        case .enumType: TrussType.EnumType(id: id, name: name)
-        case .protocolType: TrussType.ProtocolType(id: id, name: name)
-        case .actorType: TrussType.ActorType(id: id, name: name)
+        case .StructType: TrussType.StructType(id: id, name: name)
+        case .ClassType: TrussType.ClassType(id: id, name: name)
+        case .EnumType: TrussType.EnumType(id: id, name: name)
+        case .ProtocolType: TrussType.ProtocolType(id: id, name: name)
+        case .ActorType: TrussType.ActorType(id: id, name: name)
         }
     }
 
     private func loadValue(_ v: InterfaceValue, into scope: Scope, package: Symbol.PackageSymbol) {
         switch v {
-        case let .function(f):
+        case let .Function(f):
             let signature = Symbol.FunctionSignature(
                 labels: f.labels, hasDefaults: f.hasDefaults, isVararg: f.isVararg, isVariadic: f.isVariadic
             )
@@ -122,7 +122,7 @@ public struct InterfaceLoader {
             symbol.functionType = f.functionType.flatMap { makeTypeRef($0) as? TrussType.FunctionType }
             context.register(symbol: symbol)
             scope.registerValue(symbol, at: syntheticToken(f.name), context: context)
-        case let .variable(x):
+        case let .Variable(x):
             let symbol = Symbol.VariableSymbol(id: context.nextSymbolId, name: x.name)
             symbol.access = .Public
             symbol.packageId = package.id
@@ -139,11 +139,11 @@ public struct InterfaceLoader {
 
     public func makeTypeRef(_ ref: InterfaceTypeRef) -> TrussType.TrussType {
         switch ref {
-        case .void: return TrussType.VoidType.INSTANCE
-        case .never: return TrussType.NeverType.INSTANCE
-        case .error: return TrussType.ErrorType.INSTANCE
-        case let .builtin(n): return TrussType.BuiltinType(n)
-        case let .nominal(n, args):
+        case .Void: return TrussType.VoidType.INSTANCE
+        case .Never: return TrussType.NeverType.INSTANCE
+        case .Error: return TrussType.ErrorType.INSTANCE
+        case let .Builtin(n): return TrussType.BuiltinType(n)
+        case let .Nominal(n, _):
             if let proto = findProtocol(n) {
                 let t = TrussType.ProtocolType(id: proto.typeId ?? context.nextTypeId, name: n)
                 t.symbol = proto
@@ -152,11 +152,11 @@ public struct InterfaceLoader {
             }
             let t = TrussType.StructType(id: context.nextTypeId, name: n)
             return t
-        case let .pointer(p, nn): return TrussType.PointerType(makeTypeRef(p), isNonnull: nn)
-        case let .tuple(els):
+        case let .Pointer(p, nn): return TrussType.PointerType(makeTypeRef(p), isNonnull: nn)
+        case let .Tuple(els):
             return TrussType
                 .TupleType(els.map { TrussType.TupleType.Element(label: $0.label, type: makeTypeRef($0.type)) })
-        case let .function(f):
+        case let .Function(f):
             return TrussType.FunctionType(
                 parameters: f.parameters.map { TrussType.FunctionType.Parameter(
                     label: $0.label,
@@ -165,13 +165,13 @@ public struct InterfaceLoader {
                 isVariadic: f.isVariadic, isAsync: f.isAsync, isThrowing: f.isThrowing,
                 throwsTypes: f.throwsTypes.map(makeTypeRef), returnType: makeTypeRef(f.returnType)
             )
-        case let .composition(m): return TrussType.CompositionType(m.map(makeTypeRef))
-        case let .variadic(b): return TrussType.VariadicType(makeTypeRef(b))
-        case let .genericParam(n): return TrussType.GenericParamType(n)
-        case let .forall(ps, b):
+        case let .Composition(m): return TrussType.CompositionType(m.map(makeTypeRef))
+        case let .Variadic(b): return TrussType.VariadicType(makeTypeRef(b))
+        case let .GenericParam(n): return TrussType.GenericParamType(n)
+        case let .Forall(ps, b):
             let params = ps.map { Symbol.GenericParamSymbol(id: context.nextSymbolId, name: $0) }
             return TrussType.ForallType(parameters: params, body: makeTypeRef(b))
-        case let .typeVariable(i): return TrussType.TypeVariableType(Id.TypeVariableId(UInt64(i)))
+        case let .TypeVariable(i): return TrussType.TypeVariableType(Id.TypeVariableId(UInt64(i)))
         }
     }
 

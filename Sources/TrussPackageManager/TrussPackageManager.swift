@@ -4,19 +4,19 @@ import TrussCore
 import TrussDriver
 
 public enum PackageBuildError: Error, CustomStringConvertible {
-    case unknownTarget(String)
-    case dependencyCycle([String])
-    case sourceReadFailed(String)
-    case compileFailed(String, String)
-    case missingDependencyArtifact(String)
+    case UnknownTarget(String)
+    case DependencyCycle([String])
+    case SourceReadFailed(String)
+    case CompileFailed(String, String)
+    case MissingDependencyArtifact(String)
 
     public var description: String {
         switch self {
-        case let .unknownTarget(n): "unknown target '\(n)'"
-        case let .dependencyCycle(c): "dependency cycle detected: \(c.joined(separator: " -> "))"
-        case let .sourceReadFailed(p): "could not read source at '\(p)'"
-        case let .compileFailed(t, err): "failed to compile target '\(t)':\n\(err)"
-        case let .missingDependencyArtifact(t): "missing dependency artifact for '\(t)'"
+        case let .UnknownTarget(n): "unknown target '\(n)'"
+        case let .DependencyCycle(c): "dependency cycle detected: \(c.joined(separator: " -> "))"
+        case let .SourceReadFailed(p): "could not read source at '\(p)'"
+        case let .CompileFailed(t, err): "failed to compile target '\(t)':\n\(err)"
+        case let .MissingDependencyArtifact(t): "missing dependency artifact for '\(t)'"
         }
     }
 }
@@ -62,7 +62,7 @@ public final class TrussPackageManager {
         var results: [TargetBuildResult] = []
         for name in order {
             guard let targetDesc = package.targets.first(where: { $0.name == name }) else {
-                throw PackageBuildError.unknownTarget(name)
+                throw PackageBuildError.UnknownTarget(name)
             }
             let fingerprint = try computeFingerprint(for: targetDesc, dependencyInterfaces: interfaces)
             if cas.contains(hash: fingerprint, targetName: name) {
@@ -77,7 +77,7 @@ public final class TrussPackageManager {
                 continue
             }
             let depInterfaces = try targetDesc.dependencies.map { depName -> ModuleInterface in
-                guard let i = interfaces[depName] else { throw PackageBuildError.missingDependencyArtifact(depName) }
+                guard let i = interfaces[depName] else { throw PackageBuildError.MissingDependencyArtifact(depName) }
                 return i
             }
             let config = DriverConfig(
@@ -89,10 +89,10 @@ public final class TrussPackageManager {
             let sourceFiles = try sourceFiles(for: targetDesc)
             let result = Driver(config: config).run(files: sourceFiles)
             if result.hasErrors {
-                throw PackageBuildError.compileFailed(name, result.stderr)
+                throw PackageBuildError.CompileFailed(name, result.stderr)
             }
             guard let interface = result.packageInterface else {
-                throw PackageBuildError.compileFailed(name, "no module interface produced")
+                throw PackageBuildError.CompileFailed(name, "no module interface produced")
             }
             let bytes = TrussPackageEncoder(interface: interface).encode()
             try cas.store(hash: fingerprint, targetName: name, bytes: bytes)
@@ -113,10 +113,10 @@ public final class TrussPackageManager {
             return ModuleInterfaceDumper().dump(doc.interface)
         }
         let order = try topologicalOrder()
-        guard order.contains(targetName) else { throw PackageBuildError.unknownTarget(targetName) }
+        guard order.contains(targetName) else { throw PackageBuildError.UnknownTarget(targetName) }
         _ = try build()
         guard let artifact = TargetPointer.artifactURL(root: buildRoot, targetName: targetName) else {
-            throw PackageBuildError.missingDependencyArtifact(targetName)
+            throw PackageBuildError.MissingDependencyArtifact(targetName)
         }
         let bytes = try Array(Data(contentsOf: artifact))
         let doc = try TrussPackageDecoder().decode(bytes)
@@ -141,7 +141,7 @@ public final class TrussPackageManager {
         for targetDesc in package.targets {
             for dep in targetDesc.dependencies {
                 guard names.contains(dep) else {
-                    throw PackageBuildError.unknownTarget(dep)
+                    throw PackageBuildError.UnknownTarget(dep)
                 }
                 graph.addEdge(from: dep, to: targetDesc.name, directed: true)
             }
@@ -151,7 +151,7 @@ public final class TrussPackageManager {
         }
         let cycles = graph.detectCycles()
         let cycle = cycles.min { $0.count < $1.count } ?? []
-        throw PackageBuildError.dependencyCycle(cycle)
+        throw PackageBuildError.DependencyCycle(cycle)
     }
 
     private func sourceFiles(for targetDesc: PackageTarget) throws -> [String] {
@@ -159,7 +159,7 @@ public final class TrussPackageManager {
         guard let entries = try? FileManager.default.contentsOfDirectory(
             at: dir, includingPropertiesForKeys: nil
         ) else {
-            throw PackageBuildError.sourceReadFailed(dir.path)
+            throw PackageBuildError.SourceReadFailed(dir.path)
         }
         return entries.filter { $0.pathExtension == "truss" }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
@@ -191,7 +191,7 @@ public final class TrussPackageManager {
         for path in files {
             hasher.add(path)
             guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
-                throw PackageBuildError.sourceReadFailed(path)
+                throw PackageBuildError.SourceReadFailed(path)
             }
             hasher.add(ContentHash.sha256(Array(data)))
         }

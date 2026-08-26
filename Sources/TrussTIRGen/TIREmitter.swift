@@ -245,7 +245,6 @@ final class TIREmitter: AST.Visitor {
 
     @discardableResult
     public override func visitThrow(_ throwStatement: AST.Throw, additional: Any? = nil) -> Any? {
-        guard let builder else { return nil }
         guard let errValue = visitExpression(throwStatement.expression) else { return nil }
         routeToExceptionHandler(errValue, at: throwStatement.sourceRange)
         return nil
@@ -255,7 +254,7 @@ final class TIREmitter: AST.Visitor {
     public override func visitTry(_ tryExpression: AST.Try, additional: Any? = nil) -> Any? {
         guard let builder else { return nil }
         guard let call = tryExpression.expression as? AST.Call,
-              let symbol = call.symbol as? Symbol.FunctionSymbol,
+              let symbol = call.symbol,
               symbol.functionType?.isThrowing == true,
               let calleeValue = lowerCallee(call.callee, at: call.sourceRange),
               let okType = call.ty,
@@ -402,7 +401,9 @@ final class TIREmitter: AST.Visitor {
                 builder.buildBranch(to: bodyBlock)
             }
             builder.insertPoint = bodyBlock
-            bindCatchPattern(catchClause.pattern, subject: errValue, body: catchClause.body)
+            if let pattern = catchClause.pattern {
+                bindCatchPattern(pattern, subject: errValue, body: catchClause.body)
+            }
             if let whereCondition = catchClause.whereCondition,
                let cond = visitExpression(whereCondition)
             {
@@ -453,9 +454,8 @@ final class TIREmitter: AST.Visitor {
     }
 
     private func bindCatchPattern(
-        _ pattern: AST.Expression?, subject: TIR.Value, body: [AST.Statement]
+        _ pattern: AST.Expression, subject: TIR.Value, body: [AST.Statement]
     ) {
-        guard let builder, let pattern else { return }
         switch pattern {
         case let asPattern as AST.AsPattern:
             bindAsPattern(asPattern, subject: subject, body: body)
@@ -501,7 +501,7 @@ final class TIREmitter: AST.Visitor {
             if let expressionStatement = statement as? AST.ExpressionStatement,
                let tryExpression = expressionStatement.expression as? AST.Try,
                let call = tryExpression.expression as? AST.Call,
-               let symbol = call.symbol as? Symbol.FunctionSymbol,
+               let symbol = call.symbol,
                let errType = symbol.functionType?.throwsTypes.first,
                let cls = nominalClassType(of: errType)
             {
@@ -658,10 +658,10 @@ final class TIREmitter: AST.Visitor {
 
         if let owner {
             if let selfParameter = function.parameters.first {
-                let alloc = builder!.buildAllocStack(
+                let alloc = b.buildAllocStack(
                     allocatedType: selfParameter.ty, name: selfParameter.name
                 )
-                builder!.buildStore(value: selfParameter, to: alloc.result)
+                b.buildStore(value: selfParameter, to: alloc.result)
                 env[owner.id] = alloc.result
             }
         }
@@ -670,10 +670,10 @@ final class TIREmitter: AST.Visitor {
                 $0 as? Symbol.VariableSymbol
             }).first {
                 if let implicitParameter = function.parameters.last {
-                    let alloc = builder!.buildAllocStack(
+                    let alloc = b.buildAllocStack(
                         allocatedType: implicitParameter.ty, name: implicitParameter.name
                     )
-                    builder!.buildStore(value: implicitParameter, to: alloc.result)
+                    b.buildStore(value: implicitParameter, to: alloc.result)
                     env[variableSymbol.id] = alloc.result
                 }
             }
@@ -681,9 +681,9 @@ final class TIREmitter: AST.Visitor {
 
         switch accessor.body {
         case let .Block(statements):
-            let savedLabelInsert = builder?.insertPoint
+            let savedLabelInsert = b.insertPoint
             collectForwardLabels(statements)
-            builder?.insertPoint = savedLabelInsert
+            b.insertPoint = savedLabelInsert
             visitBodyStatements(statements, implicitReturn: implicitReturn)
         case let .Expression(expression):
             if let value = visitExpression(expression) {
@@ -732,11 +732,14 @@ final class TIREmitter: AST.Visitor {
     private func buildResultTuple(
         ok: TIR.Value, err: TIR.Value, types: (ok: Id.TIRTypeId, err: Id.TIRTypeId)
     ) -> TIR.Value {
+        guard let builder else {
+            fatalError("unreachable")
+        }
         let ty = gen.registry.tupleType(elements: [
             TIRType.TupleType.Element(label: "ok", type: types.ok),
             TIRType.TupleType.Element(label: "err", type: types.err),
         ])
-        return builder!.buildTupleValue(elements: [ok, err], ty: ty.id).result
+        return builder.buildTupleValue(elements: [ok, err], ty: ty.id).result
     }
 
     private func throwingTupleTypes() -> (ok: Id.TIRTypeId, err: Id.TIRTypeId)? {
@@ -748,8 +751,11 @@ final class TIREmitter: AST.Visitor {
     }
 
     private func makePlaceholder(_ typeId: Id.TIRTypeId) -> TIR.Value {
-        let alloc = builder!.buildAllocStack(allocatedType: typeId, name: "$undef")
-        return builder!.buildLoad(ptr: alloc.result).result
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let alloc = builder.buildAllocStack(allocatedType: typeId, name: "$undef")
+        return builder.buildLoad(ptr: alloc.result).result
     }
 
     private func routeToExceptionHandler(_ errValue: TIR.Value?, at range: SourceRange) {
@@ -797,16 +803,22 @@ final class TIREmitter: AST.Visitor {
     }
 
     private func newBlock(_ name: String? = nil) -> TIR.BasicBlock {
+        guard let builder else {
+            fatalError("unreachable")
+        }
         let function = currentFunction!
         let blockName = name ?? "bb\(blockCounter)"
         blockCounter += 1
         let block = function.addBasicBlock(name: blockName)
-        builder?.insertPoint = block
+        builder.insertPoint = block
         return block
     }
 
     private func blockTerminated() -> Bool {
-        guard let block = builder?.insertPoint, let last = block.instructions.last else { return false }
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        guard let block = builder.insertPoint, let last = block.instructions.last else { return false }
         return isTerminator(last)
     }
 
@@ -2268,6 +2280,9 @@ final class TIREmitter: AST.Visitor {
     public override func visitMemberAccess(
         _ memberAccess: AST.MemberAccess, additional: Any? = nil
     ) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
         if let functionSymbol = memberAccess.symbol as? Symbol.FunctionSymbol
             ?? memberAccess.overloads?.first
         {
@@ -2282,8 +2297,8 @@ final class TIREmitter: AST.Visitor {
         {
             memberAccess.object.isLeftValue = true
             guard let base = visitExpression(memberAccess.object) else { return nil }
-            let callee = builder!.buildFunctionRef(function: getter)
-            return builder!.buildCall(callee: callee, arguments: [base]).result
+            let callee = builder.buildFunctionRef(function: getter)
+            return builder.buildCall(callee: callee, arguments: [base]).result
         }
         if let address = memberAddress(memberAccess) {
             if memberAccess.isLeftValue {
