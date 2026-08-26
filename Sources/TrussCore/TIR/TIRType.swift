@@ -66,6 +66,18 @@ public enum TIRType {
         }
     }
 
+    public final class MetadataType: TIRType {
+        public override init(id: Id.TIRTypeId) {
+            super.init(id: id)
+        }
+
+        public override func isEqual(to other: TIRType) -> Bool {
+            other is MetadataType
+        }
+
+        public override func hash(into hasher: inout Hasher) {}
+    }
+
     @abstractClass
     public class NominalType: TIRType {
         public let name: String

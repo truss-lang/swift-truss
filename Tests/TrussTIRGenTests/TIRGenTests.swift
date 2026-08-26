@@ -270,6 +270,133 @@ import TrussTIRGen
         try #require(tir.contains("TryApply"))
         try #require(tir.contains("error:"))
     }
+
+    @Test func throwingFunctionReturnsOkErrTuple() throws {
+        let tir = dumpTIR(
+            """
+            class E {
+                init() {}
+            }
+            func g(e: E) throws(E) { throw e }
+            """
+        )
+        try #require(tir.contains("define { void, %"))
+        try #require(tir.contains("tuplevalue"))
+        try #require(tir.contains("null"))
+    }
+
+    @Test func tryLowersToTryCall() throws {
+        let tir = dumpTIR(
+            """
+            class E {
+                init() {}
+            }
+            func g(e: E) throws(E) { throw e }
+            func f(e: E) {
+                do {
+                    try g(e)
+                } catch {
+                }
+            }
+            """
+        )
+        try #require(tir.contains("trycall"))
+        try #require(tir.contains("error label"))
+        try #require(tir.contains("errorcell"))
+    }
+
+    @Test func tryQuestionLowersToOptionalPhi() throws {
+        let tir = dumpTIR(
+            """
+            class E {
+                init() {}
+            }
+            func g(e: E) throws(E) { throw e }
+            func f(e: E) {
+                let x = try? g(e)
+            }
+            """
+        )
+        try #require(tir.contains("case Some"))
+        try #require(tir.contains("case None"))
+        try #require(tir.contains("phi "))
+    }
+
+    @Test func tryExclamationTrapsOnError() throws {
+        let tir = dumpTIR(
+            """
+            class E {
+                init() {}
+            }
+            func g(e: E) throws(E) { throw e }
+            func f(e: E) {
+                let y = try! g(e)
+            }
+            """
+        )
+        try #require(tir.contains("trap \"error thrown\""))
+        try #require(tir.contains("unreachable"))
+    }
+
+    @Test func catchTypePatternLowersToIsInstance() throws {
+        let tir = dumpTIR(
+            """
+            class E {
+                init() {}
+            }
+            func g(e: E) throws(E) { throw e }
+            func f(e: E) {
+                do {
+                    try g(e)
+                } catch E {
+                }
+            }
+            """
+        )
+        try #require(tir.contains("isinstance"))
+        try #require(tir.contains("trap \"uncaught error\""))
+    }
+
+    @Test func catchBindingBindsErrorVariable() throws {
+        let tir = dumpTIR(
+            """
+            class E {
+                init() {}
+            }
+            func g(e: E) throws(E) { throw e }
+            func f(e: E) {
+                do {
+                    try g(e)
+                } catch let err {
+                    let z = err
+                }
+            }
+            """
+        )
+        try #require(tir.contains("trycall"))
+        try #require(tir.contains("alloca %"))
+    }
+
+    @Test func doFinallyLowersOnExit() throws {
+        let tir = dumpTIR(
+            """
+            class E {
+                init() {}
+            }
+            func g(e: E) throws(E) { throw e }
+            func f(e: E) {
+                do {
+                    try g(e)
+                } catch {
+                } finally {
+                    let a = 1
+                }
+            }
+            """
+        )
+        try #require(tir.contains("trycall"))
+        try #require(tir.contains("store void 1"))
+    }
 }
 
 @Suite struct GlobalVarTests {
@@ -2311,4 +2438,121 @@ import TrussTIRGen
     )
     try #require(tir.contains("StructElementAddr %1, #0 i"))
     try #require(!tir.contains("Load %1 "))
+}
+
+@Suite struct CastPatternTests {
+    private let source = """
+    precedencegroup Assignment { assignment: true }
+    precedencegroup Casting { }
+    infix operator =: Assignment
+
+    class Animal {
+        var name: Builtin.Int32
+        init(name: Builtin.Int32) { self.name = name }
+    }
+    class Dog: Animal {
+        var breed: Builtin.Int32
+        init(name: Builtin.Int32, breed: Builtin.Int32) {
+            super.init(name: name)
+            self.breed = breed
+        }
+    }
+    func isAnimal(a: Dog) -> Builtin.Bool {
+        return a is Animal
+    }
+    func upcast(a: Dog) -> Animal {
+        return a as Animal
+    }
+    func forceUp(a: Dog) -> Animal {
+        return a as! Animal
+    }
+    func optUp(a: Dog) -> Animal? {
+        return a as? Animal
+    }
+    """
+
+    @Test func isCastEmitsMetadataAndIsInstance() throws {
+        let tir = dumpTIR(source, installBuiltin: true)
+        let f = tir.components(separatedBy: "@$t4main_8isAnimal").last ?? ""
+        #expect(f.contains("typemetadata "))
+        #expect(f.contains("typemetadataconstant %$t4main_6Animal"))
+        #expect(f.contains("isinstance "))
+        #expect(f.contains("ret i1 "))
+    }
+
+    @Test func staticUpcastEmitsUpcast() throws {
+        let tir = dumpTIR(source, installBuiltin: true)
+        let f = tir.components(separatedBy: "@$t4main_6upcast").last ?? ""
+        #expect(f.contains("upcast %0 to %$t4main_6Animal"))
+        #expect(!f.contains("isinstance"))
+    }
+
+    @Test func forceCastEmitsUncheckedRefCast() throws {
+        let tir = dumpTIR(source, installBuiltin: true)
+        let f = tir.components(separatedBy: "@$t4main_6forceUp").last ?? ""
+        #expect(f.contains("uncheckedrefcast %0 to %$t4main_6Animal"))
+    }
+
+    @Test func optionalAsEmitsSomeEnumValue() throws {
+        let tir = dumpTIR(source, installBuiltin: true)
+        let f = tir.components(separatedBy: "@$t4main_5optUp").last ?? ""
+        #expect(f.contains("enumvalue %Optional<$t4main_6Animal> case Some"))
+        #expect(f.contains("uncheckedrefcast "))
+    }
+
+    @Test func isPatternInMatchEmitsIsInstance() throws {
+        let tir = dumpTIR(source + """
+        func matchAnimal(a: Animal) -> Builtin.Int32 {
+            let result = match a {
+            is Dog => { 1 }
+            _ => { 0 }
+            }
+            return result
+        }
+        """, installBuiltin: true)
+        let f = tir.components(separatedBy: "@$t4main_11matchAnimal").last ?? ""
+        #expect(f.contains("typemetadata "))
+        #expect(f.contains("typemetadataconstant %$t4main_3Dog"))
+        #expect(f.contains("isinstance "))
+    }
+
+    @Test func downcastAsEmitsCheckedDowncast() {
+        let tir = dumpTIR(source + """
+        func downcast(a: Animal) -> Dog {
+            return a as Dog
+        }
+        """, installBuiltin: true)
+        let f = tir.components(separatedBy: "@$t4main_9downcast").last ?? ""
+        #expect(f.contains("isinstance "))
+        #expect(f.contains("trap "))
+        #expect(f.contains("uncheckedrefcast "))
+    }
+
+    @Test func optionalAsDowncastEmitsOptionalDowncast() {
+        let tir = dumpTIR(source + """
+        func optDown(a: Animal) -> Dog? {
+            return a as? Dog
+        }
+        """, installBuiltin: true)
+        let f = tir.components(separatedBy: "@$t4main_7optDown").last ?? ""
+        #expect(f.contains("isinstance "))
+        #expect(f.contains("enumvalue %Optional<$t4main_3Dog> case Some"))
+        #expect(f.contains("enumvalue %Optional<$t4main_3Dog> case None"))
+    }
+
+    @Test func asPatternBindsVariableInMatch() {
+        let tir = dumpTIR(source + """
+        func matchBind(a: Animal) -> Builtin.Int32 {
+            let result = match a {
+            d as Dog => { let r: Dog = d; 1 }
+            _ => { 0 }
+            }
+            return result
+        }
+        """, installBuiltin: true)
+        let f = tir.components(separatedBy: "@$t4main_9matchBind").last ?? ""
+        #expect(f.contains("isinstance "))
+        #expect(f.contains("alloca "))
+        #expect(f.contains("store "))
+    }
 }

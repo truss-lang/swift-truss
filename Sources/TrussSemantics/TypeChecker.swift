@@ -1846,6 +1846,22 @@ public final class TypeChecker: AST.Visitor {
         return false
     }
 
+    private func canCast(
+        _ actual: TrussType.TrussType, to target: TrussType.TrussType, at token: Token
+    ) -> Bool {
+        if canCoerce(actual, to: target, at: token) {
+            return true
+        }
+        if let targetClass = target as? TrussType.ClassType {
+            for superclass in superclassChain(of: targetClass) {
+                if unify(superclass, actual, at: token) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     private func nominalBase(of type: TrussType.TrussType) -> TrussType.NominalType? {
         if let nominal = type as? TrussType.NominalType {
             return nominal
@@ -2281,11 +2297,11 @@ public final class TypeChecker: AST.Visitor {
             let target = evaluate(castExpression.right)
             switch castExpression.kind {
             case .Is:
-                if let leftType, !canCoerce(leftType, to: target, at: token) {
+                if let leftType, !canCast(leftType, to: target, at: token) {
                     emitMismatch(at: token, expected: target, found: leftType)
                 }
             case .As:
-                if let leftType, !canCoerce(leftType, to: target, at: token) {
+                if let leftType, !canCast(leftType, to: target, at: token) {
                     emitMismatch(at: token, expected: target, found: leftType)
                 }
                 expression.ty = target
@@ -2792,7 +2808,7 @@ public final class TypeChecker: AST.Visitor {
             }
         case let asPattern as AST.AsPattern:
             let target = evaluate(asPattern.typeExpression)
-            if let subjectType, !canCoerce(subjectType, to: target, at: token) {
+            if let subjectType, !canCast(subjectType, to: target, at: token) {
                 if reportErrors {
                     emitMismatch(at: token, expected: target, found: subjectType)
                 }
@@ -2804,7 +2820,7 @@ public final class TypeChecker: AST.Visitor {
                 ) && matched
         case let isPattern as AST.IsPattern:
             let target = evaluate(isPattern.typeExpression)
-            if let subjectType, !canCoerce(subjectType, to: target, at: token) {
+            if let subjectType, !canCast(subjectType, to: target, at: token) {
                 if reportErrors {
                     emitMismatch(at: token, expected: target, found: subjectType)
                 }

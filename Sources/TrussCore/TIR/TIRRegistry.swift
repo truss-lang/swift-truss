@@ -1,10 +1,22 @@
 public extension TIR {
+    final class MetadataRecord {
+        public let id: Id.TIRMetadataId
+        public let name: String
+        public var superclass: Id.TIRMetadataId?
+        public init(id: Id.TIRMetadataId, name: String) {
+            self.id = id
+            self.name = name
+        }
+    }
+
     final class Registry {
         public var functions: [Id.TIRFunctionId: Function] = [:]
         public var globals: [Id.TIRGlobalId: GlobalVariable] = [:]
         public var types: [Id.TIRTypeId: TIRType.TIRType] = [:]
+        public var metadatas: [Id.TIRMetadataId: MetadataRecord] = [:]
         public var typeCache: [AnyHashable: TIRType.TIRType] = [:]
         private var voidTy: TIRType.VoidType?
+        private var metadataTy: TIRType.MetadataType?
         public var nextFunctionId: Id.TIRFunctionId {
             .init(UInt64(functions.count))
         }
@@ -17,10 +29,36 @@ public extension TIR {
             .init(UInt64(types.count))
         }
 
+        public var nextMetadataId: Id.TIRMetadataId {
+            .init(UInt64(metadatas.count))
+        }
+
         public init() {}
 
         public func type(_ id: Id.TIRTypeId) -> TIRType.TIRType? {
             types[id]
+        }
+
+        public func metadata(_ id: Id.TIRMetadataId) -> MetadataRecord? {
+            metadatas[id]
+        }
+
+        public func metadataType() -> TIRType.MetadataType {
+            if let ty = metadataTy {
+                return ty
+            } else {
+                let ty = TIRType.MetadataType(id: nextTypeId)
+                metadataTy = ty
+                types[ty.id] = ty
+                return ty
+            }
+        }
+
+        @discardableResult
+        public func addMetadata(name: String) -> MetadataRecord {
+            let record = MetadataRecord(id: nextMetadataId, name: name)
+            metadatas[record.id] = record
+            return record
         }
 
         public func voidType() -> TIRType.VoidType {

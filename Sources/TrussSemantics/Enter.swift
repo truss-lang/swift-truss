@@ -425,6 +425,18 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitAsPattern(
+        _ asPattern: AST.AsPattern, additional: Any? = nil
+    ) -> Any? {
+        if let binding = asPattern.pattern as? AST.BindingPattern {
+            registerLocal(binding.name)
+        } else if let variable = asPattern.pattern as? AST.Variable {
+            registerLocal(variable.name)
+        }
+        return super.visitAsPattern(asPattern, additional: additional)
+    }
+
+    @discardableResult
     public override func visitEnumCaseDecl(_ enumCaseDecl: AST.EnumCaseDecl, additional: Any? = nil)
         -> Any?
     {

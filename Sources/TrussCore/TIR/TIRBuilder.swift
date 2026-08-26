@@ -319,12 +319,12 @@ public extension TIR {
         @discardableResult
         public func buildTryCall(
             callee: Value, arguments: [Value], successBlock: BasicBlock, errorBlock: BasicBlock,
-            errorCell: Value? = nil, name: String? = nil
+            errorCell: Value? = nil, resultTy: Id.TIRTypeId? = nil, name: String? = nil
         ) -> TryCall {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.TryCall(
                 callee: callee, arguments: arguments, successBlock: successBlock,
-                errorBlock: errorBlock, errorCell: errorCell, ty: callResultType(callee),
+                errorBlock: errorBlock, errorCell: errorCell, ty: resultTy ?? callResultType(callee),
                 name: freshName(name)
             )
             insertPoint.instructions.append(attach(instruction, result: instruction.result))
@@ -371,6 +371,58 @@ public extension TIR {
                 value: value, targetType: targetType, name: freshName(name)
             )
             insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            return instruction
+        }
+
+        @discardableResult
+        public func buildTypeMetadata(value: Value, name: String? = nil) -> TypeMetadata {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.TypeMetadata(
+                registry: registry, value: value, name: freshName(name)
+            )
+            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            return instruction
+        }
+
+        @discardableResult
+        public func buildTypeMetadataConstant(
+            type: Id.TIRTypeId, metadata: Id.TIRMetadataId, name: String? = nil
+        ) -> TypeMetadataConstant {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.TypeMetadataConstant(
+                registry: registry, type: type, metadata: metadata, name: freshName(name)
+            )
+            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            return instruction
+        }
+
+        @discardableResult
+        public func buildIsInstance(
+            metadata: Value, target: Value, name: String? = nil
+        ) -> IsInstance {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.IsInstance(
+                registry: registry, metadata: metadata, target: target, name: freshName(name)
+            )
+            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            return instruction
+        }
+
+        @discardableResult
+        public func buildSuperclass(metadata: Value, name: String? = nil) -> Superclass {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.Superclass(
+                registry: registry, metadata: metadata, name: freshName(name)
+            )
+            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            return instruction
+        }
+
+        @discardableResult
+        public func buildTrap(message: String? = nil) -> Trap {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.Trap(message: message)
+            insertPoint.instructions.append(attach(instruction))
             return instruction
         }
 

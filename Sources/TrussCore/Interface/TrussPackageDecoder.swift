@@ -43,7 +43,7 @@ public struct TrussPackageDecoder {
     }
 
     private func decodeTypeRef(_ reader: inout BitReader) throws -> InterfaceTypeRef {
-        guard let kind = InterfaceTypeRefCode(rawValue: try reader.u8()) else {
+        guard let kind = try InterfaceTypeRefCode(rawValue: reader.u8()) else {
             throw TrussPackageCodecError.truncated
         }
         switch kind {
@@ -148,12 +148,12 @@ public struct TrussPackageDecoder {
     }
 
     private func decodeTypeDecl(_ reader: inout BitReader) throws -> InterfaceType {
-        guard let kind = InterfaceTypeDeclCode(rawValue: try reader.u8()) else {
+        guard let kind = try InterfaceTypeDeclCode(rawValue: reader.u8()) else {
             throw TrussPackageCodecError.truncated
         }
         switch kind {
         case .nominal:
-            guard let nkind = InterfaceNominalKind(rawValue: try reader.u8()) else {
+            guard let nkind = try InterfaceNominalKind(rawValue: reader.u8()) else {
                 throw TrussPackageCodecError.truncated
             }
             let name = try reader.string()
@@ -191,7 +191,7 @@ public struct TrussPackageDecoder {
     }
 
     private func decodeValueDecl(_ reader: inout BitReader) throws -> InterfaceValue {
-        guard let kind = InterfaceValueDeclCode(rawValue: try reader.u8()) else {
+        guard let kind = try InterfaceValueDeclCode(rawValue: reader.u8()) else {
             throw TrussPackageCodecError.truncated
         }
         switch kind {

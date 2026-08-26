@@ -195,6 +195,37 @@ extension TIR {
         }
 
         @discardableResult
+        open func visitTypeMetadata(
+            _ instruction: TypeMetadata, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitTypeMetadataConstant(
+            _ instruction: TypeMetadataConstant, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitIsInstance(
+            _ instruction: IsInstance, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitSuperclass(
+            _ instruction: Superclass, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitTrap(_ instruction: Trap, additional: Any? = nil) -> Any? { nil }
+
+        @discardableResult
         open func visitRetain(_ instruction: Retain, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult

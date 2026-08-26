@@ -1,6 +1,6 @@
 import TrussCore
 
-final class TypeMangler {
+final class Mangler {
     private let context: Context
 
     init(context: Context) {
@@ -175,7 +175,8 @@ final class TypeMangler {
 
     func mangleDeinitName(_ owner: Symbol.NominalTypeSymbol, modulePath: [Symbol.ModuleSymbol]) -> String {
         var result = "$t"
-        result += mangleIdentifier("main")
+        let packageName = owner.packageId.flatMap { context.id2Symbol[$0]?.name } ?? "main"
+        result += mangleIdentifier(packageName)
         for moduleSymbol in modulePath {
             result += mangleIdentifier(moduleSymbol.name)
         }

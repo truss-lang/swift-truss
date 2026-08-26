@@ -36,7 +36,9 @@ public final class TrussPackageEncoder {
             switch type {
             case let .nominal(n):
                 for c in n.cases {
-                    for t in c.associatedTypes { indexType(t) }
+                    for t in c.associatedTypes {
+                        indexType(t)
+                    }
                 }
                 collectTypes(in: n.scope)
             case let .typeAlias(a): if let t = a.target { indexType(t) }

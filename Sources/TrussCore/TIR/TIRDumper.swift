@@ -109,6 +109,8 @@ public extension TIR {
                 }
             case _ as TIRType.PointerType:
                 return "ptr"
+            case _ as TIRType.MetadataType:
+                return "metadata"
             case let nominal as TIRType.NominalType:
                 return "%" + nominal.name
             case let tuple as TIRType.TupleType:
@@ -277,6 +279,20 @@ public extension TIR {
                 body = "upcast \(valueText(upcast.value)) to \(typeText(upcast.targetType))"
             case let cast as UncheckedRefCast:
                 body = "uncheckedrefcast \(valueText(cast.value)) to \(typeText(cast.targetType))"
+            case let typeMetadata as TypeMetadata:
+                body = "typemetadata \(valueText(typeMetadata.value))"
+            case let typeMetadataConstant as TypeMetadataConstant:
+                body = "typemetadataconstant \(typeText(typeMetadataConstant.type))"
+            case let isInstance as IsInstance:
+                body = "isinstance \(valueText(isInstance.metadata)), \(valueText(isInstance.target))"
+            case let superclass as Superclass:
+                body = "superclass \(valueText(superclass.metadata))"
+            case let trap as Trap:
+                if let message = trap.message {
+                    body = "trap \"" + message + "\""
+                } else {
+                    body = "trap"
+                }
             case let retain as Retain:
                 body = "retain \(valueText(retain.value))"
             case let release as Release:

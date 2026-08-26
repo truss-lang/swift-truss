@@ -1,10 +1,17 @@
 import TrussCore
 
+struct AccessorPair {
+    var getter: TIR.Function?
+    var setter: TIR.Function?
+    var willSet: TIR.Function?
+    var didSet: TIR.Function?
+}
+
 final class GenerationContext {
     let context: Context
-    let mangler: TypeMangler
-    let typeLower: TypeLower
     let registry: TIR.Registry
+    let mangler: Mangler
+    let typeLower: TypeLower
     var modules: [TIR.Module] = []
     var currentModule: TIR.Module?
     var builder: TIR.Builder?
@@ -16,22 +23,27 @@ final class GenerationContext {
     var collectTypeStack: [Symbol.NominalTypeSymbol] = []
     var staticVariableSymbols: Set<Id.SymbolId> = []
     var initFunctionsByType: [Id.SymbolId: TIR.Function] = [:]
+    var accessorFunctions: [Id.SymbolId: AccessorPair] = [:]
     var deinitFunctions: [ObjectIdentifier: TIR.Function] = [:]
     var deinitOwners: [ObjectIdentifier: Symbol.NominalTypeSymbol] = [:]
 
-    init(context: Context, mangler: TypeMangler, typeLower: TypeLower) {
+    init(context: Context) {
         self.context = context
-        self.mangler = mangler
-        self.typeLower = typeLower
         registry = TIR.Registry()
-        typeLower.registry = registry
+        mangler = Mangler(context: context)
+        typeLower = TypeLower(context: context, mangler: mangler, registry: registry)
     }
 
     func makeModule() -> TIR.Module {
         let module = TIR.Module(registry: registry)
         modules.append(module)
         currentModule = module
-        typeLower.registry = registry
         return module
+    }
+}
+
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }
