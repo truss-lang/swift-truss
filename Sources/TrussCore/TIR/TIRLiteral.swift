@@ -81,4 +81,14 @@ public extension TIR {
             visitor.visitNullptrLiteral(self, additional: additional)
         }
     }
+
+    final class VoidLiteral: Literal {
+        public override init(ty: Id.TIRTypeId, name: String) {
+            super.init(ty: ty, name: name)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitVoidLiteral(self, additional: additional)
+        }
+    }
 }

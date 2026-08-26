@@ -61,6 +61,11 @@ extension TIR {
         }
 
         @discardableResult
+        open func visitVoidLiteral(_ literal: VoidLiteral, additional: Any? = nil) -> Any? {
+            nil
+        }
+
+        @discardableResult
         open func visitReturn(_ instruction: Return, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult

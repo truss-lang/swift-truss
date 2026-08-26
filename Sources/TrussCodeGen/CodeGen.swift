@@ -1216,6 +1216,12 @@ public final class CodeGen: TIR.Visitor {
         return nil
     }
 
+    public override func visitVoidLiteral(
+        _ literal: TIR.VoidLiteral, additional: Any? = nil
+    ) -> Any? {
+        return nil
+    }
+
     public override func visitStringLiteral(
         _ literal: TIR.StringLiteral, additional: Any? = nil
     ) -> Any? {

@@ -33,6 +33,8 @@ final class TIREmitter: AST.Visitor {
     private var handlerStack: [ExceptionHandler] = []
     private var loopStack: [LoopContext] = []
     private var labelMap: [String: LabelTarget] = [:]
+    private var closureParamStack: [[TIR.Value]] = []
+    private var closureCounter = 0
 
     init(context: Context, gen: GenerationContext) {
         self.context = context
@@ -1688,7 +1690,8 @@ final class TIREmitter: AST.Visitor {
     public override func visitVoidLiteral(
         _ voidLiteral: AST.VoidLiteral, additional: Any? = nil
     ) -> Any? {
-        nil
+        guard let builder else { return nil }
+        return builder.buildVoidLiteral(ty: lowerType(voidLiteral.ty).id)
     }
 
     @discardableResult
@@ -1775,6 +1778,184 @@ final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
+        guard let builder, let functionType = closure.ty as? TrussType.FunctionType else {
+            return nil
+        }
+        let captureEntries = closureCaptures(closure)
+        let closureFunction = createClosureFunction(closure, functionType: functionType, captures: captureEntries)
+        let captureValues = buildCaptureValues(captureEntries, at: closure.sourceRange)
+        emitClosureBody(closure, function: closureFunction, functionType: functionType, captures: captureEntries)
+        return builder.buildClosure(function: closureFunction, captures: captureValues).result
+    }
+
+    private func closureCaptures(_ closure: AST.Closure) -> [(symbol: Symbol.VariableSymbol, mutable: Bool)] {
+        let scanner = ClosureCaptureScanner()
+        var excluding: Set<Id.SymbolId> = []
+        if let scope = closure.scope {
+            for symbols in scope.values.values {
+                for symbol in symbols {
+                    excluding.insert(symbol.id)
+                }
+            }
+        }
+        let scan = scanner.scan(statements: closure.body, excluding: excluding)
+        var entries: [(Symbol.VariableSymbol, Bool)] = []
+        var seen = Set<Id.SymbolId>()
+        let referenceIds = scan.referenced.filter { env[$0] != nil }
+        for id in referenceIds {
+            guard let symbol = context.id2Symbol[id] as? Symbol.VariableSymbol else { continue }
+            if seen.contains(id) { continue }
+            seen.insert(id)
+            entries.append((symbol, scan.mutated.contains(id)))
+        }
+        if let signature = closure.signature {
+            for item in signature.captureList {
+                if item.specifier != nil {
+                    context.emitError(
+                        "unsupported: weak/unowned capture is not supported yet", at: item.name
+                    )
+                    continue
+                }
+                if let symbol = context.id2Symbol.values.compactMap({ $0 as? Symbol.VariableSymbol })
+                    .first(where: { $0.name == item.name.value }),
+                    !seen.contains(symbol.id)
+                {
+                    seen.insert(symbol.id)
+                    entries.append((symbol, scan.mutated.contains(symbol.id)))
+                }
+            }
+        }
+        return entries
+    }
+
+    private func createClosureFunction(
+        _ closure: AST.Closure, functionType: TrussType.FunctionType,
+        captures: [(symbol: Symbol.VariableSymbol, mutable: Bool)]
+    ) -> TIR.Function {
+        let baseName = (currentFunction?.name ?? "") + "_closure_\(closureCounter)"
+        closureCounter += 1
+        var parameters: [TIR.Parameter] = captures.map { capture in
+            let valueType = lowerType(capture.symbol.type).id
+            let paramType = capture.mutable
+                ? gen.registry.pointerType(pointee: valueType).id
+                : valueType
+            return TIR.Parameter(ty: paramType, name: capture.symbol.name)
+        }
+        parameters.append(contentsOf: functionType.parameters.enumerated().map { index, parameter in
+            let ty = gen.typeLower.lower(parameter.type).id
+            let name = closure.signature?.parameters[safe: index]?.name.value ?? "arg(index)"
+            return TIR.Parameter(ty: ty, name: name)
+        })
+        let returnType = gen.typeLower.lower(functionType.returnType)
+        return gen.currentModule!.addFunction(
+            name: baseName, parameters: parameters, returnType: returnType.id,
+            isVariadic: functionType.isVariadic, isExtern: false, callingConvention: nil
+        )
+    }
+
+    private func buildCaptureValues(
+        _ captures: [(symbol: Symbol.VariableSymbol, mutable: Bool)], at range: SourceRange
+    ) -> [TIR.Value] {
+        guard let builder else { return [] }
+        var values: [TIR.Value] = []
+        for capture in captures {
+            guard let address = env[capture.symbol.id] else { continue }
+            if capture.mutable {
+                let cell = builder.buildAllocCell(allocatedType: lowerType(capture.symbol.type).id)
+                if let value = loadFrom(address, range: range) {
+                    builder.buildStore(value: value, to: cell.result)
+                }
+                values.append(cell.result)
+            } else {
+                if let value = loadFrom(address, range: range) {
+                    values.append(value)
+                }
+            }
+        }
+        return values
+    }
+
+    private func emitClosureBody(
+        _ closure: AST.Closure, function: TIR.Function, functionType: TrussType.FunctionType,
+        captures: [(symbol: Symbol.VariableSymbol, mutable: Bool)]
+    ) {
+        guard gen.builder != nil else { return }
+        let savedBuilder = builder
+        let savedEnv = env
+        let savedModulePath = gen.modulePathStack
+
+        let entryBlock = function.addBasicBlock(name: "entry")
+        let b = TIR.Builder(registry: gen.registry)
+        b.insertPoint = entryBlock
+        builder = b
+        env = [:]
+        currentFunction = function
+        currentFunctionIsThrowing = functionType.isThrowing
+        blockCounter = 0
+        deferStack = []
+        handlerStack = []
+        loopStack = []
+        labelMap = [:]
+        deferStack.append(DeferFrame())
+        if currentFunctionIsThrowing {
+            handlerStack.append(ExceptionHandler(catchEntry: nil, errorSlot: nil, deferDepth: 0))
+        }
+
+        for (index, capture) in captures.enumerated() {
+            guard let param = function.parameters[safe: index] else { continue }
+            if capture.mutable {
+                let address = b.buildProjectCell(cell: param).result
+                env[capture.symbol.id] = address
+            } else {
+                let alloc = b.buildAllocStack(
+                    allocatedType: lowerType(capture.symbol.type).id, name: capture.symbol.name
+                )
+                b.buildStore(value: param, to: alloc.result)
+                env[capture.symbol.id] = alloc.result
+            }
+        }
+
+        let userStart = captures.count
+        var paramAddresses: [TIR.Value] = []
+        if let signature = closure.signature {
+            for (index, parameter) in signature.parameters.enumerated() {
+                let paramType = lowerType(
+                    functionType.parameters[safe: index].map(\.type) ?? parameter.type?.ty
+                )
+                let argument = function.parameters[safe: userStart + index] ?? TIR.Parameter(
+                    ty: paramType.id, name: parameter.name.value
+                )
+                let alloc = b.buildAllocStack(allocatedType: paramType.id, name: parameter.name.value)
+                b.buildStore(value: argument, to: alloc.result)
+                paramAddresses.append(alloc.result)
+                let variableSymbol = closureParameterVariableSymbol(closure, parameter.name.value)
+                if let variableSymbol {
+                    env[variableSymbol.id] = alloc.result
+                }
+            }
+        }
+        closureParamStack.append(paramAddresses)
+
+        let savedLabelInsert = b.insertPoint
+        collectForwardLabels(closure.body)
+        b.insertPoint = savedLabelInsert
+        visitBodyStatements(closure.body, implicitReturn: shouldImplicitReturn(functionType.returnType))
+        ensureTerminator(range: closure.sourceRange)
+        closureParamStack.removeLast()
+
+        builder = savedBuilder
+        env = savedEnv
+        gen.modulePathStack = savedModulePath
+    }
+
+    private func closureParameterVariableSymbol(
+        _ closure: AST.Closure, _ name: String
+    ) -> Symbol.VariableSymbol? {
+        closure.scope?.values[name]?.compactMap { $0 as? Symbol.VariableSymbol }.first
+    }
+
+    @discardableResult
     public override func visitCall(_ call: AST.Call, additional: Any? = nil) -> Any? {
         guard let builder else { return nil }
         if let arith = builtinArithInfo(of: call.callee) {
@@ -1782,7 +1963,8 @@ final class TIREmitter: AST.Visitor {
             return emitBuiltinArith(arith, arguments: arguments)
         }
         guard let calleeValue = lowerCallee(call.callee, at: call.sourceRange) else { return nil }
-        let arguments: [TIR.Value] = call.arguments.compactMap { visitExpression($0.value) }
+        var arguments: [TIR.Value] = call.arguments.map { visitExpression($0.value) }.compactMap { $0 }
+        arguments.append(contentsOf: call.trailingClosures.compactMap { visitExpression($0.1) })
         return builder.buildCall(callee: calleeValue, arguments: arguments).result
     }
 
@@ -2321,9 +2503,7 @@ final class TIREmitter: AST.Visitor {
         guard let base = visitExpression(subscriptExpression.base) else { return nil }
         let callee = builder.buildFunctionRef(function: getter)
         var arguments: [TIR.Value] = [base]
-        arguments.append(contentsOf: subscriptExpression.arguments.compactMap {
-            visitExpression($0.value)
-        })
+        arguments.append(contentsOf: subscriptExpression.arguments.map { visitExpression($0.value) }.compactMap { $0 })
         return builder.buildCall(callee: callee, arguments: arguments).result
     }
 
@@ -2379,7 +2559,7 @@ final class TIREmitter: AST.Visitor {
     @discardableResult
     public override func visitTuple(_ tuple: AST.Tuple, additional: Any? = nil) -> Any? {
         guard let builder else { return nil }
-        let elements = tuple.elements.compactMap { visitExpression($0.value) }
+        let elements = tuple.elements.map { visitExpression($0.value) }.compactMap { $0 }
         let ty = lowerType(tuple.ty).id
         return builder.buildTupleValue(elements: elements, ty: ty).result
     }
@@ -2397,15 +2577,10 @@ final class TIREmitter: AST.Visitor {
     public override func visitShorthandArgument(
         _ shorthandArgument: AST.ShorthandArgument, additional: Any? = nil
     ) -> Any? {
-        guard let symbol = shorthandArgumentSymbol(shorthandArgument.index) else { return nil }
-        if let address = env[symbol.id] {
-            return loadFrom(address, range: shorthandArgument.sourceRange)
-        }
-        return nil
-    }
-
-    private func shorthandArgumentSymbol(_ index: Int) -> Symbol.VariableSymbol? {
-        nil
+        guard let parameters = closureParamStack.last,
+              shorthandArgument.index < parameters.count
+        else { return nil }
+        return loadFrom(parameters[shorthandArgument.index], range: shorthandArgument.sourceRange)
     }
 
     @discardableResult
@@ -2541,5 +2716,116 @@ final class TIREmitter: AST.Visitor {
         _ keyPathExpression: AST.KeyPathExpression, additional: Any? = nil
     ) -> Any? {
         emitUnsupported(keyPathExpression)
+    }
+}
+
+private final class ClosureCaptureScanner: AST.Visitor {
+    private var referencedOrder: [Id.SymbolId] = []
+    private var referencedSet: Set<Id.SymbolId> = []
+    private var mutated: Set<Id.SymbolId> = []
+    private var excluding: Set<Id.SymbolId> = []
+
+    func scan(statements: [AST.Statement], excluding excluded: Set<Id.SymbolId>) -> (referenced: [Id.SymbolId], mutated: Set<Id.SymbolId>) {
+        excluding = excluded
+        referencedOrder = []
+        referencedSet = []
+        mutated = []
+        for statement in statements {
+            visit(statement)
+        }
+        return (referencedOrder, mutated)
+    }
+
+    private func recordReference(_ symbol: Symbol.Symbol?) {
+        guard let symbol, !excluding.contains(symbol.id), !referencedSet.contains(symbol.id) else {
+            return
+        }
+        referencedSet.insert(symbol.id)
+        referencedOrder.append(symbol.id)
+    }
+
+    private func recordMutation(_ symbol: Symbol.Symbol?) {
+        recordReference(symbol)
+        guard let symbol else { return }
+        mutated.insert(symbol.id)
+    }
+
+    @discardableResult
+    public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
+        recordReference(variable.symbol)
+        return super.visitVariable(variable, additional: additional)
+    }
+
+    @discardableResult
+    public override func visitSelfExpression(
+        _ selfExpression: AST.SelfExpression, additional: Any? = nil
+    ) -> Any? {
+        recordReference(selfExpression.symbol)
+        return super.visitSelfExpression(selfExpression, additional: additional)
+    }
+
+    @discardableResult
+    public override func visitMemberAccess(
+        _ memberAccess: AST.MemberAccess, additional: Any? = nil
+    ) -> Any? {
+        recordReference(memberAccess.symbol)
+        return super.visitMemberAccess(memberAccess, additional: additional)
+    }
+
+    @discardableResult
+    public override func visitSubscript(
+        _ subscriptExpression: AST.Subscript, additional: Any? = nil
+    ) -> Any? {
+        recordReference(subscriptExpression.symbol)
+        return super.visitSubscript(subscriptExpression, additional: additional)
+    }
+
+    @discardableResult
+    public override func visitImplicitMemberAccess(
+        _ implicitMemberAccess: AST.ImplicitMemberAccess, additional: Any? = nil
+    ) -> Any? {
+        recordReference(implicitMemberAccess.symbol)
+        return super.visitImplicitMemberAccess(implicitMemberAccess, additional: additional)
+    }
+
+    @discardableResult
+    public override func visitBinary(_ binary: AST.Binary, additional: Any? = nil) -> Any? {
+        if binary.isAssignment {
+            markAssignmentTarget(binary.left)
+        }
+        return super.visitBinary(binary, additional: additional)
+    }
+
+    private func markAssignmentTarget(_ expression: AST.Expression) {
+        switch expression {
+        case let variable as AST.Variable:
+            recordMutation(variable.symbol)
+        case let member as AST.MemberAccess:
+            markAssignmentTarget(member.object)
+        case let subscriptExpr as AST.Subscript:
+            markAssignmentTarget(subscriptExpr.base)
+        case let deref as AST.Dereference:
+            markAssignmentTarget(deref.expression)
+        case let parenthetical as AST.Parenthetical:
+            markAssignmentTarget(parenthetical.inner)
+        case let tuple as AST.Tuple:
+            for element in tuple.elements {
+                markAssignmentTarget(element.value)
+            }
+        default:
+            visitExpressionTargets(expression)
+        }
+    }
+
+    private func visitExpressionTargets(_ expression: AST.Expression) {
+        let scanner = ClosureCaptureScanner()
+        _ = scanner.scan(statements: [AST.ExpressionStatement(expression)], excluding: excluding)
+        mutated.formUnion(scanner.mutated)
+        for id in scanner.referencedOrder {
+            if !referencedSet.contains(id) {
+                referencedSet.insert(id)
+                referencedOrder.append(id)
+            }
+        }
     }
 }

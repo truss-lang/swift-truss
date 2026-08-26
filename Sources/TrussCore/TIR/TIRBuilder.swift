@@ -520,5 +520,12 @@ public extension TIR {
             literal.sourceRange = sourceRange
             return literal
         }
+
+        @discardableResult
+        public func buildVoidLiteral(ty: Id.TIRTypeId, name: String? = nil) -> VoidLiteral {
+            let literal = TIR.VoidLiteral(ty: ty, name: name ?? "")
+            literal.sourceRange = sourceRange
+            return literal
+        }
     }
 }

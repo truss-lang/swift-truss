@@ -148,6 +148,8 @@ public extension TIR {
                     .replacingOccurrences(of: "\"", with: "\\\"") + "\""
             case _ as NullptrLiteral:
                 "null"
+            case _ as VoidLiteral:
+                "void"
             case let function as FunctionRef:
                 registry?.functions[function.functionId].map { "@" + $0.name } ?? "?"
             case let globalAddr as GlobalAddr:

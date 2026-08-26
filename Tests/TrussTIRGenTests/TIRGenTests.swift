@@ -397,6 +397,76 @@ import TrussTIRGen
         try #require(tir.contains("trycall"))
         try #require(tir.contains("store void 1"))
     }
+    @Test func closureLowersToFunctionAndClosureInstruction() throws {
+        let tir = dumpTIR(
+            """
+            struct S {
+                init() {}
+            }
+            func f() {
+                let g = { (a: S) -> S in
+                    return a
+                }
+            }
+            """
+        )
+        try #require(tir.contains("@$t4main_1f_4Void_closure_0"))
+        try #require(tir.contains("closure @$t4main_1f_4Void_closure_0"))
+        try #require(tir.contains("(%$t4main_1S) -> %$t4main_1S"))
+        try #require(tir.contains("ret %"))
+    }
+
+    @Test func closureCapturesMutableVariableByCell() throws {
+        let tir = dumpTIR(
+            """
+            precedencegroup Assignment { assignment: true }
+            infix operator =: Assignment
+            struct S {
+                init() {}
+            }
+            func f() {
+                var x: S = S()
+                let g = { () -> Void in
+                    x = S()
+                }
+            }
+            """
+        )
+        try #require(tir.contains("$t4main_1f_4Void_closure_0"))
+        try #require(tir.contains("alloccell"))
+        try #require(tir.contains("closure @$t4main_1f_4Void_closure_0"))
+    }
+
+    @Test func shorthandArgumentBindsClosureParameter() throws {
+        let tir = dumpTIR(
+            """
+            struct S {
+                init() {}
+            }
+            func f() {
+                let c = { (a: S, b: S) -> S in
+                    return $1
+                }
+            }
+            """
+        )
+        try #require(tir.contains("$t4main_1f_4Void_closure_0"))
+        try #require(tir.contains("ret %"))
+        try #require(tir.contains("load %"))
+    }
+
+    @Test func voidLiteralLowersToVoidValue() throws {
+        let tir = dumpTIR(
+            """
+            func f() {
+                let v = ()
+            }
+            """
+        )
+        try #require(tir.contains("alloca void"))
+        try #require(tir.contains("store void"))
+    }
+
 }
 
 @Suite struct GlobalVarTests {
@@ -1952,7 +2022,7 @@ import TrussTIRGen
     )
     let fBlock = tir.components(separatedBy: "function ").last
         ?? ""
-    try #require(fBlock.range(of: #"Return %\d+"#, options: .regularExpression) != nil)
+    try #require(fBlock.range(of: #"ret %\d+"#, options: .regularExpression) != nil)
 }
 
 @Test func implicitReturnInGetter() throws {
@@ -1971,7 +2041,7 @@ import TrussTIRGen
     )
     let getterBlock = tir.components(separatedBy: "function ")
         .first(where: { $0.contains("1xGetter_") }) ?? ""
-    try #require(getterBlock.range(of: #"Return %\d+"#, options: .regularExpression) != nil)
+    try #require(getterBlock.range(of: #"ret %\d+"#, options: .regularExpression) != nil)
 }
 
 @Test func implicitReturnInClosure() throws {
@@ -1987,7 +2057,7 @@ import TrussTIRGen
     )
     let closureBlock = tir.components(separatedBy: "function ")
         .first(where: { $0.hasPrefix("$t4main_1f_4Void_closure_0") }) ?? ""
-    try #require(closureBlock.range(of: #"Return %\d+"#, options: .regularExpression) != nil)
+    try #require(closureBlock.range(of: #"ret %\d+"#, options: .regularExpression) != nil)
 }
 
 @Test func builtinTypeLowersToPrimitive() throws {
@@ -2113,8 +2183,8 @@ import TrussTIRGen
             """
         )
         try #require(tir.contains("@$t4main_1f_4Void_closure_0"))
-        try #require(tir.contains("Closure $t4main_1f_4Void_closure_0"))
-        try #require(tir.contains("Return "))
+        try #require(tir.contains("closure @$t4main_1f_4Void_closure_0"))
+        try #require(tir.contains("ret %"))
     }
 
     @Test func globalInitializerLowered() throws {
