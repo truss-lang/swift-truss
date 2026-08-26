@@ -35,6 +35,7 @@ final class TIREmitter: AST.Visitor {
     private var labelMap: [String: LabelTarget] = [:]
     private var closureParamStack: [[TIR.Value]] = []
     private var closureCounter = 0
+    private var existentialLocalStack: [[Id.SymbolId]] = []
 
     init(context: Context, gen: GenerationContext) {
         self.context = context
@@ -66,6 +67,242 @@ final class TIREmitter: AST.Visitor {
 
     private func isReferenceType(_ type: TrussType.TrussType?) -> Bool {
         type is TrussType.ClassType || type is TrussType.ActorType
+    }
+
+    private func isInitPointerSelf(_ ty: Id.TIRTypeId) -> Bool {
+        gen.registry.types[ty] is TIRType.PointerType
+    }
+
+    private func isExistentialType(_ type: TrussType.TrussType?) -> Bool {
+        guard let type else { return false }
+        return type is TrussType.ProtocolType || type is TrussType.CompositionType
+    }
+
+    private func existentialBoxedValue(
+        value: TIR.Value, valueType: TrussType.TrussType?, targetType: TrussType.TrussType?,
+        boxKey: Id.SymbolId, sourceRange: SourceRange
+    ) -> TIR.Value? {
+        guard let builder, isExistentialType(targetType) else { return value }
+        if isExistentialType(valueType) {
+            return builder.buildExistentialCopy(
+                container: value, ty: lowerType(valueType).id
+            ).result
+        }
+        guard let concrete = nominalType(of: valueType) else { return nil }
+        let containerType = gen.typeLower.lower(targetType!)
+        var witnesses: [Id.TIRProtocolId: Id.TIRWitnessId] = [:]
+        for protocolType in protocols(of: targetType) {
+            guard concreteConforms(concrete, to: protocolType),
+                  let witness = witnessRecord(
+                      concreteType: concrete, protocolType: protocolType
+                  )
+            else {
+                continue
+            }
+            witnesses[gen.typeLower.protocolId(for: protocolType)] = witness.id
+        }
+        guard let first = witnesses.first?.value,
+              let buildWitness = gen.registry.witnesses[first]
+        else {
+            return nil
+        }
+        let boxed = builder.buildBuildExistential(
+            value: value, witness: buildWitness.id, ty: containerType.id
+        ).result
+        gen.existentialBoxes[boxKey] = GenerationContext.ExistentialBox(
+            witnesses: witnesses,
+            concreteType: gen.typeLower.lower(concrete).id,
+            containerType: containerType.id
+        )
+        if !existentialLocalStack.isEmpty {
+            existentialLocalStack[existentialLocalStack.count - 1].append(boxKey)
+        }
+        return boxed
+    }
+
+
+    private func protocols(of type: TrussType.TrussType?) -> [TrussType.ProtocolType] {
+        guard let type else { return [] }
+        if let protocolType = type as? TrussType.ProtocolType { return [protocolType] }
+        if let composition = type as? TrussType.CompositionType {
+            return composition.members.compactMap { $0 as? TrussType.ProtocolType }
+        }
+        return []
+    }
+
+    private func nominalType(of type: TrussType.TrussType?) -> TrussType.NominalType? {
+        guard let type else { return nil }
+        if let nominal = type as? TrussType.NominalType { return nominal }
+        if let generic = type as? TrussType.GenericInstantiation { return generic.base }
+        if let variable = type as? TrussType.TypeVariableType, let binding = variable.binding {
+            return nominalType(of: binding)
+        }
+        return nil
+    }
+
+    private func targetProtocol(
+        of type: TrussType.TrussType?, conformedBy concrete: TrussType.NominalType
+    ) -> TrussType.ProtocolType? {
+        let members: [TrussType.TrussType]
+        if let composition = type as? TrussType.CompositionType {
+            members = composition.members
+        } else if let protocolType = type as? TrussType.ProtocolType {
+            members = [protocolType]
+        } else {
+            return nil
+        }
+        for member in members {
+            guard let protocolType = member as? TrussType.ProtocolType else { continue }
+            if concreteConforms(concrete, to: protocolType) {
+                return protocolType
+            }
+        }
+        return nil
+    }
+
+    private func concreteConforms(
+        _ concrete: TrussType.NominalType, to protocolType: TrussType.ProtocolType
+    ) -> Bool {
+        guard let symbol = concrete.symbol as? Symbol.NominalTypeSymbol else { return false }
+        return symbol.conformances.contains(where: { $0.typeId == protocolType.id })
+    }
+
+    private func witnessRecord(
+        concreteType: TrussType.NominalType, protocolType: TrussType.ProtocolType
+    ) -> TIR.WitnessRecord? {
+        let protocolId = gen.typeLower.protocolId(for: protocolType)
+        let concreteId = gen.typeLower.lower(concreteType).id
+        let witness = gen.registry.addWitness(protocolId: protocolId, concreteType: concreteId)
+        if witness.entries.isEmpty {
+            if let protocolRecord = gen.registry.protocols[protocolId],
+               let symbol = concreteType.symbol as? Symbol.NominalTypeSymbol
+            {
+                for requirement in protocolRecord.requirements {
+                    if let function = witnessImplementation(
+                        requirement, in: symbol
+                    ) {
+                        witness.entries.append(
+                            TIR.WitnessEntry(name: requirement, function: function.id)
+                        )
+                    }
+                }
+            }
+        }
+        return witness
+    }
+
+    private func witnessImplementation(
+        _ name: String, in type: Symbol.NominalTypeSymbol
+    ) -> TIR.Function? {
+        var current: Symbol.NominalTypeSymbol? = type
+        while let currentType = current {
+            if let entries = currentType.scope.values[name] {
+                if let functionSymbol = entries.first as? Symbol.FunctionSymbol,
+                   let function = gen.functionsBySymbol[functionSymbol.id]
+                {
+                    return function
+                }
+                if let variableSymbol = entries.first as? Symbol.VariableSymbol,
+                   let getter = gen.accessorFunctions[variableSymbol.id]?.getter
+                {
+                    return getter
+                }
+            }
+            current = (currentType as? Symbol.ClassSymbol)?.superclass
+        }
+        return nil
+    }
+
+    private func existentialBox(for symbolId: Id.SymbolId?) -> GenerationContext.ExistentialBox? {
+        guard let symbolId else { return nil }
+        return gen.existentialBoxes[symbolId]
+    }
+
+    private func objectSymbol(of expression: AST.Expression) -> Id.SymbolId? {
+        switch expression {
+        case let variable as AST.Variable:
+            return variable.symbol?.id
+        case let member as AST.MemberAccess:
+            return member.symbol?.id
+        case let parenthetical as AST.Parenthetical:
+            return objectSymbol(of: parenthetical.inner)
+        default:
+            return nil
+        }
+    }
+
+    private func emitWitnessDispatch(
+        _ memberAccess: AST.MemberAccess, arguments: [AST.LabeledArgument]
+    ) -> TIR.Value? {
+        guard let builder,
+              let objectValue = visitExpression(memberAccess.object),
+              let objectType = memberAccess.object.ty
+        else {
+            return nil
+        }
+        guard let box = existentialBox(for: objectSymbol(of: memberAccess.object)) else {
+            return nil
+        }
+        let protocolId = declaringProtocolId(of: memberAccess)
+            ?? protocolIdForRequirement(memberAccess.member.value, in: box)
+        guard let protocolId else { return nil }
+        guard let witnessId = box.witnesses[protocolId] else { return nil }
+        guard let witness = gen.registry.witnesses[witnessId] else { return nil }
+        guard let index = requirementIndex(of: memberAccess.member.value, in: witness) else {
+            return nil
+        }
+        let opened = builder.buildOpenExistential(
+            container: objectValue, ty: box.concreteType
+        ).result
+        let argValues: [TIR.Value] = arguments.compactMap { visitExpression($0.value) }
+        let resultTy = witnessReturnType(of: witness, index: index)
+            ?? memberAccess.ty.flatMap { lowerType($0).id }
+        guard let resultTy else { return nil }
+        return builder.buildWitnessMethod(
+            witness: witnessId, index: index, selfValue: opened, arguments: argValues,
+            ty: resultTy
+        ).result
+    }
+
+    private func declaringProtocolId(of memberAccess: AST.MemberAccess) -> Id.TIRProtocolId? {
+        guard let memberOf = memberAccess.symbol?.memberOf,
+              let owner = context.id2Symbol[memberOf] as? Symbol.ProtocolSymbol,
+              let typeId = owner.typeId,
+              let protocolType = context.typeTable[typeId] as? TrussType.ProtocolType
+        else {
+            return nil
+        }
+        return gen.typeLower.protocolId(for: protocolType)
+    }
+
+    private func protocolIdForRequirement(
+        _ name: String, in box: GenerationContext.ExistentialBox
+    ) -> Id.TIRProtocolId? {
+        if box.witnesses.count == 1 {
+            return box.witnesses.keys.first
+        }
+        for (protocolId, witnessId) in box.witnesses {
+            guard let witness = gen.registry.witnesses[witnessId],
+                  witness.entries.contains(where: { $0.name == name })
+            else {
+                continue
+            }
+            return protocolId
+        }
+        return nil
+    }
+
+    private func requirementIndex(of name: String, in witness: TIR.WitnessRecord) -> Int? {
+        witness.entries.firstIndex(where: { $0.name == name })
+    }
+
+    private func witnessReturnType(
+        of witness: TIR.WitnessRecord, index: Int
+    ) -> Id.TIRTypeId? {
+        guard index < witness.entries.count else { return nil }
+        let functionId = witness.entries[index].function
+        guard let function = gen.registry.functions[functionId] else { return nil }
+        return function.returnType
     }
 
     private func loadFrom(_ address: TIR.Value, range: SourceRange) -> TIR.Value? {
@@ -136,6 +373,7 @@ final class TIREmitter: AST.Visitor {
         loopStack = []
         labelMap = [:]
         deferStack.append(DeferFrame())
+        existentialLocalStack = [[]]
         if currentFunctionIsThrowing {
             handlerStack.append(ExceptionHandler(catchEntry: nil, errorSlot: nil, deferDepth: 0))
         }
@@ -158,6 +396,7 @@ final class TIREmitter: AST.Visitor {
                 emitReturn(nil, range: range)
             }
         }
+        destroyActiveExistentials()
         ensureTerminator(range: range)
 
         builder = savedBuilder
@@ -172,12 +411,17 @@ final class TIREmitter: AST.Visitor {
         guard let builder else { return }
         var selfIndex = 0
         if hasSelf, let owner, let selfParameter = function.parameters.first {
-            let alloc = builder.buildAllocStack(
-                allocatedType: selfParameter.ty, name: selfParameter.name
-            )
-            builder.buildStore(value: selfParameter, to: alloc.result)
-            env[owner.id] = alloc.result
-            selfIndex = 1
+            if isInitPointerSelf(selfParameter.ty) {
+                env[owner.id] = selfParameter
+                selfIndex = 1
+            } else {
+                let alloc = builder.buildAllocStack(
+                    allocatedType: selfParameter.ty, name: selfParameter.name
+                )
+                builder.buildStore(value: selfParameter, to: alloc.result)
+                env[owner.id] = alloc.result
+                selfIndex = 1
+            }
         }
         for (index, parameter) in parameters.enumerated() {
             let paramType = lowerType(
@@ -558,7 +802,13 @@ final class TIREmitter: AST.Visitor {
         let address = alloc.result
         env[symbol.id] = address
         if let initializer = variableDecl.initializer, let value = visitExpression(initializer) {
-            builder.buildStore(value: value, to: address)
+            let storedValue = existentialBoxedValue(
+                value: value, valueType: initializer.ty, targetType: symbol.type,
+                boxKey: symbol.id, sourceRange: initializer.sourceRange
+            )
+            if let storedValue {
+                builder.buildStore(value: storedValue, to: address)
+            }
         }
         return nil
     }
@@ -706,6 +956,7 @@ final class TIREmitter: AST.Visitor {
         if blockTerminated() { return }
         emitDefersDownTo(0)
         if blockTerminated() { return }
+        destroyActiveExistentials()
         if let types = throwingTupleTypes() {
             let okValue = value ?? makePlaceholder(types.ok)
             let errValue = builder.buildNullptrLiteral(ty: types.err)
@@ -714,6 +965,20 @@ final class TIREmitter: AST.Visitor {
         } else {
             builder.buildReturn(value)
         }
+    }
+
+    private func destroyActiveExistentials() {
+        guard let builder, let frame = existentialLocalStack.last else { return }
+        for symbolId in frame {
+            guard let address = env[symbolId] else { continue }
+            let container = builder.buildLoad(ptr: address).result
+            builder.buildExistentialDestroy(container: container)
+        }
+    }
+
+    private func destroyExistential(_ container: TIR.Value) {
+        guard let builder else { return }
+        builder.buildExistentialDestroy(container: container)
     }
 
     private func emitThrowReturn(_ errValue: TIR.Value, at range: SourceRange) {
@@ -1962,10 +2227,57 @@ final class TIREmitter: AST.Visitor {
             let arguments: [TIR.Value] = call.arguments.compactMap { visitExpression($0.value) }
             return emitBuiltinArith(arith, arguments: arguments)
         }
+        if let constructed = emitObjectConstruction(call) {
+            return constructed
+        }
+        if let member = call.callee as? AST.MemberAccess,
+           isExistentialType(member.object.ty),
+           let dispatched = emitWitnessDispatch(member, arguments: call.arguments)
+        {
+            return dispatched
+        }
         guard let calleeValue = lowerCallee(call.callee, at: call.sourceRange) else { return nil }
         var arguments: [TIR.Value] = call.arguments.map { visitExpression($0.value) }.compactMap { $0 }
         arguments.append(contentsOf: call.trailingClosures.compactMap { visitExpression($0.1) })
         return builder.buildCall(callee: calleeValue, arguments: arguments).result
+    }
+
+    private func emitObjectConstruction(_ call: AST.Call) -> TIR.Value? {
+        guard let builder,
+              let typeSymbol = nominalTypeSymbol(of: call.callee),
+              let initFunction = gen.initFunctionsByType[typeSymbol.id],
+              let typeId = typeSymbol.typeId,
+              let nominal = context.typeTable[typeId] as? TrussType.NominalType
+        else {
+            return nil
+        }
+        let arguments: [TIR.Value] = call.arguments.compactMap { visitExpression($0.value) }
+        let lowered = gen.typeLower.lower(nominal)
+        if nominal is TrussType.ClassType {
+            let alloc = builder.buildAllocHeap(allocatedType: lowered.id, name: "$object")
+            let objectRef = builder.buildUncheckedRefCast(
+                value: alloc.result, to: lowered.id
+            ).result
+            let callee = builder.buildFunctionRef(function: initFunction)
+            builder.buildCall(callee: callee, arguments: [objectRef] + arguments)
+            return objectRef
+        }
+        let alloc = builder.buildAllocStack(allocatedType: lowered.id, name: "$object")
+        let address = alloc.result
+        let callee = builder.buildFunctionRef(function: initFunction)
+        builder.buildCall(callee: callee, arguments: [address] + arguments)
+        return loadFrom(address, range: call.sourceRange)
+    }
+
+    private func nominalTypeSymbol(of expression: AST.Expression) -> Symbol.NominalTypeSymbol? {
+        switch expression {
+        case let variable as AST.Variable:
+            return variable.symbol as? Symbol.NominalTypeSymbol
+        case let application as AST.GenericApplication:
+            return nominalTypeSymbol(of: application.base)
+        default:
+            return nil
+        }
     }
 
     @discardableResult
@@ -2339,7 +2651,11 @@ final class TIREmitter: AST.Visitor {
             }
         }
         guard let address = lvalueAddress(binary.left) else { return nil }
-        builder.buildStore(value: value, to: address)
+        let stored: TIR.Value =
+            isExistentialType(binary.right.ty)
+                ? builder.buildExistentialCopy(container: value, ty: value.ty).result
+                : value
+        builder.buildStore(value: stored, to: address)
         return nil
     }
 

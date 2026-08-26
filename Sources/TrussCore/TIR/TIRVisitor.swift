@@ -244,5 +244,40 @@ extension TIR {
 
         @discardableResult
         open func visitInlineAsm(_ instruction: InlineAsm, additional: Any? = nil) -> Any? { nil }
+
+        @discardableResult
+        open func visitBuildExistential(
+            _ instruction: BuildExistential, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitOpenExistential(
+            _ instruction: OpenExistential, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitWitnessMethod(
+            _ instruction: WitnessMethod, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitExistentialCopy(
+            _ instruction: ExistentialCopy, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitExistentialDestroy(
+            _ instruction: ExistentialDestroy, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
     }
 }

@@ -459,6 +459,64 @@ public extension TIR {
         }
 
         @discardableResult
+        public func buildBuildExistential(
+            value: Value, witness: Id.TIRWitnessId, ty: Id.TIRTypeId, name: String? = nil
+        ) -> BuildExistential {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.BuildExistential(
+                value: value, witness: witness, ty: ty, name: freshName(name)
+            )
+            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            return instruction
+        }
+
+        @discardableResult
+        public func buildOpenExistential(
+            container: Value, ty: Id.TIRTypeId, name: String? = nil
+        ) -> OpenExistential {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.OpenExistential(
+                container: container, ty: ty, name: freshName(name)
+            )
+            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            return instruction
+        }
+
+        @discardableResult
+        public func buildWitnessMethod(
+            witness: Id.TIRWitnessId, index: Int, selfValue: Value, arguments: [Value],
+            ty: Id.TIRTypeId, name: String? = nil
+        ) -> WitnessMethod {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.WitnessMethod(
+                witness: witness, index: index, selfValue: selfValue, arguments: arguments,
+                ty: ty, name: freshName(name)
+            )
+            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            return instruction
+        }
+
+        @discardableResult
+        public func buildExistentialCopy(
+            container: Value, ty: Id.TIRTypeId, name: String? = nil
+        ) -> ExistentialCopy {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.ExistentialCopy(
+                container: container, ty: ty, name: freshName(name)
+            )
+            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            return instruction
+        }
+
+        @discardableResult
+        public func buildExistentialDestroy(container: Value) -> ExistentialDestroy {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.ExistentialDestroy(container: container)
+            insertPoint.instructions.append(attach(instruction))
+            return instruction
+        }
+
+        @discardableResult
         public func buildInlineAsm(
             template: String, constraints: [String], operands: [Value], options: [String]
         ) -> InlineAsm {

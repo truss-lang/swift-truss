@@ -3,9 +3,49 @@ public extension TIR {
         public let id: Id.TIRMetadataId
         public let name: String
         public var superclass: Id.TIRMetadataId?
+        public var conformedProtocols: [Id.TIRProtocolId] = []
         public init(id: Id.TIRMetadataId, name: String) {
             self.id = id
             self.name = name
+        }
+    }
+
+    final class ProtocolRecord {
+        public let id: Id.TIRProtocolId
+        public let name: String
+        public var requirements: [String] = []
+        public init(id: Id.TIRProtocolId, name: String) {
+            self.id = id
+            self.name = name
+        }
+    }
+
+    final class WitnessEntry {
+        public let name: String
+        public let function: Id.TIRFunctionId
+        public init(name: String, function: Id.TIRFunctionId) {
+            self.name = name
+            self.function = function
+        }
+    }
+
+    final class ValueWitnessRecord {
+        public var initFunction: Id.TIRFunctionId?
+        public var copy: Id.TIRFunctionId?
+        public var destroy: Id.TIRFunctionId?
+        public init() {}
+    }
+
+    final class WitnessRecord {
+        public let id: Id.TIRWitnessId
+        public let protocolId: Id.TIRProtocolId
+        public let concreteType: Id.TIRTypeId
+        public var entries: [WitnessEntry] = []
+        public var valueWitness: ValueWitnessRecord = ValueWitnessRecord()
+        public init(id: Id.TIRWitnessId, protocolId: Id.TIRProtocolId, concreteType: Id.TIRTypeId) {
+            self.id = id
+            self.protocolId = protocolId
+            self.concreteType = concreteType
         }
     }
 
@@ -14,7 +54,11 @@ public extension TIR {
         public var globals: [Id.TIRGlobalId: GlobalVariable] = [:]
         public var types: [Id.TIRTypeId: TIRType.TIRType] = [:]
         public var metadatas: [Id.TIRMetadataId: MetadataRecord] = [:]
+        public var protocols: [Id.TIRProtocolId: ProtocolRecord] = [:]
+        public var witnesses: [Id.TIRWitnessId: WitnessRecord] = [:]
         public var typeCache: [AnyHashable: TIRType.TIRType] = [:]
+        private var witnessByConformance: [WitnessKey: Id.TIRWitnessId] = [:]
+        private var existentialCache: [AnyHashable: TIRType.ExistentialType] = [:]
         private var voidTy: TIRType.VoidType?
         private var metadataTy: TIRType.MetadataType?
         public var nextFunctionId: Id.TIRFunctionId {
@@ -31,6 +75,14 @@ public extension TIR {
 
         public var nextMetadataId: Id.TIRMetadataId {
             .init(UInt64(metadatas.count))
+        }
+
+        public var nextProtocolId: Id.TIRProtocolId {
+            .init(UInt64(protocols.count))
+        }
+
+        public var nextWitnessId: Id.TIRWitnessId {
+            .init(UInt64(witnesses.count))
         }
 
         public init() {}
@@ -59,6 +111,49 @@ public extension TIR {
             let record = MetadataRecord(id: nextMetadataId, name: name)
             metadatas[record.id] = record
             return record
+        }
+
+        @discardableResult
+        public func addProtocol(name: String) -> ProtocolRecord {
+            let record = ProtocolRecord(id: nextProtocolId, name: name)
+            protocols[record.id] = record
+            return record
+        }
+
+        public func witness(for conformance: (protocolId: Id.TIRProtocolId, concreteType: Id.TIRTypeId)) -> WitnessRecord? {
+            guard let id = witnessByConformance[WitnessKey(conformance)] else { return nil }
+            return witnesses[id]
+        }
+
+        @discardableResult
+        public func addWitness(
+            protocolId: Id.TIRProtocolId, concreteType: Id.TIRTypeId
+        ) -> WitnessRecord {
+            let key = WitnessKey((protocolId: protocolId, concreteType: concreteType))
+            if let existing = witnessByConformance[key] {
+                return witnesses[existing]!
+            }
+            let record = WitnessRecord(
+                id: nextWitnessId, protocolId: protocolId, concreteType: concreteType
+            )
+            witnesses[record.id] = record
+            witnessByConformance[key] = record.id
+            return record
+        }
+
+        public func existentialType(
+            protocols: [Id.TIRProtocolId], name: String
+        ) -> TIRType.ExistentialType {
+            let key = ExistentialKey(protocols: protocols)
+            if let cached = existentialCache[key] {
+                return cached
+            }
+            let ty = TIRType.ExistentialType(
+                id: nextTypeId, protocols: protocols, name: name
+            )
+            types[ty.id] = ty
+            existentialCache[key] = ty
+            return ty
         }
 
         public func voidType() -> TIRType.VoidType {
@@ -228,6 +323,19 @@ public extension TIR {
 
         private struct TupleKey: Hashable, Equatable {
             let elements: [TIRType.TupleType.Element]
+        }
+
+        private struct WitnessKey: Hashable, Equatable {
+            let protocolId: Id.TIRProtocolId
+            let concreteType: Id.TIRTypeId
+            init(_ conformance: (protocolId: Id.TIRProtocolId, concreteType: Id.TIRTypeId)) {
+                protocolId = conformance.protocolId
+                concreteType = conformance.concreteType
+            }
+        }
+
+        private struct ExistentialKey: Hashable, Equatable {
+            let protocols: [Id.TIRProtocolId]
         }
     }
 }

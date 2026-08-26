@@ -118,6 +118,8 @@ public extension TIR {
             case let function as TIRType.FunctionType:
                 return "(" + function.parameters.map { typeText($0) }
                     .joined(separator: ", ") + ") -> " + typeText(function.returnType)
+            case let existential as TIRType.ExistentialType:
+                return "%" + existential.name
             default:
                 return "?"
             }
@@ -306,6 +308,18 @@ public extension TIR {
             case let asm as InlineAsm:
                 body = "asm \"" + asm.template + "\", \"" + asm.constraints.joined(separator: ",") + "\"(" + asm
                     .operands.map { valueText($0) }.joined(separator: ", ") + ")"
+            case let build as BuildExistential:
+                body = "buildexistential \(valueText(build.value)) witness \(build.witness.id) to \(typeText(build.result.ty))"
+            case let open as OpenExistential:
+                body = "openexistential \(valueText(open.container)) as \(typeText(open.result.ty))"
+            case let witnessMethod as WitnessMethod:
+                let args = ([witnessMethod.selfValue] + witnessMethod.arguments)
+                    .map { valueText($0) }.joined(separator: ", ")
+                body = "witnessmethod \(typeText(witnessMethod.selfValue.ty))#\(witnessMethod.witness.id).\(witnessMethod.index)(" + args + ")"
+            case let existentialCopy as ExistentialCopy:
+                body = "existentialcopy \(valueText(existentialCopy.container))"
+            case let existentialDestroy as ExistentialDestroy:
+                body = "existentialdestroy \(valueText(existentialDestroy.container))"
             default:
                 body = "unknown"
             }

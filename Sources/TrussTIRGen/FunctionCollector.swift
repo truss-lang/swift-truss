@@ -123,9 +123,11 @@ final class FunctionCollector {
             symbol, baseName: "init", returnType: TrussType.VoidType.INSTANCE,
             modulePath: gen.modulePathStack
         )
+        let isStruct = symbol.memberOf.flatMap { context.id2Symbol[$0] } is Symbol.StructSymbol
         let function = createFunction(
             symbol, name: name, returnType: gen.registry.voidType(),
-            parameters: decl.parameters, symbolType: symbol
+            parameters: decl.parameters, symbolType: symbol,
+            isInitSelfPointer: isStruct
         )
         if let memberOf = symbol.memberOf {
             gen.initFunctionsByType[memberOf] = function
@@ -196,14 +198,18 @@ final class FunctionCollector {
     private func createFunction(
         _ symbol: Symbol.FunctionSymbol?, name: String, returnType: TIRType.TIRType,
         parameters: [AST.FunctionDecl.Parameter] = [], symbolType: Symbol.FunctionSymbol? = nil,
-        isVariadic: Bool = false, isExtern: Bool = false, callingConvention: String? = nil
+        isVariadic: Bool = false, isExtern: Bool = false, callingConvention: String? = nil,
+        isInitSelfPointer: Bool = false
     ) -> TIR.Function {
         var tirParameters: [TIR.Parameter] = []
         if let memberOf = symbol?.memberOf, !(symbol?.isStatic ?? true),
            let owner = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol,
            let typeId = owner.typeId, let type = context.typeTable[typeId]
         {
-            let selfType = gen.typeLower.lower(type)
+            let loweredSelf = gen.typeLower.lower(type)
+            let selfType: TIRType.TIRType = isInitSelfPointer
+                ? gen.registry.pointerType(pointee: loweredSelf.id)
+                : loweredSelf
             tirParameters.append(TIR.Parameter(ty: selfType.id, name: "self"))
         }
         tirParameters.append(contentsOf: parameters.enumerated().map { index, parameter in

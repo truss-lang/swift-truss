@@ -7,6 +7,8 @@ final class TypeLower {
     private var enumCases: [Id.ASTTypeId: [(name: String, types: [TrussType.TrussType])]] = [:]
     private var optionalEnums: [Id.TIRTypeId: TIRType.EnumType] = [:]
     private var metadataByType: [Id.TIRTypeId: Id.TIRMetadataId] = [:]
+    private var protocolBySymbol: [Id.SymbolId: Id.TIRProtocolId] = [:]
+    private var protocolSymbols: [Id.TIRProtocolId: Symbol.NominalTypeSymbol] = [:]
     private let mangler: Mangler
     private var modulePath: [Symbol.ModuleSymbol] = []
     private unowned let registry: TIR.Registry
@@ -27,6 +29,85 @@ final class TypeLower {
 
     func setModulePath(_ path: [Symbol.ModuleSymbol]) {
         modulePath = path
+    }
+
+    func protocolId(for type: TrussType.ProtocolType) -> Id.TIRProtocolId {
+        if let symbol = type.symbol, let existing = protocolBySymbol[symbol.id] {
+            return existing
+        }
+        let name = mangler.nominalPath(type, modulePath: modulePath)
+        let record = registry.addProtocol(name: name)
+        protocolSymbols[record.id] = type.symbol
+        if let symbol = type.symbol {
+            protocolBySymbol[symbol.id] = record.id
+        }
+        fillProtocolRequirements(record, type: type)
+        return record.id
+    }
+
+    func protocolSymbol(_ id: Id.TIRProtocolId) -> Symbol.ProtocolSymbol? {
+        protocolSymbols[id] as? Symbol.ProtocolSymbol
+    }
+
+    private func fillProtocolRequirements(
+        _ record: TIR.ProtocolRecord, type: TrussType.ProtocolType
+    ) {
+        guard let symbol = type.symbol as? Symbol.ProtocolSymbol else { return }
+        var names: [String] = []
+        var visited: Set<Id.SymbolId> = []
+        collectRequirementNames(of: symbol, into: &names, visited: &visited)
+        record.requirements = names
+    }
+
+    private func collectRequirementNames(
+        of symbol: Symbol.ProtocolSymbol, into names: inout [String], visited: inout Set<Id.SymbolId>
+    ) {
+        guard visited.insert(symbol.id).inserted else { return }
+        for (name, entries) in symbol.scope.values.sorted(by: { $0.key < $1.key }) {
+            for entry in entries {
+                if entry is Symbol.FunctionSymbol || entry is Symbol.VariableSymbol {
+                    if !names.contains(name) {
+                        names.append(name)
+                    }
+                }
+            }
+        }
+        for inherited in symbol.conformances {
+            collectRequirementNames(of: inherited, into: &names, visited: &visited)
+        }
+    }
+
+    func existentialType(protocolIds: [Id.TIRProtocolId]) -> TIRType.ExistentialType {
+        let distinct = Array(Set(protocolIds)).sorted { $0.id < $1.id }
+        let name = distinct.isEmpty
+            ? "$tany"
+            : "$tany" + distinct.map { String($0.id) }.joined()
+        return registry.existentialType(protocols: distinct, name: name)
+    }
+
+    func conformancePairs() -> [(concrete: TrussType.NominalType, protocol: Symbol.ProtocolSymbol)] {
+        var result: [(TrussType.NominalType, Symbol.ProtocolSymbol)] = []
+        var seen: Set<String> = []
+        for (_, nominal) in context.typeTable {
+            guard let nominalType = nominal as? TrussType.NominalType,
+                  let symbol = nominalType.symbol as? Symbol.NominalTypeSymbol,
+                  !(symbol is Symbol.ProtocolSymbol)
+            else {
+                continue
+            }
+            for protocolSymbol in symbol.conformances {
+                guard let typeId = protocolSymbol.typeId,
+                      let protocolType = context.typeTable[typeId] as? TrussType.ProtocolType
+                else {
+                    continue
+                }
+                let key = "(nominalType.id.id):(protocolType.id.id)"
+                if seen.insert(key).inserted {
+                    result.append((nominalType, protocolSymbol))
+                }
+            }
+        }
+        return result
     }
 
     func metadataId(for type: TrussType.NominalType) -> Id.TIRMetadataId? {
@@ -73,6 +154,8 @@ final class TypeLower {
                 return registry.primitiveType(kind: info.kind, bitWidth: info.bitWidth)
             }
             return registry.voidType()
+        case let protocolType as TrussType.ProtocolType:
+            return existentialType(protocolIds: [protocolId(for: protocolType)])
         case let nominal as TrussType.NominalType:
             return nominalType(nominal)
         case let optional as TrussType.GenericInstantiation
@@ -92,7 +175,10 @@ final class TypeLower {
                 isVariadic: function.isVariadic
             )
         case let composition as TrussType.CompositionType:
-            return lower(composition.members.first ?? TrussType.VoidType.INSTANCE)
+            let protocolIds = composition.members.compactMap { member in
+                (member as? TrussType.ProtocolType).flatMap { protocolId(for: $0) }
+            }
+            return existentialType(protocolIds: protocolIds)
         case let instantiation as TrussType.GenericInstantiation:
             return lower(instantiation.base)
         case let variable as TrussType.TypeVariableType:

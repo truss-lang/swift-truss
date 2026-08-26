@@ -137,6 +137,16 @@ public enum TIRType {
             super.init(id: id)
         }
     }
+
+    public final class ExistentialType: TIRType {
+        public let protocols: [Id.TIRProtocolId]
+        public let name: String
+        public init(id: Id.TIRTypeId, protocols: [Id.TIRProtocolId], name: String) {
+            self.protocols = protocols
+            self.name = name
+            super.init(id: id)
+        }
+    }
 }
 
 extension TIRType.TIRType: Equatable {

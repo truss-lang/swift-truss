@@ -1281,7 +1281,16 @@ public final class TypeChecker: AST.Visitor {
             return composition.members.flatMap { memberFunctionSymbols(of: name, in: $0) }
         }
         if let protocolType = declared as? TrussType.ProtocolType {
-            return memberFunctionSymbols(of: name, in: protocolType)
+            guard let symbol = protocolType.symbol else { return [] }
+            var result: [Symbol.FunctionSymbol] = []
+            var current: Symbol.NominalTypeSymbol? = symbol
+            while let currentType = current {
+                if let entries = currentType.scope.values[name] {
+                    result.append(contentsOf: entries.compactMap { $0 as? Symbol.FunctionSymbol })
+                }
+                current = (currentType as? Symbol.ClassSymbol)?.superclass
+            }
+            return result
         }
         return []
     }
@@ -1394,7 +1403,26 @@ public final class TypeChecker: AST.Visitor {
             return nil
         }
         if let protocolType = declared as? TrussType.ProtocolType {
-            return memberType(of: name, in: protocolType)
+            guard let symbol = protocolType.symbol else { return nil }
+            var current: Symbol.NominalTypeSymbol? = symbol
+            while let currentType = current {
+                if let typeSymbol = currentType.scope.types[name],
+                   let typeId = (typeSymbol as? Symbol.NominalTypeSymbol)?.typeId,
+                   let memberType = context.typeTable[typeId]
+                {
+                    return memberType
+                }
+                if let entries = currentType.scope.values[name], let first = entries.first {
+                    if let function = first as? Symbol.FunctionSymbol {
+                        return function.forallType ?? function.functionType
+                    }
+                    if let variable = first as? Symbol.VariableSymbol {
+                        return variable.type
+                    }
+                }
+                current = (currentType as? Symbol.ClassSymbol)?.superclass
+            }
+            return nil
         }
         return nil
     }

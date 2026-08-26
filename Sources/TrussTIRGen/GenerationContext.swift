@@ -26,6 +26,13 @@ final class GenerationContext {
     var accessorFunctions: [Id.SymbolId: AccessorPair] = [:]
     var deinitFunctions: [ObjectIdentifier: TIR.Function] = [:]
     var deinitOwners: [ObjectIdentifier: Symbol.NominalTypeSymbol] = [:]
+    var existentialBoxes: [Id.SymbolId: ExistentialBox] = [:]
+
+    struct ExistentialBox {
+        let witnesses: [Id.TIRProtocolId: Id.TIRWitnessId]
+        let concreteType: Id.TIRTypeId
+        let containerType: Id.TIRTypeId
+    }
 
     init(context: Context) {
         self.context = context

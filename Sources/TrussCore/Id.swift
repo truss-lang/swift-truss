@@ -54,4 +54,18 @@ public enum Id {
             self.id = id
         }
     }
+
+    public struct TIRProtocolId: Hashable, Sendable, Equatable {
+        public let id: UInt64
+        public init(_ id: UInt64) {
+            self.id = id
+        }
+    }
+
+    public struct TIRWitnessId: Hashable, Sendable, Equatable {
+        public let id: UInt64
+        public init(_ id: UInt64) {
+            self.id = id
+        }
+    }
 }
