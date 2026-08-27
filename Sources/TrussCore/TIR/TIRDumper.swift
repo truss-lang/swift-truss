@@ -309,13 +309,22 @@ public extension TIR {
                 body = "asm \"" + asm.template + "\", \"" + asm.constraints.joined(separator: ",") + "\"(" + asm
                     .operands.map { valueText($0) }.joined(separator: ", ") + ")"
             case let build as BuildExistential:
-                body = "buildexistential \(valueText(build.value)) witness \(build.witness.id) to \(typeText(build.result.ty))"
+                let witnesses = build.witnesses.map { String($0.id) }.joined(separator: ", ")
+                body = "buildexistential \(valueText(build.value)) witness \(witnesses) to \(typeText(build.result.ty))"
             case let open as OpenExistential:
                 body = "openexistential \(valueText(open.container)) as \(typeText(open.result.ty))"
             case let witnessMethod as WitnessMethod:
                 let args = ([witnessMethod.selfValue] + witnessMethod.arguments)
                     .map { valueText($0) }.joined(separator: ", ")
-                body = "witnessmethod \(typeText(witnessMethod.selfValue.ty))#\(witnessMethod.witness.id).\(witnessMethod.index)(" + args + ")"
+                body =
+                    "witnessmethod \(typeText(witnessMethod.selfValue.ty))#\(witnessMethod.witness.id).\(witnessMethod.index)(" +
+                    args + ")"
+            case let opaqueWitness as OpaqueWitnessMethod:
+                let args = ([opaqueWitness.selfValue] + opaqueWitness.arguments)
+                    .map { valueText($0) }.joined(separator: ", ")
+                body =
+                    "opaquewitnessmethod \(typeText(opaqueWitness.container.ty))#\(opaqueWitness.protocolId.id).\(opaqueWitness.index)(" +
+                    args + ")"
             case let existentialCopy as ExistentialCopy:
                 body = "existentialcopy \(valueText(existentialCopy.container))"
             case let existentialDestroy as ExistentialDestroy:

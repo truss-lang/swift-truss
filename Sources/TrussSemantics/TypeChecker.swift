@@ -893,19 +893,7 @@ public final class TypeChecker: AST.Visitor {
                 }
                 members.append(member)
             }
-            result = failed ? TrussType.ErrorType.INSTANCE : TrussType.CompositionType(members)
-        case let composition as AST.ProtocolCompositionType:
-            var members: [TrussType.TrussType] = []
-            var failed = false
-            for type in composition.types {
-                let member = evaluate(type)
-                if member is TrussType.ErrorType {
-                    failed = true
-                    break
-                }
-                members.append(member)
-            }
-            result = failed ? TrussType.ErrorType.INSTANCE : TrussType.CompositionType(members)
+            result = failed ? TrussType.ErrorType.INSTANCE : makeComposition(members, at: composition.sourceRange)
         case let genericApplication as AST.GenericApplication:
             result = evaluateGenericApplication(genericApplication)
         case let sequential as AST.Sequential
@@ -923,7 +911,7 @@ public final class TypeChecker: AST.Visitor {
                 }
                 members.append(member)
             }
-            result = failed ? TrussType.ErrorType.INSTANCE : TrussType.CompositionType(members)
+            result = failed ? TrussType.ErrorType.INSTANCE : makeComposition(members, at: sequential.sourceRange)
         case let anyType as AST.AnyType:
             let wrapped = evaluate(anyType.wrappedType)
             result =
@@ -958,6 +946,73 @@ public final class TypeChecker: AST.Visitor {
             return composition.members
         }
         return [type]
+    }
+
+    private func makeComposition(
+        _ members: [TrussType.TrussType], at range: SourceRange
+    ) -> TrussType.CompositionType {
+        var flattened: [TrussType.TrussType] = []
+        var seenProtocols = Set<Id.ASTTypeId>()
+        for member in members {
+            flattenComposition(member, into: &flattened, seenProtocols: &seenProtocols)
+        }
+        let protocols = flattened.compactMap { $0 as? TrussType.ProtocolType }
+        diagnoseCompositionConflicts(protocols, at: range)
+        return TrussType.CompositionType(flattened)
+    }
+
+    private func flattenComposition(
+        _ type: TrussType.TrussType, into flattened: inout [TrussType.TrussType],
+        seenProtocols: inout Set<Id.ASTTypeId>
+    ) {
+        if let composition = type as? TrussType.CompositionType {
+            for member in composition.members {
+                flattenComposition(member, into: &flattened, seenProtocols: &seenProtocols)
+            }
+            return
+        }
+        if let protocolType = type as? TrussType.ProtocolType {
+            if seenProtocols.insert(protocolType.id).inserted {
+                flattened.append(protocolType)
+            }
+            return
+        }
+        flattened.append(type)
+    }
+
+    private func diagnoseCompositionConflicts(
+        _ protocols: [TrussType.ProtocolType], at range: SourceRange
+    ) {
+        var signatures: [String: (protocol: Symbol.ProtocolSymbol, signature: String)] = [:]
+        for protocolType in protocols {
+            guard let symbol = protocolType.symbol as? Symbol.ProtocolSymbol else { continue }
+            for (name, entries) in symbol.scope.values {
+                guard let entry = entries.first else { continue }
+                let signature: String
+                if let function = entry as? Symbol.FunctionSymbol {
+                    signature = functionTypeText(function)
+                } else if let variable = entry as? Symbol.VariableSymbol {
+                    signature = variable.type.map { typeText($0) } ?? ""
+                } else {
+                    continue
+                }
+                if let prior = signatures[name], prior.signature != signature {
+                    context.emitError(
+                        "composition requirement '\(name)' has conflicting signatures "
+                            + "('\(prior.signature)' in '\(prior.protocol.name)' vs "
+                            + "'\(signature)' in '\(symbol.name)')",
+                        at: range
+                    )
+                } else {
+                    signatures[name] = (symbol, signature)
+                }
+            }
+        }
+    }
+
+    private func functionTypeText(_ function: Symbol.FunctionSymbol) -> String {
+        guard let type = function.functionType ?? function.forallType else { return "" }
+        return typeText(type)
     }
 
     private func evaluateVariable(_ variable: AST.Variable) -> TrussType.TrussType? {
@@ -1511,6 +1566,18 @@ public final class TypeChecker: AST.Visitor {
             return genericParam.name
         case let forall as TrussType.ForallType:
             return "forall " + forall.parameters.map(\.name).joined(separator: ", ")
+        case let function as TrussType.FunctionType:
+            let params = function.parameters.map { p in
+                (p.label.map { "\($0):" } ?? "") + typeText(p.type)
+            }.joined(separator: ", ")
+            return "(" + params + ") -> " + typeText(function.returnType)
+        case let composition as TrussType.CompositionType:
+            return composition.members.map { typeText($0) }.joined(separator: " & ")
+        case let tuple as TrussType.TupleType:
+            return "(" + tuple.elements.map { typeText($0.type) }.joined(separator: ", ") + ")"
+        case let optional as TrussType.GenericInstantiation:
+            return "\(typeText(optional.base))<"
+                + optional.arguments.map { typeText($0) }.joined(separator: ", ") + ">"
         default:
             return "unknown"
         }

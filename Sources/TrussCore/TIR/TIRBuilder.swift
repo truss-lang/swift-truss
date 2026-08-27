@@ -460,11 +460,11 @@ public extension TIR {
 
         @discardableResult
         public func buildBuildExistential(
-            value: Value, witness: Id.TIRWitnessId, ty: Id.TIRTypeId, name: String? = nil
+            value: Value, witnesses: [Id.TIRWitnessId], ty: Id.TIRTypeId, name: String? = nil
         ) -> BuildExistential {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.BuildExistential(
-                value: value, witness: witness, ty: ty, name: freshName(name)
+                value: value, witnesses: witnesses, ty: ty, name: freshName(name)
             )
             insertPoint.instructions.append(attach(instruction, result: instruction.result))
             return instruction
@@ -503,6 +503,20 @@ public extension TIR {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.ExistentialCopy(
                 container: container, ty: ty, name: freshName(name)
+            )
+            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            return instruction
+        }
+
+        @discardableResult
+        public func buildOpaqueWitnessMethod(
+            container: Value, protocolId: Id.TIRProtocolId, index: Int, selfValue: Value,
+            arguments: [Value], ty: Id.TIRTypeId, name: String? = nil
+        ) -> OpaqueWitnessMethod {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.OpaqueWitnessMethod(
+                container: container, protocolId: protocolId, index: index, selfValue: selfValue,
+                arguments: arguments, ty: ty, name: freshName(name)
             )
             insertPoint.instructions.append(attach(instruction, result: instruction.result))
             return instruction

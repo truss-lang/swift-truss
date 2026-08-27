@@ -158,3 +158,153 @@ import TrussTIRGen
         try #require(tir.contains("call void @$t4main_1S_4init_4Void"))
     }
 }
+
+@Test func nestedCompositionDispatch() throws {
+    let tir = dumpTIR(
+        """
+        protocol A {
+            func a()
+        }
+        protocol B {
+            func b()
+        }
+        protocol C {
+            func c()
+        }
+        struct S: A, B, C {
+            init() {}
+            func a() { return }
+            func b() { return }
+            func c() { return }
+        }
+        func main() {
+            let s: any (A & B) & C = S()
+            s.a()
+            s.b()
+            s.c()
+        }
+        """
+    )
+    try #require(tir.contains("buildexistential"))
+    let witnessCount = tir.components(separatedBy: "witnessmethod").count - 1
+    #expect(witnessCount == 3, "expected 3 witnessmethod calls, got \(witnessCount)")
+}
+
+@Test func duplicateProtocolInCompositionFlattened() throws {
+    let tir = dumpTIR(
+        """
+        protocol P {
+            func a()
+        }
+        struct S: P {
+            init() {}
+            func a() { return }
+        }
+        func main() {
+            let s: any P & P = S()
+            s.a()
+        }
+        """
+    )
+    try #require(tir.contains("buildexistential"))
+    try #require(tir.contains("witnessmethod"))
+    try #require(tir.contains("%$tany0"))
+    try #require(!tir.contains("%$tany00"))
+}
+
+@Test func copyPreservesWitnessDispatch() throws {
+    let tir = dumpTIR(
+        """
+        protocol P {
+            func a()
+        }
+        struct S: P {
+            init() {}
+            func a() { return }
+        }
+        func main() {
+            var s: any P = S()
+            var t: any P = s
+            t.a()
+        }
+        """
+    )
+    try #require(tir.contains("existentialcopy"))
+    try #require(tir.contains("witnessmethod"))
+}
+
+@Test func opaqueParamDispatch() throws {
+    let tir = dumpTIR(
+        """
+        protocol Shape {
+            func describe()
+        }
+        struct Square: Shape {
+            init() {}
+            func describe() { return }
+        }
+        func f(_ s: any Shape) {
+            s.describe()
+        }
+        func main() {
+            let a: any Shape = Square()
+            f(a)
+        }
+        """
+    )
+    try #require(tir.contains("opaquewitnessmethod"))
+    try #require(tir.contains("%$tany0#0.0"))
+}
+
+@Test func opaqueCompositionParamDispatch() throws {
+    let tir = dumpTIR(
+        """
+        protocol Drawable {
+            func draw()
+        }
+        protocol Shape {
+            func describe()
+        }
+        struct Square: Shape, Drawable {
+            init() {}
+            func describe() { return }
+            func draw() { return }
+        }
+        func f(_ s: any Shape & Drawable) {
+            s.describe()
+            s.draw()
+        }
+        func main() {
+            let a: any Shape & Drawable = Square()
+            f(a)
+        }
+        """
+    )
+    let opaqueCount = tir.components(separatedBy: "opaquewitnessmethod").count - 1
+    #expect(opaqueCount == 2, "expected 2 opaque dispatches, got \(opaqueCount)")
+    try #require(tir.contains("%$tany01#0.0"))
+    try #require(tir.contains("%$tany01#1.0"))
+}
+
+@Test func opaqueReturnedExistentialDispatch() throws {
+    let tir = dumpTIR(
+        """
+        protocol Shape {
+            func describe()
+        }
+        struct Square: Shape {
+            init() {}
+            func describe() { return }
+        }
+        func make() -> any Shape {
+            return Square()
+        }
+        func f() {
+            let s: any Shape = make()
+            s.describe()
+        }
+        func main() {}
+        """
+    )
+    try #require(tir.contains("opaquewitnessmethod"))
+}

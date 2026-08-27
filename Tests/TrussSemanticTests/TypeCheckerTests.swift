@@ -2016,3 +2016,53 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     let errors = context.diagnositicEngine.diagnostics.map(\.message)
     #expect(errors.isEmpty, "unexpected diagnostics: \(errors)")
 }
+
+@Test func compositionSameNameConflictDiagnosed() throws {
+    let source = """
+    struct Int {}
+    struct Bool {}
+    protocol P {
+        func foo(x: Int)
+    }
+    protocol Q {
+        func foo(x: Bool)
+    }
+    struct S: P, Q {
+        func foo(x: Int) {}
+        func foo(x: Bool) {}
+    }
+    func main() {
+        let v: any P & Q = S()
+    }
+    """
+    let (context, _) = runTypeChecker([source], installBuiltin: true)
+    let errors = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(
+        errors.contains { $0.contains("requirement 'foo' has conflicting signatures") },
+        "got: \(errors)"
+    )
+}
+
+@Test func compositionSameNameIdenticalSignatureNoDiagnosis() throws {
+    let source = """
+    protocol P {
+        func foo()
+    }
+    protocol Q {
+        func foo()
+    }
+    struct S: P, Q {
+        init() {}
+        func foo() {}
+    }
+    func main() {
+        let v: any P & Q = S()
+    }
+    """
+    let (context, _) = runTypeChecker([source], installBuiltin: true)
+    let errors = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(
+        !errors.contains { $0.contains("conflicting signatures") },
+        "got: \(errors)"
+    )
+}

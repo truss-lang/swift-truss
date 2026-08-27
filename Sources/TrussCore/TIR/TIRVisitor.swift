@@ -267,6 +267,13 @@ extension TIR {
         }
 
         @discardableResult
+        open func visitOpaqueWitnessMethod(
+            _ instruction: OpaqueWitnessMethod, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
+
+        @discardableResult
         open func visitExistentialCopy(
             _ instruction: ExistentialCopy, additional: Any? = nil
         ) -> Any? {

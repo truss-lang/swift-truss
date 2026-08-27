@@ -80,13 +80,20 @@ final class TIREmitter: AST.Visitor {
 
     private func existentialBoxedValue(
         value: TIR.Value, valueType: TrussType.TrussType?, targetType: TrussType.TrussType?,
-        boxKey: Id.SymbolId, sourceRange: SourceRange
+        boxKey: Id.SymbolId, sourceSymbolId: Id.SymbolId?, sourceRange: SourceRange
     ) -> TIR.Value? {
         guard let builder, isExistentialType(targetType) else { return value }
         if isExistentialType(valueType) {
-            return builder.buildExistentialCopy(
+            let result = builder.buildExistentialCopy(
                 container: value, ty: lowerType(valueType).id
             ).result
+            if let sourceSymbolId, let sourceBox = gen.existentialBoxes[sourceSymbolId] {
+                gen.existentialBoxes[boxKey] = sourceBox
+                if !existentialLocalStack.isEmpty {
+                    existentialLocalStack[existentialLocalStack.count - 1].append(boxKey)
+                }
+            }
+            return result
         }
         guard let concrete = nominalType(of: valueType) else { return nil }
         let containerType = gen.typeLower.lower(targetType!)
@@ -101,13 +108,8 @@ final class TIREmitter: AST.Visitor {
             }
             witnesses[gen.typeLower.protocolId(for: protocolType)] = witness.id
         }
-        guard let first = witnesses.first?.value,
-              let buildWitness = gen.registry.witnesses[first]
-        else {
-            return nil
-        }
         let boxed = builder.buildBuildExistential(
-            value: value, witness: buildWitness.id, ty: containerType.id
+            value: value, witnesses: Array(witnesses.values), ty: containerType.id
         ).result
         gen.existentialBoxes[boxKey] = GenerationContext.ExistentialBox(
             witnesses: witnesses,
@@ -120,12 +122,14 @@ final class TIREmitter: AST.Visitor {
         return boxed
     }
 
-
     private func protocols(of type: TrussType.TrussType?) -> [TrussType.ProtocolType] {
         guard let type else { return [] }
         if let protocolType = type as? TrussType.ProtocolType { return [protocolType] }
         if let composition = type as? TrussType.CompositionType {
-            return composition.members.compactMap { $0 as? TrussType.ProtocolType }
+            var seen = Set<Id.ASTTypeId>()
+            return composition.members.flatMap { protocols(of: $0) }.filter {
+                seen.insert($0.id).inserted
+            }
         }
         return []
     }
@@ -163,7 +167,7 @@ final class TIREmitter: AST.Visitor {
     private func concreteConforms(
         _ concrete: TrussType.NominalType, to protocolType: TrussType.ProtocolType
     ) -> Bool {
-        guard let symbol = concrete.symbol as? Symbol.NominalTypeSymbol else { return false }
+        guard let symbol = concrete.symbol else { return false }
         return symbol.conformances.contains(where: { $0.typeId == protocolType.id })
     }
 
@@ -175,7 +179,7 @@ final class TIREmitter: AST.Visitor {
         let witness = gen.registry.addWitness(protocolId: protocolId, concreteType: concreteId)
         if witness.entries.isEmpty {
             if let protocolRecord = gen.registry.protocols[protocolId],
-               let symbol = concreteType.symbol as? Symbol.NominalTypeSymbol
+               let symbol = concreteType.symbol
             {
                 for requirement in protocolRecord.requirements {
                     if let function = witnessImplementation(
@@ -221,13 +225,13 @@ final class TIREmitter: AST.Visitor {
     private func objectSymbol(of expression: AST.Expression) -> Id.SymbolId? {
         switch expression {
         case let variable as AST.Variable:
-            return variable.symbol?.id
+            variable.symbol?.id
         case let member as AST.MemberAccess:
-            return member.symbol?.id
+            member.symbol?.id
         case let parenthetical as AST.Parenthetical:
-            return objectSymbol(of: parenthetical.inner)
+            objectSymbol(of: parenthetical.inner)
         default:
-            return nil
+            nil
         }
     }
 
@@ -235,14 +239,27 @@ final class TIREmitter: AST.Visitor {
         _ memberAccess: AST.MemberAccess, arguments: [AST.LabeledArgument]
     ) -> TIR.Value? {
         guard let builder,
-              let objectValue = visitExpression(memberAccess.object),
-              let objectType = memberAccess.object.ty
+              let objectValue = visitExpression(memberAccess.object)
         else {
             return nil
         }
-        guard let box = existentialBox(for: objectSymbol(of: memberAccess.object)) else {
-            return nil
+        if let box = existentialBox(for: objectSymbol(of: memberAccess.object)),
+           let dispatched = emitBoxedWitnessDispatch(
+               memberAccess, arguments: arguments, objectValue: objectValue, box: box
+           )
+        {
+            return dispatched
         }
+        return emitOpaqueWitnessDispatch(
+            memberAccess, arguments: arguments, objectValue: objectValue
+        )
+    }
+
+    private func emitBoxedWitnessDispatch(
+        _ memberAccess: AST.MemberAccess, arguments: [AST.LabeledArgument],
+        objectValue: TIR.Value, box: GenerationContext.ExistentialBox
+    ) -> TIR.Value? {
+        guard let builder else { return nil }
         let protocolId = declaringProtocolId(of: memberAccess)
             ?? protocolIdForRequirement(memberAccess.member.value, in: box)
         guard let protocolId else { return nil }
@@ -262,6 +279,64 @@ final class TIREmitter: AST.Visitor {
             witness: witnessId, index: index, selfValue: opened, arguments: argValues,
             ty: resultTy
         ).result
+    }
+
+    private func emitOpaqueWitnessDispatch(
+        _ memberAccess: AST.MemberAccess, arguments: [AST.LabeledArgument],
+        objectValue: TIR.Value
+    ) -> TIR.Value? {
+        guard let builder else { return nil }
+        guard let protocolId = opaqueProtocolId(
+            of: memberAccess, objectType: memberAccess.object.ty
+        ) else {
+            return nil
+        }
+        guard let record = gen.registry.protocols[protocolId] else { return nil }
+        guard let index = record.requirements.firstIndex(of: memberAccess.member.value) else {
+            return nil
+        }
+        let argValues: [TIR.Value] = arguments.compactMap { visitExpression($0.value) }
+        let resultTy = opaqueReturnType(of: memberAccess, protocolId: protocolId)
+            ?? memberAccess.ty.flatMap { lowerType($0).id }
+        guard let resultTy else { return nil }
+        return builder.buildOpaqueWitnessMethod(
+            container: objectValue, protocolId: protocolId, index: index,
+            selfValue: objectValue, arguments: argValues, ty: resultTy
+        ).result
+    }
+
+    private func opaqueReturnType(
+        of memberAccess: AST.MemberAccess, protocolId: Id.TIRProtocolId
+    ) -> Id.TIRTypeId? {
+        guard let symbol = gen.typeLower.protocolSymbol(protocolId),
+              let fn = symbol.scope.values[memberAccess.member.value]?
+              .compactMap({ $0 as? Symbol.FunctionSymbol }).first,
+              let functionType = fn.functionType
+        else {
+            return nil
+        }
+        return lowerType(functionType.returnType).id
+    }
+
+    private func opaqueProtocolId(
+        of memberAccess: AST.MemberAccess, objectType: TrussType.TrussType?
+    ) -> Id.TIRProtocolId? {
+        if let declared = declaringProtocolId(of: memberAccess) {
+            return declared
+        }
+        let protocolTypes = protocols(of: objectType)
+        if protocolTypes.count == 1, let single = protocolTypes.first {
+            return gen.typeLower.protocolId(for: single)
+        }
+        for protocolType in protocolTypes {
+            let protocolId = gen.typeLower.protocolId(for: protocolType)
+            if let record = gen.registry.protocols[protocolId],
+               record.requirements.contains(memberAccess.member.value)
+            {
+                return protocolId
+            }
+        }
+        return nil
     }
 
     private func declaringProtocolId(of memberAccess: AST.MemberAccess) -> Id.TIRProtocolId? {
@@ -804,7 +879,8 @@ final class TIREmitter: AST.Visitor {
         if let initializer = variableDecl.initializer, let value = visitExpression(initializer) {
             let storedValue = existentialBoxedValue(
                 value: value, valueType: initializer.ty, targetType: symbol.type,
-                boxKey: symbol.id, sourceRange: initializer.sourceRange
+                boxKey: symbol.id, sourceSymbolId: objectSymbol(of: initializer),
+                sourceRange: initializer.sourceRange
             )
             if let storedValue {
                 builder.buildStore(value: storedValue, to: address)
@@ -2272,11 +2348,11 @@ final class TIREmitter: AST.Visitor {
     private func nominalTypeSymbol(of expression: AST.Expression) -> Symbol.NominalTypeSymbol? {
         switch expression {
         case let variable as AST.Variable:
-            return variable.symbol as? Symbol.NominalTypeSymbol
+            variable.symbol as? Symbol.NominalTypeSymbol
         case let application as AST.GenericApplication:
-            return nominalTypeSymbol(of: application.base)
+            nominalTypeSymbol(of: application.base)
         default:
-            return nil
+            nil
         }
     }
 
@@ -3041,7 +3117,9 @@ private final class ClosureCaptureScanner: AST.Visitor {
     private var mutated: Set<Id.SymbolId> = []
     private var excluding: Set<Id.SymbolId> = []
 
-    func scan(statements: [AST.Statement], excluding excluded: Set<Id.SymbolId>) -> (referenced: [Id.SymbolId], mutated: Set<Id.SymbolId>) {
+    func scan(statements: [AST.Statement],
+              excluding excluded: Set<Id.SymbolId>) -> (referenced: [Id.SymbolId], mutated: Set<Id.SymbolId>)
+    {
         excluding = excluded
         referencedOrder = []
         referencedSet = []

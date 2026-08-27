@@ -85,6 +85,22 @@ final class TypeLower {
         return registry.existentialType(protocols: distinct, name: name)
     }
 
+    private func collectProtocolIds(
+        of type: TrussType.TrussType, into ids: inout [Id.TIRProtocolId], seen: inout Set<Id.ASTTypeId>
+    ) {
+        if let protocolType = type as? TrussType.ProtocolType {
+            if seen.insert(protocolType.id).inserted {
+                ids.append(protocolId(for: protocolType))
+            }
+            return
+        }
+        if let composition = type as? TrussType.CompositionType {
+            for member in composition.members {
+                collectProtocolIds(of: member, into: &ids, seen: &seen)
+            }
+        }
+    }
+
     func conformancePairs() -> [(concrete: TrussType.NominalType, protocol: Symbol.ProtocolSymbol)] {
         var result: [(TrussType.NominalType, Symbol.ProtocolSymbol)] = []
         var seen: Set<String> = []
@@ -175,9 +191,9 @@ final class TypeLower {
                 isVariadic: function.isVariadic
             )
         case let composition as TrussType.CompositionType:
-            let protocolIds = composition.members.compactMap { member in
-                (member as? TrussType.ProtocolType).flatMap { protocolId(for: $0) }
-            }
+            var protocolIds: [Id.TIRProtocolId] = []
+            var seen = Set<Id.ASTTypeId>()
+            collectProtocolIds(of: composition, into: &protocolIds, seen: &seen)
             return existentialType(protocolIds: protocolIds)
         case let instantiation as TrussType.GenericInstantiation:
             return lower(instantiation.base)
