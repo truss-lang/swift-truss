@@ -3313,16 +3313,10 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import A")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    try #require(decl.path.components.count == 1)
-    if case let .Identifier(t) = decl.path.components[0] {
+    if case let .Name(t) = decl.node {
         #expect(t.value == "A")
     } else {
-        Issue.record("expected identifier component")
-    }
-    if case let .WholeModule(alias) = decl.selector {
-        #expect(alias == nil)
-    } else {
-        Issue.record("expected wholeModule selector")
+        Issue.record("expected name node")
     }
 }
 
@@ -3330,10 +3324,14 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import A.*")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    #expect(decl.path.components.count == 1)
-    if case .Wildcard = decl.selector {
+    if case let .Member(name, sub) = decl.node {
+        #expect(name.value == "A")
+        if case .Wildcard = sub {
+        } else {
+            Issue.record("expected wildcard subnode")
+        }
     } else {
-        Issue.record("expected wildcard selector")
+        Issue.record("expected member node")
     }
 }
 
@@ -3341,16 +3339,15 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import A.B")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    try #require(decl.path.components.count == 2)
-    if case let .Identifier(t) = decl.path.components[1] {
-        #expect(t.value == "B")
+    if case let .Member(n0, sub0) = decl.node {
+        #expect(n0.value == "A")
+        if case let .Name(t1) = sub0 {
+            #expect(t1.value == "B")
+        } else {
+            Issue.record("expected name node for B")
+        }
     } else {
-        Issue.record("expected identifier component")
-    }
-    if case let .WholeModule(alias) = decl.selector {
-        #expect(alias == nil)
-    } else {
-        Issue.record("expected wholeModule selector")
+        Issue.record("expected member node")
     }
 }
 
@@ -3358,10 +3355,19 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import A.B.*")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    #expect(decl.path.components.count == 2)
-    if case .Wildcard = decl.selector {
+    if case let .Member(n0, sub0) = decl.node {
+        #expect(n0.value == "A")
+        if case let .Member(n1, sub1) = sub0 {
+            #expect(n1.value == "B")
+            if case .Wildcard = sub1 {
+            } else {
+                Issue.record("expected wildcard subnode")
+            }
+        } else {
+            Issue.record("expected member node for B")
+        }
     } else {
-        Issue.record("expected wildcard selector")
+        Issue.record("expected member node")
     }
 }
 
@@ -3369,26 +3375,29 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import A.{self, B, C}")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    #expect(decl.path.components.count == 1)
-    if case let .Explicit(items) = decl.selector {
-        try #require(items.count == 3)
-        if case .Self_ = items[0].kind {
+    if case let .Member(name, sub) = decl.node {
+        #expect(name.value == "A")
+        if case let .List(items) = sub {
+            try #require(items.count == 3)
+            if case .Self_ = items[0] {
+            } else {
+                Issue.record("expected self_ item")
+            }
+            if case let .Name(t) = items[1] {
+                #expect(t.value == "B")
+            } else {
+                Issue.record("expected name item")
+            }
+            if case let .Name(t) = items[2] {
+                #expect(t.value == "C")
+            } else {
+                Issue.record("expected name item")
+            }
         } else {
-            Issue.record("expected self_ item")
-        }
-        #expect(items[0].alias == nil)
-        if case let .Name(t) = items[1].kind {
-            #expect(t.value == "B")
-        } else {
-            Issue.record("expected name item")
-        }
-        if case let .Name(t) = items[2].kind {
-            #expect(t.value == "C")
-        } else {
-            Issue.record("expected name item")
+            Issue.record("expected list node")
         }
     } else {
-        Issue.record("expected explicit selector")
+        Issue.record("expected member node")
     }
 }
 
@@ -3396,20 +3405,18 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import Self.A")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    try #require(decl.path.components.count == 2)
-    if case .Self_ = decl.path.components[0] {
+    if case let .Member(n0, sub0) = decl.node {
+        if case .Keyword(.SelfTypeKw) = n0.kind {
+        } else {
+            Issue.record("expected self_ path component")
+        }
+        if case let .Name(t) = sub0 {
+            #expect(t.value == "A")
+        } else {
+            Issue.record("expected name node")
+        }
     } else {
-        Issue.record("expected self_ path component")
-    }
-    if case let .Identifier(t) = decl.path.components[1] {
-        #expect(t.value == "A")
-    } else {
-        Issue.record("expected identifier component")
-    }
-    if case let .WholeModule(alias) = decl.selector {
-        #expect(alias == nil)
-    } else {
-        Issue.record("expected wholeModule selector")
+        Issue.record("expected member node")
     }
 }
 
@@ -3417,25 +3424,28 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import Self.{A, B}")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    try #require(decl.path.components.count == 1)
-    if case .Self_ = decl.path.components[0] {
-    } else {
-        Issue.record("expected self_ path component")
-    }
-    if case let .Explicit(items) = decl.selector {
-        try #require(items.count == 2)
-        if case let .Name(t) = items[0].kind {
-            #expect(t.value == "A")
+    if case let .Member(name, sub) = decl.node {
+        if case .Keyword(.SelfTypeKw) = name.kind {
         } else {
-            Issue.record("expected name item")
+            Issue.record("expected self_ path component")
         }
-        if case let .Name(t) = items[1].kind {
-            #expect(t.value == "B")
+        if case let .List(items) = sub {
+            try #require(items.count == 2)
+            if case let .Name(t) = items[0] {
+                #expect(t.value == "A")
+            } else {
+                Issue.record("expected name item")
+            }
+            if case let .Name(t) = items[1] {
+                #expect(t.value == "B")
+            } else {
+                Issue.record("expected name item")
+            }
         } else {
-            Issue.record("expected name item")
+            Issue.record("expected list node")
         }
     } else {
-        Issue.record("expected explicit selector")
+        Issue.record("expected member node")
     }
 }
 
@@ -3443,10 +3453,11 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import A as B")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    if case let .WholeModule(alias) = decl.selector {
-        #expect(alias?.value == "B")
+    if case let .Alias(t, alias) = decl.node {
+        #expect(t.value == "A")
+        #expect(alias.value == "B")
     } else {
-        Issue.record("expected wholeModule selector")
+        Issue.record("expected alias node")
     }
 }
 
@@ -3454,11 +3465,16 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import A.B as C")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    #expect(decl.path.components.count == 2)
-    if case let .WholeModule(alias) = decl.selector {
-        #expect(alias?.value == "C")
+    if case let .Member(n0, sub0) = decl.node {
+        #expect(n0.value == "A")
+        if case let .Alias(t1, alias) = sub0 {
+            #expect(t1.value == "B")
+            #expect(alias.value == "C")
+        } else {
+            Issue.record("expected alias node for B")
+        }
     } else {
-        Issue.record("expected wholeModule selector")
+        Issue.record("expected member node")
     }
 }
 
@@ -3466,22 +3482,22 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import A.{B as b, C as c}")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    if case let .Explicit(items) = decl.selector {
+    if case let .List(items) = importListNode(of: decl.node) {
         try #require(items.count == 2)
-        if case let .Name(t) = items[0].kind {
+        if case let .Alias(t, alias) = items[0] {
             #expect(t.value == "B")
-            #expect(items[0].alias?.value == "b")
+            #expect(alias.value == "b")
         } else {
-            Issue.record("expected name item")
+            Issue.record("expected alias item")
         }
-        if case let .Name(t) = items[1].kind {
+        if case let .Alias(t, alias) = items[1] {
             #expect(t.value == "C")
-            #expect(items[1].alias?.value == "c")
+            #expect(alias.value == "c")
         } else {
-            Issue.record("expected name item")
+            Issue.record("expected alias item")
         }
     } else {
-        Issue.record("expected explicit selector")
+        Issue.record("expected list node")
     }
 }
 
@@ -3489,21 +3505,25 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import A.{self as a, B as b}")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    if case let .Explicit(items) = decl.selector {
+    if case let .List(items) = importListNode(of: decl.node) {
         try #require(items.count == 2)
-        if case .Self_ = items[0].kind {
-            #expect(items[0].alias?.value == "a")
+        if case let .Alias(t, alias) = items[0] {
+            if case .Keyword(.SelfKw) = t.kind {
+            } else {
+                Issue.record("expected self keyword token")
+            }
+            #expect(alias.value == "a")
         } else {
-            Issue.record("expected self_ item")
+            Issue.record("expected alias item")
         }
-        if case let .Name(t) = items[1].kind {
+        if case let .Alias(t, alias) = items[1] {
             #expect(t.value == "B")
-            #expect(items[1].alias?.value == "b")
+            #expect(alias.value == "b")
         } else {
-            Issue.record("expected name item")
+            Issue.record("expected alias item")
         }
     } else {
-        Issue.record("expected explicit selector")
+        Issue.record("expected list node")
     }
 }
 
@@ -3511,10 +3531,10 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import A as _")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    if case let .WholeModule(alias) = decl.selector {
-        #expect(alias?.value == "_")
+    if case let .Alias(_, alias) = decl.node {
+        #expect(alias.value == "_")
     } else {
-        Issue.record("expected wholeModule selector")
+        Issue.record("expected alias node")
     }
 }
 
@@ -3522,20 +3542,90 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let statements = parseStatements("import A.B.{self, C}")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
-    #expect(decl.path.components.count == 2)
-    if case let .Explicit(items) = decl.selector {
-        try #require(items.count == 2)
-        if case .Self_ = items[0].kind {
+    if case let .Member(n0, sub0) = decl.node {
+        #expect(n0.value == "A")
+        if case let .Member(n1, sub1) = sub0 {
+            #expect(n1.value == "B")
+            if case let .List(items) = sub1 {
+                try #require(items.count == 2)
+                if case .Self_ = items[0] {
+                } else {
+                    Issue.record("expected self_ item")
+                }
+                if case let .Name(t) = items[1] {
+                    #expect(t.value == "C")
+                } else {
+                    Issue.record("expected name item")
+                }
+            } else {
+                Issue.record("expected list node")
+            }
         } else {
-            Issue.record("expected self_ item")
-        }
-        if case let .Name(t) = items[1].kind {
-            #expect(t.value == "C")
-        } else {
-            Issue.record("expected name item")
+            Issue.record("expected member node for B")
         }
     } else {
-        Issue.record("expected explicit selector")
+        Issue.record("expected member node")
+    }
+}
+
+@Test func parseImportNestedItemSelector() throws {
+    let statements = parseStatements("import A.{B, C.{D, E}}")
+    try #require(statements.count == 1)
+    let decl = statements[0] as! AST.Import
+    if case let .List(items) = importListNode(of: decl.node) {
+        try #require(items.count == 2)
+        if case let .Name(t) = items[0] {
+            #expect(t.value == "B")
+        } else {
+            Issue.record("expected name item B")
+        }
+        if case let .Member(n1, sub1) = items[1] {
+            #expect(n1.value == "C")
+            if case let .List(nested) = sub1 {
+                try #require(nested.count == 2)
+                if case let .Name(t) = nested[0] {
+                    #expect(t.value == "D")
+                } else {
+                    Issue.record("expected name item D")
+                }
+                if case let .Name(t) = nested[1] {
+                    #expect(t.value == "E")
+                } else {
+                    Issue.record("expected name item E")
+                }
+            } else {
+                Issue.record("expected nested list node")
+            }
+        } else {
+            Issue.record("expected member item C")
+        }
+    } else {
+        Issue.record("expected list node")
+    }
+}
+
+@Test func parseImportNestedItemWildcard() throws {
+    let statements = parseStatements("import A.{B.*, C}")
+    try #require(statements.count == 1)
+    let decl = statements[0] as! AST.Import
+    if case let .List(items) = importListNode(of: decl.node) {
+        try #require(items.count == 2)
+        if case let .Member(n0, sub0) = items[0] {
+            #expect(n0.value == "B")
+            if case .Wildcard = sub0 {
+            } else {
+                Issue.record("expected wildcard subnode")
+            }
+        } else {
+            Issue.record("expected member item B")
+        }
+        if case let .Name(t) = items[1] {
+            #expect(t.value == "C")
+        } else {
+            Issue.record("expected name item C")
+        }
+    } else {
+        Issue.record("expected list node")
     }
 }
 
@@ -3545,6 +3635,11 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let range = decl.sourceRange
     #expect(range.start.offset == 0)
     #expect(range.end.offset == 10)
+}
+
+private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
+    if case let .Member(_, sub) = node { return sub }
+    return node
 }
 
 @Test func parseImportNoPathError() throws {
@@ -7386,15 +7481,14 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.OperatorImport
     try #require(decl != nil)
-    try #require(decl!.path.components.count == 1)
-    if case let .Identifier(t) = decl!.path.components[0] {
-        #expect(t.value == "Pkg")
+    if case let .Member(name, sub) = decl!.node {
+        #expect(name.value == "Pkg")
+        if case .Wildcard = sub {
+        } else {
+            Issue.record("expected wildcard subnode")
+        }
     } else {
-        Issue.record("expected identifier component")
-    }
-    if case .Wildcard = decl!.selector {
-    } else {
-        Issue.record("expected wildcard selector")
+        Issue.record("expected member node")
     }
 }
 
@@ -7405,16 +7499,15 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.OperatorImport
     try #require(decl != nil)
-    try #require(decl!.path.components.count == 1)
-    if case let .Identifier(t) = decl!.path.components[0] {
-        #expect(t.value == "Pkg")
+    if case let .Member(name, sub) = decl!.node {
+        #expect(name.value == "Pkg")
+        if case let .Name(token) = sub {
+            #expect(token.value == "+")
+        } else {
+            Issue.record("expected name subnode")
+        }
     } else {
-        Issue.record("expected identifier component")
-    }
-    if case let .Operator(token) = decl!.selector {
-        #expect(token.value == "+")
-    } else {
-        Issue.record("expected operator selector")
+        Issue.record("expected member node")
     }
 }
 
@@ -7425,20 +7518,20 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.OperatorImport
     try #require(decl != nil)
-    if case let .List(items) = decl!.selector {
+    if case let .List(items) = importListNode(of: decl!.node) {
         try #require(items.count == 2)
-        if case let .Operator(token) = items[0] {
+        if case let .Name(token) = items[0] {
             #expect(token.value == "+")
         } else {
-            Issue.record("expected operator item")
+            Issue.record("expected name item")
         }
-        if case let .Operator(token) = items[1] {
+        if case let .Name(token) = items[1] {
             #expect(token.value == "-")
         } else {
-            Issue.record("expected operator item")
+            Issue.record("expected name item")
         }
     } else {
-        Issue.record("expected list selector")
+        Issue.record("expected list node")
     }
 }
 
@@ -7449,25 +7542,25 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.OperatorImport
     try #require(decl != nil)
-    if case let .List(items) = decl!.selector {
+    if case let .List(items) = importListNode(of: decl!.node) {
         try #require(items.count == 2)
-        if case let .Operator(token) = items[0] {
+        if case let .Name(token) = items[0] {
             #expect(token.value == "+")
         } else {
-            Issue.record("expected operator item")
+            Issue.record("expected name item")
         }
-        if case let .Submodule(name, selector) = items[1] {
+        if case let .Member(name, sub) = items[1] {
             #expect(name.value == "module")
-            if case let .Operator(token) = selector {
+            if case let .Name(token) = sub {
                 #expect(token.value == "-")
             } else {
-                Issue.record("expected operator selector")
+                Issue.record("expected name subnode")
             }
         } else {
-            Issue.record("expected submodule item")
+            Issue.record("expected member item")
         }
     } else {
-        Issue.record("expected list selector")
+        Issue.record("expected list node")
     }
 }
 
@@ -7478,30 +7571,30 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.OperatorImport
     try #require(decl != nil)
-    if case let .List(items) = decl!.selector {
+    if case let .List(items) = importListNode(of: decl!.node) {
         try #require(items.count == 2)
-        if case let .Submodule(name, selector) = items[1] {
+        if case let .Member(name, sub) = items[1] {
             #expect(name.value == "module")
-            if case let .List(nested) = selector {
+            if case let .List(nested) = sub {
                 try #require(nested.count == 2)
-                if case let .Operator(token) = nested[0] {
+                if case let .Name(token) = nested[0] {
                     #expect(token.value == "-")
                 } else {
-                    Issue.record("expected operator item")
+                    Issue.record("expected name item")
                 }
-                if case let .Operator(token) = nested[1] {
+                if case let .Name(token) = nested[1] {
                     #expect(token.value == "*")
                 } else {
-                    Issue.record("expected operator item for '*'")
+                    Issue.record("expected name item for '*'")
                 }
             } else {
-                Issue.record("expected nested list selector")
+                Issue.record("expected nested list node")
             }
         } else {
-            Issue.record("expected submodule item")
+            Issue.record("expected member item")
         }
     } else {
-        Issue.record("expected list selector")
+        Issue.record("expected list node")
     }
 }
 
@@ -7512,20 +7605,19 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.OperatorImport
     try #require(decl != nil)
-    try #require(decl!.path.components.count == 2)
-    if case let .Identifier(t0) = decl!.path.components[0] {
-        #expect(t0.value == "Pkg")
+    if case let .Member(n0, sub0) = decl!.node {
+        #expect(n0.value == "Pkg")
+        if case let .Member(n1, sub1) = sub0 {
+            #expect(n1.value == "sub")
+            if case .Name = sub1 {
+            } else {
+                Issue.record("expected name subnode")
+            }
+        } else {
+            Issue.record("expected member node for sub")
+        }
     } else {
-        Issue.record("expected identifier component")
-    }
-    if case let .Identifier(t1) = decl!.path.components[1] {
-        #expect(t1.value == "sub")
-    } else {
-        Issue.record("expected identifier component")
-    }
-    if case .Operator = decl!.selector {
-    } else {
-        Issue.record("expected operator selector")
+        Issue.record("expected member node")
     }
 }
 
@@ -7536,15 +7628,15 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.OperatorImport
     try #require(decl != nil)
-    if case let .List(items) = decl!.selector {
+    if case let .List(items) = importListNode(of: decl!.node) {
         try #require(items.count == 2)
-        if case let .Operator(token) = items[0] {
+        if case let .Name(token) = items[0] {
             #expect(token.value == "*")
         } else {
-            Issue.record("expected operator item for '*'")
+            Issue.record("expected name item for '*'")
         }
     } else {
-        Issue.record("expected list selector")
+        Issue.record("expected list node")
     }
 }
 
@@ -7555,19 +7647,19 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.OperatorImport
     try #require(decl != nil)
-    if case let .List(items) = decl!.selector {
+    if case let .List(items) = importListNode(of: decl!.node) {
         try #require(items.count == 2)
-        if case let .Submodule(name, selector) = items[1] {
+        if case let .Member(name, sub) = items[1] {
             #expect(name.value == "module")
-            if case .Wildcard = selector {
+            if case .Wildcard = sub {
             } else {
-                Issue.record("expected wildcard selector")
+                Issue.record("expected wildcard subnode")
             }
         } else {
-            Issue.record("expected submodule item")
+            Issue.record("expected member item")
         }
     } else {
-        Issue.record("expected list selector")
+        Issue.record("expected list node")
     }
 }
 

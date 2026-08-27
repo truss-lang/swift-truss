@@ -46,49 +46,21 @@ public extension AST {
         }
     }
 
-    enum PathComponent {
-        case Identifier(Token)
+    indirect enum ImportNode {
+        case Name(Token)
+        case Alias(Token, Token)
+        case Member(Token, ImportNode)
+        case Wildcard(Token)
+        case List([ImportNode])
         case Self_(Token)
-    }
-
-    struct ImportPath {
-        public let components: [PathComponent]
-        public init(_ components: [PathComponent]) {
-            self.components = components
-        }
-    }
-
-    struct ImportItem {
-        public let kind: Kind
-        public let alias: Token?
-        public init(_ kind: Kind, alias: Token? = nil) {
-            self.kind = kind
-            self.alias = alias
-        }
-
-        public enum Kind {
-            case Self_(Token)
-            case Name(Token)
-        }
-    }
-
-    enum ImportSelector {
-        case WholeModule(alias: Token?)
-        case Wildcard
-        case Explicit([ImportItem])
     }
 
     final class Import: Statement {
         public let token: Token
-        public let path: ImportPath
-        public let selector: ImportSelector
-        public init(
-            _ token: Token, _ path: ImportPath, _ selector: ImportSelector,
-            sourceRange: SourceRange
-        ) {
+        public let node: ImportNode
+        public init(_ token: Token, _ node: ImportNode, sourceRange: SourceRange) {
             self.token = token
-            self.path = path
-            self.selector = selector
+            self.node = node
             super.init(sourceRange)
         }
 
@@ -97,28 +69,12 @@ public extension AST {
         }
     }
 
-    enum OperatorImportSelector {
-        case Wildcard(Token)
-        case Operator(Token)
-        case List([OperatorImportItem])
-    }
-
-    enum OperatorImportItem {
-        case Operator(Token)
-        case Submodule(Token, OperatorImportSelector)
-    }
-
     final class OperatorImport: Statement {
         public let token: Token
-        public let path: ImportPath
-        public let selector: OperatorImportSelector
-        public init(
-            _ token: Token, _ path: ImportPath, _ selector: OperatorImportSelector,
-            sourceRange: SourceRange
-        ) {
+        public let node: ImportNode
+        public init(_ token: Token, _ node: ImportNode, sourceRange: SourceRange) {
             self.token = token
-            self.path = path
-            self.selector = selector
+            self.node = node
             super.init(sourceRange)
         }
 

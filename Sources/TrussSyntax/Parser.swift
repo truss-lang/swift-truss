@@ -328,7 +328,7 @@ public final class Parser {
             index += 1
             return parseOperatorImport(token)
         }
-        var components: [AST.PathComponent] = []
+        var path: [Token] = []
         guard let first = peek else {
             emitError("expected module path after 'import'", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -336,16 +336,16 @@ public final class Parser {
         switch first.kind {
         case .Identifier:
             index += 1
-            components.append(.Identifier(first))
+            path.append(first)
         case .Keyword(.SelfTypeKw):
             index += 1
-            components.append(.Self_(first))
+            path.append(first)
         case .Keyword(.SelfKw):
             emitError(
                 "'self' is not allowed in import path, use 'Self' instead", at: first
             )
             index += 1
-            components.append(.Self_(first))
+            path.append(first)
         default:
             emitError(
                 "expected module path after 'import', but got '\(first.value)'", at: first
@@ -353,16 +353,18 @@ public final class Parser {
             return errorStatement(from: token, to: first)
         }
 
-        var selector: AST.ImportSelector? = nil
+        var selector: AST.ImportNode? = nil
         var endToken: Token = first
         _pathLoop: while let dotToken = peek, case .Operator(.Dot) = dotToken.kind {
             guard let afterDot = peek2 else {
+                emitError("expected module name after '.', but got end of file", at: endOfFile)
+                endToken = dotToken
                 break _pathLoop
             }
             switch afterDot.kind {
             case .Operator(.Multiply):
                 index += 2
-                selector = .Wildcard
+                selector = .Wildcard(afterDot)
                 endToken = afterDot
                 if let asToken = peek, case .Keyword(.As) = asToken.kind {
                     emitError("cannot alias a wildcard import", at: asToken)
@@ -375,63 +377,34 @@ public final class Parser {
                 break _pathLoop
             case .Separator(.OpenBrace):
                 index += 2
-                endToken = afterDot
-                var items: [AST.ImportItem] = []
-                while let t = peek {
-                    if case .Separator(.CloseBrace) = t.kind {
-                        break
-                    }
-                    let item = parseImportItem()
-                    items.append(item)
-                    if let lastComp = peek, case .Separator(.CloseBrace) = lastComp.kind {
-                        break
-                    }
-                    if let comma = peek, case .Separator(.Comma) = comma.kind {
-                        index += 1
-                    } else {
-                        break
-                    }
-                }
-                if items.isEmpty {
-                    emitError("expected import item after '{'", at: endToken)
-                }
-                if let closeToken = peek, case .Separator(.CloseBrace) = closeToken.kind {
-                    index += 1
-                    endToken = closeToken
-                } else {
-                    emitError("expected '}' after import items", at: endOfFile)
-                }
-                selector = .Explicit(items)
+                let (items, listEnd) = parseImportList(openBrace: afterDot)
+                selector = .List(items)
+                endToken = listEnd
                 break _pathLoop
             default:
                 index += 1
-                guard let comp = peek else {
-                    emitError("expected module name after '.'", at: endOfFile)
-                    endToken = dotToken
-                    break _pathLoop
-                }
-                switch comp.kind {
+                switch afterDot.kind {
                 case .Identifier:
                     index += 1
-                    components.append(.Identifier(comp))
-                    endToken = comp
+                    path.append(afterDot)
+                    endToken = afterDot
                 case .Keyword(.SelfTypeKw):
                     emitError(
-                        "'Self' can only appear at the beginning of an import path", at: comp
+                        "'Self' can only appear at the beginning of an import path", at: afterDot
                     )
                     index += 1
-                    components.append(.Self_(comp))
-                    endToken = comp
+                    path.append(afterDot)
+                    endToken = afterDot
                 case .Keyword(.SelfKw):
                     emitError(
-                        "'self' is not allowed in import path, use 'Self' instead", at: comp
+                        "'self' is not allowed in import path, use 'Self' instead", at: afterDot
                     )
                     index += 1
-                    components.append(.Self_(comp))
-                    endToken = comp
+                    path.append(afterDot)
+                    endToken = afterDot
                 default:
                     emitError(
-                        "expected module name after '.', but got '\(comp.value)'", at: comp
+                        "expected module name after '.', but got '\(afterDot.value)'", at: afterDot
                     )
                     endToken = dotToken
                     break _pathLoop
@@ -439,8 +412,8 @@ public final class Parser {
             }
         }
 
+        var alias: Token? = nil
         if selector == nil {
-            var alias: Token? = nil
             if let asToken = peek, case .Keyword(.As) = asToken.kind {
                 index += 1
                 if let aliasToken = peek {
@@ -468,17 +441,149 @@ public final class Parser {
                     }
                 }
             }
-            selector = .WholeModule(alias: alias)
         }
 
+        let node = buildImportNode(path: path, selector: selector, alias: alias)
         return AST.Import(
-            token, AST.ImportPath(components), selector!,
+            token, node,
             sourceRange: SourceRange(from: token, to: endToken, in: buffer)
         )
     }
 
+    private func buildImportNode(path: [Token], selector: AST.ImportNode?, alias: Token?)
+        -> AST.ImportNode
+    {
+        if let selector {
+            var node = selector
+            for token in path.reversed() {
+                node = .Member(token, node)
+            }
+            return node
+        }
+        if path.count == 1 {
+            let token = path[0]
+            if let alias { return .Alias(token, alias) }
+            return .Name(token)
+        }
+        let terminal = path[path.count - 1]
+        let last: AST.ImportNode = alias.map { .Alias(terminal, $0) } ?? .Name(terminal)
+        var node = last
+        for token in path.dropLast().reversed() {
+            node = .Member(token, node)
+        }
+        return node
+    }
+
+    private func parseImportList(openBrace: Token) -> ([AST.ImportNode], Token) {
+        var items: [AST.ImportNode] = []
+        var endToken: Token = openBrace
+        while let t = peek {
+            if case .Separator(.CloseBrace) = t.kind {
+                break
+            }
+            items.append(parseImportItem())
+            if let lastComp = peek, case .Separator(.CloseBrace) = lastComp.kind {
+                break
+            }
+            if let comma = peek, case .Separator(.Comma) = comma.kind {
+                index += 1
+            } else {
+                break
+            }
+        }
+        if items.isEmpty {
+            emitError("expected import item after '{'", at: openBrace)
+        }
+        if let closeToken = peek, case .Separator(.CloseBrace) = closeToken.kind {
+            index += 1
+            endToken = closeToken
+        } else {
+            emitError("expected '}' after import items", at: endOfFile)
+        }
+        return (items, endToken)
+    }
+
+    private func parseImportItem() -> AST.ImportNode {
+        guard let t = peek else {
+            return .Name(errorToken())
+        }
+        let kind: AST.ImportNode
+        switch t.kind {
+        case .Keyword(.SelfKw):
+            index += 1
+            kind = .Self_(t)
+        case .Identifier:
+            index += 1
+            kind = .Name(t)
+        case .Keyword(.SelfTypeKw):
+            emitError(
+                "'Self' is not allowed in import selector, use 'self' instead", at: t
+            )
+            index += 1
+            kind = .Self_(t)
+        default:
+            emitError(
+                "expected import item name, but got '\(t.value)'", at: t
+            )
+            index += 1
+            kind = .Name(t)
+        }
+        if case let .Name(nameToken) = kind,
+           let dotToken = peek, case .Operator(.Dot) = dotToken.kind,
+           let afterDot = peek2
+        {
+            if case .Separator(.OpenBrace) = afterDot.kind {
+                index += 2
+                let (nested, _) = parseImportList(openBrace: afterDot)
+                return .Member(nameToken, .List(nested))
+            }
+            if case .Operator(.Multiply) = afterDot.kind {
+                index += 2
+                return .Member(nameToken, .Wildcard(afterDot))
+            }
+        }
+        var alias: Token? = nil
+        if let asToken = peek, case .Keyword(.As) = asToken.kind {
+            index += 1
+            if let aliasToken = peek {
+                if case .Identifier = aliasToken.kind {
+                    index += 1
+                    alias = aliasToken
+                } else {
+                    emitError(
+                        "expected identifier after 'as', but got '\(aliasToken.value)'",
+                        at: aliasToken
+                    )
+                }
+            } else {
+                emitError("expected identifier after 'as'", at: endOfFile)
+            }
+            if let asToken2 = peek, case .Keyword(.As) = asToken2.kind {
+                emitError("unexpected 'as'", at: asToken2)
+                index += 1
+                if let aliasToken2 = peek, case .Identifier = aliasToken2.kind {
+                    index += 1
+                }
+            }
+        }
+        if let a = alias {
+            return applyAlias(kind, a)
+        }
+        return kind
+    }
+
+    private func applyAlias(_ node: AST.ImportNode, _ alias: Token) -> AST.ImportNode {
+        switch node {
+        case let .Name(token): .Alias(token, alias)
+        case let .Self_(token): .Alias(token, alias)
+        case let .Member(name, sub): .Member(name, applyAlias(sub, alias))
+        case let .Alias(token, _): .Alias(token, alias)
+        default: node
+        }
+    }
+
     private func parseOperatorImport(_ importToken: Token) -> AST.Statement {
-        var path: [AST.PathComponent] = []
+        var path: [Token] = []
         guard let first = peek else {
             emitError("expected module name after 'import operator', but got end of file", at: endOfFile)
             return errorStatement(from: importToken, to: endOfFile)
@@ -486,13 +591,13 @@ public final class Parser {
         switch first.kind {
         case .Identifier, .Keyword(.Module):
             index += 1
-            path.append(.Identifier(first))
+            path.append(first)
         case .Keyword(.SelfKw), .Keyword(.SelfTypeKw):
             emitError(
                 "'\(first.value)' is not allowed in operator import path", at: first
             )
             index += 1
-            path.append(.Self_(first))
+            path.append(first)
         default:
             emitError(
                 "expected module name after 'import operator', but got '\(first.value)'",
@@ -501,7 +606,7 @@ public final class Parser {
             return errorStatement(from: importToken, to: first)
         }
         var endToken: Token = first
-        var selector: AST.OperatorImportSelector? = nil
+        var selector: AST.ImportNode? = nil
         var failedAfterDot = false
         _pathLoop: while let dotToken = peek, case .Operator(.Dot) = dotToken.kind {
             index += 1
@@ -515,13 +620,13 @@ public final class Parser {
             }
             if case .Identifier = afterDot.kind {
                 index += 1
-                path.append(.Identifier(afterDot))
+                path.append(afterDot)
                 endToken = afterDot
                 continue
             }
             if case .Keyword(.Module) = afterDot.kind {
                 index += 1
-                path.append(.Identifier(afterDot))
+                path.append(afterDot)
                 endToken = afterDot
                 continue
             }
@@ -541,30 +646,30 @@ public final class Parser {
                 endToken = aliasToken
             }
         }
-        if selector == nil, !failedAfterDot {
-            if let t = peek {
-                emitError(
-                    "expected '.', '*', or '{' after module path in operator import, but got '\(t.value)'",
-                    at: t
-                )
-            } else {
-                emitError(
-                    "expected '.', '*', or '{' after module path in operator import, but got end of file",
-                    at: endOfFile
-                )
+        if selector == nil {
+            if !failedAfterDot {
+                if let t = peek {
+                    emitError(
+                        "expected '.', '*', or '{' after module path in operator import, but got '\(t.value)'",
+                        at: t
+                    )
+                } else {
+                    emitError(
+                        "expected '.', '*', or '{' after module path in operator import, but got end of file",
+                        at: endOfFile
+                    )
+                }
             }
             return errorStatement(from: importToken, to: endToken)
         }
-        if let selector {
-            return AST.OperatorImport(
-                importToken, AST.ImportPath(path), selector,
-                sourceRange: SourceRange(from: importToken, to: endToken, in: buffer)
-            )
-        }
-        return errorStatement(from: importToken, to: endToken)
+        let node = buildImportNode(path: path, selector: selector, alias: nil)
+        return AST.OperatorImport(
+            importToken, node,
+            sourceRange: SourceRange(from: importToken, to: endToken, in: buffer)
+        )
     }
 
-    private func parseOperatorSelector() -> (AST.OperatorImportSelector, Token)? {
+    private func parseOperatorSelector() -> (AST.ImportNode, Token)? {
         guard let t = peek else {
             emitError(
                 "expected operator name, '*', or '{' after '.', but got end of file",
@@ -578,7 +683,7 @@ public final class Parser {
             return (.Wildcard(t), t)
         case .Operator:
             index += 1
-            return (.Operator(t), t)
+            return (.Name(t), t)
         case .Separator(.OpenBrace):
             index += 1
             return parseOperatorList(t)
@@ -591,8 +696,8 @@ public final class Parser {
         }
     }
 
-    private func parseOperatorList(_ openBrace: Token) -> (AST.OperatorImportSelector, Token)? {
-        var items: [AST.OperatorImportItem] = []
+    private func parseOperatorList(_ openBrace: Token) -> (AST.ImportNode, Token)? {
+        var items: [AST.ImportNode] = []
         var endToken: Token = openBrace
         var itemFailed = false
         var closed = false
@@ -634,7 +739,7 @@ public final class Parser {
         return (.List(items), endToken)
     }
 
-    private func parseOperatorImportItem() -> AST.OperatorImportItem? {
+    private func parseOperatorImportItem() -> AST.ImportNode? {
         guard let t = peek else {
             emitError("expected operator name or submodule name, but got end of file", at: endOfFile)
             return nil
@@ -642,7 +747,7 @@ public final class Parser {
         switch t.kind {
         case .Operator:
             index += 1
-            return .Operator(t)
+            return .Name(t)
         case .Identifier, .Keyword(.Module):
             index += 1
             let moduleToken = t
@@ -664,7 +769,7 @@ public final class Parser {
             guard let result = parseOperatorSelector() else {
                 return nil
             }
-            return .Submodule(t, result.0)
+            return .Member(moduleToken, result.0)
         default:
             emitError(
                 "expected operator name or submodule name, but got '\(t.value)'", at: t
@@ -672,58 +777,6 @@ public final class Parser {
             index += 1
             return nil
         }
-    }
-
-    private func parseImportItem() -> AST.ImportItem {
-        guard let t = peek else {
-            return AST.ImportItem(.Name(errorToken()), alias: nil)
-        }
-        let kind: AST.ImportItem.Kind
-        switch t.kind {
-        case .Keyword(.SelfKw):
-            index += 1
-            kind = .Self_(t)
-        case .Identifier:
-            index += 1
-            kind = .Name(t)
-        case .Keyword(.SelfTypeKw):
-            emitError(
-                "'Self' is not allowed in import selector, use 'self' instead", at: t
-            )
-            index += 1
-            kind = .Self_(t)
-        default:
-            emitError(
-                "expected import item name, but got '\(t.value)'", at: t
-            )
-            index += 1
-            kind = .Name(t)
-        }
-        var alias: Token? = nil
-        if let asToken = peek, case .Keyword(.As) = asToken.kind {
-            index += 1
-            if let aliasToken = peek {
-                if case .Identifier = aliasToken.kind {
-                    index += 1
-                    alias = aliasToken
-                } else {
-                    emitError(
-                        "expected identifier after 'as', but got '\(aliasToken.value)'",
-                        at: aliasToken
-                    )
-                }
-            } else {
-                emitError("expected identifier after 'as'", at: endOfFile)
-            }
-            if let asToken2 = peek, case .Keyword(.As) = asToken2.kind {
-                emitError("unexpected 'as'", at: asToken2)
-                index += 1
-                if let aliasToken2 = peek, case .Identifier = aliasToken2.kind {
-                    index += 1
-                }
-            }
-        }
-        return AST.ImportItem(kind, alias: alias)
     }
 
     private func parseExtern(_ modifiers: [AST.Modifier], _ attributes: [AST.Attribute])

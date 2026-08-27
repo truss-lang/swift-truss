@@ -343,58 +343,25 @@ public extension AST {
         public override func visitImport(_ importStatement: Import, additional: Any? = nil)
             -> Any?
         {
-            var text = "Import "
-            text += importStatement.path.components.map { component in
-                switch component {
-                case let .Identifier(token), let .Self_(token): token.value
-                }
-            }.joined(separator: ".")
-            switch importStatement.selector {
-            case let .WholeModule(alias):
-                if let alias { text += " as \(alias.value)" }
-            case .Wildcard:
-                text += ".*"
-            case let .Explicit(items):
-                let rendered = items.map { item in
-                    var itemText: String =
-                        switch item.kind {
-                        case let .Self_(token), let .Name(token): token.value
-                        }
-                    if let alias = item.alias { itemText += " as \(alias.value)" }
-                    return itemText
-                }.joined(separator: ", ")
-                text += ".{\(rendered)}"
-            }
-            dumpNode(text)
+            dumpNode("Import " + renderImportNode(importStatement.node))
             return nil
         }
 
         public override func visitOperatorImport(
             _ operatorImport: OperatorImport, additional: Any? = nil
         ) -> Any? {
-            var text = "OperatorImport "
-            text += operatorImport.path.components.map { component in
-                switch component {
-                case let .Identifier(token), let .Self_(token): token.value
-                }
-            }.joined(separator: ".")
-            text += renderOperatorSelector(operatorImport.selector)
-            dumpNode(text)
+            dumpNode("OperatorImport " + renderImportNode(operatorImport.node))
             return nil
         }
 
-        private func renderOperatorSelector(_ selector: OperatorImportSelector) -> String {
-            switch selector {
-            case let .Wildcard(token): ".\(token.value)"
-            case let .Operator(token): ".\(token.value)"
-            case let .List(items): ".{\(items.map(renderOperatorItem).joined(separator: ", "))}"
-            }
-        }
-
-        private func renderOperatorItem(_ item: OperatorImportItem) -> String {
-            switch item {
-            case let .Operator(token): token.value
-            case let .Submodule(name, selector): "\(name.value)\(renderOperatorSelector(selector))"
+        private func renderImportNode(_ node: ImportNode) -> String {
+            switch node {
+            case let .Name(token), let .Self_(token): token.value
+            case let .Alias(token, alias): token.value + " as " + alias.value
+            case let .Member(token, sub): token.value + "." + renderImportNode(sub)
+            case .Wildcard: "*"
+            case let .List(items):
+                "{" + items.map { renderImportNode($0) }.joined(separator: ", ") + "}"
             }
         }
 

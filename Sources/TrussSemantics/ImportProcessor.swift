@@ -29,62 +29,115 @@ public final class ImportProcessor: AST.Visitor {
 
     public override func visitImport(_ importStatement: AST.Import, additional: Any? = nil) -> Any? {
         guard let scope = currentScope else { return nil }
-        let path = importStatement.path.components.map(componentName)
-        let fullPath = path.joined(separator: ".")
-        guard let first = path.first else { return nil }
-        guard let root = resolveRoot(first, at: importStatement.token) else {
-            emitUnresolved(
-                fullPath, missing: first, parent: "the current scope",
-                at: importStatement
-            )
-            return nil
-        }
-        let descendCount = switch importStatement.selector {
-        case .WholeModule: path.count - 1
-        case .Wildcard, .Explicit: path.count
-        }
-        var namespace = root
-        if descendCount > 1 {
-            for index in 1 ..< descendCount {
-                let component = path[index]
-                guard let module = namespace.scope.modules[component] else {
-                    emitUnresolved(
-                        fullPath, missing: component, parent: namespace.name,
-                        at: importStatement
-                    )
-                    return nil
-                }
-                namespace = Namespace(name: module.name, symbol: module, scope: module.scope)
-            }
-        }
-        switch importStatement.selector {
-        case let .WholeModule(alias):
-            if path.count == 1 {
-                if let alias {
-                    registerNamespaceAlias(namespace, as: alias.value, into: scope)
-                }
-            } else {
-                importTerminal(
-                    path[path.count - 1], from: namespace, alias: alias?.value,
-                    fullPath: fullPath, at: importStatement, into: scope
-                )
-            }
-        case .Wildcard:
-            importAll(from: namespace, into: scope)
-        case let .Explicit(items):
-            importExplicit(
-                items, from: namespace, fullPath: fullPath,
-                at: importStatement, into: scope
-            )
-        }
+        process(importStatement.node, namespace: nil, atRoot: true, into: scope, pathParts: [])
         return nil
     }
 
-    private func componentName(_ component: AST.PathComponent) -> String {
-        switch component {
-        case let .Identifier(token): token.value
-        case let .Self_(token): token.value
+    private func process(
+        _ node: AST.ImportNode, namespace: Namespace?, atRoot: Bool, into scope: Scope,
+        pathParts: [String]
+    ) {
+        switch node {
+        case let .Member(name, sub):
+            let nameStr = name.value
+            let child: Namespace
+            if let namespace {
+                guard let module = namespace.scope.modules[nameStr] else {
+                    emitUnresolved(
+                        fullPath(at: pathParts, name: nameStr, sub: sub),
+                        missing: nameStr, parent: namespace.name, at: name
+                    )
+                    return
+                }
+                child = Namespace(name: module.name, symbol: module, scope: module.scope)
+            } else {
+                guard let root = resolveRoot(nameStr, at: name) else {
+                    emitUnresolved(
+                        fullPath(at: pathParts, name: nameStr, sub: sub),
+                        missing: nameStr, parent: "the current scope", at: name
+                    )
+                    return
+                }
+                child = root
+            }
+            process(
+                sub, namespace: child, atRoot: false, into: scope,
+                pathParts: pathParts + [nameStr]
+            )
+        case let .Name(token):
+            if isSelf(token) { return }
+            if atRoot {
+                guard let _ = resolveRoot(token.value, at: token) else {
+                    emitUnresolved(
+                        (pathParts + [token.value]).joined(separator: "."),
+                        missing: token.value, parent: "the current scope", at: token
+                    )
+                    return
+                }
+            } else if let namespace {
+                importTerminal(
+                    token.value, from: namespace, alias: nil,
+                    fullPath: (pathParts + [token.value]).joined(separator: "."),
+                    at: token, into: scope
+                )
+            }
+        case let .Alias(token, alias):
+            if isSelf(token) { return }
+            if atRoot {
+                guard let root = resolveRoot(token.value, at: token) else {
+                    emitUnresolved(
+                        (pathParts + [token.value]).joined(separator: "."),
+                        missing: token.value, parent: "the current scope", at: token
+                    )
+                    return
+                }
+                registerNamespaceAlias(root, as: alias.value, into: scope)
+            } else if let namespace {
+                importTerminal(
+                    token.value, from: namespace, alias: alias.value,
+                    fullPath: (pathParts + [token.value]).joined(separator: "."),
+                    at: token, into: scope
+                )
+            }
+        case .Wildcard:
+            if let namespace {
+                importAll(from: namespace, into: scope)
+            }
+        case let .List(items):
+            for item in items {
+                process(
+                    item, namespace: namespace, atRoot: false, into: scope,
+                    pathParts: pathParts
+                )
+            }
+        case .Self_:
+            break
         }
+    }
+
+    private func fullPath(at pathParts: [String], name: String, sub: AST.ImportNode) -> String {
+        let remaining = firstDottedPath(of: sub)
+        let current = remaining.isEmpty ? name : name + "." + remaining
+        return (pathParts + [current]).joined(separator: ".")
+    }
+
+    private func firstDottedPath(of node: AST.ImportNode) -> String {
+        switch node {
+        case let .Member(token, sub):
+            let rest = firstDottedPath(of: sub)
+            return rest.isEmpty ? token.value : token.value + "." + rest
+        case let .Name(token), let .Self_(token): return token.value
+        case let .Alias(token, _): return token.value
+        case .Wildcard: return "*"
+        case let .List(items): return items.first.map { firstDottedPath(of: $0) } ?? ""
+        }
+    }
+
+    private func isSelf(_ token: Token) -> Bool {
+        if case let .Keyword(kind) = token.kind {
+            return kind == .SelfKw || kind == .SelfTypeKw
+        }
+        return false
     }
 
     private func resolveRoot(_ first: String, at token: Token) -> Namespace? {
@@ -99,7 +152,7 @@ public final class ImportProcessor: AST.Visitor {
 
     private func importTerminal(
         _ name: String, from namespace: Namespace, alias: String?, fullPath: String,
-        at importStatement: AST.Import, into scope: Scope
+        at token: Token, into scope: Scope
     ) {
         let importName = alias ?? name
         var found = false
@@ -116,9 +169,7 @@ public final class ImportProcessor: AST.Visitor {
             found = true
         }
         if !found {
-            emitUnresolved(
-                fullPath, missing: name, parent: namespace.name, at: importStatement
-            )
+            emitUnresolved(fullPath, missing: name, parent: namespace.name, at: token)
         }
     }
 
@@ -131,40 +182,6 @@ public final class ImportProcessor: AST.Visitor {
         }
         for (name, values) in namespace.scope.values {
             registerValues(values, as: name, into: scope)
-        }
-    }
-
-    private func importExplicit(
-        _ items: [AST.ImportItem], from namespace: Namespace, fullPath: String,
-        at importStatement: AST.Import, into scope: Scope
-    ) {
-        for item in items {
-            switch item.kind {
-            case let .Name(token):
-                let name = token.value
-                let importName = item.alias?.value ?? name
-                var found = false
-                if let module = namespace.scope.modules[name] {
-                    registerModule(module, as: importName, into: scope)
-                    found = true
-                }
-                if let type = namespace.scope.types[name] {
-                    registerType(type, as: importName, into: scope)
-                    found = true
-                }
-                if let values = namespace.scope.values[name] {
-                    registerValues(values, as: importName, into: scope)
-                    found = true
-                }
-                if !found {
-                    emitUnresolved(
-                        fullPath, missing: name, parent: namespace.name,
-                        at: importStatement
-                    )
-                }
-            case .Self_:
-                break
-            }
         }
     }
 
@@ -203,12 +220,11 @@ public final class ImportProcessor: AST.Visitor {
     }
 
     private func emitUnresolved(
-        _ fullPath: String, missing: String, parent: String,
-        at importStatement: AST.Import
+        _ fullPath: String, missing: String, parent: String, at token: Token
     ) {
-        guard let source = context.sourceTable[importStatement.token.id] else { return }
+        guard let source = context.sourceTable[token.id] else { return }
         let buffer = source.stringSourceBuffer
-        let range = importStatement.token.sourceRange(in: buffer)
+        let range = token.sourceRange(in: buffer)
         let note = Diagnostic(
             severity: .note, message: "could not find '\(missing)' in \(parent)",
             range: range
@@ -216,7 +232,7 @@ public final class ImportProcessor: AST.Visitor {
         context.diagnositicEngine.emit(
             Diagnostic(
                 severity: .error, message: "unresolved import '\(fullPath)'",
-                range: range, notes: [note] + importStatement.token.expansionNotes(in: context)
+                range: range, notes: [note] + token.expansionNotes(in: context)
             )
         )
     }

@@ -222,28 +222,7 @@ public final class SourcePrinter: AST.Visitor {
     @discardableResult
     public override func visitImport(_ importStatement: AST.Import, additional: Any? = nil) -> Any? {
         state.write("import ")
-        for (index, component) in importStatement.path.components.enumerated() {
-            if index > 0 { state.write(".") }
-            switch component {
-            case let .Identifier(token), let .Self_(token):
-                state.write(token.value)
-            }
-        }
-        switch importStatement.selector {
-        case let .WholeModule(alias):
-            if let alias { state.write(" as " + alias.value) }
-        case .Wildcard:
-            state.write(".*")
-        case let .Explicit(items):
-            let rendered = items.map { item in
-                var text: String = switch item.kind {
-                case let .Self_(token), let .Name(token): token.value
-                }
-                if let alias = item.alias { text += " as " + alias.value }
-                return text
-            }.joined(separator: ", ")
-            state.write(".{" + rendered + "}")
-        }
+        writeImportNode(importStatement.node)
         return nil
     }
 
@@ -252,37 +231,28 @@ public final class SourcePrinter: AST.Visitor {
         _ operatorImport: AST.OperatorImport, additional: Any? = nil
     ) -> Any? {
         state.write("import operator ")
-        for (index, component) in operatorImport.path.components.enumerated() {
-            if index > 0 { state.write(".") }
-            switch component {
-            case let .Identifier(token), let .Self_(token):
-                state.write(token.value)
-            }
-        }
-        writeOperatorSelector(operatorImport.selector)
+        writeImportNode(operatorImport.node)
         return nil
     }
 
-    private func writeOperatorSelector(_ selector: AST.OperatorImportSelector) {
-        switch selector {
-        case let .Wildcard(token): state.write("." + token.value)
-        case let .Operator(token): state.write("." + token.value)
+    private func writeImportNode(_ node: AST.ImportNode) {
+        switch node {
+        case let .Name(token), let .Self_(token):
+            state.write(token.value)
+        case let .Alias(token, alias):
+            state.write(token.value + " as " + alias.value)
+        case let .Member(token, sub):
+            state.write(token.value + ".")
+            writeImportNode(sub)
+        case .Wildcard:
+            state.write("*")
         case let .List(items):
-            state.write(".{")
+            state.write("{")
             for (index, item) in items.enumerated() {
                 if index > 0 { state.write(", ") }
-                writeOperatorItem(item)
+                writeImportNode(item)
             }
             state.write("}")
-        }
-    }
-
-    private func writeOperatorItem(_ item: AST.OperatorImportItem) {
-        switch item {
-        case let .Operator(token): state.write(token.value)
-        case let .Submodule(name, selector):
-            state.write(name.value)
-            writeOperatorSelector(selector)
         }
     }
 

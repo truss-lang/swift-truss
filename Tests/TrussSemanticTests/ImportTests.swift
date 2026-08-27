@@ -104,6 +104,52 @@ private func fooInterface() -> ModuleInterface {
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
+@Test func nestedExplicitImportResolvesSubmoduleMembers() {
+    let (context, program) = runImports(
+        "import Foo.{Bar.{Point, makePoint}}", interfaces: [fooInterface()]
+    )
+    let scope = program.packageSymbol!.scope
+    #expect(scope.types["Point"] != nil)
+    #expect(scope.values["makePoint"] != nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func nestedExplicitImportMixedWithFlatItems() {
+    let (context, program) = runImports(
+        "import Foo.{FooType, Bar.{Point}}", interfaces: [fooInterface()]
+    )
+    let scope = program.packageSymbol!.scope
+    #expect(scope.types["FooType"] != nil)
+    #expect(scope.types["Point"] != nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func nestedWildcardImport() {
+    let (context, program) = runImports(
+        "import Foo.{Bar.*}", interfaces: [fooInterface()]
+    )
+    let scope = program.packageSymbol!.scope
+    #expect(scope.types["Point"] != nil)
+    #expect(scope.values["makePoint"] != nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func nestedUnresolvedTerminalReportsError() {
+    let (context, _) = runImports("import Foo.{Bar.{Missing}}", interfaces: [fooInterface()])
+    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnositicEngine.diagnostics.contains {
+        $0.message.contains("unresolved import 'Foo.Bar.Missing'")
+    })
+}
+
+@Test func nestedUnresolvedSubmoduleReportsError() {
+    let (context, _) = runImports("import Foo.{Nope.{Point}}", interfaces: [fooInterface()])
+    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnositicEngine.diagnostics.contains {
+        $0.message.contains("unresolved import 'Foo.Nope.Point'")
+    })
+}
+
 @Test func unresolvedRootReportsError() {
     let (context, _) = runImports("import Baz.Quux", interfaces: [fooInterface()])
     #expect(context.diagnositicEngine.hasErrors)

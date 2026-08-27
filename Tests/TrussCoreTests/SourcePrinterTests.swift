@@ -359,6 +359,38 @@ import TrussCore
     }
 }
 
+@Test func roundTripImport() {
+    for source in [
+        "import A",
+        "import A.*",
+        "import A.B",
+        "import A.B.*",
+        "import A.{B, C}",
+        "import A.{B as b, C as c}",
+        "import A.{self, B}",
+        "import A as X",
+        "import A.B as X",
+        "import Self.{A, B}",
+        "import A.{B, C.{D, E}}",
+        "import A.{B.*, C}",
+        "import A.{B as b, C.{D, E}}",
+    ] {
+        assertRoundTrip(source)
+    }
+}
+
+@Test func printImport() {
+    #expect(printProgram("import A") == "import A")
+    #expect(printProgram("import A.*") == "import A.*")
+    #expect(printProgram("import A.B") == "import A.B")
+    #expect(printProgram("import A.B.*") == "import A.B.*")
+    #expect(printProgram("import A.{B, C.{D, E}}") == "import A.{B, C.{D, E}}")
+    #expect(printProgram("import A.{B.*, C}") == "import A.{B.*, C}")
+    #expect(printProgram("import A.{B as b, C.{D, E}}") == "import A.{B as b, C.{D, E}}")
+    #expect(printProgram("import A as X") == "import A as X")
+    #expect(printProgram("import A.B as X") == "import A.B as X")
+}
+
 @Test func printOperatorImport() {
     #expect(printProgram("import operator Pkg.+") == "import operator Pkg.+")
     #expect(printProgram("import operator Pkg.*") == "import operator Pkg.*")
