@@ -407,7 +407,7 @@ final class TIREmitter: AST.Visitor {
         generateBody(
             .Block(initDecl.body), function: function, symbol: symbol,
             parameters: initDecl.parameters, hasSelf: true, owner: ownerOf(symbol.memberOf),
-            range: initDecl.sourceRange
+            range: initDecl.sourceRange, emitInitReturn: true
         )
         return nil
     }
@@ -428,7 +428,8 @@ final class TIREmitter: AST.Visitor {
     private func generateBody(
         _ body: AST.FunctionDecl.Body, function: TIR.Function, symbol: Symbol.FunctionSymbol?,
         parameters: [AST.FunctionDecl.Parameter], hasSelf: Bool,
-        owner: Symbol.NominalTypeSymbol? = nil, range: SourceRange
+        owner: Symbol.NominalTypeSymbol? = nil, range: SourceRange,
+        emitInitReturn: Bool = false
     ) {
         let savedBuilder = builder
         let savedEnv = env
@@ -462,13 +463,21 @@ final class TIREmitter: AST.Visitor {
             let savedLabelInsert = b.insertPoint
             collectForwardLabels(statements)
             b.insertPoint = savedLabelInsert
-            visitBodyStatements(statements, implicitReturn: shouldImplicitReturn(symbol?.functionType?.returnType))
+            visitBodyStatements(
+                statements,
+                implicitReturn: emitInitReturn ? false : shouldImplicitReturn(symbol?.functionType?.returnType)
+            )
         case let .Expression(expression):
             if let value = visitExpression(expression) {
                 emitReturn(value, range: range)
             } else {
                 emitReturn(nil, range: range)
             }
+        }
+        if emitInitReturn, !blockTerminated(), let owner,
+           let selfAddress = env[owner.id]
+        {
+            emitReturn(selfAddress, range: range)
         }
         destroyActiveExistentials()
         ensureTerminator(range: range)
@@ -485,17 +494,8 @@ final class TIREmitter: AST.Visitor {
         guard let builder else { return }
         var selfIndex = 0
         if hasSelf, let owner, let selfParameter = function.parameters.first {
-            if isInitPointerSelf(selfParameter.ty) {
-                env[owner.id] = selfParameter
-                selfIndex = 1
-            } else {
-                let alloc = builder.buildAllocStack(
-                    allocatedType: selfParameter.ty, name: selfParameter.name
-                )
-                builder.buildStore(value: selfParameter, to: alloc.result)
-                env[owner.id] = alloc.result
-                selfIndex = 1
-            }
+            env[owner.id] = selfParameter
+            selfIndex = 1
         }
         for (index, parameter) in parameters.enumerated() {
             let paramType = lowerType(
@@ -2312,7 +2312,18 @@ final class TIREmitter: AST.Visitor {
             return dispatched
         }
         guard let calleeValue = lowerCallee(call.callee, at: call.sourceRange) else { return nil }
-        var arguments: [TIR.Value] = call.arguments.map { visitExpression($0.value) }.compactMap { $0 }
+        var arguments: [TIR.Value] = []
+        if let memberAccess = call.callee as? AST.MemberAccess,
+           let functionSymbol = memberAccess.symbol as? Symbol.FunctionSymbol,
+           functionSymbol.memberOf != nil,
+           !functionSymbol.isStatic
+        {
+            memberAccess.object.isLeftValue = true
+            if let objectAddress = lvalueAddress(memberAccess.object) {
+                arguments.append(objectAddress)
+            }
+        }
+        arguments.append(contentsOf: call.arguments.map { visitExpression($0.value) }.compactMap { $0 })
         arguments.append(contentsOf: call.trailingClosures.compactMap { visitExpression($0.1) })
         return builder.buildCall(callee: calleeValue, arguments: arguments).result
     }
@@ -2329,15 +2340,12 @@ final class TIREmitter: AST.Visitor {
         let arguments: [TIR.Value] = call.arguments.compactMap { visitExpression($0.value) }
         let lowered = gen.typeLower.lower(nominal)
         if nominal is TrussType.ClassType {
-            let alloc = builder.buildAllocHeap(allocatedType: lowered.id, name: "$object")
-            let objectRef = builder.buildUncheckedRefCast(
-                value: alloc.result, to: lowered.id
-            ).result
+            let objectRef = builder.buildAllocHeap(allocatedType: lowered.id).result
             let callee = builder.buildFunctionRef(function: initFunction)
             builder.buildCall(callee: callee, arguments: [objectRef] + arguments)
             return objectRef
         }
-        let alloc = builder.buildAllocStack(allocatedType: lowered.id, name: "$object")
+        let alloc = builder.buildAllocStack(allocatedType: lowered.id)
         let address = alloc.result
         let callee = builder.buildFunctionRef(function: initFunction)
         builder.buildCall(callee: callee, arguments: [address] + arguments)
@@ -2348,6 +2356,8 @@ final class TIREmitter: AST.Visitor {
         switch expression {
         case let variable as AST.Variable:
             variable.symbol as? Symbol.NominalTypeSymbol
+        case let member as AST.MemberAccess:
+            member.symbol as? Symbol.NominalTypeSymbol
         case let application as AST.GenericApplication:
             nominalTypeSymbol(of: application.base)
         default:

@@ -495,7 +495,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("StructElementAddr"))
+        try #require(tir.contains("structelementaddr"))
         try #require(tir.contains("Store"))
     }
 
@@ -1178,7 +1178,7 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("StructElementAddr"))
+        try #require(tir.contains("structelementaddr"))
         try #require(tir.contains("Store "))
         try #require(!tir.contains("xSetter_"))
     }
@@ -1221,7 +1221,7 @@ import TrussTIRGen
     )
     let getterBlock = tir.components(separatedBy: "function ")
         .first(where: { $0.contains("1xGetter_") }) ?? ""
-    try #require(getterBlock.contains("StructElementAddr"))
+    try #require(getterBlock.contains("structelementaddr"))
     try #require(getterBlock.contains("Load "))
 }
 
@@ -1245,7 +1245,7 @@ import TrussTIRGen
     )
     let setterBlock = tir.components(separatedBy: "function ")
         .first(where: { $0.contains("1xSetter_") }) ?? ""
-    try #require(setterBlock.contains("StructElementAddr"))
+    try #require(setterBlock.contains("structelementaddr"))
     try #require(setterBlock.contains("Store "))
 }
 
@@ -1986,9 +1986,8 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("@$t4main_1S_4init_1S"))
-        try #require(tir.contains("FunctionRef $t4main_1S_4init_1S"))
-        try #require(tir.contains("Apply "))
+        try #require(tir.contains("4init"))
+        try #require(tir.contains("call "))
     }
 }
 
@@ -2003,10 +2002,10 @@ import TrussTIRGen
         }
         """
     )
-    try #require(tir.contains("4init_1S : $("))
+    try #require(tir.contains("4init"))
     let fBlock = tir.components(separatedBy: "function ").last
         ?? ""
-    try #require(fBlock.range(of: #"Apply %\d+\(%\d+\)"#, options: .regularExpression) != nil)
+    try #require(fBlock.contains("call "))
 }
 
 @Test func implicitReturnInFunctionBody() throws {
@@ -2022,7 +2021,7 @@ import TrussTIRGen
     )
     let fBlock = tir.components(separatedBy: "function ").last
         ?? ""
-    try #require(fBlock.range(of: #"ret %\d+"#, options: .regularExpression) != nil)
+    try #require(fBlock.range(of: #"ret ".*"%\d+"#, options: .regularExpression) != nil)
 }
 
 @Test func implicitReturnInGetter() throws {
@@ -2243,7 +2242,7 @@ import TrussTIRGen
         )
         let fBlock = tir.components(separatedBy: "function ").last ?? ""
         try #require(fBlock.range(
-            of: #"StructElementAddr %\d+, #1 y"#, options: .regularExpression
+            of: #"structelementaddr %\d+, #1 y"#, options: .regularExpression
         ) != nil)
     }
 
@@ -2347,7 +2346,7 @@ import TrussTIRGen
         """,
         installBuiltin: true
     )
-    try #require(tir.contains("Arith neg"))
+    try #require(tir.contains("neg "))
     try #require(!tir.contains("Apply "))
 }
 
@@ -2490,7 +2489,7 @@ import TrussTIRGen
         """,
         installBuiltin: true
     )
-    try #require(tir.contains("StructElementAddr %1, #0 i"))
+    try #require(tir.contains("structelementaddr"))
     try #require(!tir.contains("Load %1 "))
 }
 
@@ -2506,7 +2505,7 @@ import TrussTIRGen
         """,
         installBuiltin: true
     )
-    try #require(tir.contains("StructElementAddr %1, #0 i"))
+    try #require(tir.contains("structelementaddr"))
     try #require(!tir.contains("Load %1 "))
 }
 

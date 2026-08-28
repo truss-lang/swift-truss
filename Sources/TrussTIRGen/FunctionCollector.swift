@@ -124,11 +124,17 @@ final class FunctionCollector {
             symbol, baseName: "init", returnType: initReturnType,
             modulePath: gen.modulePathStack
         )
-        let isStruct = symbol.memberOf.flatMap { context.id2Symbol[$0] } is Symbol.StructSymbol
+        let ownerSymbol = symbol.memberOf.flatMap { context.id2Symbol[$0] } as? Symbol.NominalTypeSymbol
+        let initReturnTypeLowered: TIRType.TIRType
+        if let ownerSymbol, let typeId = ownerSymbol.typeId, let type = context.typeTable[typeId] {
+            let lowered = gen.typeLower.lower(type)
+            initReturnTypeLowered = gen.registry.pointerType(pointee: lowered.id)
+        } else {
+            initReturnTypeLowered = gen.registry.voidType()
+        }
         let function = createFunction(
-            symbol, name: name, returnType: gen.registry.voidType(),
-            parameters: decl.parameters, symbolType: symbol,
-            isInitSelfPointer: isStruct
+            symbol, name: name, returnType: initReturnTypeLowered,
+            parameters: decl.parameters, symbolType: symbol
         )
         if let memberOf = symbol.memberOf {
             gen.initFunctionsByType[memberOf] = function
@@ -199,8 +205,7 @@ final class FunctionCollector {
     private func createFunction(
         _ symbol: Symbol.FunctionSymbol?, name: String, returnType: TIRType.TIRType,
         parameters: [AST.FunctionDecl.Parameter] = [], symbolType: Symbol.FunctionSymbol? = nil,
-        isVariadic: Bool = false, isExtern: Bool = false, callingConvention: String? = nil,
-        isInitSelfPointer: Bool = false
+        isVariadic: Bool = false, isExtern: Bool = false, callingConvention: String? = nil
     ) -> TIR.Function {
         var tirParameters: [TIR.Parameter] = []
         if let memberOf = symbol?.memberOf, !(symbol?.isStatic ?? true),
@@ -208,9 +213,7 @@ final class FunctionCollector {
            let typeId = owner.typeId, let type = context.typeTable[typeId]
         {
             let loweredSelf = gen.typeLower.lower(type)
-            let selfType: TIRType.TIRType = isInitSelfPointer
-                ? gen.registry.pointerType(pointee: loweredSelf.id)
-                : loweredSelf
+            let selfType = gen.registry.pointerType(pointee: loweredSelf.id)
             tirParameters.append(TIR.Parameter(ty: selfType.id, name: "self"))
         }
         tirParameters.append(contentsOf: parameters.enumerated().map { index, parameter in
