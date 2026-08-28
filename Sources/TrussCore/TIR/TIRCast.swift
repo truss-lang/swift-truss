@@ -7,7 +7,6 @@ public extension TIR {
             self.value = value
             self.targetType = targetType
             result = InstructionResult(ty: targetType, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -23,7 +22,6 @@ public extension TIR {
             self.value = value
             self.targetType = targetType
             result = InstructionResult(ty: targetType, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -38,7 +36,6 @@ public extension TIR {
             self.sizedType = sizedType
             let ty = registry.integerType(isSigned: true, bitWidth: 64).id
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -52,7 +49,6 @@ public extension TIR {
         public init(registry: Registry, value: Value, name: String) {
             self.value = value
             result = InstructionResult(ty: registry.metadataType().id, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -68,7 +64,6 @@ public extension TIR {
             self.type = type
             self.metadata = metadata
             result = InstructionResult(ty: registry.metadataType().id, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -86,7 +81,6 @@ public extension TIR {
             result = InstructionResult(
                 ty: registry.primitiveType(kind: .Bool, bitWidth: 1).id, name: name
             )
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -100,7 +94,6 @@ public extension TIR {
         public init(registry: Registry, metadata: Value, name: String) {
             self.metadata = metadata
             result = InstructionResult(ty: registry.metadataType().id, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -112,7 +105,6 @@ public extension TIR {
         public let message: String?
         public init(message: String?) {
             self.message = message
-            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

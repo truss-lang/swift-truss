@@ -308,9 +308,11 @@ public extension TIR {
         @discardableResult
         public func buildCall(callee: Value, arguments: [Value], name: String? = nil) -> Call {
             guard let insertPoint else { fatalError("no insert point") }
+            let resultTy = callResultType(callee)
             let instruction = TIR.Call(
-                callee: callee, arguments: arguments, ty: callResultType(callee),
-                name: freshName(name)
+                callee: callee, arguments: arguments, ty: resultTy,
+                name: freshName(name),
+                hasResult: !(registry.types[resultTy] is TIRType.VoidType)
             )
             insertPoint.instructions.append(attach(instruction, result: instruction.result))
             return instruction
@@ -322,10 +324,12 @@ public extension TIR {
             errorCell: Value? = nil, resultTy: Id.TIRTypeId? = nil, name: String? = nil
         ) -> TryCall {
             guard let insertPoint else { fatalError("no insert point") }
+            let resolvedTy = resultTy ?? callResultType(callee)
             let instruction = TIR.TryCall(
                 callee: callee, arguments: arguments, successBlock: successBlock,
-                errorBlock: errorBlock, errorCell: errorCell, ty: resultTy ?? callResultType(callee),
-                name: freshName(name)
+                errorBlock: errorBlock, errorCell: errorCell, ty: resolvedTy,
+                name: freshName(name),
+                hasResult: !(registry.types[resolvedTy] is TIRType.VoidType)
             )
             insertPoint.instructions.append(attach(instruction, result: instruction.result))
             return instruction

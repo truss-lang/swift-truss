@@ -3,7 +3,6 @@ public extension TIR {
         public let value: Value
         public init(value: Value) {
             self.value = value
-            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -15,7 +14,6 @@ public extension TIR {
         public let value: Value
         public init(value: Value) {
             self.value = value
-            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -29,7 +27,6 @@ public extension TIR {
         public init(value: Value, name: String) {
             self.value = value
             result = InstructionResult(ty: value.ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -41,7 +38,6 @@ public extension TIR {
         public let value: Value
         public init(value: Value) {
             self.value = value
-            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

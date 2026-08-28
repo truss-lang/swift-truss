@@ -6,7 +6,6 @@ public extension TIR {
             self.allocatedType = allocatedType
             let ty = registry.pointerType(pointee: allocatedType).id
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -18,7 +17,6 @@ public extension TIR {
         public let value: Value
         public init(value: Value) {
             self.value = value
-            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -33,7 +31,6 @@ public extension TIR {
             self.allocatedType = allocatedType
             let ty = registry.pointerType(pointee: allocatedType).id
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -45,7 +42,6 @@ public extension TIR {
         public let value: Value
         public init(value: Value) {
             self.value = value
-            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -60,7 +56,6 @@ public extension TIR {
             self.allocatedType = allocatedType
             let ty = registry.pointerType(pointee: allocatedType).id
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -72,7 +67,6 @@ public extension TIR {
         public let value: Value
         public init(value: Value) {
             self.value = value
-            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -86,7 +80,6 @@ public extension TIR {
         public init(ptr: Value, ty: Id.TIRTypeId, name: String) {
             self.ptr = ptr
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -100,7 +93,6 @@ public extension TIR {
         public init(value: Value, ptr: Value) {
             self.value = value
             self.ptr = ptr
-            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -129,7 +121,6 @@ public extension TIR {
             self.index = index
             let ty = registry.elementPointerType(base: base.ty, at: index)
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -146,7 +137,6 @@ public extension TIR {
             self.index = index
             let ty = registry.elementPointerType(base: base.ty, at: index)
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -163,7 +153,6 @@ public extension TIR {
             self.index = index
             let ty = registry.elementPointerType(base: base.ty, at: index)
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -177,7 +166,6 @@ public extension TIR {
         public init(registry: Registry, cell: Value, name: String) {
             self.cell = cell
             result = InstructionResult(ty: cell.ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

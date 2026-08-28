@@ -166,20 +166,19 @@ public extension TIR {
         }
 
         private func instructionText(_ instruction: Instruction) -> String {
-            let valuePrefix = instruction.name.isEmpty ? "" : "%" + instruction.name + " = "
-            var body: String
             switch instruction {
             case let ret as Return:
                 if let value = ret.value {
-                    body = "ret \(typeText(value.ty)) \(valueText(value))"
+                    return "ret \(typeText(value.ty)) \(valueText(value))"
                 } else {
-                    body = "ret void"
+                    return "ret void"
                 }
             case let branch as Branch:
-                body = "br " + blockLabel(branch.target)
+                var text = "br " + blockLabel(branch.target)
                 if !branch.arguments.isEmpty {
-                    body += "(" + branch.arguments.map { valueText($0) }.joined(separator: ", ") + ")"
+                    text += "(" + branch.arguments.map { valueText($0) }.joined(separator: ", ") + ")"
                 }
+                return text
             case let cond as ConditionalBranch:
                 var trueTarget = blockLabel(cond.trueBranch)
                 if !cond.trueArguments.isEmpty {
@@ -189,15 +188,15 @@ public extension TIR {
                 if !cond.falseArguments.isEmpty {
                     falseTarget += "(" + cond.falseArguments.map { valueText($0) }.joined(separator: ", ") + ")"
                 }
-                body = "br \(typeText(cond.condition.ty)) \(valueText(cond.condition)), "
+                return "br \(typeText(cond.condition.ty)) \(valueText(cond.condition)), "
                     + trueTarget + ", " + falseTarget
             case _ as Unreachable:
-                body = "unreachable"
+                return "unreachable"
             case let phi as Phi:
                 let incomings = phi.incomings.map { incoming in
                     "[" + valueText(incoming.value) + ", %" + incoming.block.name + "]"
                 }
-                body = "phi \(typeText(phi.result.ty)) " + incomings.joined(separator: ", ")
+                return "%\(phi.result.name) = phi \(typeText(phi.result.ty)) " + incomings.joined(separator: ", ")
             case let switchEnum as SwitchEnum:
                 var text = "switch \(typeText(switchEnum.value.ty)) \(valueText(switchEnum.value))"
                 if let defaultBlock = switchEnum.defaultBlock {
@@ -212,127 +211,143 @@ public extension TIR {
                     return "case \(enumCaseName(switchEnum.value.ty, caseInfo.tag)), " + label
                 }.joined(separator: ", ")
                 text += " ]"
-                body = text
+                return text
             case let extract as ExtractPayload:
-                body = "extractpayload \(typeText(extract.value.ty)) \(valueText(extract.value))"
+                return "%\(extract.result.name) = extractpayload \(typeText(extract.value.ty)) \(valueText(extract.value))"
             case let arith as UnaryArith:
-                body = "\(arith.op.rawValue) \(typeText(arith.result.ty)) \(valueText(arith.operand))"
+                return "%\(arith.result.name) = \(arith.op.rawValue) \(typeText(arith.result.ty)) \(valueText(arith.operand))"
             case let arith as BinaryArith:
-                body =
-                    "\(arith.op.rawValue) \(typeText(arith.result.ty)) \(valueText(arith.lhs)), \(valueText(arith.rhs))"
+                return "%\(arith.result.name) = \(arith.op.rawValue) \(typeText(arith.result.ty)) \(valueText(arith.lhs)), \(valueText(arith.rhs))"
             case let alloc as AllocStack:
-                body = "alloca \(typeText(alloc.allocatedType))"
+                return "%\(alloc.result.name) = alloca \(typeText(alloc.allocatedType))"
             case let dealloc as DeallocStack:
-                body = "deallocstack \(valueText(dealloc.value))"
+                return "deallocstack \(valueText(dealloc.value))"
             case let alloc as AllocHeap:
-                body = "allocheap \(typeText(alloc.allocatedType))"
+                return "%\(alloc.result.name) = allocheap \(typeText(alloc.allocatedType))"
             case let dealloc as DeallocHeap:
-                body = "deallocheap \(valueText(dealloc.value))"
+                return "deallocheap \(valueText(dealloc.value))"
             case let alloc as AllocCell:
-                body = "alloccell \(typeText(alloc.allocatedType))"
+                return "%\(alloc.result.name) = alloccell \(typeText(alloc.allocatedType))"
             case let dealloc as DeallocCell:
-                body = "dealloccell \(valueText(dealloc.value))"
+                return "dealloccell \(valueText(dealloc.value))"
             case let load as Load:
-                body = "load \(typeText(load.result.ty)), ptr \(valueText(load.ptr))"
+                return "%\(load.result.name) = load \(typeText(load.result.ty)), ptr \(valueText(load.ptr))"
             case let store as Store:
-                body = "store \(typeText(store.value.ty)) \(valueText(store.value)), ptr \(valueText(store.ptr))"
+                return "store \(typeText(store.value.ty)) \(valueText(store.value)), ptr \(valueText(store.ptr))"
             case let sizeOf as SizeOf:
-                body = "sizeof \(typeText(sizeOf.sizedType))"
+                return "%\(sizeOf.result.name) = sizeof \(typeText(sizeOf.sizedType))"
             case let structAddr as StructElementAddr:
-                body =
-                    "structelementaddr \(typeText(structAddr.base.ty)) \(valueText(structAddr.base)), \(structAddr.index)"
+                return "%\(structAddr.result.name) = structelementaddr \(typeText(structAddr.base.ty)) \(valueText(structAddr.base)), \(structAddr.index)"
             case let tupleAddr as TupleElementAddr:
-                body =
-                    "tupleelementaddr \(typeText(tupleAddr.base.ty)) \(valueText(tupleAddr.base)), \(tupleAddr.index)"
-            case let refAddr as ClassElementAddr:
-                body = "refelementaddr \(typeText(refAddr.base.ty)) \(valueText(refAddr.base)), \(refAddr.index)"
+                return "%\(tupleAddr.result.name) = tupleelementaddr \(typeText(tupleAddr.base.ty)) \(valueText(tupleAddr.base)), \(tupleAddr.index)"
+            case let classAddr as ClassElementAddr:
+                return "%\(classAddr.result.name) = classelementaddr \(typeText(classAddr.base.ty)) \(valueText(classAddr.base)), \(classAddr.index)"
             case let project as ProjectCell:
-                body = "projectcell \(valueText(project.cell))"
+                return "%\(project.result.name) = projectcell \(valueText(project.cell))"
             case let structValue as StructValue:
-                body = "structvalue \(typeText(structValue.result.ty)) (" + structValue.fields.map { valueText($0) }
-                    .joined(separator: ", ") + ")"
+                return "%\(structValue.result.name) = structvalue \(typeText(structValue.result.ty)) ("
+                    + structValue.fields.map { valueText($0) }.joined(separator: ", ")
+                    + ")"
             case let tupleValue as TupleValue:
-                body = "tuplevalue \(typeText(tupleValue.result.ty)) (" + tupleValue.elements.map { valueText($0) }
-                    .joined(separator: ", ") + ")"
+                return "%\(tupleValue.result.name) = tuplevalue \(typeText(tupleValue.result.ty)) ("
+                    + tupleValue.elements.map { valueText($0) }.joined(separator: ", ")
+                    + ")"
             case let enumValue as EnumValue:
                 var text =
-                    "enumvalue \(typeText(enumValue.result.ty)) case \(enumCaseName(enumValue.result.ty, enumValue.caseIndex))"
+                    "%\(enumValue.result.name) = enumvalue \(typeText(enumValue.result.ty)) case \(enumCaseName(enumValue.result.ty, enumValue.caseIndex))"
                 if let payload = enumValue.payload {
                     text += ", \(valueText(payload))"
                 }
-                body = text
+                return text
             case let call as Call:
-                body = "call \(typeText(call.result?.ty ?? registry!.voidType().id)) \(valueText(call.callee))(" + call
-                    .arguments.map { valueText($0) }
-                    .joined(separator: ", ") + ")"
+                let prefix = if let result = call.result {
+                    "%\(result.name) = "
+                } else {
+                    ""
+                }
+                return prefix
+                    + "call \(typeText(call.result?.ty ?? registry!.voidType().id)) \(valueText(call.callee))("
+                    + call.arguments.map { valueText($0) }.joined(separator: ", ")
+                    + ")"
             case let tryCall as TryCall:
-                var text =
-                    "trycall \(typeText(tryCall.result?.ty ?? registry!.voidType().id)) \(valueText(tryCall.callee))(" +
-                    tryCall.arguments
-                    .map { valueText($0) }
-                    .joined(separator: ", ") + ") to " + blockLabel(tryCall.successBlock) + ", error " +
-                    blockLabel(tryCall.errorBlock)
+                let prefix = if let result = tryCall.result {
+                    "%\(result.name) = "
+                } else {
+                    ""
+                }
+                var text = prefix
+                    + "trycall \(typeText(tryCall.result?.ty ?? registry!.voidType().id)) \(valueText(tryCall.callee))("
+                    + tryCall.arguments.map { valueText($0) }.joined(separator: ", ")
+                    + ") to "
+                    + blockLabel(tryCall.successBlock)
+                    + ", error "
+                    + blockLabel(tryCall.errorBlock)
                 if let errorCell = tryCall.errorCell {
                     text += ", errorcell \(valueText(errorCell))"
                 }
-                body = text
+                return text
             case let closure as Closure:
-                body = "closure @\(closure.function.name)(" + closure.captures.map { valueText($0) }
-                    .joined(separator: ", ") + ")"
+                return "%\(closure.result.name) = closure @\(closure.function.name)("
+                    + closure.captures.map { valueText($0) }.joined(separator: ", ")
+                    + ")"
             case let upcast as Upcast:
-                body = "upcast \(valueText(upcast.value)) to \(typeText(upcast.targetType))"
+                return "%\(upcast.result.name) = upcast \(valueText(upcast.value)) to \(typeText(upcast.targetType))"
             case let cast as UncheckedRefCast:
-                body = "uncheckedrefcast \(valueText(cast.value)) to \(typeText(cast.targetType))"
+                return "%\(cast.result.name) = uncheckedrefcast \(valueText(cast.value)) to \(typeText(cast.targetType))"
             case let typeMetadata as TypeMetadata:
-                body = "typemetadata \(valueText(typeMetadata.value))"
+                return "%\(typeMetadata.result.name) = typemetadata \(valueText(typeMetadata.value))"
             case let typeMetadataConstant as TypeMetadataConstant:
-                body = "typemetadataconstant \(typeText(typeMetadataConstant.type))"
+                return "%\(typeMetadataConstant.result.name) = typemetadataconstant \(typeText(typeMetadataConstant.type))"
             case let isInstance as IsInstance:
-                body = "isinstance \(valueText(isInstance.metadata)), \(valueText(isInstance.target))"
+                return "%\(isInstance.result.name) = isinstance \(valueText(isInstance.metadata)), \(valueText(isInstance.target))"
             case let superclass as Superclass:
-                body = "superclass \(valueText(superclass.metadata))"
+                return "%\(superclass.result.name) = superclass \(valueText(superclass.metadata))"
             case let trap as Trap:
                 if let message = trap.message {
-                    body = "trap \"" + message + "\""
+                    return "trap \"" + message + "\""
                 } else {
-                    body = "trap"
+                    return "trap"
                 }
             case let retain as Retain:
-                body = "retain \(valueText(retain.value))"
+                return "retain \(valueText(retain.value))"
             case let release as Release:
-                body = "release \(valueText(release.value))"
+                return "release \(valueText(release.value))"
             case let copy as Copy:
-                body = "copy \(valueText(copy.value))"
+                return "%\(copy.result.name) = copy \(valueText(copy.value))"
             case let destroy as Destroy:
-                body = "destroy \(valueText(destroy.value))"
+                return "destroy \(valueText(destroy.value))"
             case let asm as InlineAsm:
-                body = "asm \"" + asm.template + "\", \"" + asm.constraints.joined(separator: ",") + "\"(" + asm
-                    .operands.map { valueText($0) }.joined(separator: ", ") + ")"
+                return "asm \""
+                    + asm.template
+                    + "\", \""
+                    + asm.constraints.joined(separator: ",")
+                    + "\"("
+                    + asm.operands.map { valueText($0) }.joined(separator: ", ")
+                    + ")"
             case let build as BuildExistential:
                 let witnesses = build.witnesses.map { String($0.id) }.joined(separator: ", ")
-                body = "buildexistential \(valueText(build.value)) witness \(witnesses) to \(typeText(build.result.ty))"
+                return "%\(build.result.name) = buildexistential \(valueText(build.value)) witness \(witnesses) to \(typeText(build.result.ty))"
             case let open as OpenExistential:
-                body = "openexistential \(valueText(open.container)) as \(typeText(open.result.ty))"
+                return "%\(open.result.name) = openexistential \(valueText(open.container)) as \(typeText(open.result.ty))"
             case let witnessMethod as WitnessMethod:
                 let args = ([witnessMethod.selfValue] + witnessMethod.arguments)
                     .map { valueText($0) }.joined(separator: ", ")
-                body =
-                    "witnessmethod \(typeText(witnessMethod.selfValue.ty))#\(witnessMethod.witness.id).\(witnessMethod.index)(" +
-                    args + ")"
+                return "%\(witnessMethod.result.name) = witnessmethod \(typeText(witnessMethod.selfValue.ty))#\(witnessMethod.witness.id).\(witnessMethod.index)("
+                    + args
+                    + ")"
             case let opaqueWitness as OpaqueWitnessMethod:
                 let args = ([opaqueWitness.selfValue] + opaqueWitness.arguments)
                     .map { valueText($0) }.joined(separator: ", ")
-                body =
-                    "opaquewitnessmethod \(typeText(opaqueWitness.container.ty))#\(opaqueWitness.protocolId.id).\(opaqueWitness.index)(" +
-                    args + ")"
+                return "%\(opaqueWitness.result.name) = opaquewitnessmethod \(typeText(opaqueWitness.container.ty))#\(opaqueWitness.protocolId.id).\(opaqueWitness.index)("
+                    + args
+                    + ")"
             case let existentialCopy as ExistentialCopy:
-                body = "existentialcopy \(valueText(existentialCopy.container))"
+                return "%\(existentialCopy.result.name) = existentialcopy \(valueText(existentialCopy.container))"
             case let existentialDestroy as ExistentialDestroy:
-                body = "existentialdestroy \(valueText(existentialDestroy.container))"
+                return "existentialdestroy \(valueText(existentialDestroy.container))"
             default:
-                body = "unknown"
+                return "unknown"
             }
-            return valuePrefix + body
         }
     }
 }

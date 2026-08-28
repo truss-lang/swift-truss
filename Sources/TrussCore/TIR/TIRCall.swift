@@ -15,11 +15,12 @@ public extension TIR {
         public let callee: Value
         public let arguments: [Value]
         public var result: Value?
-        public init(callee: Value, arguments: [Value], ty: Id.TIRTypeId, name: String) {
+        public init(callee: Value, arguments: [Value], ty: Id.TIRTypeId, name: String, hasResult: Bool = true) {
             self.callee = callee
             self.arguments = arguments
-            super.init(name: name)
-            result = InstructionResult(ty: ty, name: name)
+            if hasResult {
+                result = InstructionResult(ty: ty, name: name)
+            }
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -36,15 +37,16 @@ public extension TIR {
         public var result: Value?
         public init(
             callee: Value, arguments: [Value], successBlock: BasicBlock, errorBlock: BasicBlock,
-            errorCell: Value?, ty: Id.TIRTypeId, name: String
+            errorCell: Value?, ty: Id.TIRTypeId, name: String, hasResult: Bool = true
         ) {
             self.callee = callee
             self.arguments = arguments
             self.successBlock = successBlock
             self.errorBlock = errorBlock
             self.errorCell = errorCell
-            super.init(name: name)
-            result = InstructionResult(ty: ty, name: name)
+            if hasResult {
+                result = InstructionResult(ty: ty, name: name)
+            }
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -60,7 +62,6 @@ public extension TIR {
             self.function = function
             self.captures = captures
             result = InstructionResult(ty: function.ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

@@ -14,7 +14,6 @@ public extension TIR {
             self.constraints = constraints
             self.operands = operands
             self.options = options
-            super.init(name: "")
         }
     }
 }

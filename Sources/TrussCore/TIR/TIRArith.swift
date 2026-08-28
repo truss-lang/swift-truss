@@ -54,7 +54,6 @@ public extension TIR {
             self.op = op
             self.operand = operand
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -72,7 +71,6 @@ public extension TIR {
             self.lhs = lhs
             self.rhs = rhs
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

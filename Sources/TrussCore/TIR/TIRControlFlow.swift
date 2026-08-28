@@ -3,7 +3,6 @@ public extension TIR {
         public let value: Value?
         public init(value: Value? = nil) {
             self.value = value
-            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -17,7 +16,6 @@ public extension TIR {
         public init(target: BasicBlock, arguments: [Value] = []) {
             self.target = target
             self.arguments = arguments
-            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -40,7 +38,6 @@ public extension TIR {
             self.falseBranch = falseBranch
             self.trueArguments = trueArguments
             self.falseArguments = falseArguments
-            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -49,9 +46,7 @@ public extension TIR {
     }
 
     final class Unreachable: Instruction {
-        public init() {
-            super.init(name: "")
-        }
+        public override init() {}
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitUnreachable(self, additional: additional)
@@ -73,7 +68,6 @@ public extension TIR {
         public init(incomings: [Incoming], ty: Id.TIRTypeId, name: String) {
             self.incomings = incomings
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -100,7 +94,6 @@ public extension TIR {
             self.value = value
             self.cases = cases
             self.defaultBlock = defaultBlock
-            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -116,7 +109,6 @@ public extension TIR {
             self.value = value
             self.caseIndex = caseIndex
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

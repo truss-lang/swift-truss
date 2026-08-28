@@ -7,7 +7,6 @@ public extension TIR {
             self.value = value
             self.witnesses = witnesses
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -21,7 +20,6 @@ public extension TIR {
         public init(container: Value, ty: Id.TIRTypeId, name: String) {
             self.container = container
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -44,7 +42,6 @@ public extension TIR {
             self.selfValue = selfValue
             self.arguments = arguments
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -69,7 +66,6 @@ public extension TIR {
             self.selfValue = selfValue
             self.arguments = arguments
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -83,7 +79,6 @@ public extension TIR {
         public init(container: Value, ty: Id.TIRTypeId, name: String) {
             self.container = container
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -95,7 +90,6 @@ public extension TIR {
         public let container: Value
         public init(container: Value) {
             self.container = container
-            super.init(name: "")
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {

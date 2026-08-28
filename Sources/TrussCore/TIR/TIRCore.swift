@@ -187,12 +187,9 @@ public enum TIR {
 
     @abstractClass
     public class Instruction {
-        public let name: String
         public var sourceRange: SourceRange = TIR.unknownSourceRange
         @abstractInit
-        public init(name: String) {
-            self.name = name
-        }
+        public init() {}
 
         @abstract
         public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any?

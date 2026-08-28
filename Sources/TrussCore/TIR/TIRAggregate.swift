@@ -5,7 +5,6 @@ public extension TIR {
         public init(fields: [Value], ty: Id.TIRTypeId, name: String) {
             self.fields = fields
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -19,7 +18,6 @@ public extension TIR {
         public init(elements: [Value], ty: Id.TIRTypeId, name: String) {
             self.elements = elements
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -35,7 +33,6 @@ public extension TIR {
             self.caseIndex = caseIndex
             self.payload = payload
             result = InstructionResult(ty: ty, name: name)
-            super.init(name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
