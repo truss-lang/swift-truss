@@ -339,36 +339,6 @@ public final class NameResolver: AST.Visitor {
     @discardableResult
     public override func visitCall(_ call: AST.Call, additional: Any? = nil) -> Any? {
         super.visitCall(call, additional: additional)
-        switch call.callee {
-        case let variable as AST.Variable:
-            if let nominal = variable.symbol as? Symbol.NominalTypeSymbol {
-                call.overloads = memberResolution("init", in: nominal).1
-            } else {
-                call.overloads = variable.overloads
-            }
-        case let memberAccess as AST.MemberAccess:
-            call.overloads = memberAccess.overloads
-        case let genericApplication as AST.GenericApplication:
-            if let nominal = resolvedSymbol(genericApplication.base)
-                as? Symbol.NominalTypeSymbol
-            {
-                call.overloads = memberResolution("init", in: nominal).1
-            } else if let overloads = calleeOverloads(genericApplication.base) {
-                call.overloads = overloads
-            }
-        case let sequential as AST.Sequential:
-            if let base = sequential.operands.first,
-               let nominal = resolvedSymbol(base) as? Symbol.NominalTypeSymbol
-            {
-                call.overloads = memberResolution("init", in: nominal).1
-            } else if let base = sequential.operands.first,
-                      let overloads = calleeOverloads(base)
-            {
-                call.overloads = overloads
-            }
-        default:
-            break
-        }
         return nil
     }
 
@@ -499,19 +469,6 @@ public final class NameResolver: AST.Visitor {
             return (moduleEntry, nil)
         }
         return (nil, nil)
-    }
-
-    private func calleeOverloads(_ expression: AST.Expression) -> [Symbol.FunctionSymbol]? {
-        if let variable = expression as? AST.Variable {
-            return variable.overloads
-        }
-        if let member = expression as? AST.MemberAccess {
-            return member.overloads
-        }
-        if let call = expression as? AST.Call {
-            return call.overloads
-        }
-        return nil
     }
 
     private func resolvedSymbol(_ expression: AST.Expression) -> Symbol.Symbol? {

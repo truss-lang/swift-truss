@@ -301,9 +301,7 @@ public final class AccessChecker: AST.Visitor {
         for (_, closure) in call.trailingClosures {
             visit(closure, additional: additional)
         }
-        if let symbol = call.symbol,
-           !(symbol is Symbol.ModuleSymbol),
-           !(symbol is Symbol.PackageSymbol),
+        if let symbol = AST.Expression.resolvedFunctionSymbol(of: call.callee),
            let token = tokenOf(call)
         {
             checkAccess(of: symbol, at: token)

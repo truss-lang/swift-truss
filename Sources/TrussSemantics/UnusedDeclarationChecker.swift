@@ -53,7 +53,10 @@ public final class UnusedDeclarationChecker: AST.Visitor {
         case let variable as AST.Variable:
             insert(variable.symbol, overloads: variable.overloads)
         case let call as AST.Call:
-            insert(call.symbol, overloads: call.overloads)
+            insert(
+                TypeChecker.resolvedFunctionSymbol(of: call.callee),
+                overloads: TypeChecker.resolvedFunctionSymbols(of: call.callee)
+            )
         case let memberAccess as AST.MemberAccess:
             insert(memberAccess.symbol, overloads: memberAccess.overloads)
         case let selfExpression as AST.SelfExpression:
