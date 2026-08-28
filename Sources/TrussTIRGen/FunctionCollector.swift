@@ -119,8 +119,9 @@ final class FunctionCollector {
 
     private func collectInit(_ decl: AST.InitDecl) {
         guard let symbol = decl.symbol else { return }
+        let initReturnType = symbol.functionType?.returnType ?? TrussType.VoidType.INSTANCE
         let name = cname(decl.attributes) ?? gen.mangler.mangleFunctionName(
-            symbol, baseName: "init", returnType: TrussType.VoidType.INSTANCE,
+            symbol, baseName: "init", returnType: initReturnType,
             modulePath: gen.modulePathStack
         )
         let isStruct = symbol.memberOf.flatMap { context.id2Symbol[$0] } is Symbol.StructSymbol

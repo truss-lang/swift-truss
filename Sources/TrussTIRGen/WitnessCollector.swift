@@ -13,7 +13,7 @@ final class WitnessCollector {
         for (concrete, protocolSymbol) in gen.typeLower.conformancePairs() {
             guard let typeId = protocolSymbol.typeId,
                   let protocolType = context.typeTable[typeId] as? TrussType.ProtocolType,
-                  let symbol = concrete.symbol as? Symbol.NominalTypeSymbol
+                  let symbol = concrete.symbol
             else {
                 continue
             }

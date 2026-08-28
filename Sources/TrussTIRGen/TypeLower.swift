@@ -106,14 +106,14 @@ final class TypeLower {
         var seen: Set<String> = []
         for (_, nominal) in context.typeTable {
             guard let nominalType = nominal as? TrussType.NominalType,
-                  let symbol = nominalType.symbol as? Symbol.NominalTypeSymbol,
+                  let symbol = nominalType.symbol,
                   !(symbol is Symbol.ProtocolSymbol)
             else {
                 continue
             }
             for protocolSymbol in symbol.conformances {
                 guard let typeId = protocolSymbol.typeId,
-                      let protocolType = context.typeTable[typeId] as? TrussType.ProtocolType
+                      context.typeTable[typeId] is TrussType.ProtocolType
                 else {
                     continue
                 }

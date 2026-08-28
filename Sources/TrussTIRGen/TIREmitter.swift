@@ -238,8 +238,7 @@ final class TIREmitter: AST.Visitor {
     private func emitWitnessDispatch(
         _ memberAccess: AST.MemberAccess, arguments: [AST.LabeledArgument]
     ) -> TIR.Value? {
-        guard let builder,
-              let objectValue = visitExpression(memberAccess.object)
+        guard let objectValue = visitExpression(memberAccess.object)
         else {
             return nil
         }
@@ -575,7 +574,7 @@ final class TIREmitter: AST.Visitor {
     public override func visitTry(_ tryExpression: AST.Try, additional: Any? = nil) -> Any? {
         guard let builder else { return nil }
         guard let call = tryExpression.expression as? AST.Call,
-              let symbol = call.symbol,
+              let symbol = AST.Expression.resolvedFunctionSymbol(of: call.callee),
               symbol.functionType?.isThrowing == true,
               let calleeValue = lowerCallee(call.callee, at: call.sourceRange),
               let okType = call.ty,
@@ -822,7 +821,7 @@ final class TIREmitter: AST.Visitor {
             if let expressionStatement = statement as? AST.ExpressionStatement,
                let tryExpression = expressionStatement.expression as? AST.Try,
                let call = tryExpression.expression as? AST.Call,
-               let symbol = call.symbol,
+               let symbol = AST.Expression.resolvedFunctionSymbol(of: call.callee),
                let errType = symbol.functionType?.throwsTypes.first,
                let cls = nominalClassType(of: errType)
             {
@@ -2900,7 +2899,6 @@ final class TIREmitter: AST.Visitor {
     }
 
     private func memberAddress(_ memberAccess: AST.MemberAccess) -> TIR.Value? {
-        memberAccess.object.isLeftValue = true
         guard let base = visitExpression(memberAccess.object),
               let baseType = memberAccess.object.ty
         else { return nil }
