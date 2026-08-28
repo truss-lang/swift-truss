@@ -178,13 +178,13 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     #expect(messages.contains("cannot find type 'Int32'"))
 }
 
-@Test func initFunctionTypeReturnsVoid() throws {
+@Test func initFunctionTypeReturnsNominal() throws {
     let (_, programs) = runTypeChecker(["struct S {\n    init(x: S) {\n    }\n}"])
     let structDecl = programs[0].statements[0] as! AST.StructDecl
     let initDecl = try #require(structDecl.body.first as? AST.InitDecl)
     let functionType = try #require(initDecl.symbol?.functionType)
     #expect(functionType.parameters.count == 1)
-    #expect(functionType.returnType is TrussType.VoidType)
+    #expect(functionType.returnType is TrussType.StructType)
 }
 
 @Test func throwsClauseRecordsThrownTypes() throws {
@@ -394,7 +394,7 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     #expect(!context.diagnositicEngine.hasErrors)
     let variableDecl = programs[0].statements[4] as! AST.VariableDecl
     let call = try #require(variableDecl.initializer as? AST.Call)
-    #expect(call.symbol?.name == "f")
+    #expect(AST.Expression.resolvedFunctionSymbol(of: call.callee)?.name == "f")
 }
 
 @Test func overloadNoMatchReportsError() {

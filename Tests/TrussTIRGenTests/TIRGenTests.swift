@@ -397,6 +397,7 @@ import TrussTIRGen
         try #require(tir.contains("trycall"))
         try #require(tir.contains("store void 1"))
     }
+
     @Test func closureLowersToFunctionAndClosureInstruction() throws {
         let tir = dumpTIR(
             """
@@ -466,7 +467,6 @@ import TrussTIRGen
         try #require(tir.contains("alloca void"))
         try #require(tir.contains("store void"))
     }
-
 }
 
 @Suite struct GlobalVarTests {
@@ -1986,8 +1986,8 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("@$t4main_1S_4init_4Void"))
-        try #require(tir.contains("FunctionRef $t4main_1S_4init_4Void"))
+        try #require(tir.contains("@$t4main_1S_4init_1S"))
+        try #require(tir.contains("FunctionRef $t4main_1S_4init_1S"))
         try #require(tir.contains("Apply "))
     }
 }
@@ -2003,7 +2003,7 @@ import TrussTIRGen
         }
         """
     )
-    try #require(tir.contains("4init_4Void : $("))
+    try #require(tir.contains("4init_1S : $("))
     let fBlock = tir.components(separatedBy: "function ").last
         ?? ""
     try #require(fBlock.range(of: #"Apply %\d+\(%\d+\)"#, options: .regularExpression) != nil)
@@ -2201,7 +2201,7 @@ import TrussTIRGen
         )
         try #require(tir.contains("global $t4main_1g"))
         try #require(tir.contains("GlobalAddr $t4main_1g"))
-        try #require(tir.contains("FunctionRef $t4main_1S_4init_4Void"))
+        try #require(tir.contains("FunctionRef $t4main_1S_4init_1S"))
         try #require(tir.contains("Store "))
     }
 

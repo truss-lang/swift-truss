@@ -78,8 +78,8 @@ import TrussTIRGen
             }
             """
         )
-        try #require(tir.contains("@$t4main_1S_4init_4Void"))
-        try #require(tir.contains("call void @$t4main_1S_4init_4Void"))
+        try #require(tir.contains("@$t4main_1S_4init_1S"))
+        try #require(tir.contains("call void @$t4main_1S_4init_1S"))
         try #require(tir.contains("load %$t4main_1S"))
     }
 
@@ -95,7 +95,7 @@ import TrussTIRGen
             """
         )
         try #require(tir.contains("allocheap %$t4main_1C"))
-        try #require(tir.contains("call void @$t4main_1C_4init_4Void"))
+        try #require(tir.contains("call void @$t4main_1C_4init_1C"))
     }
 
     @Test func associatedTypeWitnessDispatch() throws {
@@ -155,7 +155,7 @@ import TrussTIRGen
         )
         try #require(tir.contains("structelementaddr"))
         try #require(tir.contains("store i32 5"))
-        try #require(tir.contains("call void @$t4main_1S_4init_4Void"))
+        try #require(tir.contains("call void @$t4main_1S_4init_1S"))
     }
 }
 
@@ -307,4 +307,30 @@ import TrussTIRGen
         """
     )
     try #require(tir.contains("opaquewitnessmethod"))
+}
+
+@Test func opaqueParamDispatchLandsReturnValueIntoTypedLet() throws {
+    let tir = dumpTIR(
+        """
+        protocol Shape {
+            func area() -> Builtin.Int32
+        }
+        struct Square: Shape {
+            init() {}
+            func area() -> Builtin.Int32 { return 4 }
+        }
+        func f(_ s: any Shape) {
+            let n: Builtin.Int32 = s.area()
+        }
+        func main() {
+            let a: any Shape = Square()
+            f(a)
+        }
+        """,
+        installBuiltin: true
+    )
+    let fBlock = tir.components(separatedBy: "$t4main_1f_")
+        .last { $0.contains("opaquewitnessmethod") } ?? ""
+    try #require(tir.contains("opaquewitnessmethod %$tany0#0.0"))
+    try #require(fBlock.range(of: #"store i32 %\d+, ptr %n"#, options: .regularExpression) != nil)
 }
