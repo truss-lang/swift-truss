@@ -105,6 +105,7 @@ public enum TrussType {
             }
         }
 
+        public let selfType: TrussType?
         public let parameters: [Parameter]
         public let isVariadic: Bool
         public let isAsync: Bool
@@ -112,9 +113,10 @@ public enum TrussType {
         public let throwsTypes: [TrussType]
         public let returnType: TrussType
         public init(
-            parameters: [Parameter], isVariadic: Bool = false, isAsync: Bool = false, isThrowing: Bool = false,
-            throwsTypes: [TrussType] = [], returnType: TrussType = VoidType.INSTANCE
+            selfType: TrussType? = nil, parameters: [Parameter], isVariadic: Bool = false, isAsync: Bool = false,
+            isThrowing: Bool = false, throwsTypes: [TrussType] = [], returnType: TrussType = VoidType.INSTANCE
         ) {
+            self.selfType = selfType
             self.parameters = parameters
             self.isVariadic = isVariadic
             self.isAsync = isAsync
@@ -179,6 +181,21 @@ public enum TrussType {
         public let name: String
         public init(_ name: String) {
             self.name = name
+        }
+    }
+
+    public final class CallType: TrussType {
+        public let arguments: [AST.LabeledArgument]
+        public let trailingClosures: [(Token?, AST.Closure)]
+        public let returnType: TrussType
+        public init(
+            arguments: [AST.LabeledArgument],
+            trailingClosures: [(Token?, AST.Closure)],
+            returnType: TrussType
+        ) {
+            self.arguments = arguments
+            self.trailingClosures = trailingClosures
+            self.returnType = returnType
         }
     }
 }

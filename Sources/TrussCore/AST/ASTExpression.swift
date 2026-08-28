@@ -313,8 +313,6 @@ public extension AST {
         public let callee: Expression
         public let arguments: [LabeledArgument]
         public let trailingClosures: [(Token?, Closure)]
-        public var symbol: Symbol.FunctionSymbol? = nil
-        public var overloads: [Symbol.FunctionSymbol]? = nil
         public init(
             callee: Expression, arguments: [LabeledArgument],
             trailingClosures: [(Token?, Closure)] = [],
@@ -332,9 +330,6 @@ public extension AST {
 
         public override func copySemantics(from other: AST.AstNode) {
             super.copySemantics(from: other)
-            guard let otherCall = other as? AST.Call else { return }
-            symbol = otherCall.symbol
-            overloads = otherCall.overloads
         }
     }
 
@@ -1142,5 +1137,39 @@ public extension AST.Sequential {
         }
         guard depth == 0 else { return nil }
         return members
+    }
+}
+
+public extension AST.Expression {
+    static func resolvedFunctionSymbol(of expression: AST.Expression) -> Symbol.FunctionSymbol? {
+        if let variable = expression as? AST.Variable {
+            return variable.symbol as? Symbol.FunctionSymbol
+        }
+        if let member = expression as? AST.MemberAccess {
+            return member.symbol as? Symbol.FunctionSymbol
+        }
+        if let implicit = expression as? AST.ImplicitMemberAccess {
+            return implicit.symbol as? Symbol.FunctionSymbol
+        }
+        if let generic = expression as? AST.GenericApplication {
+            return resolvedFunctionSymbol(of: generic.base)
+        }
+        return nil
+    }
+
+    static func resolvedFunctionSymbols(of expression: AST.Expression) -> [Symbol.FunctionSymbol] {
+        if let variable = expression as? AST.Variable {
+            return variable.overloads ?? []
+        }
+        if let member = expression as? AST.MemberAccess {
+            return member.overloads ?? []
+        }
+        if let implicit = expression as? AST.ImplicitMemberAccess {
+            return implicit.overloads ?? []
+        }
+        if let generic = expression as? AST.GenericApplication {
+            return resolvedFunctionSymbols(of: generic.base)
+        }
+        return []
     }
 }

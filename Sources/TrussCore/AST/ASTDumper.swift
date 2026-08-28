@@ -1121,7 +1121,7 @@ public extension AST {
                     self.dumpNode(text, children: [{ self.visitClosure(closure) }])
                 }
             }
-            dumpNode("Call" + tyText(call.ty) + overloadsText(call.overloads), children: children)
+            dumpNode("Call" + tyText(call.ty), children: children)
             return nil
         }
 
