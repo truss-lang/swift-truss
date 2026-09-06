@@ -505,7 +505,7 @@ public extension AST {
         public let token: Token
         public let optionalToken: Token?
         public let genericDecl: GenericDecl?
-        public let parameters: [FunctionDecl.Parameter]
+        public var parameters: [FunctionDecl.Parameter]
         public let asyncToken: Token?
         public let throwsClause: ThrowsClause?
         public let body: [Statement]
@@ -565,7 +565,7 @@ public extension AST {
         public let token: Token
         public let name: Token
         public let genericDecl: GenericDecl?
-        public let parameters: [Parameter]
+        public var parameters: [Parameter]
         public let varargToken: Token?
         public let asyncToken: Token?
         public let throwsClause: ThrowsClause?
@@ -611,6 +611,7 @@ public extension AST {
             public let type: Expression?
             public let defaultValue: Expression?
             public let sourceRange: SourceRange
+            public var symbol: Symbol.VariableSymbol? = nil
             public init(
                 label: Token?, name: Token, type: Expression?, defaultValue: Expression?,
                 sourceRange: SourceRange
@@ -972,7 +973,7 @@ public extension AST {
     final class SubscriptDecl: Decl {
         public let token: Token
         public let genericDecl: GenericDecl?
-        public let parameters: [FunctionDecl.Parameter]
+        public var parameters: [FunctionDecl.Parameter]
         public let asyncToken: Token?
         public let throwsClause: ThrowsClause?
         public let returnType: Expression

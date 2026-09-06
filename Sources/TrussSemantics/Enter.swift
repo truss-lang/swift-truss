@@ -211,8 +211,9 @@ public final class Enter: AST.Visitor {
         currentScope = scope
 
         registerGenericParams(functionDecl.genericDecl, into: scope)
-        for parameter in functionDecl.parameters {
-            registerLocal(parameter.name)
+        for (index, parameter) in functionDecl.parameters.enumerated() {
+            let symbol = registerLocal(parameter.name)
+            functionDecl.parameters[index].symbol = symbol
         }
         super.visitFunctionDecl(functionDecl, additional: additional)
 
@@ -242,8 +243,9 @@ public final class Enter: AST.Visitor {
         currentScope = scope
 
         registerGenericParams(initDecl.genericDecl, into: scope)
-        for parameter in initDecl.parameters {
-            registerLocal(parameter.name)
+        for (index, parameter) in initDecl.parameters.enumerated() {
+            let symbol = registerLocal(parameter.name)
+            initDecl.parameters[index].symbol = symbol
         }
         super.visitInitDecl(initDecl, additional: additional)
 
@@ -268,8 +270,9 @@ public final class Enter: AST.Visitor {
         currentScope = scope
 
         registerGenericParams(subscriptDecl.genericDecl, into: scope)
-        for parameter in subscriptDecl.parameters {
-            registerLocal(parameter.name)
+        for (index, parameter) in subscriptDecl.parameters.enumerated() {
+            let symbol = registerLocal(parameter.name)
+            subscriptDecl.parameters[index].symbol = symbol
         }
         super.visitSubscriptDecl(subscriptDecl, additional: additional)
 
