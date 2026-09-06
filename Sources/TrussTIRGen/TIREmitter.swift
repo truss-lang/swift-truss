@@ -381,7 +381,10 @@ final class TIREmitter: AST.Visitor {
 
     private func loadFrom(_ address: TIR.Value, range: SourceRange) -> TIR.Value? {
         guard let builder else { return nil }
-        return builder.buildLoad(ptr: address).result
+        let inst = builder.buildLoad(ptr: address)
+        inst.sourceRange = range
+        inst.result.sourceRange = range
+        return inst.result
     }
 
     @discardableResult
@@ -1035,10 +1038,13 @@ final class TIREmitter: AST.Visitor {
         if let types = throwingTupleTypes() {
             let okValue = value ?? makePlaceholder(types.ok)
             let errValue = builder.buildNullptrLiteral(ty: types.err)
+            errValue.sourceRange = range
             let tuple = buildResultTuple(ok: okValue, err: errValue, types: types)
-            builder.buildReturn(tuple)
+            let ret = builder.buildReturn(tuple)
+            ret.sourceRange = range
         } else {
-            builder.buildReturn(value)
+            let ret = builder.buildReturn(value)
+            ret.sourceRange = range
         }
     }
 
@@ -1064,10 +1070,12 @@ final class TIREmitter: AST.Visitor {
         if let types = throwingTupleTypes() {
             let okValue = makePlaceholder(types.ok)
             let tuple = buildResultTuple(ok: okValue, err: errValue, types: types)
-            builder.buildReturn(tuple)
+            let ret = builder.buildReturn(tuple)
+            ret.sourceRange = range
         } else {
             context.emitError("'throw' outside of a throwing function", at: range)
-            builder.buildReturn(nil)
+            let ret = builder.buildReturn(nil)
+            ret.sourceRange = range
         }
     }
 
@@ -2104,7 +2112,9 @@ final class TIREmitter: AST.Visitor {
             )
             gen.functionsBySymbol[symbol.id] = function
         }
-        return builder.buildFunctionRef(function: function)
+        let ref = builder.buildFunctionRef(function: function)
+        ref.sourceRange = range
+        return ref
     }
 
     @discardableResult

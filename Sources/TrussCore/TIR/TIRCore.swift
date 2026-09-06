@@ -112,6 +112,7 @@ public enum TIR {
         public let callingConvention: String?
         public var basicBlocks: [BasicBlock] = []
         public var sourceRange: SourceRange = TIR.unknownSourceRange
+        public var nextValueIndex: Int = 0
         public init(
             module: Module,
             id: Id.TIRFunctionId,

@@ -3,33 +3,21 @@ import SwiftBetterDiagnostic
 public extension TIR {
     final class Builder {
         public let registry: Registry
-        public var insertPoint: BasicBlock? {
-            didSet {
-                if let insertPoint, insertPoint.function !== oldValue?.function {
-                    nextValueIndex = 0
-                }
-            }
-        }
-
-        private var nextValueIndex: Int = 0
-        public var sourceRange: SourceRange = TIR.unknownSourceRange
+        public var insertPoint: BasicBlock?
 
         public init(registry: Registry) {
             self.registry = registry
-        }
-
-        private func attach<T: Instruction>(_ instruction: T, result: Value? = nil) -> T {
-            instruction.sourceRange = sourceRange
-            result?.sourceRange = sourceRange
-            return instruction
         }
 
         private func freshName(_ name: String?) -> String {
             if let name {
                 return name
             }
-            let index = nextValueIndex
-            nextValueIndex += 1
+            guard let function = insertPoint?.function else {
+                fatalError("no insert point")
+            }
+            let index = function.nextValueIndex
+            function.nextValueIndex += 1
             return String(index)
         }
 
@@ -48,7 +36,7 @@ public extension TIR {
         public func buildReturn(_ value: Value? = nil) -> Return {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.Return(value: value)
-            insertPoint.instructions.append(attach(instruction))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -56,7 +44,7 @@ public extension TIR {
         public func buildBranch(to target: BasicBlock, arguments: [Value] = []) -> Branch {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.Branch(target: target, arguments: arguments)
-            insertPoint.instructions.append(attach(instruction))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -70,7 +58,7 @@ public extension TIR {
                 condition: condition, trueBranch: trueBranch, falseBranch: falseBranch,
                 trueArguments: trueArguments, falseArguments: falseArguments
             )
-            insertPoint.instructions.append(attach(instruction))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -78,7 +66,7 @@ public extension TIR {
         public func buildUnreachable() -> Unreachable {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.Unreachable()
-            insertPoint.instructions.append(attach(instruction))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -87,7 +75,7 @@ public extension TIR {
             guard let insertPoint else { fatalError("no insert point") }
             let ty = incomings.first?.value.ty ?? voidType()
             let instruction = TIR.Phi(incomings: incomings, ty: ty, name: freshName(name))
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -99,7 +87,7 @@ public extension TIR {
             let instruction = TIR.SwitchEnum(
                 value: value, cases: cases, defaultBlock: defaultBlock
             )
-            insertPoint.instructions.append(attach(instruction))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -111,7 +99,7 @@ public extension TIR {
             let instruction = TIR.ExtractPayload(
                 value: value, caseIndex: caseIndex, ty: ty, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -119,7 +107,7 @@ public extension TIR {
         public func buildUnaryArith(op: ArithOp, operand: Value, name: String? = nil) -> UnaryArith {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.UnaryArith(op: op, operand: operand, ty: operand.ty, name: freshName(name))
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -132,7 +120,7 @@ public extension TIR {
                 lhs.ty
             }
             let instruction = TIR.BinaryArith(op: op, lhs: lhs, rhs: rhs, ty: ty, name: freshName(name))
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -142,7 +130,7 @@ public extension TIR {
             let instruction = TIR.AllocStack(
                 registry: registry, allocatedType: allocatedType, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -150,7 +138,7 @@ public extension TIR {
         public func buildDeallocStack(_ value: Value) -> DeallocStack {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.DeallocStack(value: value)
-            insertPoint.instructions.append(attach(instruction))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -160,7 +148,7 @@ public extension TIR {
             let instruction = TIR.AllocHeap(
                 registry: registry, allocatedType: allocatedType, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -168,7 +156,7 @@ public extension TIR {
         public func buildDeallocHeap(_ value: Value) -> DeallocHeap {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.DeallocHeap(value: value)
-            insertPoint.instructions.append(attach(instruction))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -178,7 +166,7 @@ public extension TIR {
             let instruction = TIR.AllocCell(
                 registry: registry, allocatedType: allocatedType, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -186,7 +174,7 @@ public extension TIR {
         public func buildDeallocCell(_ value: Value) -> DeallocCell {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.DeallocCell(value: value)
-            insertPoint.instructions.append(attach(instruction))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -199,7 +187,7 @@ public extension TIR {
                 ptr.ty
             }
             let instruction = TIR.Load(ptr: ptr, ty: ty, name: freshName(name))
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -207,7 +195,7 @@ public extension TIR {
         public func buildStore(value: Value, to ptr: Value) -> Store {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.Store(value: value, ptr: ptr)
-            insertPoint.instructions.append(attach(instruction))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -215,18 +203,16 @@ public extension TIR {
         public func buildSizeOf(sizedType: Id.TIRTypeId, name: String? = nil) -> SizeOf {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.SizeOf(registry: registry, sizedType: sizedType, name: freshName(name))
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
         @discardableResult
         public func buildGlobalAddr(global: GlobalVariable, name: String? = nil) -> GlobalAddr {
-            let value = TIR.GlobalAddr(
+            TIR.GlobalAddr(
                 globalId: global.id, ty: registry.pointerType(pointee: global.type).id,
                 name: name ?? global.name
             )
-            value.sourceRange = sourceRange
-            return value
         }
 
         @discardableResult
@@ -237,7 +223,7 @@ public extension TIR {
             let instruction = TIR.StructElementAddr(
                 registry: registry, base: base, index: index, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -249,7 +235,7 @@ public extension TIR {
             let instruction = TIR.TupleElementAddr(
                 registry: registry, base: base, index: index, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -261,7 +247,7 @@ public extension TIR {
             let instruction = TIR.ClassElementAddr(
                 registry: registry, base: base, index: index, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -269,7 +255,7 @@ public extension TIR {
         public func buildProjectCell(cell: Value, name: String? = nil) -> ProjectCell {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.ProjectCell(registry: registry, cell: cell, name: freshName(name))
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -279,7 +265,7 @@ public extension TIR {
         ) -> StructValue {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.StructValue(fields: fields, ty: ty, name: freshName(name))
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -289,7 +275,7 @@ public extension TIR {
         ) -> TupleValue {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.TupleValue(elements: elements, ty: ty, name: freshName(name))
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -301,7 +287,7 @@ public extension TIR {
             let instruction = TIR.EnumValue(
                 caseIndex: caseIndex, payload: payload, ty: ty, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -314,7 +300,7 @@ public extension TIR {
                 name: freshName(name),
                 hasResult: !(registry.types[resultTy] is TIRType.VoidType)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -331,17 +317,15 @@ public extension TIR {
                 name: freshName(name),
                 hasResult: !(registry.types[resolvedTy] is TIRType.VoidType)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
         @discardableResult
         public func buildFunctionRef(function: TIR.Function, name: String? = nil) -> FunctionRef {
-            let value = TIR.FunctionRef(
+            TIR.FunctionRef(
                 functionId: function.id, ty: function.ty, name: name ?? function.name
             )
-            value.sourceRange = sourceRange
-            return value
         }
 
         @discardableResult
@@ -352,7 +336,7 @@ public extension TIR {
             let instruction = TIR.Closure(
                 function: function, captures: captures, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -362,7 +346,7 @@ public extension TIR {
             let instruction = TIR.Upcast(
                 value: value, targetType: targetType, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -374,7 +358,7 @@ public extension TIR {
             let instruction = TIR.UncheckedRefCast(
                 value: value, targetType: targetType, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -384,7 +368,7 @@ public extension TIR {
             let instruction = TIR.TypeMetadata(
                 registry: registry, value: value, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -396,7 +380,7 @@ public extension TIR {
             let instruction = TIR.TypeMetadataConstant(
                 registry: registry, type: type, metadata: metadata, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -408,7 +392,7 @@ public extension TIR {
             let instruction = TIR.IsInstance(
                 registry: registry, metadata: metadata, target: target, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -418,7 +402,7 @@ public extension TIR {
             let instruction = TIR.Superclass(
                 registry: registry, metadata: metadata, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -426,7 +410,7 @@ public extension TIR {
         public func buildTrap(message: String? = nil) -> Trap {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.Trap(message: message)
-            insertPoint.instructions.append(attach(instruction))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -434,7 +418,7 @@ public extension TIR {
         public func buildRetain(_ value: Value) -> Retain {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.Retain(value: value)
-            insertPoint.instructions.append(attach(instruction))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -442,7 +426,7 @@ public extension TIR {
         public func buildRelease(_ value: Value) -> Release {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.Release(value: value)
-            insertPoint.instructions.append(attach(instruction))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -450,7 +434,7 @@ public extension TIR {
         public func buildCopy(_ value: Value, name: String? = nil) -> Copy {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.Copy(value: value, name: freshName(name))
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -458,7 +442,7 @@ public extension TIR {
         public func buildDestroy(_ value: Value) -> Destroy {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.Destroy(value: value)
-            insertPoint.instructions.append(attach(instruction))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -470,7 +454,7 @@ public extension TIR {
             let instruction = TIR.BuildExistential(
                 value: value, witnesses: witnesses, ty: ty, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -482,7 +466,7 @@ public extension TIR {
             let instruction = TIR.OpenExistential(
                 container: container, ty: ty, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -496,7 +480,7 @@ public extension TIR {
                 witness: witness, index: index, selfValue: selfValue, arguments: arguments,
                 ty: ty, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -508,7 +492,7 @@ public extension TIR {
             let instruction = TIR.ExistentialCopy(
                 container: container, ty: ty, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -522,7 +506,7 @@ public extension TIR {
                 container: container, protocolId: protocolId, index: index, selfValue: selfValue,
                 arguments: arguments, ty: ty, name: freshName(name)
             )
-            insertPoint.instructions.append(attach(instruction, result: instruction.result))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -530,7 +514,7 @@ public extension TIR {
         public func buildExistentialDestroy(container: Value) -> ExistentialDestroy {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.ExistentialDestroy(container: container)
-            insertPoint.instructions.append(attach(instruction))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -543,7 +527,7 @@ public extension TIR {
                 template: template, constraints: constraints,
                 operands: operands, options: options
             )
-            insertPoint.instructions.append(attach(instruction))
+            insertPoint.instructions.append(instruction)
             return instruction
         }
 
@@ -551,57 +535,43 @@ public extension TIR {
         public func buildIntegerLiteral(
             value: UInt64, ty: Id.TIRTypeId, name: String? = nil
         ) -> IntegerLiteral {
-            let literal = TIR.IntegerLiteral(value: value, ty: ty, name: name ?? "")
-            literal.sourceRange = sourceRange
-            return literal
+            TIR.IntegerLiteral(value: value, ty: ty, name: name ?? "")
         }
 
         @discardableResult
         public func buildFloatLiteral(
             value: Float64, ty: Id.TIRTypeId, name: String? = nil
         ) -> FloatLiteral {
-            let literal = TIR.FloatLiteral(value: value, ty: ty, name: name ?? "")
-            literal.sourceRange = sourceRange
-            return literal
+            TIR.FloatLiteral(value: value, ty: ty, name: name ?? "")
         }
 
         @discardableResult
         public func buildCharLiteral(
             value: Character, ty: Id.TIRTypeId, name: String? = nil
         ) -> CharLiteral {
-            let literal = TIR.CharLiteral(value: value, ty: ty, name: name ?? "")
-            literal.sourceRange = sourceRange
-            return literal
+            TIR.CharLiteral(value: value, ty: ty, name: name ?? "")
         }
 
         @discardableResult
         public func buildBoolLiteral(value: Bool, ty: Id.TIRTypeId, name: String? = nil) -> BoolLiteral {
-            let literal = TIR.BoolLiteral(value: value, ty: ty, name: name ?? "")
-            literal.sourceRange = sourceRange
-            return literal
+            TIR.BoolLiteral(value: value, ty: ty, name: name ?? "")
         }
 
         @discardableResult
         public func buildStringLiteral(
             value: String, ty: Id.TIRTypeId, name: String? = nil
         ) -> StringLiteral {
-            let literal = TIR.StringLiteral(value: value, ty: ty, name: name ?? "")
-            literal.sourceRange = sourceRange
-            return literal
+            TIR.StringLiteral(value: value, ty: ty, name: name ?? "")
         }
 
         @discardableResult
         public func buildNullptrLiteral(ty: Id.TIRTypeId, name: String? = nil) -> NullptrLiteral {
-            let literal = TIR.NullptrLiteral(ty: ty, name: name ?? "")
-            literal.sourceRange = sourceRange
-            return literal
+            TIR.NullptrLiteral(ty: ty, name: name ?? "")
         }
 
         @discardableResult
         public func buildVoidLiteral(ty: Id.TIRTypeId, name: String? = nil) -> VoidLiteral {
-            let literal = TIR.VoidLiteral(ty: ty, name: name ?? "")
-            literal.sourceRange = sourceRange
-            return literal
+            TIR.VoidLiteral(ty: ty, name: name ?? "")
         }
     }
 }
