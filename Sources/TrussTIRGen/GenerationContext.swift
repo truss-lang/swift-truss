@@ -36,9 +36,10 @@ final class GenerationContext {
 
     init(context: Context) {
         self.context = context
-        registry = TIR.Registry()
-        mangler = Mangler(context: context)
-        typeLower = TypeLower(context: context, mangler: mangler, registry: registry)
+        registry = .init()
+        mangler = .init(context: context)
+        typeLower = .init(context: context, mangler: mangler, registry: registry)
+        builder = .init(registry: registry)
     }
 
     func makeModule() -> TIR.Module {

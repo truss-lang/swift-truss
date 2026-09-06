@@ -8,11 +8,11 @@ public final class TIRGen {
     private let emitter: TIREmitter
 
     public init(context: Context) {
-        gen = GenerationContext(context: context)
-        collector = TypeCollector(context: context)
-        functionCollector = FunctionCollector(context: context, gen: gen)
-        witnessCollector = WitnessCollector(context: context, gen: gen)
-        emitter = TIREmitter(context: context, gen: gen)
+        gen = .init(context: context)
+        collector = .init(context: context)
+        functionCollector = .init(context: context, gen: gen)
+        witnessCollector = .init(context: context, gen: gen)
+        emitter = .init(context: context, gen: gen)
     }
 
     public func generate(_ program: AST.Program) -> TIR.Module {
@@ -31,8 +31,8 @@ public final class TIRGen {
             return module
         }
         witnessCollector.collect()
-        for program in programs {
-            gen.builder = nil
+        for (index, program) in programs.enumerated() {
+            gen.currentModule = modules[index]
             gen.env = [:]
             gen.modulePathStack = []
             gen.externContextStack = []

@@ -226,8 +226,8 @@ final class FunctionCollector {
         if let throwsType = throwingErrorType(symbol) {
             let errorType = gen.typeLower.lower(throwsType)
             tirReturnType = gen.registry.tupleType(elements: [
-                TIRType.TupleType.Element(label: "ok", type: returnType.id),
-                TIRType.TupleType.Element(label: "err", type: errorType.id),
+                .init(label: "ok", type: returnType.id),
+                .init(label: "err", type: errorType.id),
             ])
         } else {
             tirReturnType = returnType
