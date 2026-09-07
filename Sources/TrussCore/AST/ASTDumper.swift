@@ -662,6 +662,23 @@ public extension AST {
             if let returnTypeExpression = functionDecl.returnTypeExpression {
                 children.append { self.visit(returnTypeExpression) }
             }
+            for contract in functionDecl.contracts {
+                children.append {
+                    self.dumpNode(
+                        "\(contract.keyword.value)",
+                        children: [{ self.visit(contract.expression) }]
+                    )
+                }
+            }
+            if let proofBody = functionDecl.proofBody {
+                children.append {
+                    self.dumpNode(
+                        "ProofBody", children: proofBody.tactics.map { tactic in
+                            { self.dumpNode("Tactic \(tactic.name.value)") }
+                        }
+                    )
+                }
+            }
             switch functionDecl.body {
             case let .Block(statements):
                 children.append(contentsOf: statementNodes(statements))
@@ -723,6 +740,21 @@ public extension AST {
             -> Any?
         {
             var children: [() -> Void] = [{ self.visit(whileStatement.condition) }]
+            for inv in whileStatement.invariants {
+                children.append {
+                    self.dumpNode(
+                        "Invariant", children: [{ self.visit(inv.expression) }]
+                    )
+                }
+            }
+            if let decreases = whileStatement.decreases {
+                children.append {
+                    self.dumpNode(
+                        "Decreases",
+                        children: decreases.map { expr in { self.visit(expr) } }
+                    )
+                }
+            }
             children.append(contentsOf: statementNodes(whileStatement.body))
             dumpNode("While", children: children)
             return nil
@@ -737,7 +769,127 @@ public extension AST {
             var children: [() -> Void] = []
             children.append(contentsOf: statementNodes(repeatWhile.body))
             children.append { self.visit(repeatWhile.condition) }
+            for inv in repeatWhile.invariants {
+                children.append {
+                    self.dumpNode(
+                        "Invariant", children: [{ self.visit(inv.expression) }]
+                    )
+                }
+            }
+            if let decreases = repeatWhile.decreases {
+                children.append {
+                    self.dumpNode(
+                        "Decreases",
+                        children: decreases.map { expr in { self.visit(expr) } }
+                    )
+                }
+            }
             dumpNode("RepeatWhile", children: children)
+            return nil
+        }
+
+        @discardableResult
+        public override func visitTheoremDecl(
+            _ theoremDecl: TheoremDecl, additional: Any? = nil
+        ) -> Any? {
+            var text = declText(
+                "\(theoremDecl.keyword.value) \(theoremDecl.name.value)", theoremDecl
+            )
+            var children: [() -> Void] = []
+            for parameter in theoremDecl.parameters {
+                children.append { self.dumpNode("Param \(parameter.name.value)") }
+            }
+            children.append {
+                self.dumpNode(
+                    "Prop", children: [{ self.visit(theoremDecl.propExpression) }]
+                )
+            }
+            if let proofBody = theoremDecl.proofBody {
+                children.append {
+                    self.dumpNode(
+                        "ProofBody", children: proofBody.tactics.map { tactic in
+                            { self.dumpNode("Tactic \(tactic.name.value)") }
+                        }
+                    )
+                }
+            }
+            dumpNode(text, children: children)
+            return nil
+        }
+
+        @discardableResult
+        public override func visitQuantifierExpr(
+            _ quantifierExpr: QuantifierExpr, additional: Any? = nil
+        ) -> Any? {
+            var children: [() -> Void] = []
+            for parameter in quantifierExpr.parameters {
+                children.append { self.dumpNode("Param \(parameter.name.value)") }
+            }
+            children.append {
+                self.dumpNode(
+                    "Body", children: [{ self.visit(quantifierExpr.body) }]
+                )
+            }
+            dumpNode("Quantifier \(quantifierExpr.keyword.value)", children: children)
+            return nil
+        }
+
+        @discardableResult
+        public override func visitImplyExpr(
+            _ implyExpr: ImplyExpr, additional: Any? = nil
+        ) -> Any? {
+            var children: [() -> Void] = [
+                { self.visit(implyExpr.lhs) },
+                { self.visit(implyExpr.rhs) },
+            ]
+            dumpNode("Imply =>", children: children)
+            return nil
+        }
+
+        @discardableResult
+        public override func visitPropConjunction(
+            _ propConjunction: PropConjunction, additional: Any? = nil
+        ) -> Any? {
+            var children: [() -> Void] = [
+                { self.visit(propConjunction.lhs) },
+                { self.visit(propConjunction.rhs) },
+            ]
+            dumpNode("PropConjunction &&", children: children)
+            return nil
+        }
+
+        @discardableResult
+        public override func visitPropDisjunction(
+            _ propDisjunction: PropDisjunction, additional: Any? = nil
+        ) -> Any? {
+            var children: [() -> Void] = [
+                { self.visit(propDisjunction.lhs) },
+                { self.visit(propDisjunction.rhs) },
+            ]
+            dumpNode("PropDisjunction ||", children: children)
+            return nil
+        }
+
+        @discardableResult
+        public override func visitPropNegation(
+            _ propNegation: PropNegation, additional: Any? = nil
+        ) -> Any? {
+            var children: [() -> Void] = [
+                { self.visit(propNegation.operand) },
+            ]
+            dumpNode("PropNegation !", children: children)
+            return nil
+        }
+
+        @discardableResult
+        public override func visitPropEquality(
+            _ propEquality: PropEquality, additional: Any? = nil
+        ) -> Any? {
+            var children: [() -> Void] = [
+                { self.visit(propEquality.lhs) },
+                { self.visit(propEquality.rhs) },
+            ]
+            dumpNode("PropEquality \(propEquality.op.value)", children: children)
             return nil
         }
 

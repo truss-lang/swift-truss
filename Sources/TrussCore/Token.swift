@@ -87,6 +87,9 @@ public enum KeywordKind: CaseIterable, Sendable {
     case SomeKw
     case Asm
     case Sizeof
+    case Theorem
+    case Lemma
+    case Axiom
     public var code: String {
         switch self {
         case .Open: "open"
@@ -162,6 +165,9 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .SomeKw: "some"
         case .Asm: "asm"
         case .Sizeof: "sizeof"
+        case .Theorem: "theorem"
+        case .Lemma: "lemma"
+        case .Axiom: "axiom"
         }
     }
 }

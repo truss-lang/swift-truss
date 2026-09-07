@@ -1781,5 +1781,124 @@ extension AST {
             )
             return newAssociatedTypeDecl
         }
+
+        @discardableResult
+        open override func visitTheoremDecl(
+            _ theoremDecl: AST.TheoremDecl, additional: Any? = nil
+        ) -> Any? {
+            let genericDecl = theoremDecl.genericDecl.map { rewrite($0) }
+            let parameters = rewriteParameters(theoremDecl.parameters)
+            let propExpression = rewrite(theoremDecl.propExpression)
+            var proofBodyChanged = false
+            var proofBody: AST.TacticBlock? = nil
+            if let pb = theoremDecl.proofBody {
+                let tactics = pb.tactics.map { tactic -> AST.Tactic in
+                    let args = tactic.arguments.map { rewrite($0) }
+                    return AST.Tactic(tactic.name, args, sourceRange: tactic.sourceRange)
+                }
+                proofBody = AST.TacticBlock(
+                    pb.byToken, pb.beginToken, tactics, pb.endToken,
+                    sourceRange: pb.sourceRange
+                )
+                if tactics.count != pb.tactics.count {
+                    proofBodyChanged = true
+                } else {
+                    for (a, b) in zip(tactics, pb.tactics) {
+                        for (x, y) in zip(a.arguments, b.arguments) {
+                            if x !== y { proofBodyChanged = true }
+                        }
+                    }
+                }
+            }
+            let proofBodyUnchanged = theoremDecl.proofBody == nil && proofBody == nil
+                || (theoremDecl.proofBody != nil && proofBody != nil && !proofBodyChanged)
+            if genericDecl === theoremDecl.genericDecl,
+               parametersUnchanged(theoremDecl.parameters, parameters),
+               propExpression === theoremDecl.propExpression,
+               proofBodyUnchanged
+            {
+                return theoremDecl
+            }
+            return AST.TheoremDecl(
+                theoremDecl.modifiers, theoremDecl.attributes, theoremDecl.keyword,
+                theoremDecl.name, genericDecl, parameters, propExpression, proofBody,
+                sourceRange: theoremDecl.sourceRange
+            )
+        }
+
+        @discardableResult
+        open override func visitQuantifierExpr(
+            _ quantifierExpr: AST.QuantifierExpr, additional: Any? = nil
+        ) -> Any? {
+            let parameters = rewriteParameters(quantifierExpr.parameters)
+            let body = rewrite(quantifierExpr.body)
+            if parametersUnchanged(quantifierExpr.parameters, parameters),
+               body === quantifierExpr.body
+            {
+                return quantifierExpr
+            }
+            return AST.QuantifierExpr(
+                quantifierExpr.keyword, quantifierExpr.kind, quantifierExpr.beginToken,
+                parameters, quantifierExpr.commaToken, body,
+                sourceRange: quantifierExpr.sourceRange
+            )
+        }
+
+        @discardableResult
+        open override func visitImplyExpr(
+            _ implyExpr: AST.ImplyExpr, additional: Any? = nil
+        ) -> Any? {
+            let lhs = rewrite(implyExpr.lhs)
+            let rhs = rewrite(implyExpr.rhs)
+            if lhs === implyExpr.lhs, rhs === implyExpr.rhs { return implyExpr }
+            return AST.ImplyExpr(lhs, implyExpr.arrow, rhs, sourceRange: implyExpr.sourceRange)
+        }
+
+        @discardableResult
+        open override func visitPropConjunction(
+            _ propConjunction: AST.PropConjunction, additional: Any? = nil
+        ) -> Any? {
+            let lhs = rewrite(propConjunction.lhs)
+            let rhs = rewrite(propConjunction.rhs)
+            if lhs === propConjunction.lhs, rhs === propConjunction.rhs { return propConjunction }
+            return AST.PropConjunction(
+                lhs, propConjunction.op, rhs, sourceRange: propConjunction.sourceRange
+            )
+        }
+
+        @discardableResult
+        open override func visitPropDisjunction(
+            _ propDisjunction: AST.PropDisjunction, additional: Any? = nil
+        ) -> Any? {
+            let lhs = rewrite(propDisjunction.lhs)
+            let rhs = rewrite(propDisjunction.rhs)
+            if lhs === propDisjunction.lhs, rhs === propDisjunction.rhs {
+                return propDisjunction
+            }
+            return AST.PropDisjunction(
+                lhs, propDisjunction.op, rhs, sourceRange: propDisjunction.sourceRange
+            )
+        }
+
+        @discardableResult
+        open override func visitPropNegation(
+            _ propNegation: AST.PropNegation, additional: Any? = nil
+        ) -> Any? {
+            let operand = rewrite(propNegation.operand)
+            if operand === propNegation.operand { return propNegation }
+            return AST.PropNegation(propNegation.op, operand, sourceRange: propNegation.sourceRange)
+        }
+
+        @discardableResult
+        open override func visitPropEquality(
+            _ propEquality: AST.PropEquality, additional: Any? = nil
+        ) -> Any? {
+            let lhs = rewrite(propEquality.lhs)
+            let rhs = rewrite(propEquality.rhs)
+            if lhs === propEquality.lhs, rhs === propEquality.rhs { return propEquality }
+            return AST.PropEquality(
+                lhs, propEquality.op, rhs, sourceRange: propEquality.sourceRange
+            )
+        }
     }
 }

@@ -1059,6 +1059,123 @@ public extension AST {
             visitor.visitStringInterpolation(self, additional: additional)
         }
     }
+
+    final class QuantifierExpr: Expression {
+        public enum Kind {
+            case Forall
+            case Exists
+        }
+
+        public let keyword: Token
+        public let kind: Kind
+        public let beginToken: Token
+        public let parameters: [FunctionDecl.Parameter]
+        public let commaToken: Token
+        public let body: Expression
+        public init(
+            _ keyword: Token, _ kind: Kind, _ beginToken: Token,
+            _ parameters: [FunctionDecl.Parameter], _ commaToken: Token, _ body: Expression,
+            sourceRange: SourceRange
+        ) {
+            self.keyword = keyword
+            self.kind = kind
+            self.beginToken = beginToken
+            self.parameters = parameters
+            self.commaToken = commaToken
+            self.body = body
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitQuantifierExpr(self, additional: additional)
+        }
+    }
+
+    final class ImplyExpr: Expression {
+        public let lhs: Expression
+        public let arrow: Token
+        public let rhs: Expression
+        public init(
+            _ lhs: Expression, _ arrow: Token, _ rhs: Expression, sourceRange: SourceRange
+        ) {
+            self.lhs = lhs
+            self.arrow = arrow
+            self.rhs = rhs
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitImplyExpr(self, additional: additional)
+        }
+    }
+
+    final class PropConjunction: Expression {
+        public let lhs: Expression
+        public let op: Token
+        public let rhs: Expression
+        public init(
+            _ lhs: Expression, _ op: Token, _ rhs: Expression, sourceRange: SourceRange
+        ) {
+            self.lhs = lhs
+            self.op = op
+            self.rhs = rhs
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitPropConjunction(self, additional: additional)
+        }
+    }
+
+    final class PropDisjunction: Expression {
+        public let lhs: Expression
+        public let op: Token
+        public let rhs: Expression
+        public init(
+            _ lhs: Expression, _ op: Token, _ rhs: Expression, sourceRange: SourceRange
+        ) {
+            self.lhs = lhs
+            self.op = op
+            self.rhs = rhs
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitPropDisjunction(self, additional: additional)
+        }
+    }
+
+    final class PropNegation: Expression {
+        public let op: Token
+        public let operand: Expression
+        public init(_ op: Token, _ operand: Expression, sourceRange: SourceRange) {
+            self.op = op
+            self.operand = operand
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitPropNegation(self, additional: additional)
+        }
+    }
+
+    final class PropEquality: Expression {
+        public let lhs: Expression
+        public let op: Token
+        public let rhs: Expression
+        public init(
+            _ lhs: Expression, _ op: Token, _ rhs: Expression, sourceRange: SourceRange
+        ) {
+            self.lhs = lhs
+            self.op = op
+            self.rhs = rhs
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitPropEquality(self, additional: additional)
+        }
+    }
 }
 
 public extension OperatorKind {

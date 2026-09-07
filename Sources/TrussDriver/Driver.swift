@@ -73,20 +73,19 @@ public final class Driver {
         for interface in config.importedInterfaces {
             InterfaceLoader(context: context).load(interface)
         }
-        var programs: [AST.Program] = []
-        for file in files {
-            guard let content = try? String(contentsOfFile: file, encoding: .utf8) else {
-                Self.emitReadError(file, context: context)
-                break
+        let programs: [AST.Program] = files.compactMap {
+            guard !context.diagnositicEngine.hasErrors else {
+                return nil
             }
-            parseSource(
-                content, filepath: file,
-                workingDirectory: (file as NSString).deletingLastPathComponent,
-                context: context, programs: &programs
+            guard let content = try? String(contentsOfFile: $0, encoding: .utf8) else {
+                Self.emitReadError($0, context: context)
+                return nil
+            }
+            return parseSource(
+                content, filepath: $0,
+                workingDirectory: ($0 as NSString).deletingLastPathComponent,
+                context: context
             )
-            if context.diagnositicEngine.hasErrors {
-                break
-            }
         }
         return runPasses(programs: programs, context: context)
     }
@@ -97,30 +96,29 @@ public final class Driver {
         for interface in config.importedInterfaces {
             InterfaceLoader(context: context).load(interface)
         }
-        var programs: [AST.Program] = []
-        parseSource(
+        let program = parseSource(
             source, filepath: filename, workingDirectory: "",
-            context: context, programs: &programs
+            context: context
         )
-        return runPasses(programs: programs, context: context)
+        return runPasses(programs: [program], context: context)
     }
 
     private func parseSource(
         _ content: String, filepath: String, workingDirectory: String,
-        context: TrussCore.Context, programs: inout [AST.Program]
-    ) {
+        context: TrussCore.Context
+    ) -> AST.Program {
         let src = Source(id: context.nextSourceId, filepath: filepath, content: content)
         context.register(source: src)
         let lexerResult = Lexer(input: CharStream(content: content, id: src.id)).parse()
         let preprocessed = Preprocessor(context: context).process(
             lexerResult,
-            config: PreprocessorConfig(
+            config: .init(
                 defines: config.defines,
                 target: config.target,
                 workingDirectory: workingDirectory
             )
         )
-        programs.append(Parser(context: context, packageName: config.moduleName, preprocessed).parse())
+        return Parser(context: context, packageName: config.moduleName, preprocessed).parse()
     }
 
     private func runPasses(programs: [AST.Program], context: TrussCore.Context) -> DriverResult {
@@ -219,7 +217,7 @@ public final class Driver {
         var stderr = ""
         if !context.diagnositicEngine.diagnostics.isEmpty {
             stderr = TerminalRenderer(beforeLines: 1, afterLines: 1)
-                .render(context.diagnositicEngine.diagnostics)
+                .render(context.diagnositicEngine.sortedDiagnostics())
         }
         let packageInterface: ModuleInterface? = if !hasErrors, let first = programs.first {
             InterfaceExtractor(context: context).extract(from: first)

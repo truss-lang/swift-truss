@@ -571,12 +571,16 @@ public extension AST {
         public let throwsClause: ThrowsClause?
         public let returnTypeExpression: Expression?
         public let body: Body?
+        public let contracts: [Contract]
+        public let proofBody: TacticBlock?
         public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ genericDecl: GenericDecl?, _ parameters: [Parameter],
             _ varargToken: Token?, _ asyncToken: Token?, _ throwsClause: ThrowsClause?,
-            _ returnTypeExpression: Expression?, _ body: Body?, sourceRange: SourceRange
+            _ returnTypeExpression: Expression?, _ body: Body?,
+            _ contracts: [Contract] = [], _ proofBody: TacticBlock? = nil,
+            sourceRange: SourceRange
         ) {
             self.token = token
             self.name = name
@@ -587,6 +591,8 @@ public extension AST {
             self.throwsClause = throwsClause
             self.returnTypeExpression = returnTypeExpression
             self.body = body
+            self.contracts = contracts
+            self.proofBody = proofBody
             super.init(modifiers, attributes, sourceRange)
         }
 
@@ -689,22 +695,77 @@ public extension AST {
         }
     }
 
+    struct Contract {
+        public enum Kind {
+            case Requires
+            case Ensures
+            case Invariant
+        }
+
+        public let keyword: Token
+        public let kind: Kind
+        public let expression: Expression
+        public let sourceRange: SourceRange
+        public init(
+            _ keyword: Token, _ kind: Kind, _ expression: Expression, sourceRange: SourceRange
+        ) {
+            self.keyword = keyword
+            self.kind = kind
+            self.expression = expression
+            self.sourceRange = sourceRange
+        }
+    }
+
+    struct Tactic {
+        public let name: Token
+        public let arguments: [Expression]
+        public let sourceRange: SourceRange
+        public init(_ name: Token, _ arguments: [Expression], sourceRange: SourceRange) {
+            self.name = name
+            self.arguments = arguments
+            self.sourceRange = sourceRange
+        }
+    }
+
+    struct TacticBlock {
+        public let byToken: Token
+        public let beginToken: Token
+        public let tactics: [Tactic]
+        public let endToken: Token
+        public let sourceRange: SourceRange
+        public init(
+            _ byToken: Token, _ beginToken: Token, _ tactics: [Tactic], _ endToken: Token,
+            sourceRange: SourceRange
+        ) {
+            self.byToken = byToken
+            self.beginToken = beginToken
+            self.tactics = tactics
+            self.endToken = endToken
+            self.sourceRange = sourceRange
+        }
+    }
+
     final class While: Statement {
         public let token: Token
         public let condition: Expression
         public let beginToken: Token
         public let body: [Statement]
         public let endToken: Token
+        public let invariants: [Contract]
+        public let decreases: [Expression]?
         public var scope: Scope? = nil
         public init(
             _ token: Token, _ condition: Expression, _ beginToken: Token, _ body: [Statement],
-            _ endToken: Token, sourceRange: SourceRange
+            _ endToken: Token, _ invariants: [Contract] = [], _ decreases: [Expression]? = nil,
+            sourceRange: SourceRange
         ) {
             self.token = token
             self.condition = condition
             self.beginToken = beginToken
             self.body = body
             self.endToken = endToken
+            self.invariants = invariants
+            self.decreases = decreases
             super.init(sourceRange)
         }
 
@@ -726,10 +787,14 @@ public extension AST {
         public let endToken: Token
         public let whileToken: Token
         public let condition: Expression
+        public let invariants: [Contract]
+        public let decreases: [Expression]?
         public var scope: Scope? = nil
         public init(
             _ token: Token, _ beginToken: Token, _ body: [Statement], _ endToken: Token,
-            _ whileToken: Token, _ condition: Expression, sourceRange: SourceRange
+            _ whileToken: Token, _ condition: Expression,
+            _ invariants: [Contract] = [], _ decreases: [Expression]? = nil,
+            sourceRange: SourceRange
         ) {
             self.token = token
             self.beginToken = beginToken
@@ -737,6 +802,8 @@ public extension AST {
             self.endToken = endToken
             self.whileToken = whileToken
             self.condition = condition
+            self.invariants = invariants
+            self.decreases = decreases
             super.init(sourceRange)
         }
 
@@ -1032,6 +1099,33 @@ public extension AST {
             if let otherAssociated = other as? AST.AssociatedTypeDecl {
                 symbol = otherAssociated.symbol
             }
+        }
+    }
+
+    final class TheoremDecl: Decl {
+        public let keyword: Token
+        public let name: Token
+        public let genericDecl: GenericDecl?
+        public let parameters: [FunctionDecl.Parameter]
+        public let propExpression: Expression
+        public let proofBody: TacticBlock?
+        public init(
+            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ keyword: Token,
+            _ name: Token, _ genericDecl: GenericDecl?, _ parameters: [FunctionDecl.Parameter],
+            _ propExpression: Expression, _ proofBody: TacticBlock?,
+            sourceRange: SourceRange
+        ) {
+            self.keyword = keyword
+            self.name = name
+            self.genericDecl = genericDecl
+            self.parameters = parameters
+            self.propExpression = propExpression
+            self.proofBody = proofBody
+            super.init(modifiers, attributes, sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitTheoremDecl(self, additional: additional)
         }
     }
 }

@@ -988,5 +988,88 @@ extension AST {
             }
             return nil
         }
+
+        @discardableResult
+        open func visitTheoremDecl(
+            _ theoremDecl: AST.TheoremDecl, additional: Any? = nil
+        ) -> Any? {
+            if let genericDecl = theoremDecl.genericDecl {
+                visitGenericDecl(genericDecl, additional: additional)
+            }
+            for parameter in theoremDecl.parameters {
+                if let type = parameter.type {
+                    visit(type, additional: additional)
+                }
+                if let defaultValue = parameter.defaultValue {
+                    visit(defaultValue, additional: additional)
+                }
+            }
+            visit(theoremDecl.propExpression, additional: additional)
+            if let proofBody = theoremDecl.proofBody {
+                for tactic in proofBody.tactics {
+                    for arg in tactic.arguments {
+                        visit(arg, additional: additional)
+                    }
+                }
+            }
+            return nil
+        }
+
+        @discardableResult
+        open func visitQuantifierExpr(
+            _ quantifierExpr: AST.QuantifierExpr, additional: Any? = nil
+        ) -> Any? {
+            for parameter in quantifierExpr.parameters {
+                if let type = parameter.type {
+                    visit(type, additional: additional)
+                }
+            }
+            visit(quantifierExpr.body, additional: additional)
+            return nil
+        }
+
+        @discardableResult
+        open func visitImplyExpr(
+            _ implyExpr: AST.ImplyExpr, additional: Any? = nil
+        ) -> Any? {
+            visit(implyExpr.lhs, additional: additional)
+            visit(implyExpr.rhs, additional: additional)
+            return nil
+        }
+
+        @discardableResult
+        open func visitPropConjunction(
+            _ propConjunction: AST.PropConjunction, additional: Any? = nil
+        ) -> Any? {
+            visit(propConjunction.lhs, additional: additional)
+            visit(propConjunction.rhs, additional: additional)
+            return nil
+        }
+
+        @discardableResult
+        open func visitPropDisjunction(
+            _ propDisjunction: AST.PropDisjunction, additional: Any? = nil
+        ) -> Any? {
+            visit(propDisjunction.lhs, additional: additional)
+            visit(propDisjunction.rhs, additional: additional)
+            return nil
+        }
+
+        @discardableResult
+        open func visitPropNegation(
+            _ propNegation: AST.PropNegation, additional: Any? = nil
+        ) -> Any? {
+            visit(propNegation.operand, additional: additional)
+            return nil
+        }
+
+        @discardableResult
+        open func visitPropEquality(
+            _ propEquality: AST.PropEquality, additional: Any? = nil
+        ) -> Any? {
+            visit(propEquality.lhs, additional: additional)
+            visit(propEquality.rhs, additional: additional)
+            return nil
+        }
     }
 }

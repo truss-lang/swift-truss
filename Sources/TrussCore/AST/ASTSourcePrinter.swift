@@ -523,6 +523,8 @@ public final class SourcePrinter: AST.Visitor {
             state.write(" -> ")
             visit(returnTypeExpression)
         }
+        printContracts(functionDecl.contracts)
+        printTacticBlock(functionDecl.proofBody)
         switch functionDecl.body {
         case let .Block(statements):
             appendBlock(statements)
@@ -591,6 +593,11 @@ public final class SourcePrinter: AST.Visitor {
     public override func visitWhile(_ whileStatement: AST.While, additional: Any? = nil) -> Any? {
         state.write("while ")
         visit(whileStatement.condition)
+        for inv in whileStatement.invariants {
+            state.write(" invariant ")
+            visit(inv.expression)
+        }
+        printDecreases(whileStatement.decreases)
         appendBlock(whileStatement.body)
         return nil
     }
@@ -603,6 +610,11 @@ public final class SourcePrinter: AST.Visitor {
         appendBlock(repeatWhile.body)
         state.write(" while ")
         visit(repeatWhile.condition)
+        for inv in repeatWhile.invariants {
+            state.write(" invariant ")
+            visit(inv.expression)
+        }
+        printDecreases(repeatWhile.decreases)
         return nil
     }
 
@@ -1452,6 +1464,125 @@ public final class SourcePrinter: AST.Visitor {
             }
         }
         state.write(isRaw ? "\"#" : "\"")
+        return nil
+    }
+
+    private func printContracts(_ contracts: [AST.Contract]) {
+        for contract in contracts {
+            state.write(" " + contract.keyword.value + " ")
+            visit(contract.expression)
+        }
+    }
+
+    private func printDecreases(_ decreases: [AST.Expression]?) {
+        guard let decreases else { return }
+        state.write(" decreases ")
+        for (i, expr) in decreases.enumerated() {
+            if i > 0 { state.write(", ") }
+            visit(expr)
+        }
+    }
+
+    private func printTacticBlock(_ proofBody: AST.TacticBlock?) {
+        guard let proofBody else { return }
+        state.write(" by {")
+        for (i, tactic) in proofBody.tactics.enumerated() {
+            if i > 0 { state.write("; ") }
+            state.write(tactic.name.value)
+            for arg in tactic.arguments {
+                state.write(" ")
+                visit(arg)
+            }
+        }
+        state.write(" }")
+    }
+
+    @discardableResult
+    public override func visitTheoremDecl(
+        _ theoremDecl: AST.TheoremDecl, additional: Any? = nil
+    ) -> Any? {
+        let attributes = attributesText(theoremDecl.attributes)
+        let modifiers = modifiersText(theoremDecl.modifiers)
+        if !attributes.isEmpty {
+            state.write(attributes)
+            state.write("\n")
+            state.write(state.indentPrefix())
+            if !modifiers.isEmpty {
+                state.write(modifiers + " ")
+            }
+        } else if !modifiers.isEmpty {
+            state.write(modifiers + " ")
+        }
+        state.write(theoremDecl.keyword.value + " " + theoremDecl.name.value)
+        if let genericDecl = theoremDecl.genericDecl { state.write(genericDeclText(genericDecl)) }
+        state.write(
+            parametersText(theoremDecl.parameters, vararg: false)
+        )
+        state.write(" : ")
+        visit(theoremDecl.propExpression)
+        printTacticBlock(theoremDecl.proofBody)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitQuantifierExpr(
+        _ quantifierExpr: AST.QuantifierExpr, additional: Any? = nil
+    ) -> Any? {
+        state.write(quantifierExpr.keyword.value)
+        state.write(
+            parametersText(quantifierExpr.parameters, vararg: false)
+        )
+        state.write(", ")
+        visit(quantifierExpr.body)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitImplyExpr(
+        _ implyExpr: AST.ImplyExpr, additional: Any? = nil
+    ) -> Any? {
+        visit(implyExpr.lhs)
+        state.write(" => ")
+        visit(implyExpr.rhs)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitPropConjunction(
+        _ propConjunction: AST.PropConjunction, additional: Any? = nil
+    ) -> Any? {
+        visit(propConjunction.lhs)
+        state.write(" && ")
+        visit(propConjunction.rhs)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitPropDisjunction(
+        _ propDisjunction: AST.PropDisjunction, additional: Any? = nil
+    ) -> Any? {
+        visit(propDisjunction.lhs)
+        state.write(" || ")
+        visit(propDisjunction.rhs)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitPropNegation(
+        _ propNegation: AST.PropNegation, additional: Any? = nil
+    ) -> Any? {
+        state.write("!")
+        visit(propNegation.operand)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitPropEquality(
+        _ propEquality: AST.PropEquality, additional: Any? = nil
+    ) -> Any? {
+        visit(propEquality.lhs)
+        state.write(" " + propEquality.op.value + " ")
+        visit(propEquality.rhs)
         return nil
     }
 }

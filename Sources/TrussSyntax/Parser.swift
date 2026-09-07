@@ -250,19 +250,19 @@ public final class Parser {
             }
         }
         if !modifiers.isEmpty || !attributes.isEmpty {
-            let allowsAnnotations =
-                if case let .Keyword(kind) = t.kind {
-                    switch kind {
-                    case .TypeAlias, .Module, .PrecedenceGroup, .Infix, .Prefix, .Postfix,
-                         .Operator, .Struct, .Class, .Enum, .ProtocolKw, .Actor, .Extension,
-                         .Func, .Let, .Var, .Async, .Extern:
-                        true
-                    default:
-                        false
-                    }
-                } else {
+            let allowsAnnotations = switch t.kind {
+            case let .Keyword(kind):
+                switch kind {
+                case .TypeAlias, .Module, .PrecedenceGroup, .Infix, .Prefix, .Postfix,
+                     .Operator, .Struct, .Class, .Enum, .ProtocolKw, .Actor, .Extension,
+                     .Func, .Let, .Var, .Async, .Extern, .Theorem, .Lemma, .Axiom:
+                    true
+                default:
                     false
                 }
+            default:
+                false
+            }
             if !allowsAnnotations {
                 emitAnnotationsNotAllowed(modifiers, attributes, on: "declarations")
             }
@@ -308,7 +308,13 @@ public final class Parser {
                     emitError("expected 'let' or 'var' after 'async'", at: endOfFile)
                 }
                 return errorStatement(from: asyncToken, to: asyncToken)
-            default: return nil
+            default:
+                if case let .Keyword(kind) = t.kind,
+                   kind == .Theorem || kind == .Lemma || kind == .Axiom
+                {
+                    return parseTheoremDecl(modifiers, attributes)
+                }
+                return nil
             }
         case let .Separator(kind):
             switch kind {
@@ -318,6 +324,11 @@ public final class Parser {
             default: return nil
             }
         default:
+            if case let .Keyword(kind) = t.kind,
+               kind == .Theorem || kind == .Lemma || kind == .Axiom
+            {
+                return parseTheoremDecl(modifiers, attributes)
+            }
             return nil
         }
     }
@@ -2141,6 +2152,11 @@ public final class Parser {
                 }
                 return errorStatement(from: asyncToken, to: asyncToken)
             default:
+                if case let .Keyword(kind) = token.kind,
+                   kind == .Theorem || kind == .Lemma || kind == .Axiom
+                {
+                    return parseTheoremDecl(modifiers, attributes)
+                }
                 index += 1
                 emitError("expected a statement, but got \(token.value)", at: token)
                 return errorStatement(from: startToken ?? token, to: token)
@@ -2490,6 +2506,8 @@ public final class Parser {
         } else {
             returnTypeExpression = nil
         }
+        let contracts = parseContractClauses()
+        let proofBody = parseTacticBlock()
         let body: AST.FunctionDecl.Body?
         if let t = peek {
             switch t.kind {
@@ -2533,6 +2551,7 @@ public final class Parser {
         return AST.FunctionDecl(
             modifiers, attributes, token, name, genericDecl, parameters, varargToken,
             asyncToken, throwsClause, returnTypeExpression, body,
+            contracts, proofBody,
             sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
@@ -3243,6 +3262,7 @@ public final class Parser {
         let condition =
             parseExpression(isCondition: true)
                 ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
+        let (invariants, decreases) = parseLoopProofClauses()
         guard let openToken = next else {
             emitError("expected '{' after while condition", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -3279,6 +3299,7 @@ public final class Parser {
         }
         return AST.While(
             token, condition, openToken, body, closeToken,
+            invariants, decreases,
             sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
         )
     }
@@ -3333,9 +3354,11 @@ public final class Parser {
         let condition =
             parseExpression(isCondition: true)
                 ?? AST.ErrorExpression(SourceRange(location: locationAfter(whileToken)))
+        let (invariants, decreases) = parseLoopProofClauses()
         return AST.RepeatWhile(
             token, openToken, body, closeToken, whileToken, condition,
-            sourceRange: SourceRange(from: token, to: whileToken, in: buffer)
+            invariants, decreases,
+            sourceRange: SourceRange(from: token, to: last!, in: buffer)
         )
     }
 
@@ -6084,5 +6107,345 @@ public final class Parser {
             }
         }
         return (modifiers, attributes)
+    }
+
+    private func isContractKeyword(_ token: Token) -> Bool {
+        token.kind == .Identifier
+            && (token.value == "requires" || token.value == "ensures" || token.value == "invariant"
+                || token.value == "decreases")
+    }
+
+    private func parseContractClauses() -> [AST.Contract] {
+        var contracts: [AST.Contract] = []
+        while let token = peek {
+            guard token.kind == .Identifier else { break }
+            guard token.value == "requires" || token.value == "ensures" || token.value == "invariant"
+            else { break }
+            let kind: AST.Contract.Kind =
+                if token.value == "requires" { .Requires }
+                else if token.value == "ensures" { .Ensures }
+                else { .Invariant }
+            index += 1
+            let expr =
+                parseExpression()
+                    ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
+            contracts.append(
+                AST.Contract(token, kind, expr, sourceRange: SourceRange(from: token, to: last!, in: buffer))
+            )
+        }
+        return contracts
+    }
+
+    private func parseDecreasesClause() -> [AST.Expression]? {
+        guard let token = peek, token.kind == .Identifier, token.value == "decreases" else {
+            return nil
+        }
+        index += 1
+        var expressions: [AST.Expression] = []
+        guard let first = parseExpression(isCondition: true) else {
+            emitError("expected expression after 'decreases'", at: token)
+            return nil
+        }
+        expressions.append(first)
+        while let comma = peek, case .Separator(.Comma) = comma.kind {
+            index += 1
+            guard let expr = parseExpression(isCondition: true) else {
+                emitError("expected expression after ',' in decreases clause", at: comma)
+                break
+            }
+            expressions.append(expr)
+        }
+        return expressions
+    }
+
+    private func parseLoopProofClauses() -> (invariants: [AST.Contract], decreases: [AST.Expression]?) {
+        var invariants: [AST.Contract] = []
+        while let token = peek, token.kind == .Identifier, token.value == "invariant" {
+            index += 1
+            let expr =
+                parseExpression(isCondition: true)
+                    ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
+            invariants.append(
+                AST.Contract(token, .Invariant, expr, sourceRange: SourceRange(from: token, to: last!, in: buffer))
+            )
+        }
+        let decreases = parseDecreasesClause()
+        return (invariants, decreases)
+    }
+
+    private func parseProposition() -> AST.Expression {
+        parsePropQuantifier()
+    }
+
+    private func parsePropQuantifier() -> AST.Expression {
+        if let token = peek, token.kind == .Identifier,
+           token.value == "forall" || token.value == "exists"
+        {
+            let kind: AST.QuantifierExpr.Kind =
+                token.value == "forall" ? .Forall : .Exists
+            index += 1
+            guard let openToken = peek, case .Separator(.OpenParen) = openToken.kind else {
+                emitError("expected '(' after '\(token.value)'", at: token)
+                return AST.ErrorExpression(SourceRange(location: locationAfter(token)))
+            }
+            index += 1
+            var parameters: [AST.FunctionDecl.Parameter] = []
+            if let cp = peek, case .Separator(.CloseParen) = cp.kind {
+                index += 1
+            } else {
+                _paramLoop: while true {
+                    let param = parseFunctionParameter()
+                    parameters.append(param)
+                    if let comma = peek, case .Separator(.Comma) = comma.kind {
+                        index += 1
+                        if let cp = peek, case .Separator(.CloseParen) = cp.kind {
+                            break _paramLoop
+                        }
+                    } else {
+                        break _paramLoop
+                    }
+                }
+                if let t = peek, case .Separator(.CloseParen) = t.kind {
+                    index += 1
+                } else if let t = peek {
+                    emitError(
+                        "expected ')' after quantifier parameters, but got '\(t.value)'", at: t
+                    )
+                } else {
+                    emitError("expected ')' after quantifier parameters", at: endOfFile)
+                }
+            }
+            guard let commaToken = peek, case .Separator(.Comma) = commaToken.kind else {
+                emitError("expected ',' after quantifier parameters", at: last!)
+                return AST.ErrorExpression(
+                    SourceRange(location: locationAfter(last!))
+                )
+            }
+            index += 1
+            let body = parseProposition()
+            return AST.QuantifierExpr(
+                token, kind, openToken, parameters, commaToken, body,
+                sourceRange: SourceRange(from: token, to: last!, in: buffer)
+            )
+        }
+        return parsePropImplication()
+    }
+
+    private func parsePropImplication() -> AST.Expression {
+        var lhs = parsePropDisjunction()
+        while let token = peek, case .Separator(.RightArrow) = token.kind {
+            index += 1
+            let rhs = parsePropDisjunction()
+            lhs = AST.ImplyExpr(
+                lhs, token, rhs,
+                sourceRange: SourceRange(
+                    start: lhs.sourceRange.start, end: rhs.sourceRange.end
+                )
+            )
+        }
+        return lhs
+    }
+
+    private func parsePropDisjunction() -> AST.Expression {
+        var lhs = parsePropConjunction()
+        while let token = peek, token.kind == .Operator(.Or) {
+            index += 1
+            let rhs = parsePropConjunction()
+            lhs = AST.PropDisjunction(
+                lhs, token, rhs,
+                sourceRange: SourceRange(
+                    start: lhs.sourceRange.start, end: rhs.sourceRange.end
+                )
+            )
+        }
+        return lhs
+    }
+
+    private func parsePropConjunction() -> AST.Expression {
+        var lhs = parsePropEquality()
+        while let token = peek, token.kind == .Operator(.And) {
+            index += 1
+            let rhs = parsePropEquality()
+            lhs = AST.PropConjunction(
+                lhs, token, rhs,
+                sourceRange: SourceRange(
+                    start: lhs.sourceRange.start, end: rhs.sourceRange.end
+                )
+            )
+        }
+        return lhs
+    }
+
+    private func parsePropEquality() -> AST.Expression {
+        let lhs = parsePropNegation()
+        if let token = peek, token.kind == .Operator(.Equal) || token.kind == .Operator(.NotEqual) {
+            index += 1
+            let rhs = parsePropNegation()
+            let result = AST.PropEquality(
+                lhs, token, rhs,
+                sourceRange: SourceRange(
+                    start: lhs.sourceRange.start, end: rhs.sourceRange.end
+                )
+            )
+            if let next = peek, next.kind == .Operator(.Equal) || next.kind == .Operator(.NotEqual) {
+                emitError("chained '=='/'!=' not allowed in propositions", at: next)
+            }
+            return result
+        }
+        return lhs
+    }
+
+    private func parsePropNegation() -> AST.Expression {
+        if let token = peek, token.kind == .Operator(.Not) {
+            index += 1
+            let operand = parsePropNegation()
+            return AST.PropNegation(
+                token, operand,
+                sourceRange: SourceRange(
+                    start: token.sourceRange(in: buffer).start, end: operand.sourceRange.end
+                )
+            )
+        }
+        return parsePropAtom()
+    }
+
+    private func parsePropAtom() -> AST.Expression {
+        if let token = peek {
+            if case .Separator(.OpenParen) = token.kind {
+                index += 1
+                let inner = parseProposition()
+                if let close = peek, case .Separator(.CloseParen) = close.kind {
+                    index += 1
+                    return inner
+                }
+                emitError("expected ')' after proposition", at: token)
+                return inner
+            }
+            if token.kind == .Identifier,
+               token.value == "forall" || token.value == "exists"
+            {
+                return parsePropQuantifier()
+            }
+        }
+        return parsePropTerm()
+    }
+
+    private func parsePropTerm() -> AST.Expression {
+        parseExpression(excepts: [.Equal, .NotEqual, .And, .Or])
+            ?? AST.ErrorExpression(SourceRange(location: endOfFile))
+    }
+
+    private func parseTacticBlock() -> AST.TacticBlock? {
+        guard let byToken = peek, byToken.kind == .Identifier, byToken.value == "by" else {
+            return nil
+        }
+        index += 1
+        guard let openToken = peek, case .Separator(.OpenBrace) = openToken.kind else {
+            emitError("expected '{' after 'by', but got '\(peek?.value ?? "<end>")'", at: byToken)
+            return nil
+        }
+        index += 1
+        var tactics: [AST.Tactic] = []
+        while let token = peek {
+            if case .Separator(.CloseBrace) = token.kind {
+                break
+            }
+            if case .SemiColon = (token.kind as? SeparatorKind) {
+                index += 1
+                continue
+            }
+            if token.kind == .Identifier {
+                let name = next!
+                var arguments: [AST.Expression] = []
+                while let argToken = peek {
+                    if case .Separator(.CloseBrace) = argToken.kind { break }
+                    if case .SemiColon = (argToken.kind as? SeparatorKind) { break }
+                    if argToken.kind == .Identifier { break }
+                    if let expr = parseExpression() {
+                        arguments.append(expr)
+                    } else {
+                        break
+                    }
+                }
+                tactics.append(
+                    AST.Tactic(
+                        name, arguments,
+                        sourceRange: SourceRange(from: name, to: last!, in: buffer)
+                    )
+                )
+            } else {
+                index += 1
+                emitError("expected tactic command, but got '\(token.value)'", at: token)
+            }
+        }
+        guard let closeToken = peek, case .Separator(.CloseBrace) = closeToken.kind else {
+            emitError("expected '}' after tactic block", at: byToken)
+            return nil
+        }
+        index += 1
+        return AST.TacticBlock(
+            byToken, openToken, tactics, closeToken,
+            sourceRange: SourceRange(from: byToken, to: closeToken, in: buffer)
+        )
+    }
+
+    private func parseTheoremDecl(
+        _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute]
+    ) -> AST.Statement {
+        let keyword = next!
+        guard let name = peek, name.kind == .Identifier else {
+            emitError("expected name after '\(keyword.value)'", at: keyword)
+            return errorStatement(from: keyword, to: keyword)
+        }
+        index += 1
+        let genericDecl: AST.GenericDecl? =
+            if let t = peek, case .Operator(.Less) = t.kind {
+                parseGenericDecl()
+            } else {
+                nil
+            }
+        guard let openParen = peek, case .Separator(.OpenParen) = openParen.kind else {
+            emitError("expected '(' after theorem name, but got '\(peek?.value ?? "<end>")'", at: keyword)
+            return errorStatement(from: keyword, to: keyword)
+        }
+        index += 1
+        var parameters: [AST.FunctionDecl.Parameter] = []
+        if let cp = peek, case .Separator(.CloseParen) = cp.kind {
+            index += 1
+        } else {
+            _paramLoop: while true {
+                let param = parseFunctionParameter()
+                parameters.append(param)
+                if let comma = peek, case .Separator(.Comma) = comma.kind {
+                    index += 1
+                    if let cp = peek, case .Separator(.CloseParen) = cp.kind {
+                        break _paramLoop
+                    }
+                } else {
+                    break _paramLoop
+                }
+            }
+            if let t = peek, case .Separator(.CloseParen) = t.kind {
+                index += 1
+            } else if let t = peek {
+                emitError(
+                    "expected ')' after theorem parameters, but got '\(t.value)'", at: t
+                )
+            } else {
+                emitError("expected ')' after theorem parameters", at: endOfFile)
+            }
+        }
+        guard let colonToken = peek, case .Separator(.Colon) = colonToken.kind else {
+            emitError("expected ':' after theorem parameters, but got '\(peek?.value ?? "<end>")'", at: keyword)
+            return errorStatement(from: keyword, to: last!)
+        }
+        index += 1
+        let propExpression = parseProposition()
+        let proofBody = parseTacticBlock()
+        return AST.TheoremDecl(
+            modifiers, attributes, keyword, name, genericDecl, parameters, propExpression,
+            proofBody,
+            sourceRange: SourceRange(from: keyword, to: last!, in: buffer)
+        )
     }
 }
