@@ -2346,7 +2346,7 @@ public final class Parser {
                 switch kind {
                 case .Func, .Let, .Var, .Async, .Extern:
                     break
-                case .Return, .Throw, .While, .Repeat, .Guard, .For, .Defer, .Asm,
+                case .Return, .Throw, .While, .Loop, .Repeat, .Guard, .For, .Defer, .Asm,
                      .Break, .Continue, .Goto:
                     emitAnnotationsNotAllowed(
                         modifiers, attributes, on: "'\(token.value)' statement"
@@ -2385,6 +2385,7 @@ public final class Parser {
             case .Return: return parseReturn()
             case .Throw: return parseThrow()
             case .While: return parseWhile()
+            case .Loop: return parseLoop()
             case .Repeat: return parseRepeatWhile()
             case .Guard: return parseGuard()
             case .For: return parseFor()
@@ -3299,6 +3300,50 @@ public final class Parser {
         }
         return AST.While(
             token, condition, openToken, body, closeToken,
+            invariants, decreases,
+            sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
+        )
+    }
+
+    private func parseLoop() -> AST.Statement {
+        let token = next!
+        let (invariants, decreases) = parseLoopProofClauses()
+        guard let openToken = next else {
+            emitError("expected '{' after 'loop'", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        guard case .Separator(.OpenBrace) = openToken.kind else {
+            emitError(
+                "expected '{' after 'loop', but got '\(openToken.value)'",
+                at: openToken
+            )
+            return errorStatement(from: token, to: openToken)
+        }
+        var body: [AST.Statement] = []
+        while let closeToken = peek {
+            if case .Separator(.CloseBrace) = closeToken.kind {
+                break
+            }
+            if let stmt = parseStatement() {
+                body.append(stmt)
+            } else {
+                break
+            }
+        }
+        guard let closeToken = peek else {
+            emitError("expected '}' after loop body", at: endOfFile)
+            return errorStatement(from: token, to: endOfFile)
+        }
+        if case .Separator(.CloseBrace) = closeToken.kind {
+            index += 1
+        } else {
+            emitError(
+                "expected '}' after loop body, but got \(closeToken.value)",
+                at: closeToken
+            )
+        }
+        return AST.Loop(
+            token, openToken, body, closeToken,
             invariants, decreases,
             sourceRange: SourceRange(from: token, to: closeToken, in: buffer)
         )
