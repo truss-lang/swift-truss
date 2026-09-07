@@ -49,10 +49,26 @@ public enum TIR {
         }
 
         public func addGlobal(
-            name: String, type: Id.TIRTypeId, isExtern: Bool
+            name: String, type: Id.TIRTypeId, isExtern: Bool, hasInitializer: Bool
         ) -> GlobalVariable {
+            let initializer: Function? = if hasInitializer {
+                addFunction(
+                    name: "$t_global_init_\(name.count)\(name)",
+                    parameters: [],
+                    returnType: registry.voidType().id,
+                    isVariadic: false,
+                    isExtern: false,
+                    callingConvention: nil
+                )
+            } else {
+                nil
+            }
             let g = GlobalVariable(
-                id: registry.nextGlobalId, name: name, type: type, isExtern: isExtern
+                id: registry.nextGlobalId,
+                name: name,
+                type: type,
+                isExtern: isExtern,
+                initializer: initializer
             )
             registry.globals[g.id] = g
             globals.append(g)
@@ -65,13 +81,14 @@ public enum TIR {
         public let name: String
         public let type: Id.TIRTypeId
         public let isExtern: Bool
-        public var initializer: [Instruction] = []
+        public var initializer: Function?
         public var sourceRange: SourceRange = TIR.unknownSourceRange
-        public init(id: Id.TIRGlobalId, name: String, type: Id.TIRTypeId, isExtern: Bool) {
+        public init(id: Id.TIRGlobalId, name: String, type: Id.TIRTypeId, isExtern: Bool, initializer: Function?) {
             self.id = id
             self.name = name
             self.type = type
             self.isExtern = isExtern
+            self.initializer = initializer
         }
     }
 

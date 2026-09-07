@@ -346,6 +346,9 @@ final class FunctionCollector {
     }
 
     private func createGlobal(_ variableDecl: AST.VariableDecl, symbol: Symbol.VariableSymbol) {
+        guard let currentModule = gen.currentModule else {
+            fatalError("unreachable")
+        }
         guard gen.globalsBySymbol[symbol.id] == nil else { return }
         let type = symbol.type.map { gen.typeLower.lower($0) }
             ?? (variableDecl.initializer?.ty).map { gen.typeLower.lower($0) }
@@ -353,9 +356,11 @@ final class FunctionCollector {
         let name = cname(variableDecl.attributes) ?? gen.mangler.mangleGlobalName(
             symbol, modulePath: gen.modulePathStack
         )
-        let global = gen.currentModule!.addGlobal(
-            name: name, type: type.id,
-            isExtern: !gen.externContextStack.isEmpty && variableDecl.initializer == nil
+        let global = currentModule.addGlobal(
+            name: name,
+            type: type.id,
+            isExtern: !gen.externContextStack.isEmpty && variableDecl.initializer == nil,
+            hasInitializer: variableDecl.initializer != nil
         )
         gen.globalsBySymbol[symbol.id] = global
     }

@@ -19,10 +19,12 @@ public extension TIR {
             }
             for global in module.globals {
                 let externMark = global.isExtern ? "external " : ""
-                lines.append("@\(global.name) = \(externMark)global \(typeText(global.type))")
-                if !global.initializer.isEmpty {
-                    lines.append(contentsOf: global.initializer.map { "  " + instructionText($0) })
+                let initializerMark = if let initializer = global.initializer {
+                    ", initializer \(initializer.name)"
+                } else {
+                    ""
                 }
+                lines.append("@\(global.name) = \(externMark)global \(typeText(global.type))\(initializerMark)")
             }
             let functions = module.functions
             if !module.globals.isEmpty, !functions.isEmpty {
