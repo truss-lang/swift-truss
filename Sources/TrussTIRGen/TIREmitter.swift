@@ -87,16 +87,108 @@ public final class TIREmitter: AST.Visitor {
 
     @discardableResult
     public override func visitVariableDecl(_ variableDecl: AST.VariableDecl, additional: Any? = nil) -> Any? {
-        guard let builder, let currentFunction, let symbol = variableDecl.symbol else {
+        guard let builder, let symbol = variableDecl.symbol else {
             fatalError("unreachable")
         }
-        let alloc = builder.buildAllocStack(
-            allocatedType: lowerType(symbol.type).id,
-            name: mangleVariable(variableDecl.name.value)
-        )
-        if let initializer = variableDecl.initializer {
-            builder.buildStore(value: visitExpression(initializer)!, to: alloc.result)
+        if let global = gen.globalsBySymbol[symbol.id] {
+            if let initializer = variableDecl.initializer {
+                guard let initializerFunction = global.initializer else {
+                    fatalError("unreachable")
+                }
+                let lastInsertPoint = builder.insertPoint
+                let lastFunction = currentFunction
+
+                currentFunction = initializerFunction
+
+                newBlock("entry")
+                guard let v = visitExpression(initializer) else {
+                    fatalError()
+                }
+                let addr = builder.buildGlobalAddr(global: global)
+                builder.buildStore(value: v, to: addr)
+                builder.buildReturn()
+
+                builder.insertPoint = lastInsertPoint
+                currentFunction = lastFunction
+            }
+        } else {
+            let alloc = builder.buildAllocStack(
+                allocatedType: lowerType(symbol.type).id,
+                name: mangleVariable(variableDecl.name.value)
+            )
+            if let initializer = variableDecl.initializer {
+                builder.buildStore(value: visitExpression(initializer)!, to: alloc.result)
+            }
         }
+        return nil
+    }
+
+    public override func visitLoop(_ loopStatement: AST.Loop, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let block = buildBlock()
+        let nextBlock = buildBlock()
+
+        builder.buildBranch(to: block)
+
+        builder.insertPoint = block
+        for statement in loopStatement.body {
+            visit(statement)
+        }
+        builder.buildBranch(to: block)
+
+        builder.insertPoint = nextBlock
+        return nil
+    }
+
+    @discardableResult
+    public override func visitWhile(_ whileStatement: AST.While, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let condBlock = buildBlock()
+        let thenBlock = buildBlock()
+        let nextBlock = buildBlock()
+
+        builder.buildBranch(to: condBlock)
+
+        builder.insertPoint = condBlock
+        guard let cond = visitExpression(whileStatement.condition) else {
+            fatalError()
+        }
+        builder.buildConditionalBranch(condition: cond, trueBranch: thenBlock, falseBranch: nextBlock)
+
+        builder.insertPoint = thenBlock
+        for statement in whileStatement.body {
+            visit(statement)
+        }
+        builder.buildBranch(to: condBlock)
+
+        builder.insertPoint = nextBlock
+        return nil
+    }
+
+    @discardableResult
+    public override func visitRepeatWhile(_ repeatWhile: AST.RepeatWhile, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let bodyBlock = buildBlock()
+        let nextBlock = buildBlock()
+
+        builder.buildBranch(to: bodyBlock)
+
+        builder.insertPoint = bodyBlock
+        for statement in repeatWhile.body {
+            visit(statement)
+        }
+        guard let cond = visitExpression(repeatWhile.condition) else {
+            fatalError()
+        }
+        builder.buildConditionalBranch(condition: cond, trueBranch: bodyBlock, falseBranch: nextBlock)
+
+        builder.insertPoint = nextBlock
         return nil
     }
 
@@ -179,6 +271,14 @@ public final class TIREmitter: AST.Visitor {
         if let functionSymbol = symbol as? Symbol.FunctionSymbol {
             return functionRefValue(functionSymbol, at: variable.sourceRange)
         }
+        if let global = gen.globalsBySymbol[symbol.id] {
+            let addr = builder.buildGlobalAddr(global: global)
+            if variable.isLeftValue {
+                return addr
+            }
+            let load = builder.buildLoad(ptr: addr)
+            return load.result
+        }
         return nil
     }
 
@@ -202,14 +302,88 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitBinary(_ binary: AST.Binary, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        guard let left = visitExpression(binary.left) else {
+            fatalError()
+        }
+        guard let right = visitExpression(binary.right) else {
+            fatalError()
+        }
+        if binary.operatorToken.kind == .Operator(.Assign) {
+            builder.buildStore(value: right, to: left)
+            return right
+        } else {
+            guard let symbol = binary.symbol else {
+                fatalError("unreachable")
+            }
+            guard let f = functionRefValue(symbol, at: binary.sourceRange) else {
+                fatalError()
+            }
+            let inst = builder.buildCall(callee: f, arguments: [left, right])
+            return inst.result
+        }
+    }
+
+    @discardableResult
+    public override func visitPrefix(_ prefix: AST.Prefix, additional: Any? = nil) -> Any? {
+        guard let builder, let symbol = prefix.symbol else { return nil }
+        if symbol.isBuiltin {
+            if let arith = arithOp(named: builtinOpName(of: symbol)) {
+                guard let operand = visitExpression(prefix.expression) else { return nil }
+                return builder.buildUnaryArith(op: arith, operand: operand).result
+            }
+        }
+        guard let callee = functionRefValue(symbol, at: prefix.sourceRange),
+              let operand = visitExpression(prefix.expression)
+        else { return nil }
+        return builder.buildCall(callee: callee, arguments: [operand]).result
+    }
+
+    @discardableResult
+    public override func visitPostfix(_ postfix: AST.Postfix, additional: Any? = nil) -> Any? {
+        guard let builder, let symbol = postfix.symbol else { return nil }
+        guard let callee = functionRefValue(symbol, at: postfix.sourceRange),
+              let operand = visitExpression(postfix.expression)
+        else { return nil }
+        return builder.buildCall(callee: callee, arguments: [operand]).result
+    }
+
+    @discardableResult
+    public override func visitDereference(_ dereference: AST.Dereference, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        guard let v = visitExpression(dereference.expression) else {
+            fatalError()
+        }
+        if dereference.isLeftValue {
+            return v
+        } else {
+            let load = builder.buildLoad(ptr: v)
+            return load.result
+        }
+    }
+
+    @discardableResult
     private func newBlock(_ name: String? = nil) -> TIR.BasicBlock {
-        guard let builder, let currentFunction else {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let block = buildBlock(name)
+        builder.insertPoint = block
+        return block
+    }
+
+    @discardableResult
+    private func buildBlock(_ name: String? = nil) -> TIR.BasicBlock {
+        guard let currentFunction else {
             fatalError("unreachable")
         }
         let blockName = name ?? "bb\(currentFunction.basicBlocks.count)"
-        let block = currentFunction.addBasicBlock(name: blockName)
-        builder.insertPoint = block
-        return block
+        return currentFunction.addBasicBlock(name: blockName)
     }
 
     private func mangleVariable(_ name: String) -> String {
@@ -237,8 +411,9 @@ public final class TIREmitter: AST.Visitor {
         if let existing = gen.functionsBySymbol[symbol.id] {
             function = existing
         } else {
-            guard let module = gen.currentModule,
-                  let functionType = symbol.functionType else { return nil }
+            guard let module = gen.currentModule, let functionType = symbol.functionType else {
+                fatalError("unreachable")
+            }
             let parameters: [TIR.Parameter] = functionType.parameters.enumerated().map {
                 index, parameter in
                 TIR.Parameter(ty: gen.typeLower.lower(parameter.type).id, name: "arg\(index)")
@@ -255,6 +430,14 @@ public final class TIREmitter: AST.Visitor {
             gen.functionsBySymbol[symbol.id] = function
         }
         return builder.buildFunctionRef(function: function)
+    }
+
+    private func builtinOpName(of symbol: Symbol.FunctionSymbol) -> String {
+        if symbol.name.hasPrefix("builtin_") {
+            String(symbol.name.dropFirst("builtin_".count).prefix { $0 != "_" })
+        } else {
+            ""
+        }
     }
 
     private func builtinArithInfo(of callee: AST.Expression) -> BuiltinArith? {
