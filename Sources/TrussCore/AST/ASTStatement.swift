@@ -695,6 +695,39 @@ public extension AST {
         }
     }
 
+    final class Loop: Statement {
+        public let token: Token
+        public let beginToken: Token
+        public let body: [Statement]
+        public let endToken: Token
+        public let invariants: [Contract]
+        public let decreases: [Expression]?
+        public var scope: Scope? = nil
+        public init(
+            _ token: Token, _ beginToken: Token, _ body: [Statement], _ endToken: Token,
+            _ invariants: [Contract] = [], _ decreases: [Expression]? = nil,
+            sourceRange: SourceRange
+        ) {
+            self.token = token
+            self.beginToken = beginToken
+            self.body = body
+            self.endToken = endToken
+            self.invariants = invariants
+            self.decreases = decreases
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitLoop(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherLoop = other as? AST.Loop {
+                scope = otherLoop.scope
+            }
+        }
+    }
+
     struct Contract {
         public enum Kind {
             case Requires

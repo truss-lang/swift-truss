@@ -761,6 +761,31 @@ public extension AST {
         }
 
         @discardableResult
+        public override func visitLoop(_ loop: Loop, additional: Any? = nil)
+            -> Any?
+        {
+            var children: [() -> Void] = []
+            children.append(contentsOf: statementNodes(loop.body))
+            for inv in loop.invariants {
+                children.append {
+                    self.dumpNode(
+                        "Invariant", children: [{ self.visit(inv.expression) }]
+                    )
+                }
+            }
+            if let decreases = loop.decreases {
+                children.append {
+                    self.dumpNode(
+                        "Decreases",
+                        children: decreases.map { expr in { self.visit(expr) } }
+                    )
+                }
+            }
+            dumpNode("Loop", children: children)
+            return nil
+        }
+
+        @discardableResult
         public override func visitRepeatWhile(
             _ repeatWhile: RepeatWhile, additional: Any? = nil
         )

@@ -845,6 +845,20 @@ extension AST {
         }
 
         @discardableResult
+        open override func visitLoop(
+            _ loopStatement: AST.Loop, additional: Any? = nil
+        ) -> Any? {
+            let body = rewriteAll(loopStatement.body)
+            if unchanged(loopStatement.body, body) {
+                return loopStatement
+            }
+            return AST.Loop(
+                loopStatement.token, loopStatement.beginToken, body, loopStatement.endToken,
+                sourceRange: loopStatement.sourceRange
+            )
+        }
+
+        @discardableResult
         open override func visitRepeatWhile(
             _ repeatWhile: AST.RepeatWhile, additional: Any? = nil
         ) -> Any? {

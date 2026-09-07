@@ -67,6 +67,7 @@ public enum KeywordKind: CaseIterable, Sendable {
     case Else
     case While
     case For
+    case Loop
     case Repeat
     case Break
     case Continue
@@ -145,6 +146,7 @@ public enum KeywordKind: CaseIterable, Sendable {
         case .Else: "else"
         case .While: "while"
         case .For: "for"
+        case .Loop: "loop"
         case .Repeat: "repeat"
         case .Break: "break"
         case .Continue: "continue"

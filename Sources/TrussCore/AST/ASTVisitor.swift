@@ -367,6 +367,14 @@ extension AST {
         }
 
         @discardableResult
+        open func visitLoop(_ loopStatement: AST.Loop, additional: Any? = nil) -> Any? {
+            for statement in loopStatement.body {
+                visit(statement, additional: additional)
+            }
+            return nil
+        }
+
+        @discardableResult
         open func visitWhile(_ whileStatement: AST.While, additional: Any? = nil) -> Any? {
             visit(whileStatement.condition, additional: additional)
             for statement in whileStatement.body {

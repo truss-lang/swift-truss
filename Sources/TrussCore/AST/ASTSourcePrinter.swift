@@ -603,6 +603,18 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitLoop(_ loopStatement: AST.Loop, additional: Any? = nil) -> Any? {
+        state.write("loop")
+        for inv in loopStatement.invariants {
+            state.write(" invariant ")
+            visit(inv.expression)
+        }
+        printDecreases(loopStatement.decreases)
+        appendBlock(loopStatement.body)
+        return nil
+    }
+
+    @discardableResult
     public override func visitRepeatWhile(_ repeatWhile: AST.RepeatWhile, additional: Any? = nil)
         -> Any?
     {
