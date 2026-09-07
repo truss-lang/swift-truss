@@ -90,6 +90,17 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitLoop(_ loopStmt: AST.Loop, additional: Any? = nil) -> Any? {
+        guard let scope = loopStmt.scope else {
+            return super.visitLoop(loopStmt, additional: additional)
+        }
+        scopeStack.append(scope)
+        super.visitLoop(loopStmt, additional: additional)
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
     public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil)
         -> Any?
     {

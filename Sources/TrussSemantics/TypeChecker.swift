@@ -575,6 +575,16 @@ public final class TypeChecker: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitLoop(_ loopStatement: AST.Loop, additional: Any? = nil)
+        -> Any?
+    {
+        withScope(loopStatement.scope) {
+            super.visitLoop(loopStatement, additional: additional)
+        }
+        return nil
+    }
+
+    @discardableResult
     public override func visitGuard(_ guardStatement: AST.Guard, additional: Any? = nil)
         -> Any?
     {

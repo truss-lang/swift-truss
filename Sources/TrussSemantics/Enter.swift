@@ -385,6 +385,17 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitLoop(_ loopStmt: AST.Loop, additional: Any? = nil) -> Any? {
+        let scope = Scope()
+        loopStmt.scope = scope
+        let lastScope = currentScope
+        currentScope = scope
+        super.visitLoop(loopStmt, additional: additional)
+        currentScope = lastScope
+        return nil
+    }
+
+    @discardableResult
     public override func visitRepeatWhile(
         _ repeatWhile: AST.RepeatWhile, additional: Any? = nil
     ) -> Any? {

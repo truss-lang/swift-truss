@@ -71,6 +71,14 @@ public final class ControlFlowChecker: AST.Visitor {
         return nil
     }
 
+    public override func visitLoop(_ loopStatement: AST.Loop, additional: Any? = nil) -> Any? {
+        checkUnreachable(loopStatement.body)
+        loopDepth += 1
+        super.visitLoop(loopStatement, additional: additional)
+        loopDepth -= 1
+        return nil
+    }
+
     public override func visitGuard(_ guardStatement: AST.Guard, additional: Any? = nil) -> Any? {
         checkUnreachable(guardStatement.body)
         return super.visitGuard(guardStatement, additional: additional)
