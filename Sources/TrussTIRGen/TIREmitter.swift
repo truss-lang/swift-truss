@@ -10,7 +10,8 @@ public final class TIREmitter: AST.Visitor {
     private let context: Context
     private let gen: GenerationContext
     private var currentFunction: TIR.Function?
-    private var variableMap: [ObjectIdentifier: [String: [String]]] = [:]
+    private var variableMap: [ObjectIdentifier: [String: Int]] = [:]
+    private var localVariableMap: [[String: TIR.Value]] = []
 
     private var currentModule: TIR.Module? {
         get {
@@ -50,6 +51,7 @@ public final class TIREmitter: AST.Visitor {
 
         currentFunction = fn
         variableMap[ObjectIdentifier(fn)] = [:]
+        pushScope()
 
         newBlock("entry")
 
@@ -58,6 +60,7 @@ public final class TIREmitter: AST.Visitor {
             let name = mangleVariable(parameter.name.value)
             let alloc = builder.buildAllocStack(allocatedType: lowerType(parameter.symbol!.type).id, name: name)
             builder.buildStore(value: fn.parameters[parameterStartIndex + index], to: alloc.result)
+            bindLocal(parameter.name.value, alloc.result)
             return alloc
         }
 
@@ -72,6 +75,7 @@ public final class TIREmitter: AST.Visitor {
 
         currentFunction = lastFunction
         variableMap.removeValue(forKey: ObjectIdentifier(fn))
+        popScope()
         return nil
     }
 
@@ -112,10 +116,12 @@ public final class TIREmitter: AST.Visitor {
                 currentFunction = lastFunction
             }
         } else {
+            let name = mangleVariable(variableDecl.name.value)
             let alloc = builder.buildAllocStack(
                 allocatedType: lowerType(symbol.type).id,
-                name: mangleVariable(variableDecl.name.value)
+                name: name
             )
+            bindLocal(variableDecl.name.value, alloc.result)
             if let initializer = variableDecl.initializer {
                 builder.buildStore(value: visitExpression(initializer)!, to: alloc.result)
             }
@@ -127,6 +133,7 @@ public final class TIREmitter: AST.Visitor {
         guard let builder else {
             fatalError("unreachable")
         }
+        pushScope()
         let block = buildBlock()
         let nextBlock = buildBlock()
 
@@ -139,6 +146,7 @@ public final class TIREmitter: AST.Visitor {
         builder.buildBranch(to: block)
 
         builder.insertPoint = nextBlock
+        popScope()
         return nil
     }
 
@@ -147,6 +155,7 @@ public final class TIREmitter: AST.Visitor {
         guard let builder else {
             fatalError("unreachable")
         }
+        pushScope()
         let condBlock = buildBlock()
         let thenBlock = buildBlock()
         let nextBlock = buildBlock()
@@ -166,6 +175,7 @@ public final class TIREmitter: AST.Visitor {
         builder.buildBranch(to: condBlock)
 
         builder.insertPoint = nextBlock
+        popScope()
         return nil
     }
 
@@ -174,6 +184,7 @@ public final class TIREmitter: AST.Visitor {
         guard let builder else {
             fatalError("unreachable")
         }
+        pushScope()
         let bodyBlock = buildBlock()
         let nextBlock = buildBlock()
 
@@ -189,6 +200,7 @@ public final class TIREmitter: AST.Visitor {
         builder.buildConditionalBranch(condition: cond, trueBranch: bodyBlock, falseBranch: nextBlock)
 
         builder.insertPoint = nextBlock
+        popScope()
         return nil
     }
 
@@ -271,15 +283,19 @@ public final class TIREmitter: AST.Visitor {
         if let functionSymbol = symbol as? Symbol.FunctionSymbol {
             return functionRefValue(functionSymbol, at: variable.sourceRange)
         }
+        let addr: TIR.Value
         if let global = gen.globalsBySymbol[symbol.id] {
-            let addr = builder.buildGlobalAddr(global: global)
-            if variable.isLeftValue {
-                return addr
-            }
-            let load = builder.buildLoad(ptr: addr)
-            return load.result
+            addr = builder.buildGlobalAddr(global: global)
+        } else if let value = lookupLocal(variable.name.value) {
+            addr = value
+        } else {
+            return nil
         }
-        return nil
+        if variable.isLeftValue {
+            return addr
+        }
+        let load = builder.buildLoad(ptr: addr)
+        return load.result
     }
 
     @discardableResult
@@ -391,9 +407,9 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         var varMap = variableMap[ObjectIdentifier(currentFunction), default: [:]]
-        let map = varMap[name, default: []]
-        let mangledName = "\(name)_\(map.count)"
-        varMap[name] = map + [mangledName]
+        let count = varMap[name, default: 0]
+        let mangledName = "\(name)_\(count)"
+        varMap[name] = count + 1
         variableMap[ObjectIdentifier(currentFunction)] = varMap
         return mangledName
     }
@@ -486,6 +502,27 @@ public final class TIREmitter: AST.Visitor {
         }
         if arguments.count >= 2 {
             return builder.buildBinaryArith(op: arith.op, lhs: arguments[0], rhs: arguments[1]).result
+        }
+        return nil
+    }
+
+    private func pushScope() {
+        localVariableMap.append([:])
+    }
+
+    private func popScope() {
+        localVariableMap.removeLast()
+    }
+
+    private func bindLocal(_ name: String, _ value: TIR.Value) {
+        localVariableMap[localVariableMap.count - 1][name] = value
+    }
+
+    private func lookupLocal(_ name: String) -> TIR.Value? {
+        for layer in localVariableMap.reversed() {
+            if let value = layer[name] {
+                return value
+            }
         }
         return nil
     }
