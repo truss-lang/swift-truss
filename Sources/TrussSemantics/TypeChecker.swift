@@ -405,29 +405,43 @@ public final class TypeChecker: AST.Visitor {
             )
             symbol.functionType = functionType
             if subscriptDecl.accessors.contains(where: { $0.kind == .Set }) {
+                let setterLabels = subscriptDecl.parameters.map { $0.label?.value } + [nil]
+                let setterParamTypes = parameterTypes + [returnType]
                 let setterFunctionType = TrussType.FunctionType(
                     selfType: selfType,
-                    parameters: (subscriptDecl.parameters.map { $0.label?.value } + [nil])
-                        .enumerated()
-                        .map { index, label in
-                            TrussType.FunctionType.Parameter(
-                                label: label, type: index < parameterTypes.count
-                                    ? parameterTypes[index]
-                                    : returnType
-                            )
-                        },
+                    parameters: setterLabels.enumerated().map { index, label in
+                        TrussType.FunctionType.Parameter(
+                            label: label, type: setterParamTypes[index]
+                        )
+                    },
                     isVariadic: false,
                     isAsync: subscriptDecl.asyncToken != nil,
                     isThrowing: subscriptDecl.throwsClause != nil,
                     throwsTypes: (subscriptDecl.throwsClause?.types ?? []).map(evaluate),
                     returnType: TrussType.VoidType.INSTANCE
                 )
-                symbol.setterType =
-                    if let forallType = symbol.forallType {
-                        TrussType.ForallType(parameters: forallType.parameters, body: setterFunctionType)
-                    } else {
-                        setterFunctionType
-                    }
+                let setterScope = Scope()
+                let setterSymbol = Symbol.FunctionSymbol(
+                    id: context.nextSymbolId, name: "subscript",
+                    locals: [], scope: setterScope,
+                    signature: Symbol.FunctionSignature(
+                        labels: setterLabels,
+                        hasDefaults: [Bool](repeating: false, count: setterLabels.count),
+                        isVararg: [Bool](repeating: false, count: setterLabels.count),
+                        isVariadic: false
+                    ),
+                    isStatic: symbol.isStatic
+                )
+                if let forallType = symbol.forallType {
+                    setterSymbol.forallType = TrussType.ForallType(
+                        parameters: forallType.parameters, body: setterFunctionType
+                    )
+                } else {
+                    setterSymbol.functionType = setterFunctionType
+                }
+                setterSymbol.memberOf = symbol.memberOf
+                setterSymbol.access = symbol.setterAccess ?? symbol.access
+                subscriptDecl.setSymbol = setterSymbol
             }
             withFunctionReturnType(returnType) {
                 withFunctionThrows(subscriptDecl.throwsClause != nil, functionType.throwsTypes) {
@@ -1308,7 +1322,7 @@ public final class TypeChecker: AST.Visitor {
             emitNoExactMatch(at: token, name: "subscript", candidates: [])
             return
         }
-        let setterCandidates = candidates.filter { $0.setterType != nil }
+        let setterCandidates = candidates.compactMap { setterCandidate(from: $0) }
         guard !setterCandidates.isEmpty else {
             context.emitError("cannot assign to subscript: is read-only", at: token)
             return
@@ -1319,11 +1333,57 @@ public final class TypeChecker: AST.Visitor {
         )
         if let resolved = resolveOverloads(
             setterCandidates, arguments: arguments, trailingClosures: [],
-            expectedReturn: nil, at: token, fallbackName: "subscript", setterContext: true
+            expectedReturn: nil, at: token, fallbackName: "subscript"
         ) {
             subscriptExpression.symbol = resolved.symbol
-            subscriptExpression.ty = returnType(of: resolved.symbol)
+            subscriptExpression.ty = resolved.type.returnType
         }
+    }
+
+    private func setterCandidate(from getter: Symbol.FunctionSymbol) -> Symbol.FunctionSymbol? {
+        let getterType: TrussType.FunctionType
+        if let forall = getter.forallType {
+            guard let body = forall.body as? TrussType.FunctionType else { return nil }
+            getterType = body
+        } else if let ft = getter.functionType {
+            getterType = ft
+        } else {
+            return nil
+        }
+        let setterLabels = getter.signature.labels + [nil]
+        let setterParamTypes = getterType.parameters.map(\.type) + [getterType.returnType]
+        let setterFunctionType = TrussType.FunctionType(
+            selfType: getterType.selfType,
+            parameters: setterLabels.enumerated().map { index, label in
+                TrussType.FunctionType.Parameter(label: label, type: setterParamTypes[index])
+            },
+            isVariadic: false,
+            isAsync: getterType.isAsync,
+            isThrowing: getterType.isThrowing,
+            throwsTypes: getterType.throwsTypes,
+            returnType: TrussType.VoidType.INSTANCE
+        )
+        let setterSymbol = Symbol.FunctionSymbol(
+            id: getter.id, name: getter.name,
+            locals: [], scope: Scope(),
+            signature: Symbol.FunctionSignature(
+                labels: setterLabels,
+                hasDefaults: [Bool](repeating: false, count: setterLabels.count),
+                isVararg: [Bool](repeating: false, count: setterLabels.count),
+                isVariadic: false
+            ),
+            isStatic: getter.isStatic
+        )
+        if let forall = getter.forallType {
+            setterSymbol.forallType = TrussType.ForallType(
+                parameters: forall.parameters, body: setterFunctionType
+            )
+        } else {
+            setterSymbol.functionType = setterFunctionType
+        }
+        setterSymbol.memberOf = getter.memberOf
+        setterSymbol.access = getter.access
+        return setterSymbol
     }
 
     private func memberFunctionSymbols(
@@ -2086,6 +2146,7 @@ public final class TypeChecker: AST.Visitor {
     private func infer(_ expression: AST.Expression, at token: Token) -> TrussType.TrussType? {
         switch expression {
         case let call as AST.Call:
+            call.callee.willBeCalled = true
             let callType = TrussType.CallType(
                 arguments: call.arguments,
                 trailingClosures: call.trailingClosures,
@@ -2703,7 +2764,9 @@ public final class TypeChecker: AST.Visitor {
                 binary.symbol = resolved.symbol
                 binary.ty = resolved.type.returnType
                 if binary.isAssignment, let subscriptExpr = binary.left as? AST.Subscript {
-                    if let symbol = subscriptExpr.symbol, symbol.setterType == nil {
+                    if let symbol = subscriptExpr.symbol,
+                       setterCandidate(from: symbol) == nil
+                    {
                         context.emitError(
                             "cannot assign to subscript: is read-only",
                             at: binary.operatorToken
@@ -2871,7 +2934,10 @@ public final class TypeChecker: AST.Visitor {
         case let binding as AST.BindingPattern:
             matched =
                 bindPatternVariable(
-                    binding, type: subjectType, at: token, reportErrors: reportErrors
+                    binding,
+                    type: subjectType,
+                    at: token,
+                    reportErrors: reportErrors
                 ) && matched
             if let subpattern = binding.subpattern {
                 matched =
@@ -2903,29 +2969,39 @@ public final class TypeChecker: AST.Visitor {
         case is AST.WildcardPattern:
             break
         case let call as AST.Call:
-            matched =
-                checkEnumCasePattern(
-                    call, against: subjectType, at: token, reportErrors: reportErrors
-                ) && matched
+            matched = checkEnumCasePattern(
+                call,
+                against: subjectType,
+                at: token,
+                reportErrors: reportErrors
+            ) && matched
         case let member as AST.MemberAccess:
             matched =
                 checkEnumCasePattern(
-                    member, against: subjectType, at: token, reportErrors: reportErrors
+                    member,
+                    against: subjectType,
+                    at: token,
+                    reportErrors: reportErrors
                 ) && matched
         case let implicit as AST.ImplicitMemberAccess:
             matched =
                 checkEnumCasePattern(
-                    implicit, against: subjectType, at: token, reportErrors: reportErrors
+                    implicit,
+                    against: subjectType,
+                    at: token,
+                    reportErrors: reportErrors
                 ) && matched
         case let variable as AST.Variable:
             if let subjectType, let nominal = nominalBase(of: subjectType),
                let symbol = nominal.symbol,
-               symbol.scope.values[variable.name.value]?
-               .contains(where: { $0 is Symbol.CaseSymbol }) == true
+               symbol.scope.values[variable.name.value]?.contains(where: { $0 is Symbol.CaseSymbol }) == true
             {
                 matched =
                     checkEnumCasePattern(
-                        variable, against: subjectType, at: token, reportErrors: reportErrors
+                        variable,
+                        against: subjectType,
+                        at: token,
+                        reportErrors: reportErrors
                     ) && matched
             } else if let subjectType, let declared = evaluateVariable(variable) {
                 if !canCoerce(subjectType, to: declared, at: token) {
@@ -3257,6 +3333,7 @@ public final class TypeChecker: AST.Visitor {
                 }
             }
         case let call as AST.Call:
+            call.callee.willBeCalled = true
             let callType = TrussType.CallType(
                 arguments: call.arguments,
                 trailingClosures: call.trailingClosures,
@@ -3442,8 +3519,7 @@ public final class TypeChecker: AST.Visitor {
         expectedReturn: TrussType.TrussType?,
         at token: Token,
         reportErrors: Bool = true,
-        fallbackName: String? = nil,
-        setterContext: Bool = false
+        fallbackName: String? = nil
     ) -> (symbol: Symbol.FunctionSymbol, type: TrussType.FunctionType)? {
         let allArguments = arguments + trailingClosures.map { label, closure in
             AST.LabeledArgument(label: label, value: closure, sourceRange: closure.sourceRange)
@@ -3460,9 +3536,7 @@ public final class TypeChecker: AST.Visitor {
                 }
             }
             let ty: TrussType.FunctionType
-            let setterForall = setterContext ? (candidate.setterType as? TrussType.ForallType) : nil
-            let setterPlain = setterContext ? (candidate.setterType as? TrussType.FunctionType) : nil
-            if let forallType = setterForall ?? (setterContext ? nil : candidate.forallType) {
+            if let forallType = candidate.forallType {
                 genericParameters = forallType.parameters
                 if let functionType = instantiate(forallType, mapping: &typeMapping)
                     as? TrussType.FunctionType
@@ -3471,26 +3545,14 @@ public final class TypeChecker: AST.Visitor {
                 } else {
                     continue
                 }
-            } else if let functionType = setterPlain
-                ?? (setterContext ? nil : candidate.functionType)
-            {
+            } else if let functionType = candidate.functionType {
                 genericParameters = genericParamSymbols(in: functionType)
                 ty = instantiateGenerics(functionType, mapping: &typeMapping)
                     as! TrussType.FunctionType
             } else {
                 continue
             }
-            let signature: Symbol.FunctionSignature =
-                if setterContext {
-                    Symbol.FunctionSignature(
-                        labels: ty.parameters.map(\.label),
-                        hasDefaults: [Bool](repeating: false, count: ty.parameters.count),
-                        isVararg: [Bool](repeating: false, count: ty.parameters.count),
-                        isVariadic: ty.isVariadic
-                    )
-                } else {
-                    candidate.signature
-                }
+            let signature = candidate.signature
             guard let argumentMapping = mapArguments(allArguments, to: signature) else {
                 continue
             }

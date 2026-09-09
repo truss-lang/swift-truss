@@ -39,6 +39,8 @@ public enum Symbol {
     public class NominalTypeSymbol: Symbol {
         public var conformances: [ProtocolSymbol] = []
         public var typeId: Id.ASTTypeId? = nil
+        public var initializers: [FunctionSymbol] = []
+        public var deinitializer: FunctionSymbol? = nil
         public let scope: Scope = .init()
         @abstractInit
         public override init(_ id: Id.SymbolId, _ name: String) {
@@ -137,7 +139,6 @@ public enum Symbol {
         public var isBuiltin: Bool = false
         public var functionType: TrussType.FunctionType? = nil
         public var forallType: TrussType.ForallType? = nil
-        public var setterType: TrussType.TrussType? = nil
         public init(
             id: Id.SymbolId, name: String, locals: [VariableSymbol],
             scope: Scope, signature: FunctionSignature, isStatic: Bool = false

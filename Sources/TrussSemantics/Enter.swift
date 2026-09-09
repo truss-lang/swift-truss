@@ -257,6 +257,7 @@ public final class Enter: AST.Visitor {
         )
         registerMemberSymbol(symbol, at: initDecl.token, modifiers: initDecl.modifiers)
         initDecl.symbol = symbol
+        typeStack.last?.initializers.append(symbol)
 
         return nil
     }
@@ -343,6 +344,14 @@ public final class Enter: AST.Visitor {
         super.visitDeinitDecl(deinitDecl, additional: additional)
         currentScope = lastScope
         deinitDecl.scope = scope
+        let symbol = Symbol.FunctionSymbol(
+            id: context.nextSymbolId, name: "deinit", locals: [], scope: scope,
+            signature: Symbol.FunctionSignature(
+                labels: [], hasDefaults: [], isVararg: [], isVariadic: false
+            )
+        )
+        registerMemberSymbol(symbol, at: deinitDecl.token, modifiers: deinitDecl.modifiers)
+        typeStack.last?.deinitializer = symbol
         return nil
     }
 
