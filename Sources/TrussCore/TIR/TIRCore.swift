@@ -68,7 +68,7 @@ public enum TIR {
                 name: name,
                 type: type,
                 isExtern: isExtern,
-                initializer: initializer
+                initializer: initializer.map(\.id)
             )
             registry.globals[g.id] = g
             globals.append(g)
@@ -81,9 +81,15 @@ public enum TIR {
         public let name: String
         public let type: Id.TIRTypeId
         public let isExtern: Bool
-        public var initializer: Function?
+        public var initializer: Id.TIRFunctionId?
         public var sourceRange: SourceRange = TIR.unknownSourceRange
-        public init(id: Id.TIRGlobalId, name: String, type: Id.TIRTypeId, isExtern: Bool, initializer: Function?) {
+        public init(
+            id: Id.TIRGlobalId,
+            name: String,
+            type: Id.TIRTypeId,
+            isExtern: Bool,
+            initializer: Id.TIRFunctionId?
+        ) {
             self.id = id
             self.name = name
             self.type = type
@@ -211,5 +217,15 @@ public enum TIR {
 
         @abstract
         public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any?
+    }
+
+    public class ConstructingObject: Value {
+        public let ptr: Value
+        public let initializer: Id.TIRFunctionId
+        public init(ptr: Value, initializer: Id.TIRFunctionId, ty: Id.TIRTypeId) {
+            self.ptr = ptr
+            self.initializer = initializer
+            super.init(ty: ty, name: "")
+        }
     }
 }

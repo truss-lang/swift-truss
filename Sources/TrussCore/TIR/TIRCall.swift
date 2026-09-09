@@ -55,10 +55,10 @@ public extension TIR {
     }
 
     final class Closure: Instruction {
-        public let function: TIR.Function
+        public let function: FunctionRef
         public let captures: [Value]
         public var result: Value
-        public init(function: TIR.Function, captures: [Value], name: String) {
+        public init(function: FunctionRef, captures: [Value], name: String) {
             self.function = function
             self.captures = captures
             result = InstructionResult(ty: function.ty, name: name)

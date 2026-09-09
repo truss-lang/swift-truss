@@ -96,7 +96,9 @@ public final class TIREmitter: AST.Visitor {
         }
         if let global = gen.globalsBySymbol[symbol.id] {
             if let initializer = variableDecl.initializer {
-                guard let initializerFunction = global.initializer else {
+                guard let initializerId = global.initializer,
+                      let initializerFunction = gen.registry.functions[initializerId]
+                else {
                     fatalError("unreachable")
                 }
                 let lastInsertPoint = builder.insertPoint
@@ -204,14 +206,47 @@ public final class TIREmitter: AST.Visitor {
         return nil
     }
 
+    public override func visitExpressionStatement(
+        _ expressionStatement: AST.ExpressionStatement, additional: Any? = nil
+    ) -> Any? {
+        visit(expressionStatement.expression, additional: additional)
+    }
+
+    @discardableResult
+    public override func visitEmptyStatement(_ emptyStatement: AST.EmptyStatement, additional: Any? = nil) -> Any? {
+        nil
+    }
+
+    @discardableResult
+    public override func visitErrorExpressionStatement(
+        _ errorStatement: AST.ErrorExpressionStatement, additional: Any? = nil
+    ) -> Any? {
+        nil
+    }
+
+    @discardableResult
+    public override func visitErrorExpression(_ errorExpression: AST.ErrorExpression, additional: Any? = nil) -> Any? {
+        nil
+    }
+
+    @discardableResult
+    public override func visitParenthetical(
+        _ parentheticalExpression: AST.Parenthetical, additional: Any? = nil
+    ) -> Any? {
+        visit(parentheticalExpression.inner)
+    }
+
     @discardableResult
     public override func visitIntegerLiteral(
         _ integerLiteral: AST.IntegerLiteral, additional: Any? = nil
     ) -> Any? {
-        guard let builder else { return nil }
+        guard let builder else {
+            fatalError("unreachable")
+        }
         let type = lowerType(integerLiteral.ty)
         return builder.buildIntegerLiteral(
-            value: UInt64(integerLiteral.value), ty: type.id
+            value: UInt64(integerLiteral.value),
+            ty: type.id
         )
     }
 
@@ -219,7 +254,9 @@ public final class TIREmitter: AST.Visitor {
     public override func visitFloatLiteral(
         _ floatLiteral: AST.FloatLiteral, additional: Any? = nil
     ) -> Any? {
-        guard let builder else { return nil }
+        guard let builder else {
+            fatalError("unreachable")
+        }
         let type = lowerType(floatLiteral.ty)
         return builder.buildFloatLiteral(value: floatLiteral.value, ty: type.id)
     }
@@ -228,7 +265,9 @@ public final class TIREmitter: AST.Visitor {
     public override func visitBoolLiteral(
         _ boolLiteral: AST.BoolLiteral, additional: Any? = nil
     ) -> Any? {
-        guard let builder else { return nil }
+        guard let builder else {
+            fatalError("unreachable")
+        }
         let type = lowerType(boolLiteral.ty)
         return builder.buildBoolLiteral(value: boolLiteral.value, ty: type.id)
     }
@@ -237,7 +276,9 @@ public final class TIREmitter: AST.Visitor {
     public override func visitCharLiteral(
         _ charLiteral: AST.CharLiteral, additional: Any? = nil
     ) -> Any? {
-        guard let builder else { return nil }
+        guard let builder else {
+            fatalError("unreachable")
+        }
         let type = lowerType(charLiteral.ty)
         return builder.buildCharLiteral(value: charLiteral.value, ty: type.id)
     }
@@ -246,7 +287,9 @@ public final class TIREmitter: AST.Visitor {
     public override func visitStringLiteral(
         _ stringLiteral: AST.StringLiteral, additional: Any? = nil
     ) -> Any? {
-        guard let builder else { return nil }
+        guard let builder else {
+            fatalError("unreachable")
+        }
         let type = lowerType(stringLiteral.ty)
         return builder.buildStringLiteral(value: stringLiteral.token.value, ty: type.id)
     }
@@ -255,7 +298,9 @@ public final class TIREmitter: AST.Visitor {
     public override func visitNullptrLiteral(
         _ nullPointerLiteral: AST.NullptrLiteral, additional: Any? = nil
     ) -> Any? {
-        guard let builder else { return nil }
+        guard let builder else {
+            fatalError("unreachable")
+        }
         let type = lowerType(nullPointerLiteral.ty)
         return builder.buildNullptrLiteral(ty: type.id)
     }
@@ -264,7 +309,9 @@ public final class TIREmitter: AST.Visitor {
     public override func visitNullLiteral(
         _ nullLiteral: AST.NullLiteral, additional: Any? = nil
     ) -> Any? {
-        guard let builder else { return nil }
+        guard let builder else {
+            fatalError("unreachable")
+        }
         let ty = lowerType(nullLiteral.ty).id
         return builder.buildNullptrLiteral(ty: ty)
     }
@@ -278,10 +325,35 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitTuple(_ tuple: AST.Tuple, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let elements = tuple.elements.map {
+            if let v = visitExpression($0.value) {
+                v
+            } else {
+                fatalError()
+            }
+        }
+        return builder.buildTupleValue(elements: elements, ty: lowerType(tuple.ty).id)
+    }
+
+    @discardableResult
     public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
         guard let builder, let symbol = variable.symbol else { return nil }
         if let functionSymbol = symbol as? Symbol.FunctionSymbol {
-            return functionRefValue(functionSymbol, at: variable.sourceRange)
+            guard let ref = functionRefValue(functionSymbol, at: variable.sourceRange) else {
+                fatalError()
+            }
+            if variable.willBeCalled {
+                return ref
+            } else {
+                return builder.buildClosure(function: ref, captures: []).result
+            }
+        }
+        if let nominal = symbol as? Symbol.NominalTypeSymbol {
+            // TODO: construct object directly using TypeName() like A()
         }
         let addr: TIR.Value
         if let global = gen.globalsBySymbol[symbol.id] {
@@ -384,6 +456,11 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitAddressOf(_ addressOf: AST.AddressOf, additional: Any? = nil) -> Any? {
+        visit(addressOf.expression, additional: additional)
+    }
+
+    @discardableResult
     private func newBlock(_ name: String? = nil) -> TIR.BasicBlock {
         guard let builder else {
             fatalError("unreachable")
@@ -421,7 +498,7 @@ public final class TIREmitter: AST.Visitor {
         builder.buildReturn(value)
     }
 
-    private func functionRefValue(_ symbol: Symbol.FunctionSymbol, at range: SourceRange) -> TIR.Value? {
+    private func functionRefValue(_ symbol: Symbol.FunctionSymbol, at range: SourceRange) -> TIR.FunctionRef? {
         guard let builder else { return nil }
         let function: TIR.Function
         if let existing = gen.functionsBySymbol[symbol.id] {

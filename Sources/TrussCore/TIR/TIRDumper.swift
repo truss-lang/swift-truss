@@ -20,7 +20,7 @@ public extension TIR {
             for global in module.globals {
                 let externMark = global.isExtern ? "external " : ""
                 let initializerMark = if let initializer = global.initializer {
-                    ", initializer \(initializer.name)"
+                    ", initializer \(registry!.functions[initializer]!.name)"
                 } else {
                     ""
                 }

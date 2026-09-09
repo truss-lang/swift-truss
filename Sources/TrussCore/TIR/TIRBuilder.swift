@@ -330,7 +330,7 @@ public extension TIR {
 
         @discardableResult
         public func buildClosure(
-            function: TIR.Function, captures: [Value], name: String? = nil
+            function: FunctionRef, captures: [Value], name: String? = nil
         ) -> Closure {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.Closure(
