@@ -1785,7 +1785,7 @@ public final class TypeChecker: AST.Visitor {
                 return false
             }
             for (lp, rp) in zip(l.parameters, r.parameters) {
-                guard lp.label == rp.label, !unify(lp.type, rp.type, at: token) else {
+                guard lp.label == rp.label, unify(lp.type, rp.type, at: token) else {
                     return false
                 }
             }
@@ -3309,20 +3309,59 @@ public final class TypeChecker: AST.Visitor {
                     }
                 }
             }
-        case let variable as AST.Variable where expected is TrussType.FunctionType
-            && !(variable.overloads ?? []).isEmpty:
+        case let variable as AST.Variable:
             if let functionType = expected as? TrussType.FunctionType,
                let overloads = variable.overloads,
                !overloads.isEmpty
             {
-                if let resolved = resolveOverloads(
-                    overloads, arguments: [], trailingClosures: [],
-                    expectedReturn: functionType.returnType, at: token,
-                    reportErrors: false,
-                    fallbackName: variable.name.value
-                ) {
-                    variable.symbol = resolved.symbol
-                    expression.ty = resolved.type.returnType
+                var constraintFailure: String? = nil
+                let matched = overloads.filter {
+                    var typeMapping: [String: TrussType.TypeVariableType] = [:]
+                    var genericParameters: [Symbol.GenericParamSymbol] = []
+                    let ty: TrussType.FunctionType
+                    if let forallType = $0.forallType {
+                        genericParameters = forallType.parameters
+                        if let functionType = instantiate(forallType, mapping: &typeMapping)
+                            as? TrussType.FunctionType
+                        {
+                            ty = functionType
+                        } else {
+                            return false
+                        }
+                    } else if let functionType = $0.functionType {
+                        genericParameters = genericParamSymbols(in: functionType)
+                        ty = instantiateGenerics(functionType, mapping: &typeMapping)
+                            as! TrussType.FunctionType
+                    } else {
+                        return false
+                    }
+                    var ok = canCoerce(ty, to: functionType, at: token)
+                    if ok, !genericParameters.isEmpty {
+                        let (passed, failure) = checkGenericConstraints(
+                            of: genericParameters, mapping: typeMapping, at: token
+                        )
+                        if !passed {
+                            ok = false
+                            if constraintFailure == nil {
+                                constraintFailure = failure
+                            }
+                        }
+                    }
+                    return ok
+                }
+                switch matched.count {
+                case 0:
+                    if let constraintFailure {
+                        context.emitError(constraintFailure, at: token)
+                    } else {
+                        emitNoExactMatch(at: token, name: variable.name.value, candidates: matched)
+                    }
+                case 1:
+                    let f = matched[0]
+                    variable.symbol = f
+                    variable.ty = f.functionType
+                default:
+                    emitAmbiguous(at: token, name: variable.name.value)
                 }
             }
             if expression.ty == nil {
