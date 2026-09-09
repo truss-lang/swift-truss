@@ -743,9 +743,9 @@ extension AST {
 
         @discardableResult
         open func visitTuple(
-            _ tupleExpression: AST.Tuple, additional: Any? = nil
+            _ tuple: AST.Tuple, additional: Any? = nil
         ) -> Any? {
-            for element in tupleExpression.elements {
+            for element in tuple.elements {
                 visit(element.value, additional: additional)
             }
             return nil

@@ -817,7 +817,7 @@ public extension AST {
         public override func visitTheoremDecl(
             _ theoremDecl: TheoremDecl, additional: Any? = nil
         ) -> Any? {
-            var text = declText(
+            let text = declText(
                 "\(theoremDecl.keyword.value) \(theoremDecl.name.value)", theoremDecl
             )
             var children: [() -> Void] = []
@@ -863,7 +863,7 @@ public extension AST {
         public override func visitImplyExpr(
             _ implyExpr: ImplyExpr, additional: Any? = nil
         ) -> Any? {
-            var children: [() -> Void] = [
+            let children: [() -> Void] = [
                 { self.visit(implyExpr.lhs) },
                 { self.visit(implyExpr.rhs) },
             ]
@@ -875,7 +875,7 @@ public extension AST {
         public override func visitPropConjunction(
             _ propConjunction: PropConjunction, additional: Any? = nil
         ) -> Any? {
-            var children: [() -> Void] = [
+            let children: [() -> Void] = [
                 { self.visit(propConjunction.lhs) },
                 { self.visit(propConjunction.rhs) },
             ]
@@ -887,7 +887,7 @@ public extension AST {
         public override func visitPropDisjunction(
             _ propDisjunction: PropDisjunction, additional: Any? = nil
         ) -> Any? {
-            var children: [() -> Void] = [
+            let children: [() -> Void] = [
                 { self.visit(propDisjunction.lhs) },
                 { self.visit(propDisjunction.rhs) },
             ]
@@ -899,7 +899,7 @@ public extension AST {
         public override func visitPropNegation(
             _ propNegation: PropNegation, additional: Any? = nil
         ) -> Any? {
-            var children: [() -> Void] = [
+            let children: [() -> Void] = [
                 { self.visit(propNegation.operand) },
             ]
             dumpNode("PropNegation !", children: children)
@@ -910,7 +910,7 @@ public extension AST {
         public override func visitPropEquality(
             _ propEquality: PropEquality, additional: Any? = nil
         ) -> Any? {
-            var children: [() -> Void] = [
+            let children: [() -> Void] = [
                 { self.visit(propEquality.lhs) },
                 { self.visit(propEquality.rhs) },
             ]
@@ -1481,17 +1481,17 @@ public extension AST {
 
         @discardableResult
         public override func visitTuple(
-            _ tupleExpression: Tuple, additional: Any? = nil
+            _ tuple: Tuple, additional: Any? = nil
         ) -> Any? {
             var children: [() -> Void] = []
-            for element in tupleExpression.elements {
+            for element in tuple.elements {
                 children.append {
                     var text = "Element"
                     if let label = element.label { text += " label:\(label.value)" }
                     self.dumpNode(text, children: [{ self.visit(element.value) }])
                 }
             }
-            dumpNode("TupleExpression" + tyText(tupleExpression.ty), children: children)
+            dumpNode("TupleExpression" + tyText(tuple.ty), children: children)
             return nil
         }
 

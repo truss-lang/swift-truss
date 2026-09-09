@@ -140,7 +140,7 @@ import TrussCore
         let registry = TIR.Registry()
         let i32 = registry.integerType(isSigned: true, bitWidth: 32).id
         let module = TIR.Module(registry: registry)
-        let global = module.addGlobal(name: "g", type: i32, isExtern: false)
+        let global = module.addGlobal(name: "g", type: i32, isExtern: false, hasInitializer: false)
         let f = module.addFunction(
             name: "f", parameters: [], returnType: i32, isVariadic: false, isExtern: false,
             callingConvention: nil

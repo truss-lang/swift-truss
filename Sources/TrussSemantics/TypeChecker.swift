@@ -1400,6 +1400,12 @@ public final class TypeChecker: AST.Visitor {
 
     private func memberType(of name: String, in type: TrussType.TrussType?) -> TrussType.TrussType? {
         let base = type.flatMap(optionalWrapped) ?? type
+        if let tuple = base as? TrussType.TupleType {
+            if let element = tuple.elements.first(where: { $0.label == name }) {
+                return element.type
+            }
+            return nil
+        }
         if let genericParam = base as? TrussType.GenericParamType {
             return memberType(of: name, in: genericParam)
         }
@@ -1599,7 +1605,9 @@ public final class TypeChecker: AST.Visitor {
         case let composition as TrussType.CompositionType:
             return composition.members.map { typeText($0) }.joined(separator: " & ")
         case let tuple as TrussType.TupleType:
-            return "(" + tuple.elements.map { typeText($0.type) }.joined(separator: ", ") + ")"
+            return "(" + tuple.elements.map { element in
+                (element.label.map { "\($0): " } ?? "") + typeText(element.type)
+            }.joined(separator: ", ") + ")"
         case let optional as TrussType.GenericInstantiation:
             return "\(typeText(optional.base))<"
                 + optional.arguments.map { typeText($0) }.joined(separator: ", ") + ">"
@@ -3143,11 +3151,27 @@ public final class TypeChecker: AST.Visitor {
                 closureParameterTypes.removeLast()
             }
             expression.ty = functionType
-        case let tupleExpression as AST.Tuple:
+        case let tuple as AST.Tuple:
             if let tupleType = expected as? TrussType.TupleType {
-                for (index, element) in tupleExpression.elements.enumerated() {
-                    guard index < tupleType.elements.count else { break }
-                    check(element.value, tupleType.elements[index].type, at: token)
+                let resolved = resolve(tupleType) as? TrussType.TupleType ?? tupleType
+                if resolved.elements.count != tuple.elements.count {
+                    emitMismatch(
+                        at: token, expected: expected,
+                        found: TrussType.TupleType(
+                            tuple.elements.map { .init(label: $0.label?.value, type: TrussType.ErrorType.INSTANCE) }
+                        )
+                    )
+                } else {
+                    for (index, element) in tuple.elements.enumerated() {
+                        let expectedElement = resolved.elements[index]
+                        if let actualLabel = element.label?.value, actualLabel != expectedElement.label {
+                            context.emitError(
+                                "tuple element label '\(actualLabel)' does not match expected label '\(expectedElement.label ?? "")'",
+                                at: element.label ?? token
+                            )
+                        }
+                        check(element.value, expectedElement.type, at: token)
+                    }
                 }
             } else {
                 if let actual = infer(expression, at: token) {
