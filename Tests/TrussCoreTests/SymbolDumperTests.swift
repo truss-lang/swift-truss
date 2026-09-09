@@ -39,15 +39,15 @@ import TrussCore
         )
             == """
             main (package) #0
-              value f (function) #3 (a:, b: =)
-                value a (variable) #1
-                value b (variable) #2
-              value f (function) #5 (xs: ...)
-                value xs (variable) #4
-              value g (function) #9 (x:, y:)
-                value x (variable) #6
-                value y (variable) #7
-                value z (variable) #8
+              function f #3 (a:, b: =)
+                var a #1
+                var b #2
+              function f #5 (xs: ...)
+                var xs #4
+              function g #9 (x:, y:)
+                var x #6
+                var y #7
+                var z #8
 
             """
     )
@@ -77,16 +77,16 @@ import TrussCore
             == """
             main (package) #0
               type E (enum) #5 ty:EnumType(E)#2
-                value a (case) #11
-                value b (case) #12
+                case a #11
+                case b #12
               type Q (protocol) #3 ty:ProtocolType(Q)#1
                 type U (associated-type) #4
               type S (struct) #1 ty:StructType(S)#0
-                value init (function) #8 (x:)
-                  value x (variable) #7
-                value subscript (function) #10 (i:)
-                  value i (variable) #9
-                value x (variable) #6
+                function init #8 (x:)
+                  var x #7
+                function subscript #10 (i:)
+                  var i #9
+                var x #6
               type T (typealias) #2
 
             """

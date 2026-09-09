@@ -175,6 +175,15 @@ public enum Symbol {
             return out
         }
 
+        private func valuePrefix(_ symbol: Symbol) -> String {
+            switch symbol {
+            case is FunctionSymbol: "function"
+            case is VariableSymbol: "var"
+            case is CaseSymbol: "case"
+            default: "value"
+            }
+        }
+
         private func dumpScope(
             _ scope: Scope, into out: inout String, indent: Int, program: AST.Program? = nil
         ) {
@@ -199,7 +208,8 @@ public enum Symbol {
             }
             for (name, symbols) in scope.values.sorted(by: { $0.key < $1.key }) {
                 for symbol in symbols {
-                    var line = "\(pad)value \(name) (\(symbolKind(symbol))) #\(symbol.id.id)"
+                    let prefix = valuePrefix(symbol)
+                    var line = "\(pad)\(prefix) \(name) #\(symbol.id.id)"
                     if let function = symbol as? FunctionSymbol {
                         line += signatureText(function)
                     }
