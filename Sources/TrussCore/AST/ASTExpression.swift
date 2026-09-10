@@ -380,7 +380,7 @@ public extension AST {
 
     final class SelfExpression: Expression {
         public let token: Token
-        public var symbol: Symbol.Symbol? = nil
+        public var symbol: Symbol.NominalTypeSymbol? = nil
         public init(
             _ token: Token, sourceRange: SourceRange
         ) {
@@ -401,7 +401,7 @@ public extension AST {
 
     final class SuperExpression: Expression {
         public let token: Token
-        public var symbol: Symbol.Symbol? = nil
+        public var symbol: Symbol.ClassSymbol? = nil
         public init(
             _ token: Token, sourceRange: SourceRange
         ) {

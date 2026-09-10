@@ -220,10 +220,13 @@ public final class Enter: AST.Visitor {
         currentScope = lastScope
 
         let symbol = Symbol.FunctionSymbol(
-            id: context.nextSymbolId, name: functionDecl.name.value, locals: locals(of: scope),
+            id: context.nextSymbolId,
+            name: functionDecl.name.value,
+            locals: locals(of: scope),
             scope: scope,
             signature: signature(
-                of: functionDecl.parameters, isVariadic: functionDecl.varargToken != nil
+                of: functionDecl.parameters,
+                isVariadic: functionDecl.varargToken != nil
             ),
             isStatic: functionDecl.modifiers.contains { modifier in
                 if case .Static = modifier.kind { return true }
@@ -252,8 +255,12 @@ public final class Enter: AST.Visitor {
         currentScope = lastScope
 
         let symbol = Symbol.FunctionSymbol(
-            id: context.nextSymbolId, name: "init", locals: locals(of: scope), scope: scope,
-            signature: signature(of: initDecl.parameters, isVariadic: false)
+            id: context.nextSymbolId,
+            name: "init",
+            locals: locals(of: scope),
+            scope: scope,
+            signature: signature(of: initDecl.parameters, isVariadic: false),
+            kind: .Initializer
         )
         registerMemberSymbol(symbol, at: initDecl.token, modifiers: initDecl.modifiers)
         initDecl.symbol = symbol
@@ -345,10 +352,14 @@ public final class Enter: AST.Visitor {
         currentScope = lastScope
         deinitDecl.scope = scope
         let symbol = Symbol.FunctionSymbol(
-            id: context.nextSymbolId, name: "deinit", locals: [], scope: scope,
+            id: context.nextSymbolId,
+            name: "deinit",
+            locals: [],
+            scope: scope,
             signature: Symbol.FunctionSignature(
                 labels: [], hasDefaults: [], isVararg: [], isVariadic: false
-            )
+            ),
+            kind: .Deinitializer
         )
         registerMemberSymbol(symbol, at: deinitDecl.token, modifiers: deinitDecl.modifiers)
         typeStack.last?.deinitializer = symbol
