@@ -573,5 +573,10 @@ public extension TIR {
         public func buildVoidLiteral(ty: Id.TIRTypeId, name: String? = nil) -> VoidLiteral {
             TIR.VoidLiteral(ty: ty, name: name ?? "")
         }
+
+        @discardableResult
+        public func buildObjectConstruction(initializer: FunctionRef, ty: Id.TIRTypeId) -> ObjectConstruction {
+            TIR.ObjectConstruction(initializer: initializer, ty: ty)
+        }
     }
 }

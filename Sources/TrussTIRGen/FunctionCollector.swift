@@ -213,7 +213,11 @@ final class FunctionCollector {
            let typeId = owner.typeId, let type = context.typeTable[typeId]
         {
             let loweredSelf = gen.typeLower.lower(type)
-            let selfType = gen.registry.pointerType(pointee: loweredSelf.id)
+            let selfType = if (type is TrussType.ClassType) || (type is TrussType.ActorType) {
+                loweredSelf
+            } else {
+                gen.registry.pointerType(pointee: loweredSelf.id)
+            }
             tirParameters.append(TIR.Parameter(ty: selfType.id, name: "self"))
         }
         tirParameters.append(contentsOf: parameters.enumerated().map { index, parameter in

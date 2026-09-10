@@ -219,11 +219,9 @@ public enum TIR {
         public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any?
     }
 
-    public class ConstructingObject: Value {
-        public let ptr: Value
-        public let initializer: Id.TIRFunctionId
-        public init(ptr: Value, initializer: Id.TIRFunctionId, ty: Id.TIRTypeId) {
-            self.ptr = ptr
+    public class ObjectConstruction: Value {
+        public let initializer: FunctionRef
+        public init(initializer: FunctionRef, ty: Id.TIRTypeId) {
             self.initializer = initializer
             super.init(ty: ty, name: "")
         }
