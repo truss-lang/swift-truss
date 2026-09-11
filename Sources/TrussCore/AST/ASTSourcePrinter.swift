@@ -973,6 +973,10 @@ public final class SourcePrinter: AST.Visitor {
             if let label { state.write(label.value + ":") }
             visitClosure(closure, additional: additional)
         }
+        if let inPlace = call.inPlace {
+            state.write(" in ")
+            visit(inPlace)
+        }
         return nil
     }
 

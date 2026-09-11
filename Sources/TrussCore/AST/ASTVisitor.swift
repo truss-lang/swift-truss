@@ -614,6 +614,9 @@ extension AST {
         open func visitCall(
             _ call: AST.Call, additional: Any? = nil
         ) -> Any? {
+            if let place = call.inPlace {
+                visit(place, additional: additional)
+            }
             visit(call.callee, additional: additional)
             for argument in call.arguments {
                 visit(argument.value, additional: additional)

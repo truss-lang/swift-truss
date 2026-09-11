@@ -3922,39 +3922,48 @@ public final class Parser {
                 let expr = operands.removeLast()
                 let callee: AST.Expression
                 let args: [AST.LabeledArgument]
+                var place: AST.Expression?
                 if let existingCall = expr as? AST.Call {
                     callee = existingCall.callee
                     args = existingCall.arguments
+                    place = existingCall.inPlace
                 } else {
                     callee = expr
                     args = []
+                    place = nil
                 }
                 var trailing: [(Token?, AST.Closure)] = []
                 var stoppedUnlabeled = false
-                while true {
-                    var label: Token?
-                    if let t = peek, case .Identifier = t.kind,
-                       let c = peek2, case .Separator(.Colon) = c.kind,
-                       let b = peek3, case .Separator(.OpenBrace) = b.kind
-                    {
-                        label = t
-                        index += 2
+                if place == nil {
+                    while true {
+                        var label: Token?
+                        if let t = peek, case .Identifier = t.kind,
+                           let c = peek2, case .Separator(.Colon) = c.kind,
+                           let b = peek3, case .Separator(.OpenBrace) = b.kind
+                        {
+                            label = t
+                            index += 2
+                        }
+                        guard peek?.kind == .Separator(.OpenBrace) else { break }
+                        if !trailing.isEmpty, label == nil {
+                            stoppedUnlabeled = true
+                            break
+                        }
+                        let closure = parseClosure()
+                        trailing.append((label, closure))
                     }
-                    guard peek?.kind == .Separator(.OpenBrace) else { break }
-                    if !trailing.isEmpty, label == nil {
-                        stoppedUnlabeled = true
-                        break
+                    if let t = peek, t.kind == .Identifier, t.value == "in" {
+                        index += 1
+                        place = parseExpression()
                     }
-                    let closure = parseClosure()
-                    trailing.append((label, closure))
                 }
-                let endToken = trailing.last?.1.sourceRange.end ?? expr.sourceRange.end
                 let range = SourceRange(
-                    start: expr.sourceRange.start, end: endToken
+                    start: expr.sourceRange.start,
+                    end: last!.sourceRange(in: buffer).end
                 )
                 let call = AST.Call(
                     callee: callee, arguments: args, trailingClosures: trailing,
-                    sourceRange: range
+                    inPlace: place, sourceRange: range
                 )
                 let postfixed = parsePostfix(call, excepts: excepts, isTypeContext: isTypeContext)
                 operands.append(postfixed)
@@ -5582,34 +5591,35 @@ public final class Parser {
     private func parseCall(_ callee: AST.Expression) -> AST.Call {
         index += 1
         let arguments: [AST.LabeledArgument]
-        let endToken: Token?
         if let t = peek, case .Separator(.CloseParen) = t.kind {
             arguments = []
             index += 1
-            endToken = t
         } else {
             arguments = parseArgumentList()
             if let t = peek, case .Separator(.CloseParen) = t.kind {
                 index += 1
-                endToken = t
             } else if let t = peek {
                 emitError("expected ')' after call arguments, but got '\(t.value)'", at: t)
-                endToken = t
             } else {
                 emitError("expected ')' after call arguments", at: endOfFile)
-                endToken = nil
             }
         }
-        let range: SourceRange =
-            if let endToken {
-                SourceRange(
-                    start: callee.sourceRange.start, end: endToken.sourceRange(in: buffer).end
-                )
-            } else {
-                callee.sourceRange
-            }
+        let place: AST.Expression?
+        if let t = peek, t.kind == .Identifier, t.value == "in" {
+            index += 1
+            place = parseExpression()
+        } else {
+            place = nil
+        }
+        let range = SourceRange(
+            start: callee.sourceRange.start, end: last!.sourceRange(in: buffer).end
+        )
         return AST.Call(
-            callee: callee, arguments: arguments, trailingClosures: [], sourceRange: range
+            callee: callee,
+            arguments: arguments,
+            trailingClosures: [],
+            inPlace: place,
+            sourceRange: range
         )
     }
 

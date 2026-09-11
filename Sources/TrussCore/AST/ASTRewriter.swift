@@ -1220,12 +1220,23 @@ extension AST {
                 if closure !== pair.1 { trailingClosuresChanged = true }
                 return (pair.0, closure)
             }
-            if callee === call.callee, !argumentsChanged, !trailingClosuresChanged {
+            var inPlaceChanged = false
+            let inPlace: AST.Expression?
+            if let ip = call.inPlace {
+                let rewritten = rewrite(ip)
+                if rewritten !== ip { inPlaceChanged = true }
+                inPlace = rewritten
+            } else {
+                inPlace = nil
+            }
+            if callee === call.callee, !argumentsChanged, !trailingClosuresChanged,
+               !inPlaceChanged
+            {
                 return call
             }
             let newCall = AST.Call(
                 callee: callee, arguments: arguments, trailingClosures: trailingClosures,
-                sourceRange: call.sourceRange
+                inPlace: inPlace, sourceRange: call.sourceRange
             )
             return newCall
         }

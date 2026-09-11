@@ -314,14 +314,15 @@ public extension AST {
         public let callee: Expression
         public let arguments: [LabeledArgument]
         public let trailingClosures: [(Token?, Closure)]
+        public let inPlace: Expression?
         public init(
-            callee: Expression, arguments: [LabeledArgument],
-            trailingClosures: [(Token?, Closure)] = [],
-            sourceRange: SourceRange
+            callee: Expression, arguments: [LabeledArgument], trailingClosures: [(Token?, Closure)] = [],
+            inPlace: Expression? = nil, sourceRange: SourceRange
         ) {
             self.callee = callee
             self.arguments = arguments
             self.trailingClosures = trailingClosures
+            self.inPlace = inPlace
             super.init(sourceRange)
         }
 

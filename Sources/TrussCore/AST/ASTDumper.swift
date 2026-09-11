@@ -1283,7 +1283,13 @@ public extension AST {
 
         @discardableResult
         public override func visitCall(_ call: Call, additional: Any? = nil) -> Any? {
-            var children: [() -> Void] = [{ self.visit(call.callee) }]
+            var children: [() -> Void] = []
+            if let inPlace = call.inPlace {
+                children.append {
+                    self.dumpNode("InPlace", children: [{ self.visit(inPlace) }])
+                }
+            }
+            children.append { self.visit(call.callee) }
             for argument in call.arguments {
                 children.append {
                     var text = "Argument"

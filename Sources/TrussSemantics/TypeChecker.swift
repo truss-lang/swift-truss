@@ -2147,6 +2147,9 @@ public final class TypeChecker: AST.Visitor {
         switch expression {
         case let call as AST.Call:
             call.callee.willBeCalled = true
+            if let inPlace = call.inPlace {
+                infer(inPlace, at: token)
+            }
             let callType = TrussType.CallType(
                 arguments: call.arguments,
                 trailingClosures: call.trailingClosures,
@@ -3373,6 +3376,9 @@ public final class TypeChecker: AST.Visitor {
             }
         case let call as AST.Call:
             call.callee.willBeCalled = true
+            if let inPlace = call.inPlace {
+                infer(inPlace, at: token)
+            }
             let callType = TrussType.CallType(
                 arguments: call.arguments,
                 trailingClosures: call.trailingClosures,
