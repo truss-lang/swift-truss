@@ -6,11 +6,14 @@ struct truss {
     static func main() {
         let source = """
         precedencegroup Assignment { assignment: true }
+        /*
         precedencegroup LogicalAnd { higherThan: Assignment }
         precedencegroup Comparison { higherThan: LogicalAnd }
         precedencegroup Addition { higherThan: Comparison associativity: left }
         precedencegroup Multiplication { higherThan: Addition associativity: left }
+        */
         infix operator =: Assignment
+        /*
         infix operator &&: LogicalAnd
         infix operator >=: Comparison
         infix operator +: Addition
@@ -97,6 +100,10 @@ struct truss {
 
                 }
             }
+        }
+        */
+        func f() {
+            return
         }
         """
         let result = Driver(
