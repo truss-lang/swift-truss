@@ -4,6 +4,7 @@ public extension TIR {
         public let name: String
         public var superclass: Id.TIRMetadataId?
         public var conformedProtocols: [Id.TIRProtocolId] = []
+        public var vtable: [VTableEntry] = []
         public init(id: Id.TIRMetadataId, name: String) {
             self.id = id
             self.name = name
@@ -29,6 +30,17 @@ public extension TIR {
         }
     }
 
+    struct VTableEntry {
+        public let name: String
+        public let signature: Id.TIRTypeId
+        public var function: Id.TIRFunctionId
+        public init(name: String, signature: Id.TIRTypeId, function: Id.TIRFunctionId) {
+            self.name = name
+            self.signature = signature
+            self.function = function
+        }
+    }
+
     final class ValueWitnessRecord {
         public var initFunction: Id.TIRFunctionId?
         public var copy: Id.TIRFunctionId?
@@ -41,7 +53,7 @@ public extension TIR {
         public let protocolId: Id.TIRProtocolId
         public let concreteType: Id.TIRTypeId
         public var entries: [WitnessEntry] = []
-        public var valueWitness: ValueWitnessRecord = ValueWitnessRecord()
+        public var valueWitness: ValueWitnessRecord = .init()
         public init(id: Id.TIRWitnessId, protocolId: Id.TIRProtocolId, concreteType: Id.TIRTypeId) {
             self.id = id
             self.protocolId = protocolId
@@ -120,7 +132,9 @@ public extension TIR {
             return record
         }
 
-        public func witness(for conformance: (protocolId: Id.TIRProtocolId, concreteType: Id.TIRTypeId)) -> WitnessRecord? {
+        public func witness(for conformance: (protocolId: Id.TIRProtocolId, concreteType: Id.TIRTypeId))
+            -> WitnessRecord?
+        {
             guard let id = witnessByConformance[WitnessKey(conformance)] else { return nil }
             return witnesses[id]
         }

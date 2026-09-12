@@ -17,6 +17,21 @@ public extension TIR {
             if !nominalTypes.isEmpty {
                 lines.append("")
             }
+            let vtableMetadatas = module.registry.metadatas.values
+                .filter { !$0.vtable.isEmpty }
+                .sorted { $0.name < $1.name }
+            for metadata in vtableMetadatas {
+                let entries = metadata.vtable.enumerated().map { index, entry in
+                    "\(index): " + entry.name + " " + typeText(entry.signature) + " @" +
+                        (module.registry.functions[entry.function]?.name ?? "?")
+                }
+                lines.append(
+                    "@" + metadata.name + " = vtable [ " + entries.joined(separator: ", ") + " ]"
+                )
+            }
+            if !vtableMetadatas.isEmpty {
+                lines.append("")
+            }
             for global in module.globals {
                 let externMark = global.isExtern ? "external " : ""
                 let initializerMark = if let initializer = global.initializer {
@@ -332,17 +347,17 @@ public extension TIR {
             case let open as OpenExistential:
                 return "%\(open.result.name) = openexistential \(valueText(open.container)) as \(typeText(open.result.ty))"
             case let witnessMethod as WitnessMethod:
-                let args = ([witnessMethod.selfValue] + witnessMethod.arguments)
-                    .map { valueText($0) }.joined(separator: ", ")
-                return "%\(witnessMethod.result.name) = witnessmethod \(typeText(witnessMethod.selfValue.ty))#\(witnessMethod.witness.id).\(witnessMethod.index)("
-                    + args
-                    + ")"
+                let witness = registry?.witnesses[witnessMethod.witness]
+                let concreteName = witness
+                    .flatMap { registry?.types[$0.concreteType] as? TIRType.NominalType }?.name ?? "?"
+                let protocolName = witness.flatMap { registry?.protocols[$0.protocolId]?.name } ?? "?"
+                return "%\(witnessMethod.result.name) = witnessmethod %\(concreteName):\(protocolName)#\(witnessMethod.witness.id).\(witnessMethod.index)"
             case let opaqueWitness as OpaqueWitnessMethod:
-                let args = ([opaqueWitness.selfValue] + opaqueWitness.arguments)
-                    .map { valueText($0) }.joined(separator: ", ")
-                return "%\(opaqueWitness.result.name) = opaquewitnessmethod \(typeText(opaqueWitness.container.ty))#\(opaqueWitness.protocolId.id).\(opaqueWitness.index)("
-                    + args
-                    + ")"
+                let protocolName = registry?.protocols[opaqueWitness.protocolId]?.name ?? "?"
+                return "%\(opaqueWitness.result.name) = opaquewitnessmethod \(valueText(opaqueWitness.container)) %\(protocolName)#\(opaqueWitness.protocolId.id).\(opaqueWitness.index)"
+            case let virtualMethod as VirtualMethod:
+                let metadataName = registry?.metadatas[virtualMethod.metadata]?.name ?? "?"
+                return "%\(virtualMethod.result.name) = virtualmethod %\(metadataName)#\(virtualMethod.metadata.id).\(virtualMethod.index)(\(valueText(virtualMethod.selfValue)))"
             case let existentialCopy as ExistentialCopy:
                 return "%\(existentialCopy.result.name) = existentialcopy \(valueText(existentialCopy.container))"
             case let existentialDestroy as ExistentialDestroy:

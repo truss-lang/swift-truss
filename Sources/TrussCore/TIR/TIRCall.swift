@@ -68,4 +68,23 @@ public extension TIR {
             visitor.visitClosure(self, additional: additional)
         }
     }
+
+    final class VirtualMethod: Instruction {
+        public let metadata: Id.TIRMetadataId
+        public let index: Int
+        public let selfValue: Value
+        public var result: Value
+        public init(
+            metadata: Id.TIRMetadataId, index: Int, selfValue: Value, ty: Id.TIRTypeId, name: String
+        ) {
+            self.metadata = metadata
+            self.index = index
+            self.selfValue = selfValue
+            result = InstructionResult(ty: ty, name: name)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitVirtualMethod(self, additional: additional)
+        }
+    }
 }

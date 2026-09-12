@@ -472,13 +472,24 @@ public extension TIR {
 
         @discardableResult
         public func buildWitnessMethod(
-            witness: Id.TIRWitnessId, index: Int, selfValue: Value, arguments: [Value],
-            ty: Id.TIRTypeId, name: String? = nil
+            witness: Id.TIRWitnessId, index: Int, ty: Id.TIRTypeId, name: String? = nil
         ) -> WitnessMethod {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.WitnessMethod(
-                witness: witness, index: index, selfValue: selfValue, arguments: arguments,
-                ty: ty, name: freshName(name)
+                witness: witness, index: index, ty: ty, name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildVirtualMethod(
+            metadata: Id.TIRMetadataId, index: Int, selfValue: Value, ty: Id.TIRTypeId,
+            name: String? = nil
+        ) -> VirtualMethod {
+            guard let insertPoint else { fatalError("no insert point") }
+            let instruction = TIR.VirtualMethod(
+                metadata: metadata, index: index, selfValue: selfValue, ty: ty, name: freshName(name)
             )
             insertPoint.instructions.append(instruction)
             return instruction
@@ -498,13 +509,13 @@ public extension TIR {
 
         @discardableResult
         public func buildOpaqueWitnessMethod(
-            container: Value, protocolId: Id.TIRProtocolId, index: Int, selfValue: Value,
-            arguments: [Value], ty: Id.TIRTypeId, name: String? = nil
+            container: Value, protocolId: Id.TIRProtocolId, index: Int, ty: Id.TIRTypeId,
+            name: String? = nil
         ) -> OpaqueWitnessMethod {
             guard let insertPoint else { fatalError("no insert point") }
             let instruction = TIR.OpaqueWitnessMethod(
-                container: container, protocolId: protocolId, index: index, selfValue: selfValue,
-                arguments: arguments, ty: ty, name: freshName(name)
+                container: container, protocolId: protocolId, index: index, ty: ty,
+                name: freshName(name)
             )
             insertPoint.instructions.append(instruction)
             return instruction

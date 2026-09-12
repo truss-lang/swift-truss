@@ -274,6 +274,13 @@ extension TIR {
         }
 
         @discardableResult
+        open func visitVirtualMethod(
+            _ instruction: VirtualMethod, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
+
+        @discardableResult
         open func visitExistentialCopy(
             _ instruction: ExistentialCopy, additional: Any? = nil
         ) -> Any? {

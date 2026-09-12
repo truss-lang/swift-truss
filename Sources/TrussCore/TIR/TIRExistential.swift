@@ -30,17 +30,10 @@ public extension TIR {
     final class WitnessMethod: Instruction {
         public let witness: Id.TIRWitnessId
         public let index: Int
-        public let selfValue: Value
-        public let arguments: [Value]
         public var result: Value
-        public init(
-            witness: Id.TIRWitnessId, index: Int, selfValue: Value, arguments: [Value],
-            ty: Id.TIRTypeId, name: String
-        ) {
+        public init(witness: Id.TIRWitnessId, index: Int, ty: Id.TIRTypeId, name: String) {
             self.witness = witness
             self.index = index
-            self.selfValue = selfValue
-            self.arguments = arguments
             result = InstructionResult(ty: ty, name: name)
         }
 
@@ -53,18 +46,13 @@ public extension TIR {
         public let container: Value
         public let protocolId: Id.TIRProtocolId
         public let index: Int
-        public let selfValue: Value
-        public let arguments: [Value]
         public var result: Value
         public init(
-            container: Value, protocolId: Id.TIRProtocolId, index: Int, selfValue: Value,
-            arguments: [Value], ty: Id.TIRTypeId, name: String
+            container: Value, protocolId: Id.TIRProtocolId, index: Int, ty: Id.TIRTypeId, name: String
         ) {
             self.container = container
             self.protocolId = protocolId
             self.index = index
-            self.selfValue = selfValue
-            self.arguments = arguments
             result = InstructionResult(ty: ty, name: name)
         }
 
