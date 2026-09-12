@@ -72,7 +72,14 @@ public final class UnusedDeclarationChecker: AST.Visitor {
         case let postfix as AST.Postfix:
             insert(postfix.symbol, overloads: nil)
         case let subscriptExpression as AST.Subscript:
-            insert(subscriptExpression.symbol, overloads: subscriptExpression.overloads)
+            if let symbol = subscriptExpression.symbol {
+                usedIds.insert(symbol.id)
+            }
+            if let overloads = subscriptExpression.overloads {
+                for symbol in overloads {
+                    usedIds.insert(symbol.id)
+                }
+            }
         case let keyPath as AST.KeyPathExpression:
             for component in keyPath.components {
                 insert(component.symbol, overloads: component.overloads)

@@ -72,7 +72,7 @@ public final class NameResolver: AST.Visitor {
         guard let symbol = subscriptDecl.symbol else {
             return super.visitSubscriptDecl(subscriptDecl, additional: additional)
         }
-        scopeStack.append(symbol.scope)
+        scopeStack.append(symbol.getter.scope)
         super.visitSubscriptDecl(subscriptDecl, additional: additional)
         scopeStack.removeLast()
         return nil
@@ -400,7 +400,7 @@ public final class NameResolver: AST.Visitor {
         }
         guard let baseSymbol = resolvedSymbol(subscriptExpression.base) else { return nil }
         if let typeSymbol = baseSymbol as? Symbol.NominalTypeSymbol {
-            subscriptExpression.overloads = memberResolution("subscript", in: typeSymbol).1
+            subscriptExpression.overloads = subscriptOverloads(of: typeSymbol)
         }
         return nil
     }
@@ -462,6 +462,21 @@ public final class NameResolver: AST.Visitor {
             current = (currentType as? Symbol.ClassSymbol)?.superclass
         }
         return (nil, nil)
+    }
+
+    private func subscriptOverloads(
+        of type: Symbol.NominalTypeSymbol
+    ) -> [Symbol.SubscriptSymbol] {
+        var current: Symbol.NominalTypeSymbol? = type
+        while let currentType = current {
+            let symbols = (currentType.scope.values["subscript"] ?? [])
+                .compactMap { $0 as? Symbol.SubscriptSymbol }
+            if !symbols.isEmpty {
+                return symbols
+            }
+            current = (currentType as? Symbol.ClassSymbol)?.superclass
+        }
+        return []
     }
 
     private func memberResolution(_ name: String, in scope: Scope) -> (

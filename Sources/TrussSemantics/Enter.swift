@@ -35,6 +35,64 @@ public final class Enter: AST.Visitor {
         registerValueSymbol(symbol, at: token)
     }
 
+    private func registerSubscriptSymbol(
+        _ symbol: Symbol.SubscriptSymbol, at token: Token, modifiers: [AST.Modifier]
+    ) {
+        AccessExtractor.apply(to: symbol, modifiers: modifiers, context: context)
+        symbol.memberOf = typeStack.last?.id
+        AccessExtractor.record(
+            symbol, package: currentPackageSymbol, module: currentModuleSymbol
+        )
+        symbol.sourceToken = token
+        context.register(symbol: symbol)
+        currentScope!.values[symbol.name, default: []].append(symbol)
+    }
+
+    private func registerAccessorSymbol(
+        _ symbol: Symbol.FunctionSymbol, at token: Token?, of owner: Symbol.Symbol
+    ) {
+        symbol.memberOf = owner.memberOf
+        AccessExtractor.record(
+            symbol, package: currentPackageSymbol, module: currentModuleSymbol
+        )
+        symbol.sourceToken = token
+        context.register(symbol: symbol)
+    }
+
+    private func accessorSignature(_ accessor: AST.Accessor) -> Symbol.FunctionSignature {
+        if accessor.kind == .Get {
+            return Symbol.FunctionSignature(
+                labels: [], hasDefaults: [], isVararg: [], isVariadic: false
+            )
+        }
+        return Symbol.FunctionSignature(
+            labels: [nil], hasDefaults: [false], isVararg: [false], isVariadic: false
+        )
+    }
+
+    private func registerAccessorSymbols(
+        _ variableDecl: AST.VariableDecl, of owner: Symbol.VariableSymbol
+    ) {
+        let kind: Symbol.FunctionSymbol.Kind = variableDecl.modifiers.contains { modifier in
+            if case .Static = modifier.kind { return true }
+            return false
+        } ? .StaticMethod : .Method
+        for accessor in variableDecl.accessors {
+            let scope = accessor.scope ?? Scope()
+            let symbol = Symbol.FunctionSymbol(
+                id: context.nextSymbolId, name: variableDecl.name.value,
+                locals: locals(of: scope), scope: scope,
+                signature: accessorSignature(accessor), kind: kind
+            )
+            symbol.access = accessor.kind == .Get
+                ? owner.access : (owner.setterAccess ?? owner.access)
+            registerAccessorSymbol(
+                symbol, at: accessor.token ?? accessor.parameterName, of: owner
+            )
+            accessor.symbol = symbol
+        }
+    }
+
     private func registerGenericParams(_ genericDecl: AST.GenericDecl?, into scope: Scope) {
         guard let genericDecl else { return }
         for param in genericDecl.generics {
@@ -219,6 +277,17 @@ public final class Enter: AST.Visitor {
 
         currentScope = lastScope
 
+        let isStatic = functionDecl.modifiers.contains { modifier in
+            if case .Static = modifier.kind { return true }
+            return false
+        }
+        let kind: Symbol.FunctionSymbol.Kind = if isStatic {
+            .StaticMethod
+        } else if typeStack.last != nil {
+            .Method
+        } else {
+            .Function
+        }
         let symbol = Symbol.FunctionSymbol(
             id: context.nextSymbolId,
             name: functionDecl.name.value,
@@ -228,10 +297,7 @@ public final class Enter: AST.Visitor {
                 of: functionDecl.parameters,
                 isVariadic: functionDecl.varargToken != nil
             ),
-            isStatic: functionDecl.modifiers.contains { modifier in
-                if case .Static = modifier.kind { return true }
-                return false
-            }
+            kind: kind,
         )
         registerMemberSymbol(symbol, at: functionDecl.name, modifiers: functionDecl.modifiers)
         functionDecl.symbol = symbol
@@ -286,12 +352,55 @@ public final class Enter: AST.Visitor {
 
         currentScope = lastScope
 
-        let symbol = Symbol.FunctionSymbol(
+        let kind: Symbol.FunctionSymbol.Kind = subscriptDecl.modifiers.contains { modifier in
+            if case .Static = modifier.kind { return true }
+            return false
+        } ? .StaticMethod : .Method
+        let getter = Symbol.FunctionSymbol(
             id: context.nextSymbolId, name: "subscript", locals: locals(of: scope), scope: scope,
-            signature: signature(of: subscriptDecl.parameters, isVariadic: false)
+            signature: signature(of: subscriptDecl.parameters, isVariadic: false),
+            kind: kind
         )
-        registerMemberSymbol(symbol, at: subscriptDecl.token, modifiers: subscriptDecl.modifiers)
-        subscriptDecl.symbol = symbol
+        let getAccessor = subscriptDecl.accessors.first { $0.kind == .Get }
+        let setAccessor = subscriptDecl.accessors.first { $0.kind == .Set }
+        let setter: Symbol.FunctionSymbol?
+        if let setAccessor {
+            let setterScope = setAccessor.scope ?? Scope()
+            let valueLabels = subscriptDecl.parameters.map { $0.label?.value } + [nil]
+            setter = Symbol.FunctionSymbol(
+                id: context.nextSymbolId, name: "subscript",
+                locals: locals(of: setterScope), scope: setterScope,
+                signature: Symbol.FunctionSignature(
+                    labels: valueLabels,
+                    hasDefaults: [Bool](repeating: false, count: valueLabels.count),
+                    isVararg: [Bool](repeating: false, count: valueLabels.count),
+                    isVariadic: false
+                ),
+                kind: kind
+            )
+        } else {
+            setter = nil
+        }
+
+        let subscriptSymbol = Symbol.SubscriptSymbol(
+            id: context.nextSymbolId, getter: getter, setter: setter
+        )
+        registerSubscriptSymbol(
+            subscriptSymbol, at: subscriptDecl.token, modifiers: subscriptDecl.modifiers
+        )
+        getter.access = subscriptSymbol.access
+        getter.setterAccess = subscriptSymbol.setterAccess
+        registerAccessorSymbol(getter, at: subscriptDecl.token, of: subscriptSymbol)
+        getAccessor?.symbol = getter
+        if let setter, let setAccessor {
+            setter.access = subscriptSymbol.setterAccess ?? subscriptSymbol.access
+            registerAccessorSymbol(
+                setter, at: setAccessor.parameterName ?? setAccessor.token, of: subscriptSymbol
+            )
+            setAccessor.symbol = setter
+        }
+
+        subscriptDecl.symbol = subscriptSymbol
 
         return nil
     }
@@ -316,6 +425,7 @@ public final class Enter: AST.Visitor {
         }
         registerValueSymbol(symbol, at: variableDecl.name)
         variableDecl.symbol = symbol
+        registerAccessorSymbols(variableDecl, of: symbol)
         return nil
     }
 

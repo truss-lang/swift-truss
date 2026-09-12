@@ -1039,6 +1039,7 @@ public extension AST {
         public let body: FunctionDecl.Body
         public let kind: Kind
         public var scope: Scope? = nil
+        public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token?,
             _ parameterName: Token?, _ body: FunctionDecl.Body, kind: Kind, sourceRange: SourceRange
@@ -1078,9 +1079,7 @@ public extension AST {
         public let throwsClause: ThrowsClause?
         public let returnType: Expression
         public let accessors: [Accessor]
-        public var symbol: Symbol.FunctionSymbol? = nil
-        public var getSymbol: Symbol.FunctionSymbol? = nil
-        public var setSymbol: Symbol.FunctionSymbol? = nil
+        public var symbol: Symbol.SubscriptSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ genericDecl: GenericDecl?, _ parameters: [FunctionDecl.Parameter],
@@ -1104,8 +1103,6 @@ public extension AST {
         public override func copySemantics(from other: AST.AstNode) {
             if let otherSubscript = other as? AST.SubscriptDecl {
                 symbol = otherSubscript.symbol
-                getSymbol = otherSubscript.getSymbol
-                setSymbol = otherSubscript.setSymbol
             }
         }
     }

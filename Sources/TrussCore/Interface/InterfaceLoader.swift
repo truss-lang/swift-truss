@@ -114,8 +114,11 @@ public struct InterfaceLoader {
                 labels: f.labels, hasDefaults: f.hasDefaults, isVararg: f.isVararg, isVariadic: f.isVariadic
             )
             let symbol = Symbol.FunctionSymbol(
-                id: context.nextSymbolId, name: f.name, locals: [], scope: scope,
-                signature: signature, isStatic: f.isStatic
+                id: context.nextSymbolId,
+                name: f.name,
+                locals: [],
+                scope: scope,
+                signature: signature
             )
             symbol.access = .Public
             symbol.packageId = package.id

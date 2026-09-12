@@ -440,10 +440,7 @@ public final class AccessChecker: AST.Visitor {
                 what: "subscript", name: subscriptDecl.token
             )
         }
-        withFunctionScope(subscriptDecl.symbol) {
-            super.visitSubscriptDecl(subscriptDecl, additional: additional)
-        }
-        return nil
+        return super.visitSubscriptDecl(subscriptDecl, additional: additional)
     }
 
     @discardableResult
@@ -480,6 +477,14 @@ public final class AccessChecker: AST.Visitor {
             )
         }
         super.visitTypeAliasDecl(typeAliasDecl, additional: additional)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitAccessor(_ accessor: AST.Accessor, additional: Any? = nil) -> Any? {
+        withFunctionScope(accessor.symbol) {
+            super.visitAccessor(accessor, additional: additional)
+        }
         return nil
     }
 

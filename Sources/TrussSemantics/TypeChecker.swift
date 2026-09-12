@@ -377,22 +377,23 @@ public final class TypeChecker: AST.Visitor {
         if collectingTypealiases {
             return nil
         }
-        let selfType = instanceSelfType(symbol)
+        let getter = symbol.getter
+        let selfType = instanceSelfType(getter)
         if collectFunctionSignatures || collectingSignatures {
-            withScope(symbol.scope) {
+            withScope(getter.scope) {
                 fillFunctionSignature(
                     selfType: selfType, parameters: subscriptDecl.parameters,
                     varargToken: nil,
                     asyncToken: subscriptDecl.asyncToken,
                     throwsClause: subscriptDecl.throwsClause,
                     returnType: evaluate(subscriptDecl.returnType),
-                    genericDecl: subscriptDecl.genericDecl, symbol: symbol
+                    genericDecl: subscriptDecl.genericDecl, symbol: getter
                 )
             }
             return nil
         }
-        withScope(symbol.scope) {
-            let parameterTypes = fillParameterTypes(subscriptDecl.parameters, into: symbol)
+        withScope(getter.scope) {
+            let parameterTypes = fillParameterTypes(subscriptDecl.parameters, into: getter)
             let returnType: TrussType.TrussType = evaluate(subscriptDecl.returnType)
             let functionType = functionType(
                 selfType: selfType,
@@ -403,45 +404,34 @@ public final class TypeChecker: AST.Visitor {
                 throwsClause: subscriptDecl.throwsClause,
                 returnType: returnType
             )
-            symbol.functionType = functionType
-            if subscriptDecl.accessors.contains(where: { $0.kind == .Set }) {
-                let setterLabels = subscriptDecl.parameters.map { $0.label?.value } + [nil]
-                let setterParamTypes = parameterTypes + [returnType]
-                let setterFunctionType = TrussType.FunctionType(
-                    selfType: selfType,
-                    parameters: setterLabels.enumerated().map { index, label in
-                        TrussType.FunctionType.Parameter(
-                            label: label, type: setterParamTypes[index]
-                        )
-                    },
-                    isVariadic: false,
-                    isAsync: subscriptDecl.asyncToken != nil,
-                    isThrowing: subscriptDecl.throwsClause != nil,
-                    throwsTypes: (subscriptDecl.throwsClause?.types ?? []).map(evaluate),
-                    returnType: TrussType.VoidType.INSTANCE
-                )
-                let setterScope = Scope()
-                let setterSymbol = Symbol.FunctionSymbol(
-                    id: context.nextSymbolId, name: "subscript",
-                    locals: [], scope: setterScope,
-                    signature: Symbol.FunctionSignature(
-                        labels: setterLabels,
-                        hasDefaults: [Bool](repeating: false, count: setterLabels.count),
-                        isVararg: [Bool](repeating: false, count: setterLabels.count),
-                        isVariadic: false
-                    ),
-                    isStatic: symbol.isStatic
-                )
-                if let forallType = symbol.forallType {
-                    setterSymbol.forallType = TrussType.ForallType(
-                        parameters: forallType.parameters, body: setterFunctionType
+            getter.functionType = functionType
+            if let setterSymbol = symbol.setter,
+               let setAccessor = subscriptDecl.accessors.first(where: { $0.kind == .Set })
+            {
+                withScope(setAccessor.scope) {
+                    let setterLabels = subscriptDecl.parameters.map { $0.label?.value } + [nil]
+                    let setterParamTypes = parameterTypes + [returnType]
+                    let setterFunctionType = TrussType.FunctionType(
+                        selfType: selfType,
+                        parameters: setterLabels.enumerated().map { index, label in
+                            TrussType.FunctionType.Parameter(
+                                label: label, type: setterParamTypes[index]
+                            )
+                        },
+                        isVariadic: false,
+                        isAsync: subscriptDecl.asyncToken != nil,
+                        isThrowing: subscriptDecl.throwsClause != nil,
+                        throwsTypes: (subscriptDecl.throwsClause?.types ?? []).map(evaluate),
+                        returnType: TrussType.VoidType.INSTANCE
                     )
-                } else {
-                    setterSymbol.functionType = setterFunctionType
+                    if let forallType = getter.forallType {
+                        setterSymbol.forallType = TrussType.ForallType(
+                            parameters: forallType.parameters, body: setterFunctionType
+                        )
+                    } else {
+                        setterSymbol.functionType = setterFunctionType
+                    }
                 }
-                setterSymbol.memberOf = symbol.memberOf
-                setterSymbol.access = symbol.setterAccess ?? symbol.access
-                subscriptDecl.setSymbol = setterSymbol
             }
             withFunctionReturnType(returnType) {
                 withFunctionThrows(subscriptDecl.throwsClause != nil, functionType.throwsTypes) {
@@ -1316,13 +1306,13 @@ public final class TypeChecker: AST.Visitor {
         var candidates = subscriptExpression.overloads ?? []
         let baseType: TrussType.TrussType? = subscriptExpression.base.ty
         if candidates.isEmpty, baseType != nil {
-            candidates = memberFunctionSymbols(of: "subscript", in: baseType)
+            candidates = memberSubscriptSymbols(of: baseType)
         }
         if candidates.isEmpty {
             emitNoExactMatch(at: token, name: "subscript", candidates: [])
             return
         }
-        let setterCandidates = candidates.compactMap { setterCandidate(from: $0) }
+        let setterCandidates = candidates.compactMap(\.setter)
         guard !setterCandidates.isEmpty else {
             context.emitError("cannot assign to subscript: is read-only", at: token)
             return
@@ -1340,50 +1330,41 @@ public final class TypeChecker: AST.Visitor {
         }
     }
 
-    private func setterCandidate(from getter: Symbol.FunctionSymbol) -> Symbol.FunctionSymbol? {
-        let getterType: TrussType.FunctionType
-        if let forall = getter.forallType {
-            guard let body = forall.body as? TrussType.FunctionType else { return nil }
-            getterType = body
-        } else if let ft = getter.functionType {
-            getterType = ft
-        } else {
-            return nil
+    private func memberSubscriptSymbols(
+        of type: TrussType.TrussType?
+    ) -> [Symbol.SubscriptSymbol] {
+        let base = type.flatMap(optionalWrapped) ?? type
+        if let genericParam = base as? TrussType.GenericParamType {
+            guard let symbol = genericParam.symbol else { return [] }
+            var result: [Symbol.SubscriptSymbol] = []
+            for constraint in symbol.constraints {
+                guard case let .Conformance(declared) = constraint else { continue }
+                result.append(contentsOf: memberSubscriptSymbols(of: declared))
+            }
+            return result
         }
-        let setterLabels = getter.signature.labels + [nil]
-        let setterParamTypes = getterType.parameters.map(\.type) + [getterType.returnType]
-        let setterFunctionType = TrussType.FunctionType(
-            selfType: getterType.selfType,
-            parameters: setterLabels.enumerated().map { index, label in
-                TrussType.FunctionType.Parameter(label: label, type: setterParamTypes[index])
-            },
-            isVariadic: false,
-            isAsync: getterType.isAsync,
-            isThrowing: getterType.isThrowing,
-            throwsTypes: getterType.throwsTypes,
-            returnType: TrussType.VoidType.INSTANCE
-        )
-        let setterSymbol = Symbol.FunctionSymbol(
-            id: getter.id, name: getter.name,
-            locals: [], scope: Scope(),
-            signature: Symbol.FunctionSignature(
-                labels: setterLabels,
-                hasDefaults: [Bool](repeating: false, count: setterLabels.count),
-                isVararg: [Bool](repeating: false, count: setterLabels.count),
-                isVariadic: false
-            ),
-            isStatic: getter.isStatic
-        )
-        if let forall = getter.forallType {
-            setterSymbol.forallType = TrussType.ForallType(
-                parameters: forall.parameters, body: setterFunctionType
+        if let composition = base as? TrussType.CompositionType {
+            return composition.members.flatMap { memberSubscriptSymbols(of: $0) }
+        }
+        let nominal: TrussType.NominalType
+        if let generic = base as? TrussType.GenericInstantiation {
+            nominal = generic.base
+        } else if let plain = base as? TrussType.NominalType {
+            nominal = plain
+        } else {
+            return []
+        }
+        guard let symbol = nominal.symbol else { return [] }
+        var result: [Symbol.SubscriptSymbol] = []
+        var current: Symbol.NominalTypeSymbol? = symbol
+        while let currentType = current {
+            result.append(
+                contentsOf: (currentType.scope.values["subscript"] ?? [])
+                    .compactMap { $0 as? Symbol.SubscriptSymbol }
             )
-        } else {
-            setterSymbol.functionType = setterFunctionType
+            current = (currentType as? Symbol.ClassSymbol)?.superclass
         }
-        setterSymbol.memberOf = getter.memberOf
-        setterSymbol.access = getter.access
-        return setterSymbol
+        return result
     }
 
     private func memberFunctionSymbols(
@@ -2399,10 +2380,10 @@ public final class TypeChecker: AST.Visitor {
                 return expression.ty.map { resolve($0) }
             }
             if subscriptExpression.symbol == nil {
-                var candidates = subscriptExpression.overloads ?? []
+                var candidates = (subscriptExpression.overloads ?? []).compactMap(\.getter)
                 let baseType: TrussType.TrussType? = subscriptExpression.base.ty
                 if candidates.isEmpty, baseType != nil {
-                    candidates = memberFunctionSymbols(of: "subscript", in: baseType)
+                    candidates = memberSubscriptSymbols(of: baseType).compactMap(\.getter)
                 }
                 if let resolved = resolveOverloads(
                     candidates, arguments: subscriptExpression.arguments, trailingClosures: [],
@@ -2564,9 +2545,7 @@ public final class TypeChecker: AST.Visitor {
                         baseType = nil
                     }
                 } else {
-                    let candidates = memberFunctionSymbols(
-                        of: "subscript", in: current as TrussType.TrussType?
-                    )
+                    let candidates = memberSubscriptSymbols(of: current).compactMap(\.getter)
                     for argument in component.arguments {
                         _ = infer(argument.value, at: token)
                     }
@@ -2767,8 +2746,8 @@ public final class TypeChecker: AST.Visitor {
                 binary.symbol = resolved.symbol
                 binary.ty = resolved.type.returnType
                 if binary.isAssignment, let subscriptExpr = binary.left as? AST.Subscript {
-                    if let symbol = subscriptExpr.symbol,
-                       setterCandidate(from: symbol) == nil
+                    if let overloads = subscriptExpr.overloads, !overloads.isEmpty,
+                       overloads.allSatisfy({ $0.setter == nil })
                     {
                         context.emitError(
                             "cannot assign to subscript: is read-only",

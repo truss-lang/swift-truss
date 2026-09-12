@@ -194,7 +194,8 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
     let initSig = (s.scope.values["init"]![0] as! Symbol.FunctionSymbol).signature
     #expect(initSig.labels == ["x"])
-    let subSig = (s.scope.values["subscript"]![0] as! Symbol.FunctionSymbol).signature
+    let subSig =
+        (s.scope.values["subscript"]![0] as! Symbol.SubscriptSymbol).getter.signature
     #expect(subSig.labels == ["i"])
     #expect(!context.diagnositicEngine.hasErrors)
 }

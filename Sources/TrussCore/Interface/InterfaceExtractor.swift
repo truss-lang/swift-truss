@@ -101,7 +101,7 @@ public struct InterfaceExtractor {
             let vars = f.signature.isVararg
             return .Function(InterfaceFunction(
                 name: f.name, labels: labels, hasDefaults: defs, isVararg: vars,
-                isVariadic: f.signature.isVariadic, isStatic: f.isStatic,
+                isVariadic: f.signature.isVariadic,
                 functionType: f.functionType.map(typeRef)
             ))
         case let v as Symbol.VariableSymbol:

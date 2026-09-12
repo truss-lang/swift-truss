@@ -219,7 +219,7 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     let (_, programs) = runTypeChecker(["struct S {\n    subscript(i: S) -> S {\n    }\n}"])
     let structDecl = programs[0].statements[0] as! AST.StructDecl
     let subscriptDecl = try #require(structDecl.body.first as? AST.SubscriptDecl)
-    let functionType = try #require(subscriptDecl.symbol?.functionType)
+    let functionType = try #require(subscriptDecl.symbol?.getter.functionType)
     #expect(functionType.parameters.count == 1)
     #expect(functionType.returnType is TrussType.StructType)
 }

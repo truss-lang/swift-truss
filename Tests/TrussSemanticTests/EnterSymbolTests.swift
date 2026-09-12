@@ -138,7 +138,7 @@ import TrussCore
     let packageScope = program[0].packageSymbol!.scope
     let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
     #expect(s.scope.values["init"]?.first is Symbol.FunctionSymbol)
-    #expect(s.scope.values["subscript"]?.first is Symbol.FunctionSymbol)
+    #expect(s.scope.values["subscript"]?.first is Symbol.SubscriptSymbol)
     #expect(!context.diagnositicEngine.hasErrors)
 }
 

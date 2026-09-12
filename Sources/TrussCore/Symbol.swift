@@ -135,20 +135,18 @@ public enum Symbol {
         public let scope: Scope
         public var locals: [VariableSymbol]
         public let signature: FunctionSignature
-        public let kind: Kind
-        public let isStatic: Bool
+        public var kind: Kind
         public var isBuiltin: Bool = false
         public var functionType: TrussType.FunctionType? = nil
         public var forallType: TrussType.ForallType? = nil
         public init(
             id: Id.SymbolId, name: String, locals: [VariableSymbol],
-            scope: Scope, signature: FunctionSignature, kind: Kind = .Normal, isStatic: Bool = false
+            scope: Scope, signature: FunctionSignature, kind: Kind = .Function
         ) {
             self.locals = locals
             self.scope = scope
             self.signature = signature
             self.kind = kind
-            self.isStatic = isStatic
             super.init(id, name)
 
             for local in locals {
@@ -156,10 +154,26 @@ public enum Symbol {
             }
         }
 
+        public var isStatic: Bool {
+            kind == .StaticMethod
+        }
+
         public enum Kind {
-            case Normal
+            case Function
+            case Method
+            case StaticMethod
             case Initializer
             case Deinitializer
+        }
+    }
+
+    public final class SubscriptSymbol: Symbol {
+        public let getter: FunctionSymbol
+        public let setter: FunctionSymbol?
+        public init(id: Id.SymbolId, getter: FunctionSymbol, setter: FunctionSymbol?) {
+            self.getter = getter
+            self.setter = setter
+            super.init(id, getter.name)
         }
     }
 
