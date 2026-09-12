@@ -586,8 +586,15 @@ public extension TIR {
         }
 
         @discardableResult
-        public func buildObjectConstruction(initializer: FunctionRef, ty: Id.TIRTypeId) -> ObjectConstruction {
-            TIR.ObjectConstruction(initializer: initializer, ty: ty)
+        public func buildObjectConstruction(
+            initializer: FunctionRef, objectTy: Id.TIRTypeId, functionTy: Id.TIRTypeId
+        ) -> ObjectConstruction {
+            TIR.ObjectConstruction(initializer: initializer, objectTy: objectTy, functionTy: functionTy)
+        }
+
+        @discardableResult
+        public func buildObjectBinding(object: Value, method: Value, ty: Id.TIRTypeId) -> ObjectBinding {
+            TIR.ObjectBinding(object: object, method: method, ty: ty)
         }
     }
 }

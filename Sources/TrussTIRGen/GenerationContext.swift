@@ -7,6 +7,11 @@ struct AccessorPair {
     var didSet: TIR.Function?
 }
 
+struct VirtualMethodSlot {
+    let metadata: Id.TIRMetadataId
+    let index: Int
+}
+
 final class GenerationContext {
     let context: Context
     let registry: TIR.Registry
@@ -22,11 +27,11 @@ final class GenerationContext {
     var externContextStack: [String] = []
     var collectTypeStack: [Symbol.NominalTypeSymbol] = []
     var staticVariableSymbols: Set<Id.SymbolId> = []
-    var initFunctionsByType: [Id.SymbolId: TIR.Function] = [:]
     var accessorFunctions: [Id.SymbolId: AccessorPair] = [:]
     var deinitFunctions: [ObjectIdentifier: TIR.Function] = [:]
     var deinitOwners: [ObjectIdentifier: Symbol.NominalTypeSymbol] = [:]
     var existentialBoxes: [Id.SymbolId: ExistentialBox] = [:]
+    var virtualMethodSlots: [Id.SymbolId: VirtualMethodSlot] = [:]
 
     struct ExistentialBox {
         let witnesses: [Id.TIRProtocolId: Id.TIRWitnessId]

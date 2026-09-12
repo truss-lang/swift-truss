@@ -132,13 +132,10 @@ final class FunctionCollector {
         } else {
             initReturnTypeLowered = gen.registry.voidType()
         }
-        let function = createFunction(
+        createFunction(
             symbol, name: name, returnType: initReturnTypeLowered,
             parameters: decl.parameters, symbolType: symbol
         )
-        if let memberOf = symbol.memberOf {
-            gen.initFunctionsByType[memberOf] = function
-        }
     }
 
     private func collectDeinit(_ decl: AST.DeinitDecl) {
@@ -153,35 +150,42 @@ final class FunctionCollector {
 
     private func collectSubscript(_ decl: AST.SubscriptDecl) {
         guard let symbol = decl.symbol else { return }
-        let functionType = symbol.functionType
+        let getterSymbol = symbol.getter
+        let functionType = getterSymbol.functionType
         let returnType = functionType.map { gen.typeLower.lower($0.returnType) }
             ?? gen.registry.voidType()
         let cnameOverride = cname(decl.attributes)
         let name = cnameOverride ?? gen.mangler.mangleFunctionName(
-            symbol, baseName: "subscript",
+            getterSymbol, baseName: "subscript",
             returnType: functionType?.returnType ?? TrussType.VoidType.INSTANCE,
             modulePath: gen.modulePathStack
         )
         let getter = createFunction(
-            symbol, name: name, returnType: returnType,
-            parameters: decl.parameters, symbolType: symbol
+            getterSymbol, name: name, returnType: returnType,
+            parameters: decl.parameters, symbolType: getterSymbol
         )
         var pair = gen.accessorFunctions[symbol.id] ?? AccessorPair()
         pair.getter = getter
-        if decl.accessors.contains(where: { $0.kind == .Set }),
-           let owner = ownerSymbol(symbol), let ownerType = owner.typeId.flatMap({ context.typeTable[$0] })
+        if let setterSymbol = symbol.setter,
+           let owner = ownerSymbol(getterSymbol),
+           let ownerType = owner.typeId.flatMap({ context.typeTable[$0] })
         {
             let selfType = gen.typeLower.lower(ownerType)
             let setterReturn = gen.registry.voidType()
             let setterName = cnameOverride.map { $0 + "Setter" }
                 ?? gen.mangler.mangleFunctionName(
-                    symbol, baseName: "subscriptSetter",
+                    setterSymbol, baseName: "subscriptSetter",
                     returnType: TrussType.VoidType.INSTANCE,
                     modulePath: gen.modulePathStack
                 )
-            var tirParameters: [TIR.Parameter] = [TIR.Parameter(ty: selfType.id, name: "self")]
+            var tirParameters: [TIR.Parameter] = []
+            if !setterSymbol.isStatic {
+                tirParameters.append(TIR.Parameter(ty: selfType.id, name: "self"))
+            }
             tirParameters.append(contentsOf: decl.parameters.enumerated().map { index, parameter in
-                let ty = symbol.functionType?.parameters[safe: index].map { gen.typeLower.lower($0.type) }
+                let ty = setterSymbol.functionType?.parameters[safe: index].map {
+                    gen.typeLower.lower($0.type)
+                }
                     ?? (parameter.type?.ty).map { gen.typeLower.lower($0) }
                     ?? gen.registry.voidType()
                 return TIR.Parameter(ty: ty.id, name: parameter.name.value)
@@ -192,6 +196,7 @@ final class FunctionCollector {
                 isVariadic: false, isExtern: false, callingConvention: nil
             )
             pair.setter = setter
+            gen.functionsBySymbol[setterSymbol.id] = setter
         }
         gen.accessorFunctions[symbol.id] = pair
     }
@@ -212,12 +217,7 @@ final class FunctionCollector {
            let owner = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol,
            let typeId = owner.typeId, let type = context.typeTable[typeId]
         {
-            let loweredSelf = gen.typeLower.lower(type)
-            let selfType = if (type is TrussType.ClassType) || (type is TrussType.ActorType) {
-                loweredSelf
-            } else {
-                gen.registry.pointerType(pointee: loweredSelf.id)
-            }
+            let selfType = gen.registry.pointerType(pointee: gen.typeLower.lower(type).id)
             tirParameters.append(TIR.Parameter(ty: selfType.id, name: "self"))
         }
         tirParameters.append(contentsOf: parameters.enumerated().map { index, parameter in

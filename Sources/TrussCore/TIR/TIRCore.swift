@@ -221,8 +221,20 @@ public enum TIR {
 
     public class ObjectConstruction: Value {
         public let initializer: FunctionRef
-        public init(initializer: FunctionRef, ty: Id.TIRTypeId) {
+        public let objectTy: Id.TIRTypeId
+        public init(initializer: FunctionRef, objectTy: Id.TIRTypeId, functionTy: Id.TIRTypeId) {
             self.initializer = initializer
+            self.objectTy = objectTy
+            super.init(ty: functionTy, name: "")
+        }
+    }
+
+    public class ObjectBinding: Value {
+        public let object: Value
+        public let method: Value
+        public init(object: Value, method: Value, ty: Id.TIRTypeId) {
+            self.object = object
+            self.method = method
             super.init(ty: ty, name: "")
         }
     }

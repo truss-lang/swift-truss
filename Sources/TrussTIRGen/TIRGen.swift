@@ -5,6 +5,7 @@ public final class TIRGen {
     private let collector: TypeCollector
     private let functionCollector: FunctionCollector
     private let witnessCollector: WitnessCollector
+    private let vtableCollector: VTableCollector
     private let emitter: TIREmitter
 
     public init(context: Context) {
@@ -12,6 +13,7 @@ public final class TIRGen {
         collector = .init(context: context)
         functionCollector = .init(context: context, gen: gen)
         witnessCollector = .init(context: context, gen: gen)
+        vtableCollector = .init(context: context, gen: gen)
         emitter = .init(context: context, gen: gen)
     }
 
@@ -31,6 +33,7 @@ public final class TIRGen {
             return module
         }
         witnessCollector.collect()
+        vtableCollector.collect()
         for (index, program) in programs.enumerated() {
             gen.currentModule = modules[index]
             gen.env = [:]
