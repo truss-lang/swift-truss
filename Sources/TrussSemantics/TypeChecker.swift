@@ -3040,10 +3040,7 @@ public final class TypeChecker: AST.Visitor {
                         }
                     }
                     for (parameter, type) in zip(signature.parameters, parameterTypes) {
-                        let variable =
-                            closure.scope?.values[parameter.name.value]?.first
-                                as? Symbol.VariableSymbol
-                        variable?.type = type
+                        parameter.symbol?.type = type
                     }
                     let returnType: TrussType.TrussType =
                         if let returnTypeExpression = signature.returnType {
@@ -3360,10 +3357,7 @@ public final class TypeChecker: AST.Visitor {
                 if let signature = closure.signature {
                     for (index, parameter) in signature.parameters.enumerated() {
                         guard index < parameterTypes.count else { break }
-                        let variable =
-                            closure.scope?.values[parameter.name.value]?.first
-                                as? Symbol.VariableSymbol
-                        variable?.type = parameterTypes[index]
+                        parameter.symbol?.type = parameterTypes[index]
                     }
                 }
                 closureParameterTypes.append(parameterTypes)
