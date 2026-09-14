@@ -1489,6 +1489,23 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
+@Test func placementNewRequiresVoidPointer() {
+    let (context, _) = runFullChecks(
+        ["struct P {}\nstruct S {\n    init() {}\n}\n"
+            + "func f(p: P*) {\n    S() in p\n}"]
+    )
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains { $0.contains("expected 'Void*'") })
+}
+
+@Test func placementNewAcceptsVoidPointer() {
+    let (context, _) = runFullChecks(
+        ["struct S {\n    init() {}\n}\n"
+            + "func f(p: Void*) {\n    S() in p\n}"]
+    )
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
 @Test func pointerDereferenceAndMember() {
     let (context, _) = runTypeChecker(
         [pointerPrelude

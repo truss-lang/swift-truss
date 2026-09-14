@@ -86,7 +86,7 @@ infix operator =: Assignment
 
 @Test func callToThrowingFunctionMustBeTried() {
     let (context, _) = runFullChecks(
-        ["struct E {}\nfunc g() throws E { E() }\nfunc f() {\n    g()\n}"]
+        ["struct E {}\nfunc g() throws(E) { E() }\nfunc f() {\n    g()\n}"]
     )
     let messages = context.diagnositicEngine.diagnostics.map(\.message)
     #expect(messages.contains("call to throwing function must be tried"))
