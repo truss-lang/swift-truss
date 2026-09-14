@@ -3949,7 +3949,7 @@ public final class Parser {
                         let closure = parseClosure()
                         trailing.append((label, closure))
                     }
-                    if let t = peek, t.kind == .Identifier(.In) {
+                    if let t = peek, t.kind == .Identifier(.In), !inPatternContext {
                         index += 1
                         place = parseExpression()
                     }
@@ -5598,7 +5598,7 @@ public final class Parser {
             }
         }
         let place: AST.Expression?
-        if let t = peek, t.kind == .Identifier(.In) {
+        if let t = peek, t.kind == .Identifier(.In), !inPatternContext {
             index += 1
             place = parseExpression()
         } else {
