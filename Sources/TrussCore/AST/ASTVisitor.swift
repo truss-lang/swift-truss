@@ -136,79 +136,50 @@ extension AST {
         }
 
         @discardableResult
-        open func visitStructDecl(
-            _ structDecl: AST.StructDecl, additional: Any? = nil
+        open func visitNominalTypeDecl(
+            _ nominalTypeDecl: AST.NominalTypeDecl, additional: Any? = nil
         ) -> Any? {
-            if let genericDecl = structDecl.genericDecl {
+            if let genericDecl = nominalTypeDecl.genericDecl {
                 visitGenericDecl(genericDecl, additional: additional)
             }
-            for conformance in structDecl.conformances {
+            for conformance in nominalTypeDecl.conformances {
                 visit(conformance, additional: additional)
             }
-            if let whereClause = structDecl.whereClause {
+            if let whereClause = nominalTypeDecl.whereClause {
                 visitWhereClauseRequirements(whereClause, additional: additional)
             }
-            for statement in structDecl.body {
+            for statement in nominalTypeDecl.body {
                 visit(statement, additional: additional)
             }
             return nil
+        }
+
+        @discardableResult
+        open func visitStructDecl(
+            _ structDecl: AST.StructDecl, additional: Any? = nil
+        ) -> Any? {
+            visitNominalTypeDecl(structDecl, additional: additional)
         }
 
         @discardableResult
         open func visitClassDecl(
             _ classDecl: AST.ClassDecl, additional: Any? = nil
         ) -> Any? {
-            if let genericDecl = classDecl.genericDecl {
-                visitGenericDecl(genericDecl, additional: additional)
-            }
-            for inheritanceClause in classDecl.inheritanceClauses {
-                visit(inheritanceClause, additional: additional)
-            }
-            if let whereClause = classDecl.whereClause {
-                visitWhereClauseRequirements(whereClause, additional: additional)
-            }
-            for statement in classDecl.body {
-                visit(statement, additional: additional)
-            }
-            return nil
+            visitNominalTypeDecl(classDecl, additional: additional)
         }
 
         @discardableResult
         open func visitActorDecl(
             _ actorDecl: AST.ActorDecl, additional: Any? = nil
         ) -> Any? {
-            if let genericDecl = actorDecl.genericDecl {
-                visitGenericDecl(genericDecl, additional: additional)
-            }
-            for conformance in actorDecl.conformances {
-                visit(conformance, additional: additional)
-            }
-            if let whereClause = actorDecl.whereClause {
-                visitWhereClauseRequirements(whereClause, additional: additional)
-            }
-            for statement in actorDecl.body {
-                visit(statement, additional: additional)
-            }
-            return nil
+            visitNominalTypeDecl(actorDecl, additional: additional)
         }
 
         @discardableResult
         open func visitProtocolDecl(
             _ protocolDecl: AST.ProtocolDecl, additional: Any? = nil
         ) -> Any? {
-            if let genericDecl = protocolDecl.genericDecl {
-                visitGenericDecl(genericDecl, additional: additional)
-            }
-            for conformance in protocolDecl.conformances {
-                visit(conformance, additional: additional)
-            }
-            if let whereClause = protocolDecl.whereClause {
-                visitWhereClauseRequirements(whereClause, additional: additional)
-            }
-            for statement in protocolDecl.body {
-                visit(statement, additional: additional)
-            }
-            return nil
+            visitNominalTypeDecl(protocolDecl, additional: additional)
         }
 
         @discardableResult
@@ -229,19 +200,7 @@ extension AST {
         open func visitEnumDecl(
             _ enumDecl: AST.EnumDecl, additional: Any? = nil
         ) -> Any? {
-            if let genericDecl = enumDecl.genericDecl {
-                visitGenericDecl(genericDecl, additional: additional)
-            }
-            for conformance in enumDecl.conformances {
-                visit(conformance, additional: additional)
-            }
-            if let whereClause = enumDecl.whereClause {
-                visitWhereClauseRequirements(whereClause, additional: additional)
-            }
-            for statement in enumDecl.body {
-                visit(statement, additional: additional)
-            }
-            return nil
+            visitNominalTypeDecl(enumDecl, additional: additional)
         }
 
         @discardableResult

@@ -22,17 +22,6 @@ public final class DeclCollector: AST.Visitor {
         currentScope!.registerType(symbol, at: token, context: context)
     }
 
-    private func registerGenericParams(_ genericDecl: AST.GenericDecl?, into scope: Scope) {
-        guard let genericDecl else { return }
-        for param in genericDecl.generics {
-            let symbol = Symbol.GenericParamSymbol(
-                id: context.nextSymbolId, name: param.name.value
-            )
-            context.register(symbol: symbol)
-            scope.registerType(symbol, at: param.name, context: context)
-        }
-    }
-
     @discardableResult
     public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         if let packageSymbol = context.name2Package[program.packageName] {
@@ -58,9 +47,7 @@ public final class DeclCollector: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil) -> Any? {
         let lastScope = currentScope
         let lastModule = currentModuleSymbol
         if let moduleSymbol = currentScope!.modules[moduleDecl.name.value] {
@@ -82,9 +69,7 @@ public final class DeclCollector: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitExtensionDecl(_ extensionDecl: AST.ExtensionDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitExtensionDecl(_ extensionDecl: AST.ExtensionDecl, additional: Any? = nil) -> Any? {
         if extensionDecl.virtualScope == nil {
             extensionDecl.virtualScope = Scope()
         }
@@ -97,18 +82,54 @@ public final class DeclCollector: AST.Visitor {
         return nil
     }
 
+    private func makeNominalTypeSymbol(
+        _ nominalTypeDecl: AST.NominalTypeDecl
+    ) -> Symbol.NominalTypeSymbol {
+        let id = context.nextSymbolId
+        let name = nominalTypeDecl.name.value
+        let symbol: Symbol.NominalTypeSymbol = switch nominalTypeDecl {
+        case is AST.ClassDecl:
+            Symbol.ClassSymbol(id: id, name: name)
+        case is AST.StructDecl:
+            Symbol.StructSymbol(id: id, name: name)
+        case is AST.EnumDecl:
+            Symbol.EnumSymbol(id: id, name: name)
+        case is AST.ProtocolDecl:
+            Symbol.ProtocolSymbol(id: id, name: name)
+        case is AST.ActorDecl:
+            Symbol.ActorSymbol(id: id, name: name)
+        default:
+            fatalError("unreachable: unknown nominal type declaration \(type(of: nominalTypeDecl))")
+        }
+        symbol.isAbstract = nominalTypeDecl.modifiers.contains {
+            if case .Abstract = $0.kind { true } else { false }
+        }
+        symbol.isFinal = nominalTypeDecl.modifiers.contains {
+            if case .Final = $0.kind { true } else { false }
+        }
+        return symbol
+    }
+
     @discardableResult
-    public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil)
-        -> Any?
-    {
-        let symbol = Symbol.StructSymbol(id: context.nextSymbolId, name: structDecl.name.value)
-        registerTypeSymbol(symbol, at: structDecl.name, modifiers: structDecl.modifiers)
-        structDecl.symbol = symbol
-        registerGenericParams(structDecl.genericDecl, into: symbol.scope)
+    public override func visitNominalTypeDecl(
+        _ nominalTypeDecl: AST.NominalTypeDecl, additional: Any? = nil
+    ) -> Any? {
+        let symbol = makeNominalTypeSymbol(nominalTypeDecl)
+        registerTypeSymbol(symbol, at: nominalTypeDecl.name, modifiers: nominalTypeDecl.modifiers)
+        nominalTypeDecl.symbol = symbol
+        if let genericDecl = nominalTypeDecl.genericDecl {
+            for param in genericDecl.generics {
+                let genericSymbol = Symbol.GenericParamSymbol(
+                    id: context.nextSymbolId, name: param.name.value
+                )
+                context.register(symbol: genericSymbol)
+                symbol.scope.registerType(genericSymbol, at: param.name, context: context)
+            }
+        }
         let lastScope = currentScope
         currentScope = symbol.scope
         typeStack.append(symbol)
-        for statement in structDecl.body {
+        for statement in nominalTypeDecl.body {
             visit(statement, additional: additional)
         }
         typeStack.removeLast()
@@ -117,93 +138,7 @@ public final class DeclCollector: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil)
-        -> Any?
-    {
-        let symbol = Symbol.ClassSymbol(id: context.nextSymbolId, name: classDecl.name.value)
-        symbol.isAbstract = classDecl.modifiers.contains { modifier in
-            if case .Abstract = modifier.kind { return true }
-            return false
-        }
-        symbol.isFinal = classDecl.modifiers.contains { modifier in
-            if case .Final = modifier.kind { return true }
-            return false
-        }
-        registerTypeSymbol(symbol, at: classDecl.name, modifiers: classDecl.modifiers)
-        classDecl.symbol = symbol
-        registerGenericParams(classDecl.genericDecl, into: symbol.scope)
-        let lastScope = currentScope
-        currentScope = symbol.scope
-        typeStack.append(symbol)
-        for statement in classDecl.body {
-            visit(statement, additional: additional)
-        }
-        typeStack.removeLast()
-        currentScope = lastScope
-        return nil
-    }
-
-    @discardableResult
-    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil)
-        -> Any?
-    {
-        let symbol = Symbol.EnumSymbol(id: context.nextSymbolId, name: enumDecl.name.value)
-        registerTypeSymbol(symbol, at: enumDecl.name, modifiers: enumDecl.modifiers)
-        enumDecl.symbol = symbol
-        registerGenericParams(enumDecl.genericDecl, into: symbol.scope)
-        let lastScope = currentScope
-        currentScope = symbol.scope
-        typeStack.append(symbol)
-        for statement in enumDecl.body {
-            visit(statement, additional: additional)
-        }
-        typeStack.removeLast()
-        currentScope = lastScope
-        return nil
-    }
-
-    @discardableResult
-    public override func visitProtocolDecl(_ protocolDecl: AST.ProtocolDecl, additional: Any? = nil)
-        -> Any?
-    {
-        let symbol = Symbol.ProtocolSymbol(id: context.nextSymbolId, name: protocolDecl.name.value)
-        registerTypeSymbol(symbol, at: protocolDecl.name, modifiers: protocolDecl.modifiers)
-        protocolDecl.symbol = symbol
-        registerGenericParams(protocolDecl.genericDecl, into: symbol.scope)
-        let lastScope = currentScope
-        currentScope = symbol.scope
-        typeStack.append(symbol)
-        for statement in protocolDecl.body {
-            visit(statement, additional: additional)
-        }
-        typeStack.removeLast()
-        currentScope = lastScope
-        return nil
-    }
-
-    @discardableResult
-    public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil)
-        -> Any?
-    {
-        let symbol = Symbol.ActorSymbol(id: context.nextSymbolId, name: actorDecl.name.value)
-        registerTypeSymbol(symbol, at: actorDecl.name, modifiers: actorDecl.modifiers)
-        actorDecl.symbol = symbol
-        registerGenericParams(actorDecl.genericDecl, into: symbol.scope)
-        let lastScope = currentScope
-        currentScope = symbol.scope
-        typeStack.append(symbol)
-        for statement in actorDecl.body {
-            visit(statement, additional: additional)
-        }
-        typeStack.removeLast()
-        currentScope = lastScope
-        return nil
-    }
-
-    @discardableResult
-    public override func visitTypeAliasDecl(_ typeAliasDecl: AST.TypeAliasDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitTypeAliasDecl(_ typeAliasDecl: AST.TypeAliasDecl, additional: Any? = nil) -> Any? {
         let symbol = Symbol.TypeAliasSymbol(
             id: context.nextSymbolId, name: typeAliasDecl.name.value
         )
@@ -225,9 +160,7 @@ public final class DeclCollector: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil) -> Any? {
         nil
     }
 
@@ -244,30 +177,22 @@ public final class DeclCollector: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil) -> Any? {
         nil
     }
 
     @discardableResult
-    public override func visitVariableDecl(_ variableDecl: AST.VariableDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitVariableDecl(_ variableDecl: AST.VariableDecl, additional: Any? = nil) -> Any? {
         nil
     }
 
     @discardableResult
-    public override func visitEnumCaseDecl(_ enumCaseDecl: AST.EnumCaseDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitEnumCaseDecl(_ enumCaseDecl: AST.EnumCaseDecl, additional: Any? = nil) -> Any? {
         nil
     }
 
     @discardableResult
-    public override func visitExternDecl(_ externDecl: AST.ExternDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitExternDecl(_ externDecl: AST.ExternDecl, additional: Any? = nil) -> Any? {
         nil
     }
 }

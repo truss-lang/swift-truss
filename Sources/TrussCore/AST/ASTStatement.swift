@@ -240,7 +240,8 @@ public extension AST {
         }
     }
 
-    final class StructDecl: Decl {
+    @abstractClass
+    class NominalTypeDecl: Decl {
         public let token: Token
         public let name: Token
         public let genericDecl: GenericDecl?
@@ -248,6 +249,7 @@ public extension AST {
         public let whereClause: [AST.WhereRequirement]?
         public let body: [AST.Statement]
         public var symbol: Symbol.NominalTypeSymbol? = nil
+        @abstractInit
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
@@ -263,116 +265,38 @@ public extension AST {
             super.init(modifiers, attributes, sourceRange)
         }
 
-        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
-            visitor.visitStructDecl(self, additional: additional)
-        }
-
         public override func copySemantics(from other: AST.AstNode) {
-            if let otherStruct = other as? AST.StructDecl {
-                symbol = otherStruct.symbol
+            if let otherNominal = other as? AST.NominalTypeDecl {
+                symbol = otherNominal.symbol
             }
         }
     }
 
-    final class ClassDecl: Decl {
-        public let token: Token
-        public let name: Token
-        public let genericDecl: GenericDecl?
-        public let inheritanceClauses: [Expression]
-        public let whereClause: [AST.WhereRequirement]?
-        public let body: [AST.Statement]
-        public var symbol: Symbol.NominalTypeSymbol? = nil
-        public init(
-            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
-            _ whereClause: [AST.WhereRequirement]?, _ body: [AST.Statement],
-            sourceRange: SourceRange
-        ) {
-            self.token = token
-            self.name = name
-            self.genericDecl = genericDecl
-            inheritanceClauses = conformances
-            self.whereClause = whereClause
-            self.body = body
-            super.init(modifiers, attributes, sourceRange)
+    final class StructDecl: NominalTypeDecl {
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitStructDecl(self, additional: additional)
+        }
+    }
+
+    final class ClassDecl: NominalTypeDecl {
+        public var inheritanceClauses: [Expression] {
+            conformances
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitClassDecl(self, additional: additional)
         }
-
-        public override func copySemantics(from other: AST.AstNode) {
-            if let otherClass = other as? AST.ClassDecl {
-                symbol = otherClass.symbol
-            }
-        }
     }
 
-    final class ActorDecl: Decl {
-        public let token: Token
-        public let name: Token
-        public let genericDecl: GenericDecl?
-        public let conformances: [Expression]
-        public let whereClause: [AST.WhereRequirement]?
-        public let body: [AST.Statement]
-        public var symbol: Symbol.NominalTypeSymbol? = nil
-        public init(
-            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
-            _ whereClause: [AST.WhereRequirement]?, _ body: [AST.Statement],
-            sourceRange: SourceRange
-        ) {
-            self.token = token
-            self.name = name
-            self.genericDecl = genericDecl
-            self.conformances = conformances
-            self.whereClause = whereClause
-            self.body = body
-            super.init(modifiers, attributes, sourceRange)
-        }
-
+    final class ActorDecl: NominalTypeDecl {
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitActorDecl(self, additional: additional)
         }
-
-        public override func copySemantics(from other: AST.AstNode) {
-            if let otherActor = other as? AST.ActorDecl {
-                symbol = otherActor.symbol
-            }
-        }
     }
 
-    final class ProtocolDecl: Decl {
-        public let token: Token
-        public let name: Token
-        public let genericDecl: GenericDecl?
-        public let conformances: [Expression]
-        public let whereClause: [AST.WhereRequirement]?
-        public let body: [AST.Statement]
-        public var symbol: Symbol.NominalTypeSymbol? = nil
-        public init(
-            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
-            _ whereClause: [AST.WhereRequirement]?, _ body: [AST.Statement],
-            sourceRange: SourceRange
-        ) {
-            self.token = token
-            self.name = name
-            self.genericDecl = genericDecl
-            self.conformances = conformances
-            self.whereClause = whereClause
-            self.body = body
-            super.init(modifiers, attributes, sourceRange)
-        }
-
+    final class ProtocolDecl: NominalTypeDecl {
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitProtocolDecl(self, additional: additional)
-        }
-
-        public override func copySemantics(from other: AST.AstNode) {
-            if let otherProtocol = other as? AST.ProtocolDecl {
-                symbol = otherProtocol.symbol
-            }
         }
     }
 
@@ -405,37 +329,9 @@ public extension AST {
         }
     }
 
-    final class EnumDecl: Decl {
-        public let token: Token
-        public let name: Token
-        public let genericDecl: GenericDecl?
-        public let conformances: [Expression]
-        public let whereClause: [AST.WhereRequirement]?
-        public let body: [AST.Statement]
-        public var symbol: Symbol.NominalTypeSymbol? = nil
-        public init(
-            _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
-            _ name: Token, _ genericDecl: GenericDecl?, _ conformances: [Expression],
-            _ whereClause: [AST.WhereRequirement]?, _ body: [AST.Statement],
-            sourceRange: SourceRange
-        ) {
-            self.token = token
-            self.name = name
-            self.genericDecl = genericDecl
-            self.conformances = conformances
-            self.whereClause = whereClause
-            self.body = body
-            super.init(modifiers, attributes, sourceRange)
-        }
-
+    final class EnumDecl: NominalTypeDecl {
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitEnumDecl(self, additional: additional)
-        }
-
-        public override func copySemantics(from other: AST.AstNode) {
-            if let otherEnum = other as? AST.EnumDecl {
-                symbol = otherEnum.symbol
-            }
         }
     }
 
