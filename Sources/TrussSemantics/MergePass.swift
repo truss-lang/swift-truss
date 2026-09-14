@@ -10,7 +10,7 @@ public final class MergePass: AST.Visitor {
 
     @discardableResult
     public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
-        guard let packageSymbol = program.packageSymbol else { return nil }
+        let packageSymbol = program.packageSymbol!
         scopeStack.append(packageSymbol.scope)
         super.visitProgram(program, additional: additional)
         scopeStack.removeLast()
@@ -18,10 +18,8 @@ public final class MergePass: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
-        -> Any?
-    {
-        guard let moduleSymbol = moduleDecl.symbol else { return nil }
+    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil) -> Any? {
+        let moduleSymbol = moduleDecl.symbol!
         scopeStack.append(moduleSymbol.scope)
         super.visitModuleDecl(moduleDecl, additional: additional)
         scopeStack.removeLast()
@@ -29,10 +27,8 @@ public final class MergePass: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitExtensionDecl(_ extensionDecl: AST.ExtensionDecl, additional: Any? = nil)
-        -> Any?
-    {
-        guard let virtualScope = extensionDecl.virtualScope else { return nil }
+    public override func visitExtensionDecl(_ extensionDecl: AST.ExtensionDecl, additional: Any? = nil) -> Any? {
+        let virtualScope = extensionDecl.virtualScope!
         if let base = resolveBase(extensionDecl.base, chain: scopeStack)
             as? Symbol.NominalTypeSymbol
         {
@@ -49,9 +45,9 @@ public final class MergePass: AST.Visitor {
             progressed = false
             var remaining: [(AST.ExtensionDecl, [Scope])] = []
             for (extensionDecl, chain) in pending {
-                if let virtualScope = extensionDecl.virtualScope,
-                   let base = resolveBase(extensionDecl.base, chain: chain)
-                   as? Symbol.NominalTypeSymbol
+                let virtualScope = extensionDecl.virtualScope!
+                if let base = resolveBase(extensionDecl.base, chain: chain)
+                    as? Symbol.NominalTypeSymbol
                 {
                     merge(virtualScope, into: base, chain: chain, extensionDecl: extensionDecl)
                     progressed = true
@@ -84,6 +80,9 @@ public final class MergePass: AST.Visitor {
         for (_, symbols) in virtualScope.values {
             for symbol in symbols {
                 symbol.memberOf = base.id
+                if let function = symbol as? Symbol.FunctionSymbol, function.kind == .Initializer {
+                    base.initializers.append(function)
+                }
                 baseScope.registerValue(
                     symbol, at: symbol.sourceToken ?? extensionDecl.token, context: context
                 )
@@ -93,62 +92,29 @@ public final class MergePass: AST.Visitor {
             baseScope.registerModule(module)
         }
         for expression in extensionDecl.conformances {
-            collectConformances(expression, chain: chain, into: &base.conformances)
+            base.conformances.append(contentsOf: collectConformances(expression, chain: chain))
         }
     }
 
     private func collectConformances(
-        _ expression: AST.Expression, chain: [Scope],
-        into protocols: inout [Symbol.ProtocolSymbol]
-    ) {
+        _ expression: AST.Expression, chain: [Scope]
+    ) -> [Symbol.ProtocolSymbol] {
         if let composition = expression as? AST.ProtocolCompositionType {
-            for type in composition.types {
-                collectConformances(type, chain: chain, into: &protocols)
-            }
-            return
+            return composition.types.flatMap { collectConformances($0, chain: chain) }
         }
         if let sequential = expression as? AST.Sequential,
            let members = sequential.compositionMemberBaseOperands()
         {
-            for member in members {
-                collectConformances(member, chain: chain, into: &protocols)
-            }
-            return
+            return members.flatMap { collectConformances($0, chain: chain) }
         }
         if let binary = expression as? AST.Binary, binary.operatorToken.value == "&" {
-            collectConformances(binary.left, chain: chain, into: &protocols)
-            collectConformances(binary.right, chain: chain, into: &protocols)
-            return
+            return collectConformances(binary.left, chain: chain)
+                + collectConformances(binary.right, chain: chain)
         }
-        if let protocolSymbol = resolveProtocol(expression, chain: chain) {
-            protocols.append(protocolSymbol)
+        if let protocolSymbol = resolveBase(expression, chain: chain) as? Symbol.ProtocolSymbol {
+            return [protocolSymbol]
         }
-    }
-
-    private func resolveProtocol(
-        _ expression: AST.Expression, chain: [Scope]
-    ) -> Symbol.ProtocolSymbol? {
-        switch expression {
-        case let variable as AST.Variable:
-            return lookupType(variable.name.value, chain: chain) as? Symbol.ProtocolSymbol
-        case let memberAccess as AST.MemberAccess:
-            guard let object = resolveBase(memberAccess.object, chain: chain) else { return nil }
-            let scope = (object as? Symbol.NominalTypeSymbol)?.scope
-                ?? (object as? Symbol.ModuleSymbol)?.scope
-            return scope?.types[memberAccess.member.value] as? Symbol.ProtocolSymbol
-        case let genericApplication as AST.GenericApplication:
-            return resolveProtocol(genericApplication.base, chain: chain)
-        case let sequential as AST.Sequential:
-            guard
-                sequential.genericApplicationGroupCloseIndex() != nil,
-                let base = sequential.operands.first
-            else {
-                return nil
-            }
-            return resolveProtocol(base, chain: chain)
-        default:
-            return nil
-        }
+        return []
     }
 
     private func resolveBase(_ expression: AST.Expression, chain: [Scope]) -> Symbol.Symbol? {

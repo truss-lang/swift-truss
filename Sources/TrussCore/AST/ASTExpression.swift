@@ -455,7 +455,7 @@ public extension AST {
 
     struct ClosureSignature {
         public let captureList: [CaptureItem]
-        public let parameters: [FunctionDecl.Parameter]
+        public var parameters: [FunctionDecl.Parameter]
         public let throwsClause: ThrowsClause?
         public let returnType: Expression?
         public let asyncToken: Token?
@@ -475,7 +475,7 @@ public extension AST {
     }
 
     final class Closure: Expression {
-        public let signature: ClosureSignature?
+        public var signature: ClosureSignature?
         public let body: [Statement]
         public var scope: Scope? = nil
         public init(

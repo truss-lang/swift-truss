@@ -399,7 +399,7 @@ import TrussCore
             | |-InitDecl sym:init#8
             | | `-Parameter x label:x
             | |   `-Variable Int ty:ErrorType
-            | `-SubscriptDecl sym:subscript#10
+            | `-SubscriptDecl sym:subscript#11
             |   |-Parameter i label:i
             |   | `-Variable Int ty:ErrorType
             |   |-ReturnType
@@ -413,8 +413,8 @@ import TrussCore
             | `-AssociatedTypeDecl U sym:U#4
             `-EnumDecl E sym:E#5
               `-EnumCaseDecl
-                |-Element a sym:a#11
-                `-Element b sym:b#12
+                |-Element a sym:a#12
+                `-Element b sym:b#13
                   `-AssociatedValue x:
                     `-Variable Int ty:ErrorType
             """

@@ -238,3 +238,36 @@ import TrussCore
     #expect(packageScope.values["f"] == nil)
     #expect(!context.diagnositicEngine.hasErrors)
 }
+
+@Test func deinitInTypeBodyIsAllowed() {
+    let (context, program) = runEnter(["class C { deinit {} }"])
+    let packageScope = program[0].packageSymbol!.scope
+    let c = packageScope.types["C"] as! Symbol.ClassSymbol
+    #expect(c.deinitializer != nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func deinitInExtensionIsError() {
+    let (context, _) = runEnter(["class C {} extension C { deinit {} }"])
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("deinitializer is not allowed in an extension"))
+}
+
+@Test func extensionInitLandsInBaseInitializers() {
+    let (context, program) = runEnter(["struct S {} extension S { init() {} }"])
+    let packageScope = program[0].packageSymbol!.scope
+    let s = packageScope.types["S"] as! Symbol.StructSymbol
+    #expect(s.initializers.count == 1)
+    #expect(s.scope.values["init"] != nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func closureParameterGetsSymbol() throws {
+    let (context, program) = runEnter(["struct S {}\nlet cl = { (x: S) -> S in x }"])
+    let variableDecl = program[0].statements[1] as! AST.VariableDecl
+    let closure = variableDecl.initializer as! AST.Closure
+    let signature = try #require(closure.signature)
+    let symbol = try #require(signature.parameters[0].symbol)
+    #expect(symbol === closure.scope?.values["x"]?.first as? Symbol.VariableSymbol)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
