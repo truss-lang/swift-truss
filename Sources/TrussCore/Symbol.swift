@@ -231,20 +231,38 @@ public enum Symbol {
             }
             for (name, symbols) in scope.values.sorted(by: { $0.key < $1.key }) {
                 for symbol in symbols {
-                    let prefix = valuePrefix(symbol)
-                    var line = "\(pad)\(prefix) \(name) #\(symbol.id.id)"
                     if let function = symbol as? FunctionSymbol {
-                        line += signatureText(function)
-                    }
-                    out += line + "\n"
-                    if let function = symbol as? FunctionSymbol {
-                        dumpScope(function.scope, into: &out, indent: indent + 2, program: program)
-                        if let program, let body = findFunctionBody(function, in: program) {
-                            dumpInnerScopes(body, into: &out, indent: indent + 2)
+                        out += functionText(
+                            function, named: name, indent: indent, program: program
+                        )
+                    } else if let subscriptSymbol = symbol as? SubscriptSymbol {
+                        out += "\(pad)value \(name) #\(subscriptSymbol.id.id)\n"
+                        out += functionText(
+                            subscriptSymbol.getter, named: "getter", indent: indent + 2,
+                            program: program
+                        )
+                        if let setter = subscriptSymbol.setter {
+                            out += functionText(
+                                setter, named: "setter", indent: indent + 2, program: program
+                            )
                         }
+                    } else {
+                        out += "\(pad)\(valuePrefix(symbol)) \(name) #\(symbol.id.id)\n"
                     }
                 }
             }
+        }
+
+        private func functionText(
+            _ function: FunctionSymbol, named name: String, indent: Int, program: AST.Program?
+        ) -> String {
+            let pad = String(repeating: " ", count: indent)
+            var out = "\(pad)function \(name) #\(function.id.id)\(signatureText(function))\n"
+            dumpScope(function.scope, into: &out, indent: indent + 2, program: program)
+            if let program, let body = findFunctionBody(function, in: program) {
+                dumpInnerScopes(body, into: &out, indent: indent + 2)
+            }
+            return out
         }
 
         private func findFunctionBody(

@@ -77,17 +77,49 @@ import TrussCore
             == """
             main (package) #0
               type E (enum) #5 ty:EnumType(E)#2
-                case a #11
-                case b #12
+                case a #12
+                case b #13
               type Q (protocol) #3 ty:ProtocolType(Q)#1
                 type U (associated-type) #4
               type S (struct) #1 ty:StructType(S)#0
                 function init #8 (x:)
                   var x #7
-                function subscript #10 (i:)
-                  var i #9
+                value subscript #11
+                  function getter #10 (i:)
+                    var i #9
                 var x #6
               type T (typealias) #2
+
+            """
+    )
+}
+
+@Test func dumpSymbolsSubscriptAccessors() {
+    #expect(
+        dumpSymbols(
+            """
+            struct S {
+                var x: Int
+                subscript(i: Int) -> Int {
+                    get {
+                        return x
+                    }
+                    set {
+                        x = newValue
+                    }
+                }
+            }
+            """
+        )
+            == """
+            main (package) #0
+              type S (struct) #1 ty:StructType(S)#0
+                value subscript #7
+                  function getter #5 (i:)
+                    var i #3
+                  function setter #6 (i:, _:)
+                    var newValue #4
+                var x #2
 
             """
     )
