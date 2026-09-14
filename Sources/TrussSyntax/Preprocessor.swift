@@ -91,7 +91,7 @@ public final class Preprocessor {
         includeStack = []
         for (name, value) in config.defines {
             let nameToken = Token(
-                value: name, kind: .Identifier,
+                value: name, kind: .Identifier(nil),
                 pos: Position(pos: 0, line: 1, col: 1, len: name.count), id: lexerResult.id
             )
             let valueTokens = Lexer(input: CharStream(content: value, id: lexerResult.id))
@@ -333,7 +333,7 @@ public final class Preprocessor {
 
     private func handleIfDef(args: [Token], name: Token, sharp: Token, negated: Bool) {
         if outerIfToken == nil { outerIfToken = sharp }
-        guard let first = args.first, first.kind == .Identifier else {
+        guard let first = args.first, first.kind.isIdentifier else {
             emitError(
                 "expected macro name after #\(negated ? "ifndef" : "ifdef")", at: name
             )
@@ -378,7 +378,7 @@ public final class Preprocessor {
 
     private func handleDefine(args: [Token], name: Token) {
         guard active else { return }
-        guard let first = args.first, first.kind == .Identifier else {
+        guard let first = args.first, first.kind.isIdentifier else {
             emitError("expected macro name after #define", at: name)
             return
         }
@@ -430,7 +430,7 @@ public final class Preprocessor {
 
     private func handleUndef(args: [Token], name: Token) {
         guard active else { return }
-        guard let first = args.first, first.kind == .Identifier else {
+        guard let first = args.first, first.kind.isIdentifier else {
             emitError("expected macro name after #undef", at: name)
             return
         }
@@ -443,7 +443,7 @@ public final class Preprocessor {
         if let builtin = builtinExpansion(token) {
             return (builtin, index + 1)
         }
-        guard token.kind == .Identifier, let macro = macros[token.value],
+        guard token.kind.isIdentifier, let macro = macros[token.value],
               !self.expanding.contains(token.value)
         else {
             return ([token], index + 1)
@@ -483,7 +483,7 @@ public final class Preprocessor {
     private func expandTail(
         _ expanded: [Token], tokens: [Token], at index: Int
     ) -> (tokens: [Token], nextIndex: Int) {
-        guard let last = expanded.last, last.kind == .Identifier,
+        guard let last = expanded.last, last.kind.isIdentifier,
               let macro = macros[last.value], !self.expanding.contains(last.value)
         else {
             return (expanded, index)
@@ -603,7 +603,7 @@ public final class Preprocessor {
                     k += 2
                     continue
                 }
-                if variadic, pastedBody[k + 1].kind == .Identifier,
+                if variadic, pastedBody[k + 1].kind.isIdentifier,
                    pastedBody[k + 1].value == "__VA_ARGS__"
                 {
                     let text = args.dropFirst(params.count).flatMap { $0 }.map(\.value)
@@ -615,12 +615,12 @@ public final class Preprocessor {
                     continue
                 }
             }
-            if bt.kind == .Identifier, let paramIndex = params.firstIndex(of: bt.value) {
+            if bt.kind.isIdentifier, let paramIndex = params.firstIndex(of: bt.value) {
                 replaced.append(contentsOf: expandedArgs[paramIndex])
                 k += 1
                 continue
             }
-            if variadic, bt.kind == .Identifier, bt.value == "__VA_ARGS__" {
+            if variadic, bt.kind.isIdentifier, bt.value == "__VA_ARGS__" {
                 let variadicArgs = expandedArgs.dropFirst(params.count)
                 var first = true
                 for va in variadicArgs {
@@ -643,7 +643,7 @@ public final class Preprocessor {
             return ([placeholder(at: token)], false)
         }
         let tailIsMacro =
-            replaced.last?.kind == .Identifier
+            replaced.last?.kind.isIdentifier == true
                 && macros[replaced.last!.value] != nil
         return (result, tailIsMacro)
     }
@@ -688,7 +688,7 @@ public final class Preprocessor {
     private func pasteOperand(
         _ token: Token, params: [String], args: [[Token]]
     ) -> [Token] {
-        if token.kind == .Identifier, let paramIndex = params.firstIndex(of: token.value) {
+        if token.kind.isIdentifier, let paramIndex = params.firstIndex(of: token.value) {
             return args[paramIndex]
         }
         return [token]
@@ -711,7 +711,7 @@ public final class Preprocessor {
     }
 
     private func builtinExpansion(_ token: Token) -> [Token]? {
-        guard token.kind == .Identifier else { return nil }
+        guard token.kind.isIdentifier else { return nil }
         switch token.value {
         case "__FILE__":
             let filepath = context.sourceTable[token.id]?.filepath ?? ""
@@ -812,15 +812,15 @@ public final class Preprocessor {
         var k = 0
         while k < tokens.count {
             let token = tokens[k]
-            if token.kind == .Identifier, token.value == "defined" {
+            if token.kind.isIdentifier, token.value == "defined" {
                 let name: String?
                 if k + 1 < tokens.count, tokens[k + 1].kind == .Separator(.OpenParen),
-                   k + 2 < tokens.count, tokens[k + 2].kind == .Identifier,
+                   k + 2 < tokens.count, tokens[k + 2].kind.isIdentifier,
                    k + 3 < tokens.count, tokens[k + 3].kind == .Separator(.CloseParen)
                 {
                     name = tokens[k + 2].value
                     k += 4
-                } else if k + 1 < tokens.count, tokens[k + 1].kind == .Identifier {
+                } else if k + 1 < tokens.count, tokens[k + 1].kind.isIdentifier {
                     name = tokens[k + 1].value
                     k += 2
                 } else {
@@ -1160,7 +1160,7 @@ private struct ConditionEvaluator {
         }
         index += 2
         guard index < tokens.count,
-              tokens[index].kind == .Identifier
+              tokens[index].kind.isIdentifier
         else {
             onError("expected argument in '\(name)' condition", fn)
             return nil

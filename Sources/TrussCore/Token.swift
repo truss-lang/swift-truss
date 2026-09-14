@@ -174,6 +174,41 @@ public enum KeywordKind: CaseIterable, Sendable {
     }
 }
 
+public enum ContextualKeyword: CaseIterable, Sendable {
+    case In
+    case Get
+    case Set
+    case WillSet
+    case DidSet
+    case Requires
+    case Ensures
+    case Invariant
+    case Decreases
+    case Forall
+    case Exists
+    case By
+    case Result
+    case Old
+    public var code: String {
+        switch self {
+        case .In: "in"
+        case .Get: "get"
+        case .Set: "set"
+        case .WillSet: "willSet"
+        case .DidSet: "didSet"
+        case .Requires: "requires"
+        case .Ensures: "ensures"
+        case .Invariant: "invariant"
+        case .Decreases: "decreases"
+        case .Forall: "forall"
+        case .Exists: "exists"
+        case .By: "by"
+        case .Result: "result"
+        case .Old: "old"
+        }
+    }
+}
+
 public enum SeparatorKind: Sendable {
     case OpenParen // (
     case CloseParen // )
@@ -249,7 +284,7 @@ public enum OperatorKind: Sendable {
 }
 
 public enum TokenKind: Hashable, Equatable {
-    case Identifier
+    case Identifier(ContextualKeyword?)
     case Keyword(KeywordKind)
     case Separator(SeparatorKind)
     case Operator(OperatorKind?)
@@ -261,6 +296,16 @@ public enum TokenKind: Hashable, Equatable {
     case NullLiteral
     case NullptrLiteral
     case Unknown
+
+    public var isIdentifier: Bool {
+        if case .Identifier = self { return true }
+        return false
+    }
+
+    public var contextualKeyword: ContextualKeyword? {
+        if case let .Identifier(keyword) = self { return keyword }
+        return nil
+    }
 }
 
 public struct MacroExpansionSite: Hashable, Equatable {

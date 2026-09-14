@@ -6,7 +6,7 @@ public final class OptionalDesugarPass: AST.Rewriter {
     ) -> Any? {
         let wrapped = rewrite(optionalType.wrappedType)
         let optionalToken = Token(
-            value: "Optional", kind: .Identifier,
+            value: "Optional", kind: .Identifier(nil),
             pos: optionalType.token.pos, id: optionalType.token.id
         )
         let base = AST.Variable(name: optionalToken, sourceRange: optionalType.sourceRange)

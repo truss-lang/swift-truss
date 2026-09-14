@@ -19,6 +19,14 @@ let keywordLookupMap: [String: KeywordKind] = {
     return map
 }()
 
+let contextualKeywordLookupMap: [String: ContextualKeyword] = {
+    var map: [String: ContextualKeyword] = [:]
+    for keyword in ContextualKeyword.allCases {
+        map[keyword.code] = keyword
+    }
+    return map
+}()
+
 let operatorChars: Set<Character> = [
     "/", "=", "-", "+", "!", "*", "%", "<", ">", "&", "|", "^", "~", ".",
 ]
@@ -317,7 +325,7 @@ public final class Lexer {
         if let keyword = keywordLookupMap[value] {
             return Token(value: value, kind: .Keyword(keyword), pos: pos, id: input.id)
         }
-        return Token(value: value, kind: .Identifier, pos: pos, id: input.id)
+        return Token(value: value, kind: .Identifier(contextualKeywordLookupMap[value]), pos: pos, id: input.id)
     }
 
     private func parseBacktickIdentifier() -> Token {
@@ -334,7 +342,7 @@ public final class Lexer {
             if chars.isEmpty {
                 return Token(value: "``", kind: .Unknown, pos: pos, id: input.id)
             }
-            return Token(value: String(chars), kind: .Identifier, pos: pos, id: input.id)
+            return Token(value: String(chars), kind: .Identifier(nil), pos: pos, id: input.id)
         }
         let pos = makePosition(begin)
         return Token(value: "`" + String(chars), kind: .Unknown, pos: pos, id: input.id)

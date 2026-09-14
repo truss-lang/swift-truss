@@ -88,7 +88,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
     #expect(decl!.token.kind == .Keyword(.Let))
-    #expect(decl!.name.kind == .Identifier)
+    #expect(decl!.name.kind.isIdentifier)
     #expect(decl!.name.value == "x")
     #expect(decl!.typeExpression == nil)
     #expect(decl!.initializer == nil)
@@ -148,7 +148,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
     #expect(decl!.token.kind == .Keyword(.Func))
-    #expect(decl!.name.kind == .Identifier)
+    #expect(decl!.name.kind.isIdentifier)
     #expect(decl!.name.value == "main")
     #expect(decl!.returnTypeExpression == nil)
     if case let .Block(body) = decl!.body {
@@ -1237,7 +1237,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let module = statements[0] as? AST.ModuleDecl
     try #require(module != nil)
     #expect(module!.token.kind == .Keyword(.Module))
-    #expect(module!.name.kind == .Identifier)
+    #expect(module!.name.kind.isIdentifier)
     #expect(module!.name.value == "Foo")
     #expect(module!.body.isEmpty)
 }
@@ -2440,7 +2440,7 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     let forStmt = body[0] as? AST.For
     try #require(forStmt != nil)
     #expect(forStmt!.token.kind == .Keyword(.For))
-    #expect(forStmt!.inToken.kind == .Identifier)
+    #expect(forStmt!.inToken.kind.isIdentifier)
     #expect(forStmt!.inToken.value == "in")
     let pattern = forStmt!.pattern as? AST.Variable
     try #require(pattern != nil)
@@ -5766,7 +5766,7 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     let decl = statements[0] as? AST.TypeAliasDecl
     try #require(decl != nil)
     #expect(decl!.token.kind == .Keyword(.TypeAlias))
-    #expect(decl!.name.kind == .Identifier)
+    #expect(decl!.name.kind.isIdentifier)
     #expect(decl!.name.value == "Foo")
     let typeVar = decl!.typeExpression as? AST.Variable
     try #require(typeVar != nil)

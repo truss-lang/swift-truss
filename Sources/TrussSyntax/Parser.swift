@@ -882,7 +882,7 @@ public final class Parser {
             emitError("expected type name after 'typealias'", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
         }
-        if name.kind != .Identifier {
+        if !name.kind.isIdentifier {
             emitError("expected identifier after 'typealias', but got '\(name.value)'", at: name)
         }
         guard let equalToken = next else {
@@ -1891,7 +1891,7 @@ public final class Parser {
         _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute]
     ) -> AST.Statement {
         let token = next!
-        guard let name = peek, name.kind == .Identifier else {
+        guard let name = peek, name.kind.isIdentifier else {
             if let tok = peek {
                 emitError("expected identifier after 'associatedtype'", at: tok)
             } else {
@@ -2049,7 +2049,7 @@ public final class Parser {
                 index += 1
                 if let n = next {
                     name = n
-                    if n.kind != .Identifier {
+                    if !n.kind.isIdentifier {
                         emitError(
                             "expected identifier after 'each', but got '\(n.value)'",
                             at: n
@@ -2059,7 +2059,7 @@ public final class Parser {
                     emitError("expected identifier after 'each'", at: endOfFile)
                     break
                 }
-            } else if t.kind == .Identifier {
+            } else if t.kind.isIdentifier {
                 eachToken = nil
                 name = t
                 index += 1
@@ -2442,7 +2442,7 @@ public final class Parser {
             emitError("expected function name or operator after 'func'", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
         }
-        if name.kind != .Identifier {
+        if !name.kind.isIdentifier {
             if case .Operator = name.kind {
                 // Do nothing
             } else {
@@ -2807,8 +2807,8 @@ public final class Parser {
             guard case .Identifier = t2.kind else {
                 break
             }
-            if t2.value != "get", t2.value != "set", t2.value != "willSet",
-               t2.value != "didSet"
+            if t2.kind != .Identifier(.Get), t2.kind != .Identifier(.Set),
+               t2.kind != .Identifier(.WillSet), t2.kind != .Identifier(.DidSet)
             {
                 break
             }
@@ -2871,7 +2871,7 @@ public final class Parser {
                     if let name = peek {
                         index += 1
                         parameterName = name
-                        if name.kind != .Identifier {
+                        if !name.kind.isIdentifier {
                             emitError(
                                 "expected identifier after '(', but got '\(name.value)'", at: name
                             )
@@ -2944,7 +2944,7 @@ public final class Parser {
                     if let name = peek {
                         index += 1
                         parameterName = name
-                        if name.kind != .Identifier {
+                        if !name.kind.isIdentifier {
                             emitError(
                                 "expected identifier after '(', but got '\(name.value)'", at: name
                             )
@@ -3016,7 +3016,7 @@ public final class Parser {
                     if let name = peek {
                         index += 1
                         parameterName = name
-                        if name.kind != .Identifier {
+                        if !name.kind.isIdentifier {
                             emitError(
                                 "expected identifier after '(', but got '\(name.value)'", at: name
                             )
@@ -3194,10 +3194,7 @@ public final class Parser {
                 )
             )
         }
-        guard let inToken = peek,
-              case .Identifier = inToken.kind,
-              inToken.value == "in"
-        else {
+        guard let inToken = peek, inToken.kind == .Identifier(.In) else {
             emitError(
                 "expected 'in' after for pattern",
                 at: SourceRange(from: token, to: last ?? token, in: buffer)
@@ -3673,7 +3670,7 @@ public final class Parser {
             emitError("expected identifier after 'goto'", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
         }
-        if t.kind != .Identifier {
+        if !t.kind.isIdentifier {
             emitError("expected identifier after 'goto', but got '\(t.value)'", at: t)
         }
         return AST.Goto(token, t, sourceRange: SourceRange(from: token, to: t, in: buffer))
@@ -3952,7 +3949,7 @@ public final class Parser {
                         let closure = parseClosure()
                         trailing.append((label, closure))
                     }
-                    if let t = peek, t.kind == .Identifier, t.value == "in" {
+                    if let t = peek, t.kind == .Identifier(.In) {
                         index += 1
                         place = parseExpression()
                     }
@@ -4381,7 +4378,7 @@ public final class Parser {
                     emitError("expected member name after '.'", at: endOfFile)
                     return nil
                 }
-                if member.kind != .Identifier {
+                if !member.kind.isIdentifier {
                     emitError(
                         "expected identifier after '.', but got '\(member.value)'",
                         at: member
@@ -5364,7 +5361,7 @@ public final class Parser {
         if peek?.kind == .Separator(.OpenParen) || peek?.kind == .Separator(.OpenBracket) {
             signature = parseClosureSignature()
         } else if let t = peek, case .Identifier = t.kind,
-                  let t2 = peek2, case .Identifier = t2.kind, t2.value == "in"
+                  let t2 = peek2, t2.kind == .Identifier(.In)
         {
             index += 1
             let parameter = AST.FunctionDecl.Parameter(
@@ -5436,11 +5433,7 @@ public final class Parser {
             suppressTrailingClosures = false
         }
         let inToken = peek
-        let isIn =
-            inToken.map { t in
-                if case .Identifier = t.kind, t.value == "in" { return true }
-                return false
-            } ?? false
+        let isIn = inToken.map { $0.kind == .Identifier(.In) } ?? false
         if !isIn {
             if let tok = peek {
                 emitError("expected 'in' after closure signature", at: tok)
@@ -5605,7 +5598,7 @@ public final class Parser {
             }
         }
         let place: AST.Expression?
-        if let t = peek, t.kind == .Identifier, t.value == "in" {
+        if let t = peek, t.kind == .Identifier(.In) {
             index += 1
             place = parseExpression()
         } else {
@@ -5689,7 +5682,7 @@ public final class Parser {
                             emitError("expected 'set' after '('", at: endOfFile)
                             break _loop
                         }
-                        if case .Identifier = t2.kind, t2.value == "set" {
+                        if t2.kind == .Identifier(.Set) {
                             index += 1
                         } else {
                             emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
@@ -5727,7 +5720,7 @@ public final class Parser {
                             emitError("expected 'set' after '('", at: endOfFile)
                             break _loop
                         }
-                        if case .Identifier = t2.kind, t2.value == "set" {
+                        if t2.kind == .Identifier(.Set) {
                             index += 1
                         } else {
                             emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
@@ -5765,7 +5758,7 @@ public final class Parser {
                             emitError("expected 'set' after '('", at: endOfFile)
                             break _loop
                         }
-                        if case .Identifier = t2.kind, t2.value == "set" {
+                        if t2.kind == .Identifier(.Set) {
                             index += 1
                         } else {
                             emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
@@ -5803,7 +5796,7 @@ public final class Parser {
                             emitError("expected 'set' after '('", at: endOfFile)
                             break _loop
                         }
-                        if case .Identifier = t2.kind, t2.value == "set" {
+                        if t2.kind == .Identifier(.Set) {
                             index += 1
                         } else {
                             emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
@@ -5841,7 +5834,7 @@ public final class Parser {
                             emitError("expected 'set' after '('", at: endOfFile)
                             break _loop
                         }
-                        if case .Identifier = t2.kind, t2.value == "set" {
+                        if t2.kind == .Identifier(.Set) {
                             index += 1
                         } else {
                             emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
@@ -5879,7 +5872,7 @@ public final class Parser {
                             emitError("expected 'set' after '('", at: endOfFile)
                             break _loop
                         }
-                        if case .Identifier = t2.kind, t2.value == "set" {
+                        if t2.kind == .Identifier(.Set) {
                             index += 1
                         } else {
                             emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
@@ -5917,7 +5910,7 @@ public final class Parser {
                             emitError("expected 'set' after '('", at: endOfFile)
                             break _loop
                         }
-                        if case .Identifier = t2.kind, t2.value == "set" {
+                        if t2.kind == .Identifier(.Set) {
                             index += 1
                         } else {
                             emitError("expected 'set' after '(', but got '\(t2.value)'", at: t2)
@@ -6165,20 +6158,24 @@ public final class Parser {
     }
 
     private func isContractKeyword(_ token: Token) -> Bool {
-        token.kind == .Identifier
-            && (token.value == "requires" || token.value == "ensures" || token.value == "invariant"
-                || token.value == "decreases")
+        switch token.kind {
+        case .Identifier(.Requires), .Identifier(.Ensures), .Identifier(.Invariant),
+             .Identifier(.Decreases):
+            true
+        default:
+            false
+        }
     }
 
     private func parseContractClauses() -> [AST.Contract] {
         var contracts: [AST.Contract] = []
         while let token = peek {
-            guard token.kind == .Identifier else { break }
-            guard token.value == "requires" || token.value == "ensures" || token.value == "invariant"
+            guard token.kind == .Identifier(.Requires) || token.kind == .Identifier(.Ensures)
+                || token.kind == .Identifier(.Invariant)
             else { break }
             let kind: AST.Contract.Kind =
-                if token.value == "requires" { .Requires }
-                else if token.value == "ensures" { .Ensures }
+                if token.kind == .Identifier(.Requires) { .Requires }
+                else if token.kind == .Identifier(.Ensures) { .Ensures }
                 else { .Invariant }
             index += 1
             let expr =
@@ -6192,7 +6189,7 @@ public final class Parser {
     }
 
     private func parseDecreasesClause() -> [AST.Expression]? {
-        guard let token = peek, token.kind == .Identifier, token.value == "decreases" else {
+        guard let token = peek, token.kind == .Identifier(.Decreases) else {
             return nil
         }
         index += 1
@@ -6215,7 +6212,7 @@ public final class Parser {
 
     private func parseLoopProofClauses() -> (invariants: [AST.Contract], decreases: [AST.Expression]?) {
         var invariants: [AST.Contract] = []
-        while let token = peek, token.kind == .Identifier, token.value == "invariant" {
+        while let token = peek, token.kind == .Identifier(.Invariant) {
             index += 1
             let expr =
                 parseExpression(isCondition: true)
@@ -6233,11 +6230,11 @@ public final class Parser {
     }
 
     private func parsePropQuantifier() -> AST.Expression {
-        if let token = peek, token.kind == .Identifier,
-           token.value == "forall" || token.value == "exists"
+        if let token = peek,
+           token.kind == .Identifier(.Forall) || token.kind == .Identifier(.Exists)
         {
             let kind: AST.QuantifierExpr.Kind =
-                token.value == "forall" ? .Forall : .Exists
+                token.kind == .Identifier(.Forall) ? .Forall : .Exists
             index += 1
             guard let openToken = peek, case .Separator(.OpenParen) = openToken.kind else {
                 emitError("expected '(' after '\(token.value)'", at: token)
@@ -6376,9 +6373,7 @@ public final class Parser {
                 emitError("expected ')' after proposition", at: token)
                 return inner
             }
-            if token.kind == .Identifier,
-               token.value == "forall" || token.value == "exists"
-            {
+            if token.kind == .Identifier(.Forall) || token.kind == .Identifier(.Exists) {
                 return parsePropQuantifier()
             }
         }
@@ -6391,7 +6386,7 @@ public final class Parser {
     }
 
     private func parseTacticBlock() -> AST.TacticBlock? {
-        guard let byToken = peek, byToken.kind == .Identifier, byToken.value == "by" else {
+        guard let byToken = peek, byToken.kind == .Identifier(.By) else {
             return nil
         }
         index += 1
@@ -6409,13 +6404,13 @@ public final class Parser {
                 index += 1
                 continue
             }
-            if token.kind == .Identifier {
+            if token.kind.isIdentifier {
                 let name = next!
                 var arguments: [AST.Expression] = []
                 while let argToken = peek {
                     if case .Separator(.CloseBrace) = argToken.kind { break }
                     if case .SemiColon = (argToken.kind as? SeparatorKind) { break }
-                    if argToken.kind == .Identifier { break }
+                    if argToken.kind.isIdentifier { break }
                     if let expr = parseExpression() {
                         arguments.append(expr)
                     } else {
@@ -6448,7 +6443,7 @@ public final class Parser {
         _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute]
     ) -> AST.Statement {
         let keyword = next!
-        guard let name = peek, name.kind == .Identifier else {
+        guard let name = peek, name.kind.isIdentifier else {
             emitError("expected name after '\(keyword.value)'", at: keyword)
             return errorStatement(from: keyword, to: keyword)
         }

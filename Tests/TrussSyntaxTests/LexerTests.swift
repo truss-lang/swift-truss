@@ -24,14 +24,44 @@ func lex(_ source: String) -> [Token] {
 @Test func lexIdentifiers() throws {
     let tokens = lex("foo _bar baz123 func_name")
     try #require(tokens.count == 4)
-    #expect(tokens[0].kind == .Identifier)
+    #expect(tokens[0].kind == .Identifier(nil))
     #expect(tokens[0].value == "foo")
-    #expect(tokens[1].kind == .Identifier)
+    #expect(tokens[1].kind == .Identifier(nil))
     #expect(tokens[1].value == "_bar")
-    #expect(tokens[2].kind == .Identifier)
+    #expect(tokens[2].kind == .Identifier(nil))
     #expect(tokens[2].value == "baz123")
-    #expect(tokens[3].kind == .Identifier)
+    #expect(tokens[3].kind == .Identifier(nil))
     #expect(tokens[3].value == "func_name")
+}
+
+@Test func lexContextualKeywords() throws {
+    let tokens = lex(
+        "in get set willSet didSet requires ensures invariant decreases forall exists by result old"
+    )
+    try #require(tokens.count == 14)
+    #expect(tokens[0].kind == .Identifier(.In))
+    #expect(tokens[1].kind == .Identifier(.Get))
+    #expect(tokens[2].kind == .Identifier(.Set))
+    #expect(tokens[3].kind == .Identifier(.WillSet))
+    #expect(tokens[4].kind == .Identifier(.DidSet))
+    #expect(tokens[5].kind == .Identifier(.Requires))
+    #expect(tokens[6].kind == .Identifier(.Ensures))
+    #expect(tokens[7].kind == .Identifier(.Invariant))
+    #expect(tokens[8].kind == .Identifier(.Decreases))
+    #expect(tokens[9].kind == .Identifier(.Forall))
+    #expect(tokens[10].kind == .Identifier(.Exists))
+    #expect(tokens[11].kind == .Identifier(.By))
+    #expect(tokens[12].kind == .Identifier(.Result))
+    #expect(tokens[13].kind == .Identifier(.Old))
+}
+
+@Test func lexPlainIdentifiersCarryNoContextualKeyword() throws {
+    let tokens = lex("inside gadget getter outcome")
+    try #require(tokens.count == 4)
+    #expect(tokens[0].kind == .Identifier(nil))
+    #expect(tokens[1].kind == .Identifier(nil))
+    #expect(tokens[2].kind == .Identifier(nil))
+    #expect(tokens[3].kind == .Identifier(nil))
 }
 
 @Test func lexKeywordAsIdentifier() throws {
@@ -47,14 +77,14 @@ func lex(_ source: String) -> [Token] {
 @Test func lexBacktickKeywordAsIdentifier() throws {
     let tokens = lex("`public`")
     try #require(tokens.count == 1)
-    #expect(tokens[0].kind == .Identifier)
+    #expect(tokens[0].kind == .Identifier(nil))
     #expect(tokens[0].value == "public")
 }
 
 @Test func lexBacktickRegularIdentifier() throws {
     let tokens = lex("`foo`")
     try #require(tokens.count == 1)
-    #expect(tokens[0].kind == .Identifier)
+    #expect(tokens[0].kind == .Identifier(nil))
     #expect(tokens[0].value == "foo")
 }
 
@@ -62,7 +92,7 @@ func lex(_ source: String) -> [Token] {
     let tokens = lex("let `func` = 5")
     try #require(tokens.count == 4)
     #expect(tokens[0].kind == .Keyword(.Let))
-    #expect(tokens[1].kind == .Identifier)
+    #expect(tokens[1].kind == .Identifier(nil))
     #expect(tokens[1].value == "func")
     #expect(tokens[2].kind == .Operator(.Assign))
     #expect(tokens[3].kind == .IntegerLiteral(5))
@@ -71,11 +101,11 @@ func lex(_ source: String) -> [Token] {
 @Test func lexMultipleBacktickKeywords() throws {
     let tokens = lex("`public` `private` `class`")
     try #require(tokens.count == 3)
-    #expect(tokens[0].kind == .Identifier)
+    #expect(tokens[0].kind == .Identifier(nil))
     #expect(tokens[0].value == "public")
-    #expect(tokens[1].kind == .Identifier)
+    #expect(tokens[1].kind == .Identifier(nil))
     #expect(tokens[1].value == "private")
-    #expect(tokens[2].kind == .Identifier)
+    #expect(tokens[2].kind == .Identifier(nil))
     #expect(tokens[2].value == "class")
 }
 
@@ -309,7 +339,7 @@ func lex(_ source: String) -> [Token] {
     let tokens = lex("let x = 1 + \\\n2")
     try #require(tokens.count == 6)
     #expect(tokens[0].kind == .Keyword(.Let))
-    #expect(tokens[1].kind == .Identifier)
+    #expect(tokens[1].kind == .Identifier(nil))
     #expect(tokens[2].kind == .Operator(.Assign))
     #expect(tokens[3].kind == .IntegerLiteral(1))
     #expect(tokens[4].kind == .Operator(.Plus))
@@ -320,7 +350,7 @@ func lex(_ source: String) -> [Token] {
     let tokens = lex("let x = 1 + \\\u{0D}\u{0A}2")
     try #require(tokens.count == 6)
     #expect(tokens[0].kind == .Keyword(.Let))
-    #expect(tokens[1].kind == .Identifier)
+    #expect(tokens[1].kind == .Identifier(nil))
     #expect(tokens[2].kind == .Operator(.Assign))
     #expect(tokens[3].kind == .IntegerLiteral(1))
     #expect(tokens[4].kind == .Operator(.Plus))
@@ -389,7 +419,7 @@ func lex(_ source: String) -> [Token] {
     let tokens = lex("let x // this is a comment\n = 5")
     try #require(tokens.count == 4)
     #expect(tokens[0].kind == .Keyword(.Let))
-    #expect(tokens[1].kind == .Identifier)
+    #expect(tokens[1].kind == .Identifier(nil))
     #expect(tokens[1].value == "x")
     #expect(tokens[2].kind == .Operator(.Assign))
     #expect(tokens[3].kind == .IntegerLiteral(5))
@@ -399,7 +429,7 @@ func lex(_ source: String) -> [Token] {
     let tokens = lex("let x /* comment */ = 5")
     try #require(tokens.count == 4)
     #expect(tokens[0].kind == .Keyword(.Let))
-    #expect(tokens[1].kind == .Identifier)
+    #expect(tokens[1].kind == .Identifier(nil))
     #expect(tokens[1].value == "x")
     #expect(tokens[2].kind == .Operator(.Assign))
     #expect(tokens[3].kind == .IntegerLiteral(5))
@@ -409,7 +439,7 @@ func lex(_ source: String) -> [Token] {
     let tokens = lex("let /* outer /* inner */ outer */ x = 5")
     try #require(tokens.count == 4)
     #expect(tokens[0].kind == .Keyword(.Let))
-    #expect(tokens[1].kind == .Identifier)
+    #expect(tokens[1].kind == .Identifier(nil))
     #expect(tokens[1].value == "x")
     #expect(tokens[2].kind == .Operator(.Assign))
     #expect(tokens[3].kind == .IntegerLiteral(5))
@@ -426,13 +456,13 @@ func lex(_ source: String) -> [Token] {
     let tokens = lex("func main() { let x = 42 }")
     try #require(tokens.count == 10)
     #expect(tokens[0].kind == .Keyword(.Func))
-    #expect(tokens[1].kind == .Identifier)
+    #expect(tokens[1].kind == .Identifier(nil))
     #expect(tokens[1].value == "main")
     #expect(tokens[2].kind == .Separator(.OpenParen))
     #expect(tokens[3].kind == .Separator(.CloseParen))
     #expect(tokens[4].kind == .Separator(.OpenBrace))
     #expect(tokens[5].kind == .Keyword(.Let))
-    #expect(tokens[6].kind == .Identifier)
+    #expect(tokens[6].kind == .Identifier(nil))
     #expect(tokens[6].value == "x")
     #expect(tokens[7].kind == .Operator(.Assign))
     #expect(tokens[8].kind == .IntegerLiteral(42))
@@ -475,11 +505,11 @@ func lex(_ source: String) -> [Token] {
 @Test func lexCustomOperatorThenComment() throws {
     let tokens = lex("a /=//comment\n b")
     try #require(tokens.count == 3)
-    #expect(tokens[0].kind == .Identifier)
+    #expect(tokens[0].kind == .Identifier(nil))
     #expect(tokens[0].value == "a")
     #expect(tokens[1].kind == .Operator(.DivideAssign))
     #expect(tokens[1].value == "/=")
-    #expect(tokens[2].kind == .Identifier)
+    #expect(tokens[2].kind == .Identifier(nil))
     #expect(tokens[2].value == "b")
 }
 
@@ -560,7 +590,7 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[0].value == "a")
     #expect(tokens[0].isUnterminated)
     #expect(tokens[1].kind == .Separator(.OpenParen))
-    #expect(tokens[2].kind == .Identifier)
+    #expect(tokens[2].kind == .Identifier(nil))
     #expect(tokens[2].value == "b")
     #expect(tokens[3].kind == .Separator(.CloseParen))
     #expect(tokens[4].kind == .StringLiteral)
@@ -574,14 +604,14 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[0].value == "")
     #expect(tokens[0].isUnterminated)
     #expect(tokens[1].kind == .Separator(.OpenParen))
-    #expect(tokens[2].kind == .Identifier)
+    #expect(tokens[2].kind == .Identifier(nil))
     #expect(tokens[2].value == "foo")
     #expect(tokens[3].kind == .Separator(.OpenParen))
     #expect(tokens[4].kind == .StringLiteral)
     #expect(tokens[4].value == "")
     #expect(tokens[4].isUnterminated)
     #expect(tokens[5].kind == .Separator(.OpenParen))
-    #expect(tokens[6].kind == .Identifier)
+    #expect(tokens[6].kind == .Identifier(nil))
     #expect(tokens[6].value == "bar")
     #expect(tokens[7].kind == .Separator(.CloseParen))
     #expect(tokens[8].kind == .Separator(.CloseParen))
@@ -651,7 +681,7 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[0].isRaw)
     #expect(tokens[0].isUnterminated)
     #expect(tokens[1].kind == .Separator(.OpenParen))
-    #expect(tokens[2].kind == .Identifier)
+    #expect(tokens[2].kind == .Identifier(nil))
     #expect(tokens[2].value == "b")
     #expect(tokens[3].kind == .Separator(.CloseParen))
     #expect(tokens[4].kind == .StringLiteral)
@@ -705,7 +735,7 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[0].value == "hello ")
     #expect(tokens[0].isUnterminated)
     #expect(tokens[1].kind == .Separator(.OpenParen))
-    #expect(tokens[2].kind == .Identifier)
+    #expect(tokens[2].kind == .Identifier(nil))
     #expect(tokens[2].value == "x")
     #expect(tokens[3].kind == .Separator(.CloseParen))
     #expect(tokens[4].kind == .StringLiteral)
@@ -740,16 +770,16 @@ func lex(_ source: String) -> [Token] {
     try #require(tokens.count == 3)
     #expect(tokens[0].kind == .Separator(.Sharp))
     #expect(tokens[1].kind == .Keyword(.If))
-    #expect(tokens[2].kind == .Identifier)
+    #expect(tokens[2].kind == .Identifier(nil))
 }
 
 @Test func lexSharpPasteUnaffected() throws {
     let tokens = lex("A ## B")
     try #require(tokens.count == 4)
-    #expect(tokens[0].kind == .Identifier)
+    #expect(tokens[0].kind == .Identifier(nil))
     #expect(tokens[1].kind == .Separator(.Sharp))
     #expect(tokens[2].kind == .Separator(.Sharp))
-    #expect(tokens[3].kind == .Identifier)
+    #expect(tokens[3].kind == .Identifier(nil))
 }
 
 @Test func lexBackslashOperator() throws {
@@ -757,9 +787,9 @@ func lex(_ source: String) -> [Token] {
     try #require(tokens.count == 4)
     #expect(tokens[0].kind == .Operator(.Backslash))
     #expect(tokens[0].value == "\\")
-    #expect(tokens[1].kind == .Identifier)
+    #expect(tokens[1].kind == .Identifier(nil))
     #expect(tokens[2].kind == .Operator(.Dot))
-    #expect(tokens[3].kind == .Identifier)
+    #expect(tokens[3].kind == .Identifier(nil))
 }
 
 @Test func lexBackslashLineContinuationStillWorks() throws {

@@ -84,7 +84,7 @@ public final class PrecedenceGroupInfo: Equatable, Codable {
         let nameValue = try container.decode(String.self, forKey: .Name)
         let code = try container.decode(String.self, forKey: .Associativity)
         name = Token(
-            value: nameValue, kind: .Identifier,
+            value: nameValue, kind: .Identifier(nil),
             pos: Position(pos: 0, line: 0, col: 0, len: 0), id: Id.SourceId(0)
         )
         associativity = switch code {

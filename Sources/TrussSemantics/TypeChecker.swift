@@ -1595,13 +1595,13 @@ public final class TypeChecker: AST.Visitor {
     }
 
     private func labelToken(_ value: String, at token: Token) -> Token {
-        Token(value: value, kind: .Identifier, pos: token.pos, id: token.id)
+        Token(value: value, kind: .Identifier(nil), pos: token.pos, id: token.id)
     }
 
     private func syntheticToken(for expression: AST.Expression) -> Token {
         let range = expression.sourceRange
         return Token(
-            value: "", kind: .Identifier,
+            value: "", kind: .Identifier(nil),
             pos: Position(
                 pos: range.start.offset, line: range.start.line, col: range.start.column,
                 len: max(1, range.end.offset - range.start.offset)

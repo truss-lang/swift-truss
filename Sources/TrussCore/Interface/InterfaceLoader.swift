@@ -137,7 +137,7 @@ public struct InterfaceLoader {
     }
 
     private func syntheticToken(_ name: String) -> Token {
-        Token(value: name, kind: .Identifier, pos: Position(pos: 0, line: 1, col: 1, len: 1), id: Id.SourceId(0))
+        Token(value: name, kind: .Identifier(nil), pos: Position(pos: 0, line: 1, col: 1, len: 1), id: Id.SourceId(0))
     }
 
     public func makeTypeRef(_ ref: InterfaceTypeRef) -> TrussType.TrussType {
