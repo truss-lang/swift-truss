@@ -259,6 +259,25 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         #expect(names.contains("C"))
         #expect(!names.contains("Hidden"))
     }
+
+    @Test func dumpsFunctionKind() throws {
+        let source = """
+        public class C {
+            public init() {}
+            public func method() {}
+            public static func staticMethod() {}
+        }
+        public func top() {}
+        """
+        let result = Driver(config: DriverConfig(moduleName: "Test")).runString(source)
+        #expect(!result.hasErrors, "diagnostics: \(result.stderr)")
+        let interface = try #require(result.packageInterface)
+        let text = ModuleInterfaceDumper().dump(interface)
+        #expect(text.contains("init()"))
+        #expect(text.contains("method method()"))
+        #expect(text.contains("static func staticMethod()"))
+        #expect(text.contains("func top()"))
+    }
 }
 
 @Suite struct PackageManagerTests {

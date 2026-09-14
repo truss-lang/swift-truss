@@ -118,7 +118,8 @@ public struct InterfaceLoader {
                 name: f.name,
                 locals: [],
                 scope: scope,
-                signature: signature
+                signature: signature,
+                kind: functionKind(f.kind)
             )
             symbol.access = .Public
             symbol.packageId = package.id
@@ -133,6 +134,16 @@ public struct InterfaceLoader {
             symbol.isMutable = x.isMutable
             context.register(symbol: symbol)
             scope.registerValue(symbol, at: syntheticToken(x.name), context: context)
+        }
+    }
+
+    private func functionKind(_ kind: InterfaceFunctionKind) -> Symbol.FunctionSymbol.Kind {
+        switch kind {
+        case .Function: .Function
+        case .Method: .Method
+        case .StaticMethod: .StaticMethod
+        case .Initializer: .Initializer
+        case .Deinitializer: .Deinitializer
         }
     }
 

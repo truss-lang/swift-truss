@@ -39,7 +39,7 @@ private func trussInterface() -> ModuleInterface {
             types: [.Nominal(InterfaceNominal(kind: .StructType, name: "Int"))],
             values: [.Function(InterfaceFunction(
                 name: "print", labels: [nil], hasDefaults: [false],
-                isVararg: [false], isVariadic: false, isStatic: true
+                isVararg: [false], isVariadic: false
             ))]
         )
     )
@@ -56,7 +56,7 @@ private func fooInterface() -> ModuleInterface {
                         types: [.Nominal(InterfaceNominal(kind: .StructType, name: "Point"))],
                         values: [.Function(InterfaceFunction(
                             name: "makePoint", labels: [nil], hasDefaults: [false],
-                            isVararg: [false], isVariadic: false, isStatic: true
+                            isVararg: [false], isVariadic: false
                         ))]
                     )
                 ),
@@ -188,4 +188,89 @@ private func fooInterface() -> ModuleInterface {
     let scope = program.packageSymbol!.scope
     #expect(scope.types["FooType"] != nil)
     #expect(!context.diagnositicEngine.hasErrors)
+}
+
+private func interfaceFunctionKinds(of scope: InterfaceScope) -> [String: InterfaceFunctionKind] {
+    var result: [String: InterfaceFunctionKind] = [:]
+    for value in scope.values {
+        if case let .Function(f) = value { result[f.name] = f.kind }
+    }
+    return result
+}
+
+private func nominalScope(_ name: String, in interface: ModuleInterface) -> InterfaceScope? {
+    for type in interface.root.types {
+        if case let .Nominal(n) = type, n.name == name { return n.scope }
+    }
+    return nil
+}
+
+private func symbolFunctionKind(of scope: Scope, _ name: String) -> Symbol.FunctionSymbol.Kind? {
+    (scope.values[name]?.first as? Symbol.FunctionSymbol)?.kind
+}
+
+@Test func interfaceExtractorPreservesFunctionKind() throws {
+    let (context, programs) = runEnter([
+        """
+        public class C {
+            public init() {}
+            public func method() {}
+            public static func staticMethod() {}
+        }
+        public func free() {}
+        """,
+    ])
+    let interface = InterfaceExtractor(context: context).extract(from: programs[0])
+    #expect(interfaceFunctionKinds(of: interface.root) == ["free": .Function])
+    let scope = try #require(nominalScope("C", in: interface))
+    #expect(interfaceFunctionKinds(of: scope) == [
+        "init": .Initializer, "method": .Method, "staticMethod": .StaticMethod,
+    ])
+}
+
+@Test func functionKindSurvivesEncodingAndLoading() throws {
+    let interface = ModuleInterface(
+        name: "K",
+        root: InterfaceScope(
+            types: [
+                .Nominal(InterfaceNominal(
+                    kind: .ClassType,
+                    name: "C",
+                    scope: InterfaceScope(values: [
+                        .Function(InterfaceFunction(
+                            name: "deinit", labels: [], hasDefaults: [], isVararg: [], isVariadic: false,
+                            kind: .Deinitializer
+                        )),
+                        .Function(InterfaceFunction(
+                            name: "init", labels: [], hasDefaults: [], isVararg: [], isVariadic: false,
+                            kind: .Initializer
+                        )),
+                        .Function(InterfaceFunction(
+                            name: "method", labels: [], hasDefaults: [], isVararg: [], isVariadic: false,
+                            kind: .Method
+                        )),
+                        .Function(InterfaceFunction(
+                            name: "staticMethod", labels: [], hasDefaults: [], isVararg: [], isVariadic: false,
+                            kind: .StaticMethod
+                        )),
+                    ])
+                )),
+            ],
+            values: [.Function(InterfaceFunction(
+                name: "free", labels: [], hasDefaults: [], isVararg: [], isVariadic: false
+            ))]
+        )
+    )
+    let decoded = try TrussPackageDecoder().decode(TrussPackageEncoder(interface: interface).encode())
+    #expect(decoded.interface == interface)
+
+    let context = Context()
+    InterfaceLoader(context: context).load(decoded.interface)
+    let package = try #require(context.name2Package["K"])
+    let cls = try #require(package.scope.types["C"] as? Symbol.ClassSymbol)
+    #expect(symbolFunctionKind(of: cls.scope, "init") == .Initializer)
+    #expect(symbolFunctionKind(of: cls.scope, "deinit") == .Deinitializer)
+    #expect(symbolFunctionKind(of: cls.scope, "method") == .Method)
+    #expect(symbolFunctionKind(of: cls.scope, "staticMethod") == .StaticMethod)
+    #expect(symbolFunctionKind(of: package.scope, "free") == .Function)
 }

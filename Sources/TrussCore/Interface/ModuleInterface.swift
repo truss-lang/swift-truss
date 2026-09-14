@@ -74,6 +74,14 @@ public enum InterfaceValueDeclCode: UInt8 {
     case Variable = 1
 }
 
+public enum InterfaceFunctionKind: UInt8, Equatable, Hashable {
+    case Function = 0
+    case Method = 1
+    case StaticMethod = 2
+    case Initializer = 3
+    case Deinitializer = 4
+}
+
 public struct InterfaceNominal: Equatable, Hashable {
     public var kind: InterfaceNominalKind
     public var name: String
@@ -132,7 +140,7 @@ public struct InterfaceFunction: Equatable, Hashable {
     public var hasDefaults: [Bool]
     public var isVararg: [Bool]
     public var isVariadic: Bool
-    public var isStatic: Bool
+    public var kind: InterfaceFunctionKind
     public var functionType: InterfaceTypeRef?
     public init(
         name: String,
@@ -140,7 +148,7 @@ public struct InterfaceFunction: Equatable, Hashable {
         hasDefaults: [Bool],
         isVararg: [Bool],
         isVariadic: Bool,
-        isStatic: Bool = false,
+        kind: InterfaceFunctionKind = .Function,
         functionType: InterfaceTypeRef? = nil
     ) {
         self.name = name
@@ -148,7 +156,7 @@ public struct InterfaceFunction: Equatable, Hashable {
         self.hasDefaults = hasDefaults
         self.isVararg = isVararg
         self.isVariadic = isVariadic
-        self.isStatic = isStatic
+        self.kind = kind
         self.functionType = functionType
     }
 }

@@ -191,7 +191,7 @@ public final class TrussPackageEncoder {
             w.u32(UInt32(f.isVararg.count)); for b in f.isVararg {
                 w.bool(b)
             }
-            w.bool(f.isVariadic); w.bool(f.isStatic)
+            w.bool(f.isVariadic); w.u8(f.kind.rawValue)
             w.bool(f.functionType != nil); if let t = f.functionType { encodeRef(t, w) }
         case let .Variable(v):
             w.u8(InterfaceValueDeclCode.Variable.rawValue)

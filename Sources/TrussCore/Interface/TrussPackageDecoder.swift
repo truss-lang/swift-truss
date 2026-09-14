@@ -213,7 +213,9 @@ public struct TrussPackageDecoder {
                 try vars.append(reader.bool())
             }
             let isVariadic = try reader.bool()
-            let isStatic = try reader.bool()
+            guard let kind = try InterfaceFunctionKind(rawValue: reader.u8()) else {
+                throw TrussPackageCodecError.Truncated
+            }
             let hasType = try reader.bool()
             let ft = hasType ? try decodeRef(&reader) : nil
             return .Function(InterfaceFunction(
@@ -222,7 +224,7 @@ public struct TrussPackageDecoder {
                 hasDefaults: defs,
                 isVararg: vars,
                 isVariadic: isVariadic,
-                isStatic: isStatic,
+                kind: kind,
                 functionType: ft
             ))
         case .Variable:

@@ -102,6 +102,7 @@ public struct InterfaceExtractor {
             return .Function(InterfaceFunction(
                 name: f.name, labels: labels, hasDefaults: defs, isVararg: vars,
                 isVariadic: f.signature.isVariadic,
+                kind: functionKind(f.kind),
                 functionType: f.functionType.map(typeRef)
             ))
         case let v as Symbol.VariableSymbol:
@@ -110,6 +111,16 @@ public struct InterfaceExtractor {
             ))
         default:
             return nil
+        }
+    }
+
+    private func functionKind(_ kind: Symbol.FunctionSymbol.Kind) -> InterfaceFunctionKind {
+        switch kind {
+        case .Function: .Function
+        case .Method: .Method
+        case .StaticMethod: .StaticMethod
+        case .Initializer: .Initializer
+        case .Deinitializer: .Deinitializer
         }
     }
 

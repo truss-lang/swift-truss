@@ -46,10 +46,11 @@ public struct ModuleInterfaceDumper {
         for v in scope.values {
             switch v {
             case let .Function(f):
+                let head = functionHead(f)
                 if let ft = f.functionType {
-                    out += "\(pad)func \(f.name)\(typeText(ft))\n"
+                    out += "\(pad)\(head)\(typeText(ft))\n"
                 } else {
-                    out += "\(pad)func \(f.name)\(signatureText(f))\n"
+                    out += "\(pad)\(head)\(signatureText(f))\n"
                 }
             case let .Variable(x):
                 out += "\(pad)var \(x.name)"
@@ -66,6 +67,16 @@ public struct ModuleInterfaceDumper {
         case .EnumType: "enum"
         case .ProtocolType: "protocol"
         case .ActorType: "actor"
+        }
+    }
+
+    private func functionHead(_ f: InterfaceFunction) -> String {
+        switch f.kind {
+        case .Function: "func \(f.name)"
+        case .Method: "method \(f.name)"
+        case .StaticMethod: "static func \(f.name)"
+        case .Initializer: "init"
+        case .Deinitializer: "deinit"
         }
     }
 
