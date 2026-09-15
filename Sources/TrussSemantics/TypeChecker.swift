@@ -237,7 +237,7 @@ public final class TypeChecker: AST.Visitor {
     }
 
     private func instanceSelfType(_ symbol: Symbol.FunctionSymbol) -> TrussType.TrussType? {
-        guard !symbol.isStatic, let memberOf = symbol.memberOf else { return nil }
+        guard symbol.kind != .StaticMethod, let memberOf = symbol.memberOf else { return nil }
         guard let owner = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol,
               let typeId = owner.typeId,
               let nominalType = context.typeTable[typeId] as? TrussType.NominalType
@@ -1331,7 +1331,7 @@ public final class TypeChecker: AST.Visitor {
         while let currentType = current {
             if let entries = currentType.scope.values[name] {
                 let filtered = entries.compactMap { $0 as? Symbol.FunctionSymbol }
-                    .filter { $0.isStatic == isStatic }
+                    .filter { ($0.kind == .StaticMethod) == isStatic }
                 if !filtered.isEmpty {
                     return filtered
                 }

@@ -107,10 +107,20 @@ public struct InterfaceExtractor {
             ))
         case let v as Symbol.VariableSymbol:
             return .Variable(InterfaceVariable(
-                name: v.name, isMutable: v.isMutable, type: v.type.map(typeRef)
+                name: v.name, isMutable: v.isMutable, kind: variableKind(v.kind),
+                type: v.type.map(typeRef)
             ))
         default:
             return nil
+        }
+    }
+
+    private func variableKind(_ kind: Symbol.VariableSymbol.Kind) -> InterfaceVariableKind {
+        switch kind {
+        case .Global: .Global
+        case .Property: .Property
+        case .StaticProperty: .StaticProperty
+        case .Local, .Free: .Global
         }
     }
 

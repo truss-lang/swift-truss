@@ -47,7 +47,7 @@ final class VTableCollector {
     }
 
     private func isVirtual(_ function: Symbol.FunctionSymbol) -> Bool {
-        function.kind == .Method && !function.isStatic && !function.isFinal && !function.isAbstract
+        function.kind == .Method && function.kind != .StaticMethod && !function.isFinal && !function.isAbstract
     }
 
     private func register(

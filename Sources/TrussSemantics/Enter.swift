@@ -7,24 +7,48 @@ public final class Enter: AST.Visitor {
     private var currentModuleSymbol: Symbol.ModuleSymbol? = nil
     private var typeStack: [Symbol.NominalTypeSymbol] = []
     private var moduleScope: Scope? = nil
+    private var inFunctionBody = 0
+    private var inExtension = 0
     public init(context: Context) {
         self.context = context
+    }
+
+    private func containsAbstract(_ modifiers: [AST.Modifier]) -> Bool {
+        modifiers.contains { if case .Abstract = $0.kind { true } else { false } }
+    }
+
+    private func containsStatic(_ modifiers: [AST.Modifier]) -> Bool {
+        modifiers.contains { if case .Static = $0.kind { true } else { false } }
+    }
+
+    private var isMemberImplementation: Bool {
+        inFunctionBody == 0 && (typeStack.last != nil || inExtension > 0)
+            && !(typeStack.last is Symbol.ProtocolSymbol)
     }
 
     private func registerValueSymbol(_ symbol: Symbol.Symbol, at token: Token) {
         AccessExtractor.record(
             symbol, package: currentPackageSymbol, module: currentModuleSymbol
         )
-        symbol.memberOf = typeStack.last?.id
+        if inFunctionBody == 0 {
+            symbol.memberOf = typeStack.last?.id
+        }
         context.register(symbol: symbol)
         currentScope!.registerValue(symbol, at: token, context: context)
+    }
+
+    private func registerSelfSymbol(in scope: Scope, at token: Token) {
+        let symbol = Symbol.SelfSymbol(kind: .Local, id: context.nextSymbolId, name: "self")
+        symbol.memberOf = typeStack.last?.id
+        context.register(symbol: symbol)
+        scope.registerValue(symbol, at: token, context: context)
     }
 
     private func registerMemberSymbol(
         _ symbol: Symbol.Symbol, at token: Token, modifiers: [AST.Modifier]
     ) {
         AccessExtractor.apply(to: symbol, modifiers: modifiers, context: context)
-        symbol.isAbstract = modifiers.contains { if case .Abstract = $0.kind { true } else { false } }
+        symbol.isAbstract = containsAbstract(modifiers)
         symbol.isFinal = modifiers.contains { if case .Final = $0.kind { true } else { false } }
         registerValueSymbol(symbol, at: token)
     }
@@ -73,7 +97,7 @@ public final class Enter: AST.Visitor {
 
     @discardableResult
     private func registerLocal(_ name: Token) -> Symbol.VariableSymbol {
-        let symbol = Symbol.VariableSymbol(id: context.nextSymbolId, name: name.value)
+        let symbol = Symbol.VariableSymbol(kind: .Local, id: context.nextSymbolId, name: name.value)
         registerValueSymbol(symbol, at: name)
         return symbol
     }
@@ -86,6 +110,13 @@ public final class Enter: AST.Visitor {
         body(scope)
         currentScope = lastScope
         return scope
+    }
+
+    @discardableResult
+    private func withFunctionBody<T>(_ body: () -> T) -> T {
+        inFunctionBody += 1
+        defer { inFunctionBody -= 1 }
+        return body()
     }
 
     @discardableResult
@@ -130,9 +161,11 @@ public final class Enter: AST.Visitor {
         let virtualScope = extensionDecl.virtualScope!
         let lastScope = currentScope
         currentScope = virtualScope
+        inExtension += 1
         for statement in extensionDecl.body {
             visit(statement, additional: additional)
         }
+        inExtension -= 1
         currentScope = lastScope
         return nil
     }
@@ -155,14 +188,22 @@ public final class Enter: AST.Visitor {
 
     @discardableResult
     public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil) -> Any? {
-        let scope = withScope { scope in
-            registerGenericParams(functionDecl.genericDecl, into: scope)
-            for (index, parameter) in functionDecl.parameters.enumerated() {
-                functionDecl.parameters[index].symbol = registerLocal(parameter.name)
+        let hasSelf = isMemberImplementation && functionDecl.body != nil
+            && !containsStatic(functionDecl.modifiers)
+            && !containsAbstract(functionDecl.modifiers)
+        let scope = withFunctionBody {
+            withScope { scope in
+                if hasSelf {
+                    registerSelfSymbol(in: scope, at: functionDecl.name)
+                }
+                registerGenericParams(functionDecl.genericDecl, into: scope)
+                for (index, parameter) in functionDecl.parameters.enumerated() {
+                    functionDecl.parameters[index].symbol = registerLocal(parameter.name)
+                }
+                super.visitFunctionDecl(functionDecl, additional: additional)
             }
-            super.visitFunctionDecl(functionDecl, additional: additional)
         }
-        let isStatic = functionDecl.modifiers.contains { if case .Static = $0.kind { true } else { false } }
+        let isStatic = containsStatic(functionDecl.modifiers)
         let kind: Symbol.FunctionSymbol.Kind = if isStatic {
             .StaticMethod
         } else if typeStack.last != nil {
@@ -188,12 +229,18 @@ public final class Enter: AST.Visitor {
 
     @discardableResult
     public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil) -> Any? {
-        let scope = withScope { scope in
-            registerGenericParams(initDecl.genericDecl, into: scope)
-            for (index, parameter) in initDecl.parameters.enumerated() {
-                initDecl.parameters[index].symbol = registerLocal(parameter.name)
+        let hasSelf = isMemberImplementation && !containsAbstract(initDecl.modifiers)
+        let scope = withFunctionBody {
+            withScope { scope in
+                if hasSelf {
+                    registerSelfSymbol(in: scope, at: initDecl.token)
+                }
+                registerGenericParams(initDecl.genericDecl, into: scope)
+                for (index, parameter) in initDecl.parameters.enumerated() {
+                    initDecl.parameters[index].symbol = registerLocal(parameter.name)
+                }
+                super.visitInitDecl(initDecl, additional: additional)
             }
-            super.visitInitDecl(initDecl, additional: additional)
         }
         let symbol = Symbol.FunctionSymbol(
             id: context.nextSymbolId,
@@ -213,14 +260,18 @@ public final class Enter: AST.Visitor {
     public override func visitSubscriptDecl(
         _ subscriptDecl: AST.SubscriptDecl, additional: Any? = nil
     ) -> Any? {
-        let scope = withScope { scope in
-            registerGenericParams(subscriptDecl.genericDecl, into: scope)
-            for (index, parameter) in subscriptDecl.parameters.enumerated() {
-                subscriptDecl.parameters[index].symbol = registerLocal(parameter.name)
+        let hasSelf = isMemberImplementation && !containsStatic(subscriptDecl.modifiers)
+            && !containsAbstract(subscriptDecl.modifiers)
+        let scope = withFunctionBody {
+            withScope { scope in
+                registerGenericParams(subscriptDecl.genericDecl, into: scope)
+                for (index, parameter) in subscriptDecl.parameters.enumerated() {
+                    subscriptDecl.parameters[index].symbol = registerLocal(parameter.name)
+                }
+                super.visitSubscriptDecl(subscriptDecl, additional: additional)
             }
-            super.visitSubscriptDecl(subscriptDecl, additional: additional)
         }
-        let isStatic = subscriptDecl.modifiers.contains { if case .Static = $0.kind { true } else { false } }
+        let isStatic = containsStatic(subscriptDecl.modifiers)
         let kind: Symbol.FunctionSymbol.Kind = isStatic ? .StaticMethod : .Method
         let memberOf = typeStack.last?.id
         let getter = Symbol.FunctionSymbol(
@@ -229,6 +280,9 @@ public final class Enter: AST.Visitor {
             kind: kind
         )
         registerAccessorSymbol(getter, at: subscriptDecl.token, memberOf: memberOf)
+        if hasSelf {
+            registerSelfSymbol(in: scope, at: subscriptDecl.token)
+        }
         let getAccessor = subscriptDecl.accessors.first { $0.kind == .Get }
         let setAccessor = subscriptDecl.accessors.first { $0.kind == .Set }
         let setter: Symbol.FunctionSymbol?
@@ -250,6 +304,12 @@ public final class Enter: AST.Visitor {
                 accessorSymbol, at: setAccessor.parameterName ?? setAccessor.token,
                 memberOf: memberOf
             )
+            if hasSelf, let accessorScope = setAccessor.scope {
+                registerSelfSymbol(
+                    in: accessorScope,
+                    at: setAccessor.parameterName ?? setAccessor.token ?? subscriptDecl.token
+                )
+            }
             setter = accessorSymbol
         } else {
             setter = nil
@@ -284,17 +344,26 @@ public final class Enter: AST.Visitor {
     @discardableResult
     public override func visitVariableDecl(_ variableDecl: AST.VariableDecl, additional: Any? = nil) -> Any? {
         super.visitVariableDecl(variableDecl, additional: additional)
-        let symbol = Symbol.VariableSymbol(id: context.nextSymbolId, name: variableDecl.name.value)
+        let kind: Symbol.VariableSymbol.Kind = if inFunctionBody > 0 {
+            .Local
+        } else if typeStack.last != nil || inExtension > 0 {
+            containsStatic(variableDecl.modifiers) ? .StaticProperty : .Property
+        } else {
+            .Global
+        }
+        let symbol = Symbol.VariableSymbol(
+            kind: kind, id: context.nextSymbolId, name: variableDecl.name.value
+        )
         AccessExtractor.apply(to: symbol, modifiers: variableDecl.modifiers, context: context)
         if case .Keyword(.Let) = variableDecl.token.kind {
             symbol.isMutable = false
         }
-        symbol.isAbstract = variableDecl.modifiers.contains { if case .Abstract = $0.kind { true } else { false } }
+        symbol.isAbstract = containsAbstract(variableDecl.modifiers)
         symbol.isFinal = variableDecl.modifiers.contains { if case .Final = $0.kind { true } else { false } }
         registerValueSymbol(symbol, at: variableDecl.name)
         variableDecl.symbol = symbol
-        let isStatic = variableDecl.modifiers.contains { if case .Static = $0.kind { true } else { false } }
-        let kind: Symbol.FunctionSymbol.Kind = isStatic ? .StaticMethod : .Method
+        let isStatic = containsStatic(variableDecl.modifiers)
+        let accessorKind: Symbol.FunctionSymbol.Kind = isStatic ? .StaticMethod : .Method
         for accessor in variableDecl.accessors {
             let scope = accessor.scope ?? Scope()
             let signature: Symbol.FunctionSignature = accessor.kind == .Get
@@ -306,7 +375,7 @@ public final class Enter: AST.Visitor {
                 )
             let accessorSymbol = Symbol.FunctionSymbol(
                 id: context.nextSymbolId, name: variableDecl.name.value,
-                locals: locals(of: scope), scope: scope, signature: signature, kind: kind
+                locals: locals(of: scope), scope: scope, signature: signature, kind: accessorKind
             )
             accessorSymbol.access = accessor.kind == .Get
                 ? symbol.access : (symbol.setterAccess ?? symbol.access)
@@ -315,24 +384,33 @@ public final class Enter: AST.Visitor {
                 memberOf: symbol.memberOf
             )
             accessor.symbol = accessorSymbol
+            if isMemberImplementation, !isStatic, !containsAbstract(variableDecl.modifiers) {
+                registerSelfSymbol(
+                    in: scope, at: accessor.token ?? accessor.parameterName ?? variableDecl.name
+                )
+            }
         }
         return nil
     }
 
     @discardableResult
     public override func visitAccessor(_ accessor: AST.Accessor, additional: Any? = nil) -> Any? {
-        withScope { scope in
-            if accessor.kind != .Get {
-                let name = accessor.parameterName?.value
-                    ?? (accessor.kind == .DidSet ? "oldValue" : "newValue")
-                if let token = accessor.parameterName ?? accessor.token {
-                    let symbol = Symbol.VariableSymbol(id: context.nextSymbolId, name: name)
-                    context.register(symbol: symbol)
-                    scope.registerValue(symbol, at: token, context: context)
+        withFunctionBody {
+            withScope { scope in
+                if accessor.kind != .Get {
+                    let name = accessor.parameterName?.value
+                        ?? (accessor.kind == .DidSet ? "oldValue" : "newValue")
+                    if let token = accessor.parameterName ?? accessor.token {
+                        let symbol = Symbol.VariableSymbol(
+                            kind: .Local, id: context.nextSymbolId, name: name
+                        )
+                        context.register(symbol: symbol)
+                        scope.registerValue(symbol, at: token, context: context)
+                    }
                 }
+                super.visitAccessor(accessor, additional: additional)
+                accessor.scope = scope
             }
-            super.visitAccessor(accessor, additional: additional)
-            accessor.scope = scope
         }
         return nil
     }
@@ -343,8 +421,14 @@ public final class Enter: AST.Visitor {
             context.emitError("deinitializer is not allowed in an extension", at: deinitDecl.token)
             return nil
         }
-        let scope = withScope { _ in
-            super.visitDeinitDecl(deinitDecl, additional: additional)
+        let hasSelf = isMemberImplementation && !containsAbstract(deinitDecl.modifiers)
+        let scope = withFunctionBody {
+            withScope { scope in
+                if hasSelf {
+                    registerSelfSymbol(in: scope, at: deinitDecl.token)
+                }
+                super.visitDeinitDecl(deinitDecl, additional: additional)
+            }
         }
         deinitDecl.scope = scope
         let symbol = Symbol.FunctionSymbol(
@@ -364,14 +448,16 @@ public final class Enter: AST.Visitor {
 
     @discardableResult
     public override func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
-        withScope { scope in
-            closure.scope = scope
-            if let signature = closure.signature {
-                for (index, parameter) in signature.parameters.enumerated() {
-                    closure.signature?.parameters[index].symbol = registerLocal(parameter.name)
+        withFunctionBody {
+            withScope { scope in
+                closure.scope = scope
+                if let signature = closure.signature {
+                    for (index, parameter) in signature.parameters.enumerated() {
+                        closure.signature?.parameters[index].symbol = registerLocal(parameter.name)
+                    }
                 }
+                super.visitClosure(closure, additional: additional)
             }
-            super.visitClosure(closure, additional: additional)
         }
         return nil
     }

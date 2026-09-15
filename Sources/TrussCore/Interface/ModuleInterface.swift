@@ -82,6 +82,12 @@ public enum InterfaceFunctionKind: UInt8, Equatable, Hashable {
     case Deinitializer = 4
 }
 
+public enum InterfaceVariableKind: UInt8, Equatable, Hashable {
+    case Global = 0
+    case Property = 1
+    case StaticProperty = 2
+}
+
 public struct InterfaceNominal: Equatable, Hashable {
     public var kind: InterfaceNominalKind
     public var name: String
@@ -164,10 +170,15 @@ public struct InterfaceFunction: Equatable, Hashable {
 public struct InterfaceVariable: Equatable, Hashable {
     public var name: String
     public var isMutable: Bool
+    public var kind: InterfaceVariableKind
     public var type: InterfaceTypeRef?
-    public init(name: String, isMutable: Bool = true, type: InterfaceTypeRef? = nil) {
+    public init(
+        name: String, isMutable: Bool = true, kind: InterfaceVariableKind = .Global,
+        type: InterfaceTypeRef? = nil
+    ) {
         self.name = name
         self.isMutable = isMutable
+        self.kind = kind
         self.type = type
     }
 }

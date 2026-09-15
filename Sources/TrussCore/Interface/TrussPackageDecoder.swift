@@ -230,9 +230,14 @@ public struct TrussPackageDecoder {
         case .Variable:
             let name = try reader.string()
             let isMutable = try reader.bool()
+            guard let kind = try InterfaceVariableKind(rawValue: reader.u8()) else {
+                throw TrussPackageCodecError.Truncated
+            }
             let hasType = try reader.bool()
             let t = hasType ? try decodeRef(&reader) : nil
-            return .Variable(InterfaceVariable(name: name, isMutable: isMutable, type: t))
+            return .Variable(InterfaceVariable(
+                name: name, isMutable: isMutable, kind: kind, type: t
+            ))
         }
     }
 }

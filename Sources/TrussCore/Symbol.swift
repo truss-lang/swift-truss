@@ -154,10 +154,6 @@ public enum Symbol {
             }
         }
 
-        public var isStatic: Bool {
-            kind == .StaticMethod
-        }
-
         public enum Kind {
             case Function
             case Method
@@ -178,10 +174,34 @@ public enum Symbol {
     }
 
     public final class VariableSymbol: Symbol {
+        public var kind: Kind
         public var type: TrussType.TrussType? = nil
         public var isMutable: Bool = true
-        public init(id: Id.SymbolId, name: String) {
+        public init(kind: Kind, id: Id.SymbolId, name: String) {
+            self.kind = kind
             super.init(id, name)
+        }
+
+        public enum Kind {
+            case Global
+            case Local
+            case Free
+            case Property
+            case StaticProperty
+        }
+    }
+
+    public final class SelfSymbol: Symbol {
+        public var kind: Kind
+        public var type: TrussType.TrussType? = nil
+        public init(kind: Kind, id: Id.SymbolId, name: String) {
+            self.kind = kind
+            super.init(id, name)
+        }
+
+        public enum Kind {
+            case Local
+            case Free
         }
     }
 
@@ -202,6 +222,7 @@ public enum Symbol {
             switch symbol {
             case is FunctionSymbol: "function"
             case is VariableSymbol: "var"
+            case is SelfSymbol: "self"
             case is CaseSymbol: "case"
             default: "value"
             }
@@ -246,6 +267,10 @@ public enum Symbol {
                                 setter, named: "setter", indent: indent + 2, program: program
                             )
                         }
+                    } else if let selfSymbol = symbol as? SelfSymbol {
+                        out += "\(pad)\(valuePrefix(symbol)) (\(selfSymbol.kind)) #\(selfSymbol.id.id)\n"
+                    } else if let variable = symbol as? VariableSymbol {
+                        out += "\(pad)\(valuePrefix(symbol)) \(name) (\(variable.kind)) #\(symbol.id.id)\n"
                     } else {
                         out += "\(pad)\(valuePrefix(symbol)) \(name) #\(symbol.id.id)\n"
                     }

@@ -209,6 +209,51 @@ private func symbolFunctionKind(of scope: Scope, _ name: String) -> Symbol.Funct
     (scope.values[name]?.first as? Symbol.FunctionSymbol)?.kind
 }
 
+private func symbolVariableKind(of scope: Scope, _ name: String) -> Symbol.VariableSymbol.Kind? {
+    (scope.values[name]?.first as? Symbol.VariableSymbol)?.kind
+}
+
+private func interfaceVariableKinds(of scope: InterfaceScope) -> [String: InterfaceVariableKind] {
+    var result: [String: InterfaceVariableKind] = [:]
+    for value in scope.values {
+        if case let .Variable(v) = value { result[v.name] = v.kind }
+    }
+    return result
+}
+
+@Test func interfaceExtractorPreservesVariableKind() throws {
+    let (context, programs) = runEnter([
+        """
+        public struct S { public var p: Int; public static var sp: Int }
+        public var g: Int
+        """,
+    ])
+    let interface = InterfaceExtractor(context: context).extract(from: programs[0])
+    #expect(interfaceVariableKinds(of: interface.root) == ["g": .Global])
+    let scope = try #require(nominalScope("S", in: interface))
+    #expect(interfaceVariableKinds(of: scope) == ["p": .Property, "sp": .StaticProperty])
+}
+
+@Test func variableKindSurvivesEncodingAndLoading() throws {
+    let interface = ModuleInterface(
+        name: "V",
+        root: InterfaceScope(values: [
+            .Variable(InterfaceVariable(name: "g", kind: .Global)),
+            .Variable(InterfaceVariable(name: "p", kind: .Property)),
+            .Variable(InterfaceVariable(name: "sp", kind: .StaticProperty)),
+        ])
+    )
+    let decoded = try TrussPackageDecoder().decode(TrussPackageEncoder(interface: interface).encode())
+    #expect(decoded.interface == interface)
+
+    let context = Context()
+    InterfaceLoader(context: context).load(decoded.interface)
+    let package = try #require(context.name2Package["V"])
+    #expect(symbolVariableKind(of: package.scope, "g") == .Global)
+    #expect(symbolVariableKind(of: package.scope, "p") == .Property)
+    #expect(symbolVariableKind(of: package.scope, "sp") == .StaticProperty)
+}
+
 @Test func interfaceExtractorPreservesFunctionKind() throws {
     let (context, programs) = runEnter([
         """

@@ -271,3 +271,251 @@ import TrussCore
     #expect(symbol === closure.scope?.values["x"]?.first as? Symbol.VariableSymbol)
     #expect(!context.diagnositicEngine.hasErrors)
 }
+
+@Test func instanceMethodSelfSymbol() throws {
+    let (context, program) = runEnter(["struct S { func m() {} }"])
+    let packageScope = program[0].packageSymbol!.scope
+    let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
+    let m = try #require(s.scope.values["m"]?.first as? Symbol.FunctionSymbol)
+    let selfSymbol = try #require(m.scope.values["self"]?.first as? Symbol.SelfSymbol)
+    #expect(selfSymbol.name == "self")
+    #expect(selfSymbol.kind == .Local)
+    #expect(selfSymbol.type == nil)
+    #expect(selfSymbol.memberOf == s.id)
+    #expect(selfSymbol.sourceToken != nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func initDeinitSubscriptAndAccessorSelfSymbols() throws {
+    let (context, program) = runEnter([
+        """
+        struct S {
+            var a: Int { get { 0 } set { } }
+            init() {}
+            subscript(i: Int) -> Int { get { 0 } set { } }
+        }
+        class C { deinit {} }
+        """,
+    ])
+    let packageScope = program[0].packageSymbol!.scope
+    let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
+    let c = packageScope.types["C"] as! Symbol.ClassSymbol
+
+    let initSymbol = try #require(s.scope.values["init"]?.first as? Symbol.FunctionSymbol)
+    let initSelf = try #require(initSymbol.scope.values["self"]?.first as? Symbol.SelfSymbol)
+    #expect(initSelf.memberOf == s.id)
+
+    let deinitSelf = try #require(c.deinitializer?.scope.values["self"]?.first as? Symbol.SelfSymbol)
+    #expect(deinitSelf.memberOf == c.id)
+
+    let subscriptSymbol = try #require(s.scope.values["subscript"]?.first as? Symbol.SubscriptSymbol)
+    let getterSelf = try #require(
+        subscriptSymbol.getter.scope.values["self"]?.first as? Symbol.SelfSymbol
+    )
+    let setter = try #require(subscriptSymbol.setter)
+    let setterSelf = try #require(setter.scope.values["self"]?.first as? Symbol.SelfSymbol)
+    #expect(getterSelf.id != setterSelf.id)
+    #expect(getterSelf.memberOf == s.id)
+    #expect(setterSelf.memberOf == s.id)
+
+    let structDecl = program[0].statements[0] as! AST.StructDecl
+    let variableDecl = structDecl.body[0] as! AST.VariableDecl
+    let accessorSelfs = try variableDecl.accessors.map { accessor in
+        try #require(accessor.scope?.values["self"]?.first as? Symbol.SelfSymbol)
+    }
+    #expect(accessorSelfs.count == 2)
+    #expect(accessorSelfs[0].id != accessorSelfs[1].id)
+    #expect(accessorSelfs.allSatisfy { $0.memberOf == s.id })
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func extensionMethodSelfSymbolGetsMemberOf() throws {
+    let (context, program) = runEnter(["struct S {} extension S { func f() {} }"])
+    let packageScope = program[0].packageSymbol!.scope
+    let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
+    let f = try #require(s.scope.values["f"]?.first as? Symbol.FunctionSymbol)
+    let selfSymbol = try #require(f.scope.values["self"]?.first as? Symbol.SelfSymbol)
+    #expect(f.kind == .Method)
+    #expect(f.memberOf == s.id)
+    #expect(selfSymbol.memberOf == s.id)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func extensionStoredPropertyKind() throws {
+    let (context, program) = runEnter(["struct S {} extension S { var v: Int }"])
+    let packageScope = program[0].packageSymbol!.scope
+    let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
+    let v = try #require(s.scope.values["v"]?.first as? Symbol.VariableSymbol)
+    #expect(v.kind == .Property)
+    #expect(v.memberOf == s.id)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func extensionStaticPropertyKind() throws {
+    let (context, program) = runEnter(["struct S {} extension S { static var s: Int }"])
+    let packageScope = program[0].packageSymbol!.scope
+    let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
+    let v = try #require(s.scope.values["s"]?.first as? Symbol.VariableSymbol)
+    #expect(v.kind == .StaticProperty)
+    #expect(v.memberOf == s.id)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func topLevelVariableStaysGlobal() throws {
+    let (context, program) = runEnter(["var g: Int"])
+    let packageScope = program[0].packageSymbol!.scope
+    let g = try #require(packageScope.values["g"]?.first as? Symbol.VariableSymbol)
+    #expect(g.kind == .Global)
+    #expect(g.memberOf == nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func extensionStaticFunctionAndInitializerKindsPreserved() throws {
+    let (context, program) = runEnter([
+        "struct S {} extension S { static func sf() {} init() {} }",
+    ])
+    let packageScope = program[0].packageSymbol!.scope
+    let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
+    let staticFunction = try #require(s.scope.values["sf"]?.first as? Symbol.FunctionSymbol)
+    #expect(staticFunction.kind == .StaticMethod)
+    #expect(staticFunction.scope.values["self"] == nil)
+    let initSymbol = try #require(s.scope.values["init"]?.first as? Symbol.FunctionSymbol)
+    #expect(initSymbol.kind == .Initializer)
+    let initSelf = try #require(initSymbol.scope.values["self"]?.first as? Symbol.SelfSymbol)
+    #expect(initSelf.memberOf == s.id)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func extensionSubscriptAndAccessorSelfSymbolsGetMemberOf() throws {
+    let (context, program) = runEnter([
+        """
+        struct S {}
+        extension S {
+            var a: Int { get { 0 } set { } }
+            subscript(i: Int) -> Int { get { 0 } set { } }
+        }
+        """,
+    ])
+    let packageScope = program[0].packageSymbol!.scope
+    let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
+
+    let subscriptSymbol = try #require(s.scope.values["subscript"]?.first as? Symbol.SubscriptSymbol)
+    #expect(subscriptSymbol.memberOf == s.id)
+    #expect(subscriptSymbol.getter.kind == .Method)
+    #expect(subscriptSymbol.getter.memberOf == s.id)
+    let getterSelf = try #require(
+        subscriptSymbol.getter.scope.values["self"]?.first as? Symbol.SelfSymbol
+    )
+    #expect(getterSelf.memberOf == s.id)
+    let setter = try #require(subscriptSymbol.setter)
+    #expect(setter.memberOf == s.id)
+    let setterSelf = try #require(setter.scope.values["self"]?.first as? Symbol.SelfSymbol)
+    #expect(setterSelf.memberOf == s.id)
+
+    let extensionDecl = program[0].statements[1] as! AST.ExtensionDecl
+    let variableDecl = extensionDecl.body[0] as! AST.VariableDecl
+    let accessorSelfs = try variableDecl.accessors.map { accessor in
+        try #require(accessor.scope?.values["self"]?.first as? Symbol.SelfSymbol)
+    }
+    #expect(accessorSelfs.count == 2)
+    #expect(accessorSelfs.allSatisfy { $0.memberOf == s.id })
+    #expect(variableDecl.accessors.allSatisfy { $0.symbol?.memberOf == s.id })
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func extensionMemberOfNotBackfilledWhenBaseUnresolved() throws {
+    let (context, program) = runEnter(["extension NotFound { func f() {} }"])
+    let virtualScope = (program[0].statements[0] as! AST.ExtensionDecl).virtualScope
+    let f = try #require(virtualScope?.values["f"]?.first as? Symbol.FunctionSymbol)
+    #expect(f.memberOf == nil)
+    #expect(f.kind == .Function)
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("extension of type 'NotFound' has no matching declaration"))
+}
+
+@Test func noSelfSymbolForNonInstanceCallables() throws {
+    let (context, program) = runEnter([
+        """
+        protocol P { func f(); var v: Int }
+        abstract class A { abstract func g() {} }
+        struct T { static func h() {} static var sv: Int { get { 0 } } }
+        func free() {}
+        class C { func m() { func nested() {} } }
+        """,
+    ])
+    let packageScope = program[0].packageSymbol!.scope
+
+    let p = packageScope.types["P"] as! Symbol.NominalTypeSymbol
+    let requirement = try #require(p.scope.values["f"]?.first as? Symbol.FunctionSymbol)
+    #expect(requirement.scope.values["self"] == nil)
+
+    let a = packageScope.types["A"] as! Symbol.NominalTypeSymbol
+    let abstractFunction = try #require(a.scope.values["g"]?.first as? Symbol.FunctionSymbol)
+    #expect(abstractFunction.scope.values["self"] == nil)
+
+    let t = packageScope.types["T"] as! Symbol.NominalTypeSymbol
+    let staticFunction = try #require(t.scope.values["h"]?.first as? Symbol.FunctionSymbol)
+    #expect(staticFunction.scope.values["self"] == nil)
+    let structDecl = program[0].statements[2] as! AST.StructDecl
+    let staticVariableDecl = structDecl.body[1] as! AST.VariableDecl
+    #expect(!staticVariableDecl.accessors.isEmpty)
+    #expect(staticVariableDecl.accessors.allSatisfy { $0.scope?.values["self"] == nil })
+
+    let free = try #require(packageScope.values["free"]?.first as? Symbol.FunctionSymbol)
+    #expect(free.scope.values["self"] == nil)
+
+    let c = packageScope.types["C"] as! Symbol.NominalTypeSymbol
+    let m = try #require(c.scope.values["m"]?.first as? Symbol.FunctionSymbol)
+    #expect(m.scope.values["self"]?.first is Symbol.SelfSymbol)
+    let nested = try #require(m.scope.values["nested"]?.first as? Symbol.FunctionSymbol)
+    #expect(nested.scope.values["self"] == nil)
+}
+
+@Test func closureBodyHasNoSelfAndLocalKinds() throws {
+    let (context, program) = runEnter(["let cl = { var y = 1 }"])
+    let variableDecl = program[0].statements[0] as! AST.VariableDecl
+    let closure = variableDecl.initializer as! AST.Closure
+    let scope = try #require(closure.scope)
+    let y = try #require(scope.values["y"]?.first as? Symbol.VariableSymbol)
+    #expect(y.kind == .Local)
+    #expect(scope.values["self"] == nil)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func accessorBodyLocalKinds() throws {
+    let (context, program) = runEnter([
+        "struct S { var x: Int { get { let t = 1; return t } set { let u = 2 } } }",
+    ])
+    let structDecl = program[0].statements[0] as! AST.StructDecl
+    let variableDecl = structDecl.body[0] as! AST.VariableDecl
+    let getterLocal = try #require(
+        variableDecl.accessors[0].scope?.values["t"]?.first as? Symbol.VariableSymbol
+    )
+    let setterLocal = try #require(
+        variableDecl.accessors[1].scope?.values["u"]?.first as? Symbol.VariableSymbol
+    )
+    let implicitParameter = try #require(
+        variableDecl.accessors[1].scope?.values["newValue"]?.first as? Symbol.VariableSymbol
+    )
+    #expect(getterLocal.kind == .Local)
+    #expect(setterLocal.kind == .Local)
+    #expect(implicitParameter.kind == .Local)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func repeatedLocalNamesInSameFunctionScope() {
+    let (context, _) = runEnter(["func f() { var x = 1; var x = 2 }"])
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func repeatedGlobalNamesConflict() {
+    let (context, _) = runEnter(["var g = 1; var g = 2"])
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("invalid redeclaration of 'g'"))
+}
+
+@Test func repeatedPropertyNamesConflict() {
+    let (context, _) = runEnter(["struct S { var p: Int; var p: Int }"])
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.contains("invalid redeclaration of 'p'"))
+}

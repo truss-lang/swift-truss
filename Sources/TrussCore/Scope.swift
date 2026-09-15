@@ -37,8 +37,11 @@ public extension Scope {
                 values[symbol.name]!.append(symbol)
                 return true
             }
-            if symbol is Symbol.VariableSymbol, symbol.memberOf == nil,
-               existing.allSatisfy({ $0 is Symbol.VariableSymbol && $0.memberOf == nil })
+            if let variable = symbol as? Symbol.VariableSymbol, isFunctionScoped(variable.kind),
+               existing.allSatisfy({
+                   guard let existingVariable = $0 as? Symbol.VariableSymbol else { return false }
+                   return isFunctionScoped(existingVariable.kind)
+               })
             {
                 values[symbol.name]!.append(symbol)
                 return true
@@ -48,6 +51,13 @@ public extension Scope {
         }
         values[symbol.name] = [symbol]
         return true
+    }
+
+    private func isFunctionScoped(_ kind: Symbol.VariableSymbol.Kind) -> Bool {
+        switch kind {
+        case .Local, .Free: true
+        case .Global, .Property, .StaticProperty: false
+        }
     }
 
     @discardableResult

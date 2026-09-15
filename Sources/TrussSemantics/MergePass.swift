@@ -79,7 +79,7 @@ public final class MergePass: AST.Visitor {
         }
         for (_, symbols) in virtualScope.values {
             for symbol in symbols {
-                symbol.memberOf = base.id
+                adopt(symbol, into: base.id)
                 if let function = symbol as? Symbol.FunctionSymbol, function.kind == .Initializer {
                     base.initializers.append(function)
                 }
@@ -88,11 +88,49 @@ public final class MergePass: AST.Visitor {
                 )
             }
         }
+        adoptAccessors(of: extensionDecl, into: base.id)
         for (_, module) in virtualScope.modules {
             baseScope.registerModule(module)
         }
         for expression in extensionDecl.conformances {
             base.conformances.append(contentsOf: collectConformances(expression, chain: chain))
+        }
+    }
+
+    private func adopt(_ symbol: Symbol.Symbol, into base: Id.SymbolId) {
+        symbol.memberOf = base
+        switch symbol {
+        case let function as Symbol.FunctionSymbol:
+            if function.kind == .Function {
+                function.kind = .Method
+            }
+            adoptSelfSymbols(in: function.scope, into: base)
+        case let subscriptSymbol as Symbol.SubscriptSymbol:
+            adopt(subscriptSymbol.getter, into: base)
+            if let setter = subscriptSymbol.setter {
+                adopt(setter, into: base)
+            }
+        default:
+            break
+        }
+    }
+
+    private func adoptAccessors(of extensionDecl: AST.ExtensionDecl, into base: Id.SymbolId) {
+        for statement in extensionDecl.body {
+            guard let variableDecl = statement as? AST.VariableDecl else { continue }
+            for accessor in variableDecl.accessors {
+                if let symbol = accessor.symbol {
+                    adopt(symbol, into: base)
+                }
+            }
+        }
+    }
+
+    private func adoptSelfSymbols(in scope: Scope, into base: Id.SymbolId) {
+        for symbols in scope.values.values {
+            for symbol in symbols where symbol is Symbol.SelfSymbol {
+                symbol.memberOf = base
+            }
         }
     }
 

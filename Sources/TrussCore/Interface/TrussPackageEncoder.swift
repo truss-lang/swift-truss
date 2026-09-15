@@ -195,7 +195,7 @@ public final class TrussPackageEncoder {
             w.bool(f.functionType != nil); if let t = f.functionType { encodeRef(t, w) }
         case let .Variable(v):
             w.u8(InterfaceValueDeclCode.Variable.rawValue)
-            w.string(v.name); w.bool(v.isMutable)
+            w.string(v.name); w.bool(v.isMutable); w.u8(v.kind.rawValue)
             w.bool(v.type != nil); if let t = v.type { encodeRef(t, w) }
         }
     }

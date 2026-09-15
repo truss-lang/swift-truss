@@ -127,13 +127,23 @@ public struct InterfaceLoader {
             context.register(symbol: symbol)
             scope.registerValue(symbol, at: syntheticToken(f.name), context: context)
         case let .Variable(x):
-            let symbol = Symbol.VariableSymbol(id: context.nextSymbolId, name: x.name)
+            let symbol = Symbol.VariableSymbol(
+                kind: variableKind(x.kind), id: context.nextSymbolId, name: x.name
+            )
             symbol.access = .Public
             symbol.packageId = package.id
             symbol.type = x.type.map(makeTypeRef)
             symbol.isMutable = x.isMutable
             context.register(symbol: symbol)
             scope.registerValue(symbol, at: syntheticToken(x.name), context: context)
+        }
+    }
+
+    private func variableKind(_ kind: InterfaceVariableKind) -> Symbol.VariableSymbol.Kind {
+        switch kind {
+        case .Global: .Global
+        case .Property: .Property
+        case .StaticProperty: .StaticProperty
         }
     }
 

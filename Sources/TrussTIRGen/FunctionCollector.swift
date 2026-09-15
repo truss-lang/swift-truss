@@ -179,7 +179,7 @@ final class FunctionCollector {
                     modulePath: gen.modulePathStack
                 )
             var tirParameters: [TIR.Parameter] = []
-            if !setterSymbol.isStatic {
+            if setterSymbol.kind != .StaticMethod {
                 tirParameters.append(TIR.Parameter(ty: selfType.id, name: "self"))
             }
             tirParameters.append(contentsOf: decl.parameters.enumerated().map { index, parameter in
@@ -213,7 +213,7 @@ final class FunctionCollector {
         isVariadic: Bool = false, isExtern: Bool = false, callingConvention: String? = nil
     ) -> TIR.Function {
         var tirParameters: [TIR.Parameter] = []
-        if let memberOf = symbol?.memberOf, !(symbol?.isStatic ?? true),
+        if let memberOf = symbol?.memberOf, (symbol?.kind ?? .StaticMethod) != .StaticMethod,
            let owner = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol,
            let typeId = owner.typeId, let type = context.typeTable[typeId]
         {
