@@ -19,7 +19,7 @@ public final class AccessChecker: AST.Visitor {
 
     @discardableResult
     public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
-        guard let packageSymbol = program.packageSymbol else { return nil }
+        let packageSymbol = program.packageSymbol!
         let lastPackage = currentPackageSymbol
         let lastModule = currentModuleSymbol
         currentPackageSymbol = packageSymbol
@@ -33,10 +33,8 @@ public final class AccessChecker: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
-        -> Any?
-    {
-        guard let moduleSymbol = moduleDecl.symbol else { return nil }
+    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil) -> Any? {
+        let moduleSymbol = moduleDecl.symbol!
         let lastModule = currentModuleSymbol
         currentModuleSymbol = moduleSymbol
         scopeStack.append(moduleSymbol.scope)
@@ -46,19 +44,31 @@ public final class AccessChecker: AST.Visitor {
         return nil
     }
 
-    private func withType(_ type: Symbol.NominalTypeSymbol?, body: () -> Void) {
-        guard let type else { return }
-        typeStack.append(type)
-        scopeStack.append(type.scope)
-        body()
-        scopeStack.removeLast()
-        typeStack.removeLast()
+    @discardableResult
+    public override func visitExtensionDecl(
+        _ extensionDecl: AST.ExtensionDecl, additional: Any? = nil
+    ) -> Any? {
+        let virtualScope = extensionDecl.virtualScope!
+        if let base = resolveTypeSymbol(extensionDecl.base) as? Symbol.NominalTypeSymbol {
+            typeStack.append(base)
+            scopeStack.append(virtualScope)
+            for statement in extensionDecl.body {
+                visit(statement, additional: additional)
+            }
+            scopeStack.removeLast()
+            typeStack.removeLast()
+        } else {
+            scopeStack.append(virtualScope)
+            for statement in extensionDecl.body {
+                visit(statement, additional: additional)
+            }
+            scopeStack.removeLast()
+        }
+        return nil
     }
 
     @discardableResult
-    public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil) -> Any? {
         withType(structDecl.symbol) {
             super.visitStructDecl(structDecl, additional: additional)
         }
@@ -66,12 +76,12 @@ public final class AccessChecker: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil) -> Any? {
         let symbol = classDecl.symbol as? Symbol.ClassSymbol
         if let symbol {
-            if let superclass = resolveSuperclass(classDecl) {
+            if let first = classDecl.inheritanceClauses.first,
+               let superclass = resolveTypeSymbol(first) as? Symbol.ClassSymbol
+            {
                 checkAccess(of: superclass, at: classDecl.name)
                 if superclass.isFinal {
                     context.emitError(
@@ -97,9 +107,7 @@ public final class AccessChecker: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil) -> Any? {
         withType(enumDecl.symbol) {
             super.visitEnumDecl(enumDecl, additional: additional)
         }
@@ -117,124 +125,11 @@ public final class AccessChecker: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil) -> Any? {
         withType(actorDecl.symbol) {
             super.visitActorDecl(actorDecl, additional: additional)
         }
         return nil
-    }
-
-    @discardableResult
-    public override func visitExtensionDecl(
-        _ extensionDecl: AST.ExtensionDecl, additional: Any? = nil
-    ) -> Any? {
-        guard let virtualScope = extensionDecl.virtualScope else { return nil }
-        if let base = resolveTypeSymbol(extensionDecl.base) as? Symbol.NominalTypeSymbol {
-            typeStack.append(base)
-            scopeStack.append(virtualScope)
-            for statement in extensionDecl.body {
-                visit(statement, additional: additional)
-            }
-            scopeStack.removeLast()
-            typeStack.removeLast()
-        } else {
-            scopeStack.append(virtualScope)
-            for statement in extensionDecl.body {
-                visit(statement, additional: additional)
-            }
-            scopeStack.removeLast()
-        }
-        return nil
-    }
-
-    private func withFunctionScope(
-        _ symbol: Symbol.FunctionSymbol?, body: () -> Void
-    ) {
-        guard let symbol else { return }
-        scopeStack.append(symbol.scope)
-        body()
-        scopeStack.removeLast()
-    }
-
-    private func checkAccess(of symbol: Symbol.Symbol, at token: Token) {
-        if !isVisible(symbol, at: token, using: symbol.access) {
-            context.emitError(
-                "'\(symbol.name)' is \(symbol.access.sourceText)", at: token,
-                notes: declarationNotes(of: symbol)
-            )
-        }
-    }
-
-    private func declarationNotes(of symbol: Symbol.Symbol) -> [Diagnostic] {
-        guard let sourceToken = symbol.sourceToken,
-              let source = context.sourceTable[sourceToken.id]
-        else {
-            return []
-        }
-        return [
-            Diagnostic(
-                severity: .note, message: "declared here",
-                range: sourceToken.sourceRange(in: source.stringSourceBuffer)
-            ),
-        ]
-    }
-
-    private func isVisible(_ symbol: Symbol.Symbol, at token: Token, using level: AccessLevel) -> Bool {
-        switch level {
-        case .Open, .Public:
-            return true
-        case .Internal:
-            if let symbolModule = symbol.moduleSymbol, let currentModule = currentModuleSymbol {
-                return symbolModule === currentModule
-            }
-            return symbol.moduleSymbol == nil && currentModuleSymbol == nil
-        case .PackagePrivate:
-            return symbol.packageId == currentPackageSymbol?.id
-        case .FilePrivate:
-            return symbol.sourceToken?.id == token.id
-        case .Private:
-            return isPrivateVisible(symbol, at: token)
-        case .Protected:
-            return isProtectedVisible(symbol)
-        }
-    }
-
-    private func isPrivateVisible(_ symbol: Symbol.Symbol, at token: Token) -> Bool {
-        guard symbol.sourceToken?.id == token.id else { return false }
-        guard let memberOf = symbol.memberOf else { return true }
-        return typeStack.last?.id == memberOf
-    }
-
-    private func isProtectedVisible(_ symbol: Symbol.Symbol) -> Bool {
-        guard let memberOf = symbol.memberOf,
-              let declaring = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol,
-              let accessPoint = typeStack.last
-        else {
-            return false
-        }
-        var current: Symbol.NominalTypeSymbol? = accessPoint
-        while let c = current {
-            if c.id == declaring.id { return true }
-            current = (c as? Symbol.ClassSymbol)?.superclass
-        }
-        return false
-    }
-
-    private func tokenOf(_ expression: AST.Expression) -> Token? {
-        switch expression {
-        case let variable as AST.Variable:
-            variable.name
-        case let member as AST.MemberAccess:
-            member.member
-        case let call as AST.Call:
-            tokenOf(call.callee)
-        case let subscriptExpression as AST.Subscript:
-            tokenOf(subscriptExpression.base)
-        default:
-            nil
-        }
     }
 
     @discardableResult
@@ -280,9 +175,7 @@ public final class AccessChecker: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
         if let symbol = variable.symbol,
            !(symbol is Symbol.ModuleSymbol),
            !(symbol is Symbol.PackageSymbol)
@@ -327,54 +220,6 @@ public final class AccessChecker: AST.Visitor {
         return nil
     }
 
-    private func checkWriteAccess(of target: AST.Expression) {
-        switch target {
-        case let variable as AST.Variable:
-            if let symbol = variable.symbol {
-                checkMutable(of: symbol, at: variable.name)
-                checkSetter(of: symbol, at: variable.name)
-            }
-        case let member as AST.MemberAccess:
-            if let symbol = member.symbol ?? memberSymbol(of: member) {
-                let isSelfMemberInInit = initDepth > 0 && member.object is AST.SelfExpression
-                if !isSelfMemberInInit {
-                    checkMutable(of: symbol, at: member.member)
-                }
-                checkSetter(of: symbol, at: member.member)
-            }
-        case let subscriptExpression as AST.Subscript:
-            if let base = subscriptExpression.base as? AST.Variable,
-               let symbol = base.symbol as? Symbol.VariableSymbol, !symbol.isMutable
-            {
-                context.emitError(
-                    "cannot assign to immutable variable '\(symbol.name)'",
-                    at: subscriptExpression.sourceRange
-                )
-            }
-        default:
-            break
-        }
-    }
-
-    private func checkMutable(of symbol: Symbol.Symbol, at token: Token) {
-        if let variable = symbol as? Symbol.VariableSymbol, !variable.isMutable {
-            context.emitError(
-                "cannot assign to immutable variable '\(symbol.name)'", at: token
-            )
-        }
-    }
-
-    private func checkSetter(of symbol: Symbol.Symbol, at token: Token) {
-        let setter = symbol.setterAccess ?? symbol.access
-        if !isVisible(symbol, at: token, using: setter) {
-            context.emitError(
-                "cannot assign to '\(symbol.name)': its setter is \(setter.sourceText)",
-                at: token,
-                notes: declarationNotes(of: symbol)
-            )
-        }
-    }
-
     @discardableResult
     public override func visitFunctionDecl(
         _ functionDecl: AST.FunctionDecl, additional: Any? = nil
@@ -399,9 +244,7 @@ public final class AccessChecker: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil) -> Any? {
         if let symbol = initDecl.symbol {
             checkOverride(
                 of: symbol,
@@ -465,6 +308,14 @@ public final class AccessChecker: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitAccessor(_ accessor: AST.Accessor, additional: Any? = nil) -> Any? {
+        withFunctionScope(accessor.symbol) {
+            super.visitAccessor(accessor, additional: additional)
+        }
+        return nil
+    }
+
+    @discardableResult
     public override func visitTypeAliasDecl(
         _ typeAliasDecl: AST.TypeAliasDecl, additional: Any? = nil
     ) -> Any? {
@@ -480,20 +331,128 @@ public final class AccessChecker: AST.Visitor {
         return nil
     }
 
-    @discardableResult
-    public override func visitAccessor(_ accessor: AST.Accessor, additional: Any? = nil) -> Any? {
-        withFunctionScope(accessor.symbol) {
-            super.visitAccessor(accessor, additional: additional)
-        }
-        return nil
-    }
-
     private func hasModifier(_ kind: AST.ModifierKind, in modifiers: [AST.Modifier]) -> Bool {
         modifiers.contains { modifier in
             switch (kind, modifier.kind) {
             case (.Override, .Override): true
             default: false
             }
+        }
+    }
+
+    private func isVisible(_ symbol: Symbol.Symbol, at token: Token, using level: AccessLevel) -> Bool {
+        switch level {
+        case .Open, .Public:
+            return true
+        case .Internal:
+            if let symbolModule = symbol.moduleSymbol, let currentModule = currentModuleSymbol {
+                return symbolModule === currentModule
+            }
+            return symbol.moduleSymbol == nil && currentModuleSymbol == nil
+        case .PackagePrivate:
+            return symbol.packageId == currentPackageSymbol?.id
+        case .FilePrivate:
+            return symbol.sourceToken?.id == token.id
+        case .Private:
+            return isPrivateVisible(symbol, at: token)
+        case .Protected:
+            return isProtectedVisible(symbol)
+        }
+    }
+
+    private func isPrivateVisible(_ symbol: Symbol.Symbol, at token: Token) -> Bool {
+        guard symbol.sourceToken?.id == token.id else { return false }
+        guard let memberOf = symbol.memberOf else { return true }
+        return typeStack.last?.id == memberOf
+    }
+
+    private func isProtectedVisible(_ symbol: Symbol.Symbol) -> Bool {
+        guard let memberOf = symbol.memberOf,
+              let declaring = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol,
+              let accessPoint = typeStack.last
+        else {
+            return false
+        }
+        var current: Symbol.NominalTypeSymbol? = accessPoint
+        while let c = current {
+            if c.id == declaring.id { return true }
+            current = (c as? Symbol.ClassSymbol)?.superclass
+        }
+        return false
+    }
+
+    private func withType(_ type: Symbol.NominalTypeSymbol?, body: () -> Void) {
+        guard let type else { return }
+        typeStack.append(type)
+        scopeStack.append(type.scope)
+        body()
+        scopeStack.removeLast()
+        typeStack.removeLast()
+    }
+
+    private func withFunctionScope(
+        _ symbol: Symbol.FunctionSymbol?, body: () -> Void
+    ) {
+        guard let symbol else { return }
+        scopeStack.append(symbol.scope)
+        body()
+        scopeStack.removeLast()
+    }
+
+    private func checkAccess(of symbol: Symbol.Symbol, at token: Token) {
+        if !isVisible(symbol, at: token, using: symbol.access) {
+            context.emitError(
+                "'\(symbol.name)' is \(symbol.access.sourceText)", at: token,
+                notes: declarationNotes(of: symbol)
+            )
+        }
+    }
+
+    private func checkSetter(of symbol: Symbol.Symbol, at token: Token) {
+        let setter = symbol.setterAccess ?? symbol.access
+        if !isVisible(symbol, at: token, using: setter) {
+            context.emitError(
+                "cannot assign to '\(symbol.name)': its setter is \(setter.sourceText)",
+                at: token,
+                notes: declarationNotes(of: symbol)
+            )
+        }
+    }
+
+    private func checkMutable(of symbol: Symbol.Symbol, at token: Token) {
+        if let variable = symbol as? Symbol.VariableSymbol, !variable.isMutable {
+            context.emitError(
+                "cannot assign to immutable variable '\(symbol.name)'", at: token
+            )
+        }
+    }
+
+    private func checkWriteAccess(of target: AST.Expression) {
+        switch target {
+        case let variable as AST.Variable:
+            if let symbol = variable.symbol {
+                checkMutable(of: symbol, at: variable.name)
+                checkSetter(of: symbol, at: variable.name)
+            }
+        case let member as AST.MemberAccess:
+            if let symbol = member.symbol ?? memberSymbol(of: member) {
+                let isSelfMemberInInit = initDepth > 0 && member.object is AST.SelfExpression
+                if !isSelfMemberInInit {
+                    checkMutable(of: symbol, at: member.member)
+                }
+                checkSetter(of: symbol, at: member.member)
+            }
+        case let subscriptExpression as AST.Subscript:
+            if let base = subscriptExpression.base as? AST.Variable,
+               let symbol = base.symbol as? Symbol.VariableSymbol, !symbol.isMutable
+            {
+                context.emitError(
+                    "cannot assign to immutable variable '\(symbol.name)'",
+                    at: subscriptExpression.sourceRange
+                )
+            }
+        default:
+            break
         }
     }
 
@@ -613,6 +572,35 @@ public final class AccessChecker: AST.Visitor {
         return false
     }
 
+    private func declarationNotes(of symbol: Symbol.Symbol) -> [Diagnostic] {
+        guard let sourceToken = symbol.sourceToken,
+              let source = context.sourceTable[sourceToken.id]
+        else {
+            return []
+        }
+        return [
+            Diagnostic(
+                severity: .note, message: "declared here",
+                range: sourceToken.sourceRange(in: source.stringSourceBuffer)
+            ),
+        ]
+    }
+
+    private func tokenOf(_ expression: AST.Expression) -> Token? {
+        switch expression {
+        case let variable as AST.Variable:
+            variable.name
+        case let member as AST.MemberAccess:
+            member.member
+        case let call as AST.Call:
+            tokenOf(call.callee)
+        case let subscriptExpression as AST.Subscript:
+            tokenOf(subscriptExpression.base)
+        default:
+            nil
+        }
+    }
+
     private func memberSymbol(of memberAccess: AST.MemberAccess) -> Symbol.Symbol? {
         guard let declaring = staticTypeSymbol(of: memberAccess.object) else { return nil }
         return declaring.scope.values[memberAccess.member.value]?.first
@@ -635,11 +623,6 @@ public final class AccessChecker: AST.Visitor {
             }
         }
         return nil
-    }
-
-    private func resolveSuperclass(_ classDecl: AST.ClassDecl) -> Symbol.ClassSymbol? {
-        guard let first = classDecl.inheritanceClauses.first else { return nil }
-        return resolveTypeSymbol(first) as? Symbol.ClassSymbol
     }
 
     private func resolveTypeSymbol(_ expression: AST.Expression) -> Symbol.Symbol? {
