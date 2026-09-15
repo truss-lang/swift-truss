@@ -73,7 +73,7 @@ public enum AST {
         }
     }
 
-    public enum ModifierKind {
+    public enum ModifierKind: Equatable {
         case Open(setter: Bool)
         case Public(setter: Bool)
         case Protected(setter: Bool)
