@@ -251,6 +251,11 @@ public final class TypeChecker: AST.Visitor {
         return TrussType.GenericInstantiation(base: nominalType, arguments: parameters)
     }
 
+    private func fillSelfType(of symbol: Symbol.FunctionSymbol?) {
+        guard let symbol, let selfType = instanceSelfType(symbol) else { return }
+        (symbol.scope.values["self"]?.first as? Symbol.SelfSymbol)?.type = selfType
+    }
+
     private func resolveTop(_ type: TrussType.TrussType) -> TrussType.TrussType {
         let resolved = resolve(type)
         guard let instantiation = resolved as? TrussType.GenericInstantiation else {
@@ -274,6 +279,7 @@ public final class TypeChecker: AST.Visitor {
             return nil
         }
         let selfType = instanceSelfType(symbol)
+        fillSelfType(of: symbol)
         if collectFunctionSignatures || collectingSignatures {
             withScope(symbol.scope) {
                 collectConstraints(
@@ -344,6 +350,7 @@ public final class TypeChecker: AST.Visitor {
             return nil
         }
         let selfType = instanceSelfType(symbol)
+        fillSelfType(of: symbol)
         let initReturnType: TrussType.TrussType = selfType ?? TrussType.VoidType.INSTANCE
         if collectFunctionSignatures || collectingSignatures {
             withScope(symbol.scope) {
@@ -404,6 +411,7 @@ public final class TypeChecker: AST.Visitor {
         }
         let getter = symbol.getter
         let selfType = instanceSelfType(getter)
+        fillSelfType(of: getter)
         if collectFunctionSignatures || collectingSignatures {
             withScope(getter.scope) {
                 fillFunctionSignature(
@@ -433,6 +441,7 @@ public final class TypeChecker: AST.Visitor {
             if let setterSymbol = symbol.setter,
                let setAccessor = subscriptDecl.accessors.first(where: { $0.kind == .Set })
             {
+                fillSelfType(of: setterSymbol)
                 withScope(setAccessor.scope) {
                     let setterLabels = subscriptDecl.parameters.map { $0.label?.value } + [nil]
                     let setterParamTypes = parameterTypes + [returnType]
@@ -474,6 +483,7 @@ public final class TypeChecker: AST.Visitor {
         -> Any?
     {
         withScope(deinitDecl.scope) {
+            fillSelfType(of: typeStack.last?.deinitializer)
             super.visitDeinitDecl(deinitDecl, additional: additional)
         }
         return nil
@@ -693,6 +703,7 @@ public final class TypeChecker: AST.Visitor {
     private func checkAccessor(
         _ accessor: AST.Accessor, _ type: TrussType.TrussType, at token: Token
     ) {
+        fillSelfType(of: accessor.symbol)
         withScope(accessor.scope) {
             if let parameterName = accessor.parameterName {
                 if let variable =
@@ -731,6 +742,7 @@ public final class TypeChecker: AST.Visitor {
     }
 
     private func visitAccessorStatements(_ accessor: AST.Accessor, at token: Token) {
+        fillSelfType(of: accessor.symbol)
         withScope(accessor.scope) {
             switch accessor.body {
             case let .Block(statements):
@@ -1216,6 +1228,11 @@ public final class TypeChecker: AST.Visitor {
         return symbol.targetType ?? TrussType.ErrorType.INSTANCE
     }
 
+    private func memberOfType(_ symbol: Symbol.SelfSymbol?) -> Symbol.NominalTypeSymbol? {
+        guard let memberOf = symbol?.memberOf else { return nil }
+        return context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol
+    }
+
     private func resolvedSymbol(_ expression: AST.Expression) -> Symbol.Symbol? {
         if let variable = expression as? AST.Variable {
             return variable.symbol
@@ -1224,10 +1241,10 @@ public final class TypeChecker: AST.Visitor {
             return member.symbol
         }
         if let selfExpression = expression as? AST.SelfExpression {
-            return selfExpression.symbol
+            return memberOfType(selfExpression.symbol)
         }
         if let superExpression = expression as? AST.SuperExpression {
-            return superExpression.symbol
+            return (memberOfType(superExpression.symbol) as? Symbol.ClassSymbol)?.superclass
         }
         if let generic = expression as? AST.GenericApplication {
             return resolvedSymbol(generic.base)
@@ -2564,10 +2581,8 @@ public final class TypeChecker: AST.Visitor {
                 return nil
             }
             return expression.ty.map { resolve($0) }
-        case is AST.SelfExpression:
-            if let typeId = typeStack.last?.typeId {
-                expression.ty = context.typeTable[typeId]
-            }
+        case let selfExpression as AST.SelfExpression:
+            expression.ty = selfExpression.symbol?.type
         case is AST.SuperExpression:
             if let classSymbol = typeStack.last as? Symbol.ClassSymbol,
                let typeId = classSymbol.superclass?.typeId

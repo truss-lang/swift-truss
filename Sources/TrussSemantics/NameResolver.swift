@@ -5,8 +5,83 @@ public final class NameResolver: AST.Visitor {
     private let context: Context
     private var scopeStack: [Scope] = []
     private var typeStack: [Symbol.NominalTypeSymbol] = []
+    private var boundaryStack: [Int] = []
+    private var closureStack: [(index: Int, closure: AST.Closure, captures: [Symbol.Symbol])] = []
     public init(context: Context) {
         self.context = context
+    }
+
+    private func enterCallableScope(_ scope: Scope, boundaryOf boundaryScope: Scope? = nil) {
+        scopeStack.append(scope)
+        let target = boundaryScope ?? scope
+        boundaryStack.append(scopeStack.lastIndex { $0 === target } ?? scopeStack.count - 1)
+    }
+
+    private func exitCallableScope() {
+        scopeStack.removeLast()
+        boundaryStack.removeLast()
+    }
+
+    private func isCaptured(at index: Int) -> Bool {
+        guard let boundary = boundaryStack.last else { return false }
+        return index < boundary
+    }
+
+    private func markedFree(_ symbol: Symbol.Symbol) -> Symbol.Symbol? {
+        if let variable = symbol as? Symbol.VariableSymbol {
+            switch variable.kind {
+            case .Local: variable.kind = .Free
+            case .Free: break
+            case .Global, .Property, .StaticProperty: return nil
+            }
+            return variable
+        }
+        if let selfSymbol = symbol as? Symbol.SelfSymbol {
+            if selfSymbol.kind == .Local {
+                selfSymbol.kind = .Free
+            }
+            return selfSymbol
+        }
+        return nil
+    }
+
+    private func appendCapture(_ symbol: Symbol.Symbol, foundAt index: Int) {
+        for frameIndex in closureStack.indices where index < closureStack[frameIndex].index {
+            closureStack[frameIndex].captures.append(symbol)
+        }
+    }
+
+    private func recordFreeReference(_ symbol: Symbol.Symbol, foundAt index: Int) {
+        guard isCaptured(at: index) else { return }
+        if let captured = markedFree(symbol) {
+            appendCapture(captured, foundAt: index)
+        }
+        guard let variable = symbol as? Symbol.VariableSymbol, variable.kind == .Property,
+              let memberOf = variable.memberOf,
+              let (selfIndex, selfSymbol) = resolveSelfSymbol(),
+              selfSymbol.memberOf == memberOf,
+              isCaptured(at: selfIndex)
+        else {
+            return
+        }
+        if let capturedSelf = markedFree(selfSymbol) {
+            appendCapture(capturedSelf, foundAt: selfIndex)
+        }
+    }
+
+    private func resolveSelfSymbol() -> (Int, Symbol.SelfSymbol)? {
+        guard let (index, entries) = lookupScopeEntry("self"),
+              let symbol = entries.compactMap({ $0 as? Symbol.SelfSymbol }).last
+        else {
+            return nil
+        }
+        return (index, symbol)
+    }
+
+    private func sortedCaptures(_ captures: [Symbol.Symbol]) -> [Symbol.Symbol] {
+        var seen: Set<Id.SymbolId> = []
+        let unique = captures.filter { seen.insert($0.id).inserted }
+        return unique.sorted { $0.id.id < $1.id.id }
     }
 
     @discardableResult
@@ -46,9 +121,9 @@ public final class NameResolver: AST.Visitor {
     public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil)
         -> Any?
     {
-        scopeStack.append(functionDecl.symbol!.scope)
+        enterCallableScope(functionDecl.symbol!.scope)
         super.visitFunctionDecl(functionDecl, additional: additional)
-        scopeStack.removeLast()
+        exitCallableScope()
         return nil
     }
 
@@ -59,9 +134,9 @@ public final class NameResolver: AST.Visitor {
         guard let symbol = initDecl.symbol else {
             return super.visitInitDecl(initDecl, additional: additional)
         }
-        scopeStack.append(symbol.scope)
+        enterCallableScope(symbol.scope)
         super.visitInitDecl(initDecl, additional: additional)
-        scopeStack.removeLast()
+        exitCallableScope()
         return nil
     }
 
@@ -72,9 +147,9 @@ public final class NameResolver: AST.Visitor {
         guard let symbol = subscriptDecl.symbol else {
             return super.visitSubscriptDecl(subscriptDecl, additional: additional)
         }
-        scopeStack.append(symbol.getter.scope)
+        enterCallableScope(symbol.getter.scope)
         super.visitSubscriptDecl(subscriptDecl, additional: additional)
-        scopeStack.removeLast()
+        exitCallableScope()
         return nil
     }
 
@@ -107,9 +182,9 @@ public final class NameResolver: AST.Visitor {
         guard let scope = deinitDecl.scope else {
             return super.visitDeinitDecl(deinitDecl, additional: additional)
         }
-        scopeStack.append(scope)
+        enterCallableScope(scope)
         super.visitDeinitDecl(deinitDecl, additional: additional)
-        scopeStack.removeLast()
+        exitCallableScope()
         return nil
     }
 
@@ -120,9 +195,9 @@ public final class NameResolver: AST.Visitor {
         guard let scope = accessor.scope else {
             return super.visitAccessor(accessor, additional: additional)
         }
-        scopeStack.append(scope)
+        enterCallableScope(scope, boundaryOf: accessor.symbol?.scope)
         super.visitAccessor(accessor, additional: additional)
-        scopeStack.removeLast()
+        exitCallableScope()
         return nil
     }
 
@@ -131,9 +206,12 @@ public final class NameResolver: AST.Visitor {
         guard let scope = closure.scope else {
             return super.visitClosure(closure, additional: additional)
         }
-        scopeStack.append(scope)
+        enterCallableScope(scope)
+        closureStack.append((index: scopeStack.count - 1, closure: closure, captures: []))
         super.visitClosure(closure, additional: additional)
-        scopeStack.removeLast()
+        let frame = closureStack.removeLast()
+        closure.freeVariables = sortedCaptures(frame.captures)
+        exitCallableScope()
         return nil
     }
 
@@ -330,12 +408,16 @@ public final class NameResolver: AST.Visitor {
 
     @discardableResult
     public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
-        guard let (_, entries) = lookupScopeEntry(variable.name.value) else { return nil }
+        guard let (index, entries) = lookupScopeEntry(variable.name.value) else { return nil }
         if entries.allSatisfy({ $0 is Symbol.FunctionSymbol }) {
             variable.overloads = entries.map { $0 as! Symbol.FunctionSymbol }
             variable.symbol = nil
         } else {
-            variable.symbol = activeVariable(entries, at: variable.sourceRange.start.offset)
+            let symbol = activeVariable(entries, at: variable.sourceRange.start.offset)
+            variable.symbol = symbol
+            if let symbol {
+                recordFreeReference(symbol, foundAt: index)
+            }
         }
         return nil
     }
@@ -357,7 +439,14 @@ public final class NameResolver: AST.Visitor {
     public override func visitSelfExpression(
         _ selfExpression: AST.SelfExpression, additional: Any? = nil
     ) -> Any? {
-        selfExpression.symbol = typeStack.last
+        guard let (index, symbol) = resolveSelfSymbol() else {
+            context.emitError(
+                "'self' is only available in an instance context", at: selfExpression.token
+            )
+            return nil
+        }
+        selfExpression.symbol = symbol
+        recordFreeReference(symbol, foundAt: index)
         return nil
     }
 
@@ -365,7 +454,9 @@ public final class NameResolver: AST.Visitor {
     public override func visitSuperExpression(
         _ superExpression: AST.SuperExpression, additional: Any? = nil
     ) -> Any? {
-        superExpression.symbol = (typeStack.last as? Symbol.ClassSymbol)?.superclass
+        guard let (index, symbol) = resolveSelfSymbol() else { return nil }
+        superExpression.symbol = symbol
+        recordFreeReference(symbol, foundAt: index)
         return nil
     }
 
@@ -413,6 +504,9 @@ public final class NameResolver: AST.Visitor {
         let (symbol, overloads) = memberResolution(implicitMemberAccess.name.value, in: type)
         implicitMemberAccess.symbol = symbol
         implicitMemberAccess.overloads = overloads
+        if let (index, selfSymbol) = resolveSelfSymbol() {
+            recordFreeReference(selfSymbol, foundAt: index)
+        }
         return nil
     }
 
@@ -497,6 +591,11 @@ public final class NameResolver: AST.Visitor {
         return (nil, nil)
     }
 
+    private func memberOfType(_ symbol: Symbol.SelfSymbol?) -> Symbol.NominalTypeSymbol? {
+        guard let memberOf = symbol?.memberOf else { return nil }
+        return context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol
+    }
+
     private func resolvedSymbol(_ expression: AST.Expression) -> Symbol.Symbol? {
         if let variable = expression as? AST.Variable {
             return variable.symbol
@@ -505,10 +604,10 @@ public final class NameResolver: AST.Visitor {
             return member.symbol
         }
         if let selfExpression = expression as? AST.SelfExpression {
-            return selfExpression.symbol
+            return memberOfType(selfExpression.symbol)
         }
         if let superExpression = expression as? AST.SuperExpression {
-            return superExpression.symbol
+            return (memberOfType(superExpression.symbol) as? Symbol.ClassSymbol)?.superclass
         }
         if let generic = expression as? AST.GenericApplication {
             return resolvedSymbol(generic.base)
@@ -547,20 +646,20 @@ public final class NameResolver: AST.Visitor {
         }
     }
 
-    private func lookupScopeEntry(_ name: String) -> (Scope, [Symbol.Symbol])? {
-        for scope in scopeStack.reversed() {
+    private func lookupScopeEntry(_ name: String) -> (Int, [Symbol.Symbol])? {
+        for (index, scope) in scopeStack.enumerated().reversed() {
             if let symbol = scope.types[name] {
-                return (scope, [symbol])
+                return (index, [symbol])
             }
             if let symbols = scope.values[name] {
-                return (scope, symbols)
+                return (index, symbols)
             }
             if let symbol = scope.modules[name] {
-                return (scope, [symbol])
+                return (index, [symbol])
             }
         }
         if let package = context.name2Package[name] {
-            return (package.scope, [package])
+            return (-1, [package])
         }
         return nil
     }

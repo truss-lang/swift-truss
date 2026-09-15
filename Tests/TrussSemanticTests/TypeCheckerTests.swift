@@ -2083,3 +2083,128 @@ func >= <T>(lhs: T*, rhs: T*) -> Bool
         "got: \(errors)"
     )
 }
+
+private func memberFunction(
+    _ name: String, in type: Symbol.NominalTypeSymbol?
+) throws -> Symbol.FunctionSymbol {
+    try #require(type?.scope.values[name]?.first as? Symbol.FunctionSymbol)
+}
+
+private func selfSymbol(of function: Symbol.FunctionSymbol?) throws -> Symbol.SelfSymbol {
+    let function = try #require(function)
+    return try #require(function.scope.values["self"]?.first as? Symbol.SelfSymbol)
+}
+
+private func collectSelfExpressions(_ program: AST.Program) -> [AST.SelfExpression] {
+    let probe = SymbolProbe()
+    probe.visitProgram(program)
+    return probe.selfExpressions
+}
+
+@Test func instanceMethodSelfSymbolType() throws {
+    let (context, programs) = runTypeChecker(["struct S { func m() { self } }"])
+    let structDecl = programs[0].statements[0] as! AST.StructDecl
+    let selfSymbol = try selfSymbol(of: memberFunction("m", in: structDecl.symbol))
+    let selfType = try #require(selfSymbol.type)
+    let typeId = try #require(structDecl.symbol?.typeId)
+    #expect(selfType as AnyObject === context.typeTable[typeId] as AnyObject)
+    let selfExpression = try #require(collectSelfExpressions(programs[0]).first)
+    #expect(selfExpression.ty === selfType)
+    #expect(context.diagnositicEngine.diagnostics.isEmpty)
+}
+
+@Test func genericInstanceMethodSelfSymbolType() throws {
+    let (context, programs) = runTypeChecker(["struct S<T> { func m() { self } }"])
+    let structDecl = programs[0].statements[0] as! AST.StructDecl
+    let selfSymbol = try selfSymbol(of: memberFunction("m", in: structDecl.symbol))
+    let selfType = try #require(selfSymbol.type as? TrussType.GenericInstantiation)
+    #expect(selfType.base.name == "S")
+    #expect(selfType.arguments.count == 1)
+    let parameter = try #require(selfType.arguments.first as? TrussType.GenericParamType)
+    #expect(parameter.name == "T")
+    let selfExpression = try #require(collectSelfExpressions(programs[0]).first)
+    #expect(selfExpression.ty === selfType)
+    #expect(context.diagnositicEngine.diagnostics.isEmpty)
+}
+
+@Test func initSelfSymbolType() throws {
+    let (context, programs) = runTypeChecker(["struct S { init() {} }"])
+    let structDecl = programs[0].statements[0] as! AST.StructDecl
+    let initializer = try #require(structDecl.symbol?.initializers.first)
+    let selfSymbol = try selfSymbol(of: initializer)
+    let selfType = try #require(selfSymbol.type)
+    let typeId = try #require(structDecl.symbol?.typeId)
+    #expect(selfType as AnyObject === context.typeTable[typeId] as AnyObject)
+    #expect(context.diagnositicEngine.diagnostics.isEmpty)
+}
+
+@Test func deinitSelfSymbolType() throws {
+    let (context, programs) = runTypeChecker(["class C { deinit {} }"])
+    let classDecl = programs[0].statements[0] as! AST.ClassDecl
+    let selfSymbol = try selfSymbol(of: classDecl.symbol?.deinitializer)
+    let selfType = try #require(selfSymbol.type)
+    let typeId = try #require(classDecl.symbol?.typeId)
+    #expect(selfType as AnyObject === context.typeTable[typeId] as AnyObject)
+    #expect(context.diagnositicEngine.diagnostics.isEmpty)
+}
+
+@Test func subscriptSelfSymbolType() throws {
+    let source = """
+    struct Int {}
+    struct S {
+        subscript(i: Int) -> Int {
+            get { i }
+            set { }
+        }
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    let structDecl = programs[0].statements[1] as! AST.StructDecl
+    let subscriptSymbol = try #require(
+        structDecl.symbol?.scope.values["subscript"]?.first as? Symbol.SubscriptSymbol
+    )
+    let typeId = try #require(structDecl.symbol?.typeId)
+    let expected = context.typeTable[typeId]
+    let getterSelfType = try #require(try selfSymbol(of: subscriptSymbol.getter).type)
+    #expect(getterSelfType as AnyObject === expected as AnyObject)
+    let setterSelfType = try #require(try selfSymbol(of: subscriptSymbol.setter).type)
+    #expect(setterSelfType as AnyObject === expected as AnyObject)
+    #expect(context.diagnositicEngine.diagnostics.isEmpty)
+}
+
+@Test func propertyAccessorSelfSymbolType() throws {
+    let source = """
+    struct Int {}
+    struct S {
+        var p: Int {
+            get { 0 }
+            set { }
+        }
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    let structDecl = programs[0].statements[1] as! AST.StructDecl
+    let variableDecl = try #require(structDecl.body.first as? AST.VariableDecl)
+    let typeId = try #require(structDecl.symbol?.typeId)
+    let expected = context.typeTable[typeId]
+    try #require(variableDecl.accessors.count == 2)
+    for accessor in variableDecl.accessors {
+        let selfType = try #require(try selfSymbol(of: accessor.symbol).type)
+        #expect(selfType as AnyObject === expected as AnyObject)
+    }
+    #expect(context.diagnositicEngine.diagnostics.isEmpty)
+}
+
+@Test func staticMethodSelfHasNoCascadeDiagnostic() throws {
+    let (context, programs) = runTypeChecker(["struct S { static func f() { self } }"])
+    let structDecl = programs[0].statements[0] as! AST.StructDecl
+    let method = try memberFunction("f", in: structDecl.symbol)
+    #expect(method.scope.values["self"] == nil)
+    let selfExpression = try #require(collectSelfExpressions(programs[0]).first)
+    #expect(selfExpression.symbol == nil)
+    #expect(selfExpression.ty == nil)
+    #expect(
+        context.diagnositicEngine.diagnostics.map(\.message)
+            == ["'self' is only available in an instance context"]
+    )
+}

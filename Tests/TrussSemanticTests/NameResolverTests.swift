@@ -278,7 +278,13 @@ func resolve(_ source: String) -> (Context, AST.Program) {
 @Test func selfResolvedToCurrentType() throws {
     let (context, probe) = probe("struct S { var x: Int func m() { self } }")
     try #require(probe.selfExpressions.count == 1)
-    #expect(probe.selfExpressions[0].symbol?.name == "S")
+    let symbol = try #require(probe.selfExpressions[0].symbol)
+    #expect(symbol.name == "self")
+    #expect(symbol.kind == .Local)
+    let owner = try #require(
+        symbol.memberOf.flatMap { context.id2Symbol[$0] } as? Symbol.StructSymbol
+    )
+    #expect(owner.name == "S")
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
@@ -295,7 +301,13 @@ func resolve(_ source: String) -> (Context, AST.Program) {
         "class A { func f() {} } class B: A { func g() { super } }"
     )
     try #require(probe.superExpressions.count == 1)
-    #expect(probe.superExpressions[0].symbol?.name == "A")
+    let symbol = try #require(probe.superExpressions[0].symbol)
+    #expect(symbol.name == "self")
+    let owner = try #require(
+        symbol.memberOf.flatMap { context.id2Symbol[$0] } as? Symbol.ClassSymbol
+    )
+    #expect(owner.name == "B")
+    #expect(owner.superclass?.name == "A")
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
@@ -459,7 +471,13 @@ func resolve(_ source: String) -> (Context, AST.Program) {
 @Test func extensionSelfResolved() throws {
     let (context, probe) = probe("struct S { var x: Int } extension S { func m() { self } }")
     try #require(probe.selfExpressions.count == 1)
-    #expect(probe.selfExpressions[0].symbol?.name == "S")
+    let symbol = try #require(probe.selfExpressions[0].symbol)
+    #expect(symbol.name == "self")
+    #expect(symbol.kind == .Local)
+    let owner = try #require(
+        symbol.memberOf.flatMap { context.id2Symbol[$0] } as? Symbol.StructSymbol
+    )
+    #expect(owner.name == "S")
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
@@ -493,7 +511,13 @@ func resolve(_ source: String) -> (Context, AST.Program) {
         "class A {} class B: A {} extension B { func m() { super } }"
     )
     try #require(probe.superExpressions.count == 1)
-    #expect(probe.superExpressions[0].symbol?.name == "A")
+    let symbol = try #require(probe.superExpressions[0].symbol)
+    #expect(symbol.name == "self")
+    let owner = try #require(
+        symbol.memberOf.flatMap { context.id2Symbol[$0] } as? Symbol.ClassSymbol
+    )
+    #expect(owner.name == "B")
+    #expect(owner.superclass?.name == "A")
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
@@ -506,9 +530,16 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
-@Test func extensionUnresolvedBaseFallsBackSilently() {
-    let (_, probe) = probe("extension NotFound { func m() { self } }")
-    #expect(probe.selfExpressions[0].symbol == nil)
+@Test func extensionUnresolvedBaseFallsBackSilently() throws {
+    let (context, probe) = probe("extension NotFound { func m() { self } }")
+    let symbol = try #require(probe.selfExpressions[0].symbol)
+    #expect(symbol.name == "self")
+    #expect(symbol.memberOf == nil)
+    #expect(
+        !context.diagnositicEngine.diagnostics.contains {
+            $0.message == "'self' is only available in an instance context"
+        }
+    )
 }
 
 @Test func initParameterResolvedInBody() {
