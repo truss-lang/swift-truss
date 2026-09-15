@@ -2,6 +2,12 @@ import SwiftBetterDiagnostic
 import TrussCore
 
 public final class ImportProcessor: AST.Visitor {
+    private struct Namespace {
+        let name: String
+        let symbol: Symbol.Symbol
+        let scope: Scope
+    }
+
     private let context: Context
     private var currentScope: Scope?
 
@@ -10,12 +16,17 @@ public final class ImportProcessor: AST.Visitor {
     }
 
     public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
-        guard let packageSymbol = program.packageSymbol else { return nil }
+        let packageSymbol = program.packageSymbol!
         let lastScope = currentScope
         currentScope = packageSymbol.scope
         importStd(into: currentScope!)
         super.visitProgram(program, additional: additional)
         currentScope = lastScope
+        return nil
+    }
+
+    public override func visitImport(_ importStatement: AST.Import, additional: Any? = nil) -> Any? {
+        process(importStatement.node, namespace: nil, atRoot: true, into: currentScope!, pathParts: [])
         return nil
     }
 
@@ -25,12 +36,6 @@ public final class ImportProcessor: AST.Visitor {
             name: package.name, symbol: package, scope: package.scope
         )
         importAll(from: namespace, into: scope)
-    }
-
-    public override func visitImport(_ importStatement: AST.Import, additional: Any? = nil) -> Any? {
-        guard let scope = currentScope else { return nil }
-        process(importStatement.node, namespace: nil, atRoot: true, into: scope, pathParts: [])
-        return nil
     }
 
     private func process(
@@ -65,7 +70,7 @@ public final class ImportProcessor: AST.Visitor {
                 pathParts: pathParts + [nameStr]
             )
         case let .Name(token):
-            if isSelf(token) { return }
+            if case let .Keyword(kind) = token.kind, kind == .SelfKw || kind == .SelfTypeKw { return }
             if atRoot {
                 guard let _ = resolveRoot(token.value, at: token) else {
                     emitUnresolved(
@@ -82,7 +87,7 @@ public final class ImportProcessor: AST.Visitor {
                 )
             }
         case let .Alias(token, alias):
-            if isSelf(token) { return }
+            if case let .Keyword(kind) = token.kind, kind == .SelfKw || kind == .SelfTypeKw { return }
             if atRoot {
                 guard let root = resolveRoot(token.value, at: token) else {
                     emitUnresolved(
@@ -113,41 +118,6 @@ public final class ImportProcessor: AST.Visitor {
         case .Self_:
             break
         }
-    }
-
-    private func fullPath(at pathParts: [String], name: String, sub: AST.ImportNode) -> String {
-        let remaining = firstDottedPath(of: sub)
-        let current = remaining.isEmpty ? name : name + "." + remaining
-        return (pathParts + [current]).joined(separator: ".")
-    }
-
-    private func firstDottedPath(of node: AST.ImportNode) -> String {
-        switch node {
-        case let .Member(token, sub):
-            let rest = firstDottedPath(of: sub)
-            return rest.isEmpty ? token.value : token.value + "." + rest
-        case let .Name(token), let .Self_(token): return token.value
-        case let .Alias(token, _): return token.value
-        case .Wildcard: return "*"
-        case let .List(items): return items.first.map { firstDottedPath(of: $0) } ?? ""
-        }
-    }
-
-    private func isSelf(_ token: Token) -> Bool {
-        if case let .Keyword(kind) = token.kind {
-            return kind == .SelfKw || kind == .SelfTypeKw
-        }
-        return false
-    }
-
-    private func resolveRoot(_ first: String, at token: Token) -> Namespace? {
-        if let package = context.name2Package[first] {
-            return Namespace(name: first, symbol: package, scope: package.scope)
-        }
-        if let module = currentScope?.modules[first] {
-            return Namespace(name: first, symbol: module, scope: module.scope)
-        }
-        return nil
     }
 
     private func importTerminal(
@@ -237,9 +207,31 @@ public final class ImportProcessor: AST.Visitor {
         )
     }
 
-    private struct Namespace {
-        let name: String
-        let symbol: Symbol.Symbol
-        let scope: Scope
+    private func fullPath(at pathParts: [String], name: String, sub: AST.ImportNode) -> String {
+        let remaining = firstDottedPath(of: sub)
+        let current = remaining.isEmpty ? name : name + "." + remaining
+        return (pathParts + [current]).joined(separator: ".")
+    }
+
+    private func firstDottedPath(of node: AST.ImportNode) -> String {
+        switch node {
+        case let .Member(token, sub):
+            let rest = firstDottedPath(of: sub)
+            return rest.isEmpty ? token.value : token.value + "." + rest
+        case let .Name(token), let .Self_(token): return token.value
+        case let .Alias(token, _): return token.value
+        case .Wildcard: return "*"
+        case let .List(items): return items.first.map { firstDottedPath(of: $0) } ?? ""
+        }
+    }
+
+    private func resolveRoot(_ first: String, at token: Token) -> Namespace? {
+        if let package = context.name2Package[first] {
+            return Namespace(name: first, symbol: package, scope: package.scope)
+        }
+        if let module = currentScope?.modules[first] {
+            return Namespace(name: first, symbol: module, scope: module.scope)
+        }
+        return nil
     }
 }
