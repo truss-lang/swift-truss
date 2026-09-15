@@ -624,6 +624,9 @@ extension AST {
         @discardableResult
         open func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
             if let sig = closure.signature {
+                for item in sig.captureList {
+                    visit(item.expr, additional: additional)
+                }
                 for parameter in sig.parameters {
                     if let type = parameter.type {
                         visit(type, additional: additional)

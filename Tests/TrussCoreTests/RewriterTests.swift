@@ -268,3 +268,28 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     #expect(newVariableDecl.accessors[0].scope === getterScope)
     #expect(newVariableDecl.accessors[1].scope === setterScope)
 }
+
+@Test func rewriteClosureCaptureItemsAndFreeVariables() throws {
+    let program = parseProgram("func f() { let c = { [x = g(1), y] in y } }")
+    let functionDecl = program.statements[0] as! AST.FunctionDecl
+    let variableDecl = blockBody(functionDecl)[0] as! AST.VariableDecl
+    let closure = variableDecl.initializer as! AST.Closure
+    let captures = try #require(closure.signature?.captureList)
+    try #require(captures.count == 2)
+    let symbol = Symbol.VariableSymbol(kind: .Local, id: Id.SymbolId(0), name: "y")
+    closure.freeVariables = [symbol]
+    let secondCapture = captures[1].expr
+    let rewritten = IncrementLiteralRewriter().rewrite(program)
+    let newFunctionDecl = rewritten.statements[0] as! AST.FunctionDecl
+    let newVariableDecl = blockBody(newFunctionDecl)[0] as! AST.VariableDecl
+    let newClosure = newVariableDecl.initializer as! AST.Closure
+    #expect(newClosure !== closure)
+    let newCaptures = try #require(newClosure.signature?.captureList)
+    try #require(newCaptures.count == 2)
+    let sequential = try #require(newCaptures[0].expr as? AST.Sequential)
+    let call = try #require(sequential.operands[1] as? AST.Call)
+    #expect((call.arguments[0].value as! AST.IntegerLiteral).value == 2)
+    #expect(newCaptures[1].expr === secondCapture)
+    #expect(newClosure.freeVariables.count == 1)
+    #expect(newClosure.freeVariables[0] === symbol)
+}

@@ -1371,7 +1371,7 @@ public extension AST {
                         text +=
                             " ["
                             + signature.captureList.map { item in
-                                var itemText = item.name.value
+                                var itemText = SourcePrinter().print(item.expr)
                                 if let specifier = item.specifier {
                                     itemText = specifier.value + " " + itemText
                                 }

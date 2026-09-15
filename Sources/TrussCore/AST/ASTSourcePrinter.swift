@@ -1029,7 +1029,7 @@ public final class SourcePrinter: AST.Visitor {
             state.write(" ")
             if !signature.captureList.isEmpty {
                 let items = signature.captureList.map { item in
-                    var text = item.name.value
+                    var text = render(item.expr)
                     if let specifier = item.specifier { text = specifier.value + " " + text }
                     return text
                 }.joined(separator: ", ")

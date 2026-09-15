@@ -231,6 +231,11 @@ extension AST {
         ) -> AST.ClosureSignature? {
             guard let signature else { return nil }
             var changed = false
+            let captureList = signature.captureList.map { item -> AST.CaptureItem in
+                let newExpr = rewrite(item.expr)
+                if newExpr !== item.expr { changed = true }
+                return AST.CaptureItem(item.specifier, newExpr)
+            }
             let parameters = rewriteParameters(signature.parameters)
             if !parametersUnchanged(signature.parameters, parameters) { changed = true }
             let throwsClause = rewriteThrowsClause(signature.throwsClause)
@@ -245,7 +250,7 @@ extension AST {
             }
             if !changed { return signature }
             return AST.ClosureSignature(
-                signature.captureList, parameters, throwsClause, returnType,
+                captureList, parameters, throwsClause, returnType,
                 signature.asyncToken, signature.inToken
             )
         }
@@ -1302,9 +1307,17 @@ extension AST {
             guard let old, let new else {
                 return (old == nil) == (new == nil)
             }
-            return parametersUnchanged(old.parameters, new.parameters)
+            return captureListUnchanged(old.captureList, new.captureList)
+                && parametersUnchanged(old.parameters, new.parameters)
                 && throwsClauseUnchanged(old.throwsClause, new.throwsClause)
                 && old.returnType === new.returnType
+        }
+
+        private func captureListUnchanged(
+            _ old: [AST.CaptureItem], _ new: [AST.CaptureItem]
+        ) -> Bool {
+            old.count == new.count
+                && zip(old, new).allSatisfy { $0.expr === $1.expr }
         }
 
         @discardableResult

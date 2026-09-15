@@ -5525,7 +5525,7 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     try #require(sig != nil)
     try #require(sig!.captureList.count == 1)
     #expect(sig!.captureList[0].specifier?.value == "weak")
-    #expect(sig!.captureList[0].name.value == "self")
+    #expect(sig!.captureList[0].expr is AST.SelfExpression)
 }
 
 // MARK: - OptionalType
@@ -6664,9 +6664,9 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     let captureList = closure!.signature!.captureList
     try #require(captureList.count == 2)
     #expect(captureList[0].specifier?.value == "weak")
-    #expect(captureList[0].name.value == "a")
+    #expect((captureList[0].expr as? AST.Variable)?.name.value == "a")
     #expect(captureList[1].specifier?.value == "unowned")
-    #expect(captureList[1].name.value == "b")
+    #expect((captureList[1].expr as? AST.Variable)?.name.value == "b")
 }
 
 @Test func parseClosureCaptureUnownedSelf() throws {
@@ -6678,7 +6678,117 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     let captureList = closure!.signature!.captureList
     try #require(captureList.count == 1)
     #expect(captureList[0].specifier?.value == "unowned")
-    #expect(captureList[0].name.value == "self")
+    #expect(captureList[0].expr is AST.SelfExpression)
+}
+
+func captureItems(_ source: String) -> ([AST.CaptureItem], [Diagnostic]) {
+    let (program, errors) = parseWithDiagnostics("func main() { \(source) }")
+    let funcDecl = program.statements[0] as! AST.FunctionDecl
+    guard case let .Block(statements) = funcDecl.body else { return ([], errors) }
+    let exprStmt = statements[0] as! AST.ExpressionStatement
+    let closure = exprStmt.expression as! AST.Closure
+    return (closure.signature?.captureList ?? [], errors)
+}
+
+func assertSyntaxRoundTrip(_ source: String) {
+    let original = AST.Dumper().dump(parse(source))
+    let printed = SourcePrinter().print(parse(source))
+    let reparsed = AST.Dumper().dump(parse(printed))
+    #expect(
+        reparsed == original,
+        "round-trip failed for: \(source)\nprinted:\n\(printed)\nexpected dump:\n\(original)\nactual dump:\n\(reparsed)"
+    )
+}
+
+@Test func parseCaptureListSingleVariableExpression() throws {
+    let (items, errors) = captureItems("{ [x] in x }")
+    #expect(errors.isEmpty)
+    try #require(items.count == 1)
+    #expect(items[0].specifier == nil)
+    #expect((items[0].expr as? AST.Variable)?.name.value == "x")
+}
+
+@Test func parseCaptureListSelfExpression() throws {
+    let (items, errors) = captureItems("{ [self] in 1 }")
+    #expect(errors.isEmpty)
+    try #require(items.count == 1)
+    #expect(items[0].specifier == nil)
+    #expect(items[0].expr is AST.SelfExpression)
+}
+
+@Test func parseCaptureListWeakSelfExpression() throws {
+    let (items, errors) = captureItems("{ [weak self] in 1 }")
+    #expect(errors.isEmpty)
+    try #require(items.count == 1)
+    #expect(items[0].specifier?.value == "weak")
+    #expect(items[0].expr is AST.SelfExpression)
+}
+
+@Test func parseCaptureListWeakVariableExpression() throws {
+    let (items, errors) = captureItems("{ [weak x] in x }")
+    #expect(errors.isEmpty)
+    try #require(items.count == 1)
+    #expect(items[0].specifier?.value == "weak")
+    #expect((items[0].expr as? AST.Variable)?.name.value == "x")
+}
+
+@Test func parseCaptureListMultipleExpressions() throws {
+    let (items, errors) = captureItems("{ [x, y] in x }")
+    #expect(errors.isEmpty)
+    try #require(items.count == 2)
+    #expect((items[0].expr as? AST.Variable)?.name.value == "x")
+    #expect((items[1].expr as? AST.Variable)?.name.value == "y")
+}
+
+@Test func parseCaptureListAssignmentExpression() throws {
+    let (items, errors) = captureItems("{ [x = someExpr] in x }")
+    #expect(errors.isEmpty)
+    try #require(items.count == 1)
+    let sequential = try #require(items[0].expr as? AST.Sequential)
+    #expect(sequential.ops.count == 1)
+    #expect(sequential.ops[0].value == "=")
+    #expect((sequential.operands[0] as? AST.Variable)?.name.value == "x")
+    #expect((sequential.operands[1] as? AST.Variable)?.name.value == "someExpr")
+}
+
+@Test func parseCaptureListAssignmentKeepsNestedCommas() throws {
+    let (items, errors) = captureItems("{ [x = f(a, b), y] in x }")
+    #expect(errors.isEmpty)
+    try #require(items.count == 2)
+    let sequential = try #require(items[0].expr as? AST.Sequential)
+    #expect(sequential.ops.count == 1)
+    let call = try #require(sequential.operands[1] as? AST.Call)
+    #expect(call.arguments.count == 2)
+    #expect((call.arguments[0].value as? AST.Variable)?.name.value == "a")
+    #expect((call.arguments[1].value as? AST.Variable)?.name.value == "b")
+    #expect((items[1].expr as? AST.Variable)?.name.value == "y")
+}
+
+@Test func parseCaptureListKeepsNestedBrackets() throws {
+    let (items, errors) = captureItems("{ [x, [1, 2]] in x }")
+    #expect(errors.isEmpty)
+    try #require(items.count == 2)
+    #expect((items[0].expr as? AST.Variable)?.name.value == "x")
+    let array = try #require(items[1].expr as? AST.ArrayLiteral)
+    #expect(array.elements.count == 2)
+}
+
+@Test func parseCaptureListExpressionsRoundTrip() {
+    assertSyntaxRoundTrip("func main() { let c = { [x] in x } }")
+    assertSyntaxRoundTrip("func main() { let c = { [self] in 1 } }")
+    assertSyntaxRoundTrip("func main() { let c = { [weak self] in 1 } }")
+    assertSyntaxRoundTrip("func main() { let c = { [unowned self] in 1 } }")
+    assertSyntaxRoundTrip("func main() { let c = { [weak x] in x } }")
+    assertSyntaxRoundTrip("func main() { let c = { [x, y] in x } }")
+    assertSyntaxRoundTrip("func main() { let c = { [x = someExpr] in x } }")
+    assertSyntaxRoundTrip("func main() { let c = { [x = f(a, b), y] in x } }")
+}
+
+@Test func captureListExpressionTextIsPrinted() {
+    let dump = AST.Dumper().dump(parse("func main() { let c = { [x = f(a, b), y] in x } }"))
+    #expect(dump.contains("Signature [x = f(a, b), y]"))
+    let printed = SourcePrinter().print(parse("func main() { let c = { [x = f(a, b), y] in x } }"))
+    #expect(printed.contains("[x = f(a, b), y]"))
 }
 
 @Test func parseClosureFullSignature() throws {

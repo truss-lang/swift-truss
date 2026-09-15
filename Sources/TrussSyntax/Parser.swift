@@ -5466,17 +5466,7 @@ public final class Parser {
                 specifier = t
                 index += 1
             }
-            let name = peek
-            let isWord =
-                if let n = name {
-                    switch n.kind {
-                    case .Identifier, .Keyword: true
-                    default: false
-                    }
-                } else {
-                    false
-                }
-            if !isWord {
+            guard let expr = parseExpression() else {
                 if let tok = peek {
                     emitError("expected identifier in capture list", at: tok)
                 } else {
@@ -5484,8 +5474,7 @@ public final class Parser {
                 }
                 break
             }
-            index += 1
-            items.append(AST.CaptureItem(specifier, name!))
+            items.append(AST.CaptureItem(specifier, expr))
             if peek?.kind == .Separator(.Comma) {
                 index += 1
             } else {

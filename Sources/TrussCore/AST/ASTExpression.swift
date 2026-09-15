@@ -446,10 +446,10 @@ public extension AST {
 
     struct CaptureItem {
         public let specifier: Token?
-        public let name: Token
-        public init(_ specifier: Token?, _ name: Token) {
+        public let expr: Expression
+        public init(_ specifier: Token?, _ expr: Expression) {
             self.specifier = specifier
-            self.name = name
+            self.expr = expr
         }
     }
 
@@ -478,6 +478,7 @@ public extension AST {
         public var signature: ClosureSignature?
         public let body: [Statement]
         public var scope: Scope? = nil
+        public var freeVariables: [Symbol.Symbol] = []
         public init(
             _ signature: ClosureSignature?, _ body: [Statement], sourceRange: SourceRange
         ) {
@@ -494,6 +495,7 @@ public extension AST {
             super.copySemantics(from: other)
             guard let otherClosure = other as? AST.Closure else { return }
             scope = otherClosure.scope
+            freeVariables = otherClosure.freeVariables
         }
     }
 
