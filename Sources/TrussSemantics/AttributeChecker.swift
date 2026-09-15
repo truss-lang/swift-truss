@@ -8,44 +8,6 @@ public final class AttributeChecker: AST.Visitor {
         self.context = context
     }
 
-    private func checkAttributes(_ attributes: [AST.Attribute], scope: SourceRange) {
-        for attribute in attributes {
-            switch attribute.name.value {
-            case "allow":
-                checkAllow(attribute, scope: scope)
-            case "cname", "builtin":
-                break
-            default:
-                context.emitError("unknown attribute '\(attribute.name.value)'", at: attribute.name)
-            }
-        }
-    }
-
-    private func checkAllow(_ attribute: AST.Attribute, scope: SourceRange) {
-        if !attribute.labeledArguments.isEmpty {
-            context.emitError(
-                "expected a lint name in '#[allow(...)]', but found labeled argument",
-                at: attribute.name
-            )
-            return
-        }
-        guard !attribute.arguments.isEmpty else {
-            context.emitError("expected a lint name in '#[allow(...)]'", at: attribute.name)
-            return
-        }
-        for argument in attribute.arguments {
-            guard let lint = argument.first, argument.count == 1 else {
-                context.emitError("expected a lint name in '#[allow(...)]'", at: attribute.name)
-                return
-            }
-            if lint.value != "warning" {
-                context.emitError("unknown lint '\(lint.value)' in '#[allow]'", at: lint)
-                return
-            }
-        }
-        context.allowWarning(in: scope)
-    }
-
     public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil) -> Any? {
         checkAttributes(moduleDecl.attributes, scope: moduleDecl.sourceRange)
         return super.visitModuleDecl(moduleDecl, additional: additional)
@@ -138,5 +100,43 @@ public final class AttributeChecker: AST.Visitor {
     ) -> Any? {
         checkAttributes(associatedTypeDecl.attributes, scope: associatedTypeDecl.sourceRange)
         return super.visitAssociatedTypeDecl(associatedTypeDecl, additional: additional)
+    }
+
+    private func checkAttributes(_ attributes: [AST.Attribute], scope: SourceRange) {
+        for attribute in attributes {
+            switch attribute.name.value {
+            case "allow":
+                checkAllow(attribute, scope: scope)
+            case "cname", "builtin":
+                break
+            default:
+                context.emitError("unknown attribute '\(attribute.name.value)'", at: attribute.name)
+            }
+        }
+    }
+
+    private func checkAllow(_ attribute: AST.Attribute, scope: SourceRange) {
+        if !attribute.labeledArguments.isEmpty {
+            context.emitError(
+                "expected a lint name in '#[allow(...)]', but found labeled argument",
+                at: attribute.name
+            )
+            return
+        }
+        guard !attribute.arguments.isEmpty else {
+            context.emitError("expected a lint name in '#[allow(...)]'", at: attribute.name)
+            return
+        }
+        for argument in attribute.arguments {
+            guard let lint = argument.first, argument.count == 1 else {
+                context.emitError("expected a lint name in '#[allow(...)]'", at: attribute.name)
+                return
+            }
+            if lint.value != "warning" {
+                context.emitError("unknown lint '\(lint.value)' in '#[allow]'", at: lint)
+                return
+            }
+        }
+        context.allowWarning(in: scope)
     }
 }
