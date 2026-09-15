@@ -2,6 +2,17 @@ import SwiftBetterDiagnostic
 import TrussCore
 
 public final class ControlFlowChecker: AST.Visitor {
+    private final class LabelCollector: AST.Visitor {
+        private(set) var labels: Set<String> = []
+
+        public override func visitLabeledStatement(
+            _ labeledStatement: AST.LabeledStatement, additional: Any? = nil
+        ) -> Any? {
+            labels.insert(labeledStatement.label.value)
+            return super.visitLabeledStatement(labeledStatement, additional: additional)
+        }
+    }
+
     private let context: Context
     private var loopDepth = 0
     private var functionReturnType: TrussType.TrussType?
@@ -170,20 +181,6 @@ public final class ControlFlowChecker: AST.Visitor {
         return nil
     }
 
-    private func collectLabels(_ body: AST.FunctionDecl.Body?) -> Set<String> {
-        guard let body else { return [] }
-        let collector = LabelCollector()
-        switch body {
-        case let .Block(statements):
-            for statement in statements {
-                collector.visit(statement)
-            }
-        case let .Expression(expression):
-            collector.visit(expression)
-        }
-        return collector.labels
-    }
-
     private func hasReturnPath(_ statements: [AST.Statement]) -> Bool {
         guard let last = statements.last else { return false }
         if last is AST.Return || last is AST.Throw {
@@ -214,6 +211,20 @@ public final class ControlFlowChecker: AST.Visitor {
         return true
     }
 
+    private func collectLabels(_ body: AST.FunctionDecl.Body?) -> Set<String> {
+        guard let body else { return [] }
+        let collector = LabelCollector()
+        switch body {
+        case let .Block(statements):
+            for statement in statements {
+                collector.visit(statement)
+            }
+        case let .Expression(expression):
+            collector.visit(expression)
+        }
+        return collector.labels
+    }
+
     private func checkUnreachable(_ statements: [AST.Statement]) {
         var terminated = false
         for statement in statements {
@@ -222,7 +233,9 @@ public final class ControlFlowChecker: AST.Visitor {
             {
                 context.emitWarning("unreachable code", at: statement.sourceRange)
             }
-            if isTerminator(statement) {
+            if statement is AST.Return || statement is AST.Throw || statement is AST.Break
+                || statement is AST.Continue || statement is AST.Goto
+            {
                 terminated = true
             }
             if statement is AST.LabeledStatement {
@@ -231,27 +244,11 @@ public final class ControlFlowChecker: AST.Visitor {
         }
     }
 
-    private func isTerminator(_ statement: AST.Statement) -> Bool {
-        statement is AST.Return || statement is AST.Throw || statement is AST.Break
-            || statement is AST.Continue || statement is AST.Goto
-    }
-
     private func checkConstantCondition(_ condition: AST.Expression) {
         if let literal = condition as? AST.BoolLiteral, !context.isWarningAllowed(at: literal.token) {
             context.emitWarning(
                 "condition is always \(literal.token.value)", at: literal.token
             )
         }
-    }
-}
-
-private final class LabelCollector: AST.Visitor {
-    private(set) var labels: Set<String> = []
-
-    public override func visitLabeledStatement(
-        _ labeledStatement: AST.LabeledStatement, additional: Any? = nil
-    ) -> Any? {
-        labels.insert(labeledStatement.label.value)
-        return super.visitLabeledStatement(labeledStatement, additional: additional)
     }
 }
