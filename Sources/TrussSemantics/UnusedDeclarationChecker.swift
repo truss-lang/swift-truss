@@ -2,6 +2,12 @@ import SwiftBetterDiagnostic
 import TrussCore
 
 public final class UnusedDeclarationChecker: AST.Visitor {
+    private struct Candidate {
+        let symbol: Symbol.Symbol
+        let token: Token
+        let message: String
+    }
+
     private let context: Context
     private var usedIds: Set<Id.SymbolId> = []
     private var candidates: [Candidate] = []
@@ -9,14 +15,129 @@ public final class UnusedDeclarationChecker: AST.Visitor {
     private var externDepth = 0
     private var emptyBodies: [Token] = []
 
-    private struct Candidate {
-        let symbol: Symbol.Symbol
-        let token: Token
-        let message: String
-    }
-
     public init(context: Context) {
         self.context = context
+    }
+
+    public override func visit(_ node: AST.AstNode, additional: Any? = nil) -> Any? {
+        if let expression = node as? AST.Expression {
+            collectSymbols(expression)
+        }
+        return super.visit(node, additional: additional)
+    }
+
+    public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil) -> Any? {
+        if let symbol = functionDecl.symbol {
+            for local in symbol.locals {
+                if !local.name.hasPrefix("_") {
+                    candidates.append(
+                        Candidate(
+                            symbol: local,
+                            token: local.sourceToken ?? functionDecl.name,
+                            message: "unused variable '\(local.name)'"
+                        )
+                    )
+                }
+            }
+            let isOverride = functionDecl.modifiers.contains { if case .Override = $0.kind { true } else { false } }
+            let isAbstract = functionDecl.modifiers.contains { if case .Abstract = $0.kind { true } else { false } }
+            if [.Private, .FilePrivate].contains(symbol.access),
+               !isOverride,
+               externDepth == 0,
+               !isAbstract,
+               functionDecl.body != nil
+            {
+                candidates.append(
+                    Candidate(
+                        symbol: symbol,
+                        token: functionDecl.name,
+                        message: "function '\(symbol.name)' is never used"
+                    )
+                )
+            }
+            if let body = functionDecl.body, case let .Block(statements) = body,
+               statements.isEmpty, externDepth == 0,
+               !isAbstract
+            {
+                emptyBodies.append(functionDecl.name)
+            }
+        }
+        functionDepth += 1
+        super.visitFunctionDecl(functionDecl, additional: additional)
+        functionDepth -= 1
+        return nil
+    }
+
+    public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil) -> Any? {
+        if let symbol = initDecl.symbol {
+            for local in symbol.locals {
+                if !local.name.hasPrefix("_") {
+                    candidates.append(
+                        Candidate(
+                            symbol: local,
+                            token: local.sourceToken ?? initDecl.token,
+                            message: "unused variable '\(local.name)'"
+                        )
+                    )
+                }
+            }
+        }
+        return super.visitInitDecl(initDecl, additional: additional)
+    }
+
+    public override func visitVariableDecl(_ variableDecl: AST.VariableDecl, additional: Any? = nil) -> Any? {
+        if let symbol = variableDecl.symbol, functionDepth == 0,
+           [.Private, .FilePrivate].contains(symbol.access), !symbol.name.hasPrefix("_")
+        {
+            let message = symbol.memberOf == nil
+                ? "variable '\(symbol.name)' is never used"
+                : "member '\(symbol.name)' is never used"
+            candidates.append(
+                Candidate(
+                    symbol: symbol,
+                    token: variableDecl.name,
+                    message: message
+                )
+            )
+        }
+        return super.visitVariableDecl(variableDecl, additional: additional)
+    }
+
+    public override func visitExternDecl(_ externDecl: AST.ExternDecl, additional: Any? = nil) -> Any? {
+        externDepth += 1
+        super.visitExternDecl(externDecl, additional: additional)
+        externDepth -= 1
+        return nil
+    }
+
+    public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil) -> Any? {
+        collectTypeCandidate(structDecl.symbol, token: structDecl.name)
+        return super.visitStructDecl(structDecl, additional: additional)
+    }
+
+    public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil) -> Any? {
+        collectTypeCandidate(classDecl.symbol, token: classDecl.name)
+        return super.visitClassDecl(classDecl, additional: additional)
+    }
+
+    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil) -> Any? {
+        collectTypeCandidate(enumDecl.symbol, token: enumDecl.name)
+        return super.visitEnumDecl(enumDecl, additional: additional)
+    }
+
+    public override func visitProtocolDecl(_ protocolDecl: AST.ProtocolDecl, additional: Any? = nil) -> Any? {
+        collectTypeCandidate(protocolDecl.symbol, token: protocolDecl.name)
+        return super.visitProtocolDecl(protocolDecl, additional: additional)
+    }
+
+    public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil) -> Any? {
+        collectTypeCandidate(actorDecl.symbol, token: actorDecl.name)
+        return super.visitActorDecl(actorDecl, additional: additional)
+    }
+
+    public override func visitTypeAliasDecl(_ typeAliasDecl: AST.TypeAliasDecl, additional: Any? = nil) -> Any? {
+        collectTypeCandidate(typeAliasDecl.symbol, token: typeAliasDecl.name)
+        return super.visitTypeAliasDecl(typeAliasDecl, additional: additional)
     }
 
     public func checkAll(_ programs: [AST.Program]) {
@@ -39,13 +160,6 @@ public final class UnusedDeclarationChecker: AST.Visitor {
                 context.emitWarning("function has an empty body", at: token)
             }
         }
-    }
-
-    public override func visit(_ node: AST.AstNode, additional: Any? = nil) -> Any? {
-        if let expression = node as? AST.Expression {
-            collectSymbols(expression)
-        }
-        return super.visit(node, additional: additional)
     }
 
     private func collectSymbols(_ expression: AST.Expression) {
@@ -100,118 +214,8 @@ public final class UnusedDeclarationChecker: AST.Visitor {
         }
     }
 
-    public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil) -> Any? {
-        if let symbol = functionDecl.symbol {
-            for local in symbol.locals {
-                if !local.name.hasPrefix("_") {
-                    candidates.append(
-                        Candidate(
-                            symbol: local,
-                            token: local.sourceToken ?? functionDecl.name,
-                            message: "unused variable '\(local.name)'"
-                        )
-                    )
-                }
-            }
-            if isPrivate(symbol.access), !isOverride(functionDecl), externDepth == 0,
-               !functionDecl.modifiers.contains(where: { isAbstract($0.kind) }),
-               functionDecl.body != nil
-            {
-                candidates.append(
-                    Candidate(
-                        symbol: symbol,
-                        token: functionDecl.name,
-                        message: "function '\(symbol.name)' is never used"
-                    )
-                )
-            }
-            if let body = functionDecl.body, case let .Block(statements) = body,
-               statements.isEmpty, externDepth == 0,
-               !functionDecl.modifiers.contains(where: { isAbstract($0.kind) })
-            {
-                emptyBodies.append(functionDecl.name)
-            }
-        }
-        functionDepth += 1
-        super.visitFunctionDecl(functionDecl, additional: additional)
-        functionDepth -= 1
-        return nil
-    }
-
-    public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil) -> Any? {
-        if let symbol = initDecl.symbol {
-            for local in symbol.locals {
-                if !local.name.hasPrefix("_") {
-                    candidates.append(
-                        Candidate(
-                            symbol: local,
-                            token: local.sourceToken ?? initDecl.token,
-                            message: "unused variable '\(local.name)'"
-                        )
-                    )
-                }
-            }
-        }
-        return super.visitInitDecl(initDecl, additional: additional)
-    }
-
-    public override func visitVariableDecl(_ variableDecl: AST.VariableDecl, additional: Any? = nil) -> Any? {
-        if let symbol = variableDecl.symbol, functionDepth == 0,
-           isPrivate(symbol.access), !symbol.name.hasPrefix("_")
-        {
-            let message = symbol.memberOf == nil
-                ? "variable '\(symbol.name)' is never used"
-                : "member '\(symbol.name)' is never used"
-            candidates.append(
-                Candidate(
-                    symbol: symbol,
-                    token: variableDecl.name,
-                    message: message
-                )
-            )
-        }
-        return super.visitVariableDecl(variableDecl, additional: additional)
-    }
-
-    public override func visitExternDecl(_ externDecl: AST.ExternDecl, additional: Any? = nil) -> Any? {
-        externDepth += 1
-        super.visitExternDecl(externDecl, additional: additional)
-        externDepth -= 1
-        return nil
-    }
-
-    public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil) -> Any? {
-        collectTypeCandidate(structDecl.symbol, token: structDecl.name)
-        return super.visitStructDecl(structDecl, additional: additional)
-    }
-
-    public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil) -> Any? {
-        collectTypeCandidate(classDecl.symbol, token: classDecl.name)
-        return super.visitClassDecl(classDecl, additional: additional)
-    }
-
-    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil) -> Any? {
-        collectTypeCandidate(enumDecl.symbol, token: enumDecl.name)
-        return super.visitEnumDecl(enumDecl, additional: additional)
-    }
-
-    public override func visitProtocolDecl(_ protocolDecl: AST.ProtocolDecl, additional: Any? = nil) -> Any? {
-        collectTypeCandidate(protocolDecl.symbol, token: protocolDecl.name)
-        return super.visitProtocolDecl(protocolDecl, additional: additional)
-    }
-
-    public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil) -> Any? {
-        collectTypeCandidate(actorDecl.symbol, token: actorDecl.name)
-        return super.visitActorDecl(actorDecl, additional: additional)
-    }
-
-    public override func visitTypeAliasDecl(_ typeAliasDecl: AST.TypeAliasDecl, additional: Any? = nil) -> Any? {
-        collectTypeCandidate(typeAliasDecl.symbol, token: typeAliasDecl.name)
-        return super.visitTypeAliasDecl(typeAliasDecl, additional: additional)
-    }
-
     private func collectTypeCandidate(_ symbol: Symbol.Symbol?, token: Token) {
-        if let symbol, isPrivate(symbol.access) {
+        if let symbol, [.Private, .FilePrivate].contains(symbol.access) {
             candidates.append(
                 Candidate(
                     symbol: symbol,
@@ -220,21 +224,5 @@ public final class UnusedDeclarationChecker: AST.Visitor {
                 )
             )
         }
-    }
-
-    private func isPrivate(_ access: AccessLevel) -> Bool {
-        access == .Private || access == .FilePrivate
-    }
-
-    private func isOverride(_ functionDecl: AST.FunctionDecl) -> Bool {
-        functionDecl.modifiers.contains { modifier in
-            if case .Override = modifier.kind { return true }
-            return false
-        }
-    }
-
-    private func isAbstract(_ kind: AST.ModifierKind) -> Bool {
-        if case .Abstract = kind { return true }
-        return false
     }
 }
