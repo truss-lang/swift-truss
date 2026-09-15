@@ -7,81 +7,9 @@ public final class NameResolver: AST.Visitor {
     private var typeStack: [Symbol.NominalTypeSymbol] = []
     private var boundaryStack: [Int] = []
     private var closureStack: [(index: Int, closure: AST.Closure, captures: [Symbol.Symbol])] = []
+
     public init(context: Context) {
         self.context = context
-    }
-
-    private func enterCallableScope(_ scope: Scope, boundaryOf boundaryScope: Scope? = nil) {
-        scopeStack.append(scope)
-        let target = boundaryScope ?? scope
-        boundaryStack.append(scopeStack.lastIndex { $0 === target } ?? scopeStack.count - 1)
-    }
-
-    private func exitCallableScope() {
-        scopeStack.removeLast()
-        boundaryStack.removeLast()
-    }
-
-    private func isCaptured(at index: Int) -> Bool {
-        guard let boundary = boundaryStack.last else { return false }
-        return index < boundary
-    }
-
-    private func markedFree(_ symbol: Symbol.Symbol) -> Symbol.Symbol? {
-        if let variable = symbol as? Symbol.VariableSymbol {
-            switch variable.kind {
-            case .Local: variable.kind = .Free
-            case .Free: break
-            case .Global, .Property, .StaticProperty: return nil
-            }
-            return variable
-        }
-        if let selfSymbol = symbol as? Symbol.SelfSymbol {
-            if selfSymbol.kind == .Local {
-                selfSymbol.kind = .Free
-            }
-            return selfSymbol
-        }
-        return nil
-    }
-
-    private func appendCapture(_ symbol: Symbol.Symbol, foundAt index: Int) {
-        for frameIndex in closureStack.indices where index < closureStack[frameIndex].index {
-            closureStack[frameIndex].captures.append(symbol)
-        }
-    }
-
-    private func recordFreeReference(_ symbol: Symbol.Symbol, foundAt index: Int) {
-        guard isCaptured(at: index) else { return }
-        if let captured = markedFree(symbol) {
-            appendCapture(captured, foundAt: index)
-        }
-        guard let variable = symbol as? Symbol.VariableSymbol, variable.kind == .Property,
-              let memberOf = variable.memberOf,
-              let (selfIndex, selfSymbol) = resolveSelfSymbol(),
-              selfSymbol.memberOf == memberOf,
-              isCaptured(at: selfIndex)
-        else {
-            return
-        }
-        if let capturedSelf = markedFree(selfSymbol) {
-            appendCapture(capturedSelf, foundAt: selfIndex)
-        }
-    }
-
-    private func resolveSelfSymbol() -> (Int, Symbol.SelfSymbol)? {
-        guard let (index, entries) = lookupScopeEntry("self"),
-              let symbol = entries.compactMap({ $0 as? Symbol.SelfSymbol }).last
-        else {
-            return nil
-        }
-        return (index, symbol)
-    }
-
-    private func sortedCaptures(_ captures: [Symbol.Symbol]) -> [Symbol.Symbol] {
-        var seen: Set<Id.SymbolId> = []
-        let unique = captures.filter { seen.insert($0.id).inserted }
-        return unique.sorted { $0.id.id < $1.id.id }
     }
 
     @discardableResult
@@ -93,9 +21,7 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitModuleDecl(_ moduleDecl: AST.ModuleDecl, additional: Any? = nil) -> Any? {
         scopeStack.append(moduleDecl.symbol!.scope)
         super.visitModuleDecl(moduleDecl, additional: additional)
         scopeStack.removeLast()
@@ -118,9 +44,70 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil) -> Any? {
+        let symbol = structDecl.symbol!
+        scopeStack.append(symbol.scope)
+        typeStack.append(symbol)
+        super.visitStructDecl(structDecl, additional: additional)
+        typeStack.removeLast()
+        scopeStack.removeLast()
+        collectConformances(structDecl.conformances, into: symbol)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil) -> Any? {
+        let symbol = classDecl.symbol!
+        if let classSymbol = symbol as? Symbol.ClassSymbol {
+            resolveSuperclass(classDecl.inheritanceClauses, into: classSymbol)
+        }
+        scopeStack.append(symbol.scope)
+        typeStack.append(symbol)
+        super.visitClassDecl(classDecl, additional: additional)
+        typeStack.removeLast()
+        scopeStack.removeLast()
+        collectConformances(classDecl.inheritanceClauses, into: symbol)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil) -> Any? {
+        let symbol = enumDecl.symbol!
+        scopeStack.append(symbol.scope)
+        typeStack.append(symbol)
+        super.visitEnumDecl(enumDecl, additional: additional)
+        typeStack.removeLast()
+        scopeStack.removeLast()
+        collectConformances(enumDecl.conformances, into: symbol)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitProtocolDecl(_ protocolDecl: AST.ProtocolDecl, additional: Any? = nil) -> Any? {
+        let symbol = protocolDecl.symbol!
+        scopeStack.append(symbol.scope)
+        typeStack.append(symbol)
+        super.visitProtocolDecl(protocolDecl, additional: additional)
+        typeStack.removeLast()
+        scopeStack.removeLast()
+        collectConformances(protocolDecl.conformances, into: symbol)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil) -> Any? {
+        let symbol = actorDecl.symbol!
+        scopeStack.append(symbol.scope)
+        typeStack.append(symbol)
+        super.visitActorDecl(actorDecl, additional: additional)
+        typeStack.removeLast()
+        scopeStack.removeLast()
+        collectConformances(actorDecl.conformances, into: symbol)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil) -> Any? {
         enterCallableScope(functionDecl.symbol!.scope)
         super.visitFunctionDecl(functionDecl, additional: additional)
         exitCallableScope()
@@ -128,57 +115,15 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil)
-        -> Any?
-    {
-        guard let symbol = initDecl.symbol else {
-            return super.visitInitDecl(initDecl, additional: additional)
-        }
-        enterCallableScope(symbol.scope)
+    public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil) -> Any? {
+        enterCallableScope(initDecl.symbol!.scope)
         super.visitInitDecl(initDecl, additional: additional)
         exitCallableScope()
         return nil
     }
 
     @discardableResult
-    public override func visitSubscriptDecl(
-        _ subscriptDecl: AST.SubscriptDecl, additional: Any? = nil
-    ) -> Any? {
-        guard let symbol = subscriptDecl.symbol else {
-            return super.visitSubscriptDecl(subscriptDecl, additional: additional)
-        }
-        enterCallableScope(symbol.getter.scope)
-        super.visitSubscriptDecl(subscriptDecl, additional: additional)
-        exitCallableScope()
-        return nil
-    }
-
-    @discardableResult
-    public override func visitFor(_ forStmt: AST.For, additional: Any? = nil) -> Any? {
-        guard let scope = forStmt.scope else {
-            return super.visitFor(forStmt, additional: additional)
-        }
-        scopeStack.append(scope)
-        super.visitFor(forStmt, additional: additional)
-        scopeStack.removeLast()
-        return nil
-    }
-
-    @discardableResult
-    public override func visitLoop(_ loopStmt: AST.Loop, additional: Any? = nil) -> Any? {
-        guard let scope = loopStmt.scope else {
-            return super.visitLoop(loopStmt, additional: additional)
-        }
-        scopeStack.append(scope)
-        super.visitLoop(loopStmt, additional: additional)
-        scopeStack.removeLast()
-        return nil
-    }
-
-    @discardableResult
-    public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil)
-        -> Any?
-    {
+    public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil) -> Any? {
         guard let scope = deinitDecl.scope else {
             return super.visitDeinitDecl(deinitDecl, additional: additional)
         }
@@ -189,28 +134,17 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitAccessor(_ accessor: AST.Accessor, additional: Any? = nil)
-        -> Any?
-    {
-        guard let scope = accessor.scope else {
-            return super.visitAccessor(accessor, additional: additional)
-        }
-        enterCallableScope(scope, boundaryOf: accessor.symbol?.scope)
-        super.visitAccessor(accessor, additional: additional)
+    public override func visitSubscriptDecl(_ subscriptDecl: AST.SubscriptDecl, additional: Any? = nil) -> Any? {
+        enterCallableScope(subscriptDecl.symbol!.getter.scope)
+        super.visitSubscriptDecl(subscriptDecl, additional: additional)
         exitCallableScope()
         return nil
     }
 
     @discardableResult
-    public override func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
-        guard let scope = closure.scope else {
-            return super.visitClosure(closure, additional: additional)
-        }
-        enterCallableScope(scope)
-        closureStack.append((index: scopeStack.count - 1, closure: closure, captures: []))
-        super.visitClosure(closure, additional: additional)
-        let frame = closureStack.removeLast()
-        closure.freeVariables = sortedCaptures(frame.captures)
+    public override func visitAccessor(_ accessor: AST.Accessor, additional: Any? = nil) -> Any? {
+        enterCallableScope(accessor.scope!, boundaryOf: accessor.symbol?.scope)
+        super.visitAccessor(accessor, additional: additional)
         exitCallableScope()
         return nil
     }
@@ -218,9 +152,7 @@ public final class NameResolver: AST.Visitor {
     @discardableResult
     public override func visitIf(_ ifExpr: AST.If, additional: Any? = nil) -> Any? {
         visit(ifExpr.condition, additional: additional)
-        if let scope = ifExpr.scope {
-            scopeStack.append(scope)
-        }
+        scopeStack.append(ifExpr.scope!)
         for statement in ifExpr.then {
             visit(statement, additional: additional)
         }
@@ -234,176 +166,46 @@ public final class NameResolver: AST.Visitor {
                 visitIf(elseIf, additional: additional)
             }
         }
-        if ifExpr.scope != nil {
-            scopeStack.removeLast()
-        }
+        scopeStack.removeLast()
         return nil
     }
 
     @discardableResult
     public override func visitWhile(_ whileStmt: AST.While, additional: Any? = nil) -> Any? {
         visit(whileStmt.condition, additional: additional)
-        if let scope = whileStmt.scope {
-            scopeStack.append(scope)
-        }
+        scopeStack.append(whileStmt.scope!)
         for statement in whileStmt.body {
             visit(statement, additional: additional)
         }
-        if whileStmt.scope != nil {
-            scopeStack.removeLast()
-        }
+        scopeStack.removeLast()
         return nil
     }
 
     @discardableResult
-    public override func visitRepeatWhile(
-        _ repeatWhile: AST.RepeatWhile, additional: Any? = nil
-    ) -> Any? {
-        if let scope = repeatWhile.scope {
-            scopeStack.append(scope)
-        }
+    public override func visitLoop(_ loopStmt: AST.Loop, additional: Any? = nil) -> Any? {
+        scopeStack.append(loopStmt.scope!)
+        super.visitLoop(loopStmt, additional: additional)
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
+    public override func visitRepeatWhile(_ repeatWhile: AST.RepeatWhile, additional: Any? = nil) -> Any? {
+        scopeStack.append(repeatWhile.scope!)
         for statement in repeatWhile.body {
             visit(statement, additional: additional)
         }
         visit(repeatWhile.condition, additional: additional)
-        if repeatWhile.scope != nil {
-            scopeStack.removeLast()
-        }
+        scopeStack.removeLast()
         return nil
     }
 
     @discardableResult
-    public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil)
-        -> Any?
-    {
-        guard let symbol = structDecl.symbol else { return nil }
-        scopeStack.append(symbol.scope)
-        typeStack.append(symbol)
-        super.visitStructDecl(structDecl, additional: additional)
-        typeStack.removeLast()
+    public override func visitFor(_ forStmt: AST.For, additional: Any? = nil) -> Any? {
+        scopeStack.append(forStmt.scope!)
+        super.visitFor(forStmt, additional: additional)
         scopeStack.removeLast()
-        collectConformances(structDecl.conformances, into: symbol)
         return nil
-    }
-
-    @discardableResult
-    public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil)
-        -> Any?
-    {
-        guard let symbol = classDecl.symbol else { return nil }
-        if let classSymbol = symbol as? Symbol.ClassSymbol {
-            resolveSuperclass(classDecl.inheritanceClauses, into: classSymbol)
-        }
-        scopeStack.append(symbol.scope)
-        typeStack.append(symbol)
-        super.visitClassDecl(classDecl, additional: additional)
-        typeStack.removeLast()
-        scopeStack.removeLast()
-        collectConformances(classDecl.inheritanceClauses, into: symbol)
-        return nil
-    }
-
-    private func resolveSuperclass(
-        _ clauses: [AST.Expression], into symbol: Symbol.ClassSymbol
-    ) {
-        for expression in clauses {
-            guard let base = resolveBase(expression) as? Symbol.ClassSymbol else { continue }
-            symbol.superclass = base
-            return
-        }
-    }
-
-    @discardableResult
-    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil) -> Any? {
-        guard let symbol = enumDecl.symbol else { return nil }
-        scopeStack.append(symbol.scope)
-        typeStack.append(symbol)
-        super.visitEnumDecl(enumDecl, additional: additional)
-        typeStack.removeLast()
-        scopeStack.removeLast()
-        collectConformances(enumDecl.conformances, into: symbol)
-        return nil
-    }
-
-    @discardableResult
-    public override func visitProtocolDecl(
-        _ protocolDecl: AST.ProtocolDecl, additional: Any? = nil
-    ) -> Any? {
-        guard let symbol = protocolDecl.symbol else { return nil }
-        scopeStack.append(symbol.scope)
-        typeStack.append(symbol)
-        super.visitProtocolDecl(protocolDecl, additional: additional)
-        typeStack.removeLast()
-        scopeStack.removeLast()
-        collectConformances(protocolDecl.conformances, into: symbol)
-        return nil
-    }
-
-    @discardableResult
-    public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil)
-        -> Any?
-    {
-        guard let symbol = actorDecl.symbol else { return nil }
-        scopeStack.append(symbol.scope)
-        typeStack.append(symbol)
-        super.visitActorDecl(actorDecl, additional: additional)
-        typeStack.removeLast()
-        scopeStack.removeLast()
-        collectConformances(actorDecl.conformances, into: symbol)
-        return nil
-    }
-
-    private func collectConformances(
-        _ expressions: [AST.Expression], into symbol: Symbol.NominalTypeSymbol
-    ) {
-        for expression in expressions {
-            if let composition = expression as? AST.ProtocolCompositionType {
-                for type in composition.types {
-                    collectConformances([type], into: symbol)
-                }
-                continue
-            }
-            if let sequential = expression as? AST.Sequential,
-               let members = sequential.compositionMemberBaseOperands()
-            {
-                collectConformances(members, into: symbol)
-                continue
-            }
-            if let binary = expression as? AST.Binary, binary.operatorToken.value == "&" {
-                collectConformances([binary.left, binary.right], into: symbol)
-                continue
-            }
-            let base = genericBase(expression)
-            guard let resolved = resolvedSymbol(base) else { continue }
-            if let classSymbol = symbol as? Symbol.ClassSymbol,
-               let baseClass = resolved as? Symbol.ClassSymbol,
-               classSymbol.superclass == nil
-            {
-                classSymbol.superclass = baseClass
-            } else if let protocolSymbol = resolved as? Symbol.ProtocolSymbol {
-                if symbol.conformances.contains(where: { $0.id == protocolSymbol.id }) {
-                    context.emitError(
-                        "duplicate conformance to protocol '\(protocolSymbol.name)'",
-                        at: expression.sourceRange
-                    )
-                } else {
-                    symbol.conformances.append(protocolSymbol)
-                }
-            }
-        }
-    }
-
-    private func genericBase(_ expression: AST.Expression) -> AST.Expression {
-        if let genericApplication = expression as? AST.GenericApplication {
-            return genericApplication.base
-        }
-        if let sequential = expression as? AST.Sequential,
-           sequential.genericApplicationGroupCloseIndex() != nil,
-           let base = sequential.operands.first
-        {
-            return base
-        }
-        return expression
     }
 
     @discardableResult
@@ -413,7 +215,11 @@ public final class NameResolver: AST.Visitor {
             variable.overloads = entries.map { $0 as! Symbol.FunctionSymbol }
             variable.symbol = nil
         } else {
-            let symbol = activeVariable(entries, at: variable.sourceRange.start.offset)
+            let offset = variable.sourceRange.start.offset
+            let symbol = entries.last { entry in
+                guard entry is Symbol.VariableSymbol, let token = entry.sourceToken else { return false }
+                return token.pos.pos <= offset
+            } ?? entries.first
             variable.symbol = symbol
             if let symbol {
                 recordFreeReference(symbol, foundAt: index)
@@ -422,16 +228,57 @@ public final class NameResolver: AST.Visitor {
         return nil
     }
 
-    private func activeVariable(_ entries: [Symbol.Symbol], at offset: Int) -> Symbol.Symbol? {
-        entries.last { entry in
-            guard entry is Symbol.VariableSymbol, let token = entry.sourceToken else { return false }
-            return token.pos.pos <= offset
-        } ?? entries.first
-    }
-
     @discardableResult
     public override func visitCall(_ call: AST.Call, additional: Any? = nil) -> Any? {
         super.visitCall(call, additional: additional)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitMemberAccess(_ memberAccess: AST.MemberAccess, additional: Any? = nil) -> Any? {
+        visit(memberAccess.object, additional: additional)
+        guard let objectSymbol = resolvedSymbol(memberAccess.object) else { return nil }
+        let (symbol, overloads): (Symbol.Symbol?, [Symbol.FunctionSymbol]?)
+        if let typeSymbol = objectSymbol as? Symbol.NominalTypeSymbol {
+            (symbol, overloads) = memberResolution(memberAccess.member.value, in: typeSymbol)
+        } else if let moduleSymbol = objectSymbol as? Symbol.ModuleSymbol {
+            (symbol, overloads) = memberResolution(memberAccess.member.value, in: moduleSymbol.scope)
+        } else if let packageSymbol = objectSymbol as? Symbol.PackageSymbol {
+            (symbol, overloads) = memberResolution(memberAccess.member.value, in: packageSymbol.scope)
+        } else {
+            return nil
+        }
+        memberAccess.symbol = symbol
+        memberAccess.overloads = overloads
+        return nil
+    }
+
+    @discardableResult
+    public override func visitImplicitMemberAccess(
+        _ implicitMemberAccess: AST.ImplicitMemberAccess, additional: Any? = nil
+    ) -> Any? {
+        guard let type = typeStack.last else { return nil }
+        let (symbol, overloads) = memberResolution(implicitMemberAccess.name.value, in: type)
+        implicitMemberAccess.symbol = symbol
+        implicitMemberAccess.overloads = overloads
+        if let (index, selfSymbol) = resolveSelfSymbol() {
+            recordFreeReference(selfSymbol, foundAt: index)
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitSubscript(
+        _ subscriptExpression: AST.Subscript, additional: Any? = nil
+    ) -> Any? {
+        visit(subscriptExpression.base, additional: additional)
+        for argument in subscriptExpression.arguments {
+            visit(argument.value, additional: additional)
+        }
+        guard let baseSymbol = resolvedSymbol(subscriptExpression.base) else { return nil }
+        if let typeSymbol = baseSymbol as? Symbol.NominalTypeSymbol {
+            subscriptExpression.overloads = subscriptOverloads(of: typeSymbol)
+        }
         return nil
     }
 
@@ -457,56 +304,6 @@ public final class NameResolver: AST.Visitor {
         guard let (index, symbol) = resolveSelfSymbol() else { return nil }
         superExpression.symbol = symbol
         recordFreeReference(symbol, foundAt: index)
-        return nil
-    }
-
-    @discardableResult
-    public override func visitMemberAccess(
-        _ memberAccess: AST.MemberAccess, additional: Any? = nil
-    ) -> Any? {
-        visit(memberAccess.object, additional: additional)
-        guard let objectSymbol = resolvedSymbol(memberAccess.object) else { return nil }
-        let (symbol, overloads): (Symbol.Symbol?, [Symbol.FunctionSymbol]?)
-        if let typeSymbol = objectSymbol as? Symbol.NominalTypeSymbol {
-            (symbol, overloads) = memberResolution(memberAccess.member.value, in: typeSymbol)
-        } else if let moduleSymbol = objectSymbol as? Symbol.ModuleSymbol {
-            (symbol, overloads) = memberResolution(memberAccess.member.value, in: moduleSymbol.scope)
-        } else if let packageSymbol = objectSymbol as? Symbol.PackageSymbol {
-            (symbol, overloads) = memberResolution(memberAccess.member.value, in: packageSymbol.scope)
-        } else {
-            return nil
-        }
-        memberAccess.symbol = symbol
-        memberAccess.overloads = overloads
-        return nil
-    }
-
-    @discardableResult
-    public override func visitSubscript(
-        _ subscriptExpression: AST.Subscript, additional: Any? = nil
-    ) -> Any? {
-        visit(subscriptExpression.base, additional: additional)
-        for argument in subscriptExpression.arguments {
-            visit(argument.value, additional: additional)
-        }
-        guard let baseSymbol = resolvedSymbol(subscriptExpression.base) else { return nil }
-        if let typeSymbol = baseSymbol as? Symbol.NominalTypeSymbol {
-            subscriptExpression.overloads = subscriptOverloads(of: typeSymbol)
-        }
-        return nil
-    }
-
-    @discardableResult
-    public override func visitImplicitMemberAccess(
-        _ implicitMemberAccess: AST.ImplicitMemberAccess, additional: Any? = nil
-    ) -> Any? {
-        guard let type = typeStack.last else { return nil }
-        let (symbol, overloads) = memberResolution(implicitMemberAccess.name.value, in: type)
-        implicitMemberAccess.symbol = symbol
-        implicitMemberAccess.overloads = overloads
-        if let (index, selfSymbol) = resolveSelfSymbol() {
-            recordFreeReference(selfSymbol, foundAt: index)
-        }
         return nil
     }
 
@@ -542,6 +339,86 @@ public final class NameResolver: AST.Visitor {
             }
         }
         return nil
+    }
+
+    @discardableResult
+    public override func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
+        enterCallableScope(closure.scope!)
+        closureStack.append((index: scopeStack.count - 1, closure: closure, captures: []))
+        super.visitClosure(closure, additional: additional)
+        let frame = closureStack.removeLast()
+        var seen: Set<Id.SymbolId> = []
+        let captures = frame.captures.filter { seen.insert($0.id).inserted }
+        closure.freeVariables = captures.sorted { $0.id.id < $1.id.id }
+        exitCallableScope()
+        return nil
+    }
+
+    private func isCaptured(at index: Int) -> Bool {
+        guard let boundary = boundaryStack.last else { return false }
+        return index < boundary
+    }
+
+    private func enterCallableScope(_ scope: Scope, boundaryOf boundaryScope: Scope? = nil) {
+        scopeStack.append(scope)
+        let target = boundaryScope ?? scope
+        boundaryStack.append(scopeStack.lastIndex { $0 === target } ?? scopeStack.count - 1)
+    }
+
+    private func exitCallableScope() {
+        scopeStack.removeLast()
+        boundaryStack.removeLast()
+    }
+
+    private func recordFreeReference(_ symbol: Symbol.Symbol, foundAt index: Int) {
+        guard isCaptured(at: index) else { return }
+        if let captured = markedFree(symbol) {
+            appendCapture(captured, foundAt: index)
+        }
+        guard let variable = symbol as? Symbol.VariableSymbol, variable.kind == .Property,
+              let memberOf = variable.memberOf,
+              let (selfIndex, selfSymbol) = resolveSelfSymbol(),
+              selfSymbol.memberOf == memberOf,
+              isCaptured(at: selfIndex)
+        else {
+            return
+        }
+        if let capturedSelf = markedFree(selfSymbol) {
+            appendCapture(capturedSelf, foundAt: selfIndex)
+        }
+    }
+
+    private func markedFree(_ symbol: Symbol.Symbol) -> Symbol.Symbol? {
+        if let variable = symbol as? Symbol.VariableSymbol {
+            switch variable.kind {
+            case .Local: variable.kind = .Free
+            case .Free: break
+            case .Global, .Property, .StaticProperty: return nil
+            }
+            return variable
+        }
+        if let selfSymbol = symbol as? Symbol.SelfSymbol {
+            if selfSymbol.kind == .Local {
+                selfSymbol.kind = .Free
+            }
+            return selfSymbol
+        }
+        return nil
+    }
+
+    private func appendCapture(_ symbol: Symbol.Symbol, foundAt index: Int) {
+        for frameIndex in closureStack.indices where index < closureStack[frameIndex].index {
+            closureStack[frameIndex].captures.append(symbol)
+        }
+    }
+
+    private func resolveSelfSymbol() -> (Int, Symbol.SelfSymbol)? {
+        guard let (index, entries) = lookupScopeEntry("self"),
+              let symbol = entries.compactMap({ $0 as? Symbol.SelfSymbol }).last
+        else {
+            return nil
+        }
+        return (index, symbol)
     }
 
     private func memberResolution(
@@ -662,5 +539,68 @@ public final class NameResolver: AST.Visitor {
             return (-1, [package])
         }
         return nil
+    }
+
+    private func resolveSuperclass(
+        _ clauses: [AST.Expression], into symbol: Symbol.ClassSymbol
+    ) {
+        for expression in clauses {
+            guard let base = resolveBase(expression) as? Symbol.ClassSymbol else { continue }
+            symbol.superclass = base
+            return
+        }
+    }
+
+    private func collectConformances(
+        _ expressions: [AST.Expression], into symbol: Symbol.NominalTypeSymbol
+    ) {
+        for expression in expressions {
+            if let composition = expression as? AST.ProtocolCompositionType {
+                for type in composition.types {
+                    collectConformances([type], into: symbol)
+                }
+                continue
+            }
+            if let sequential = expression as? AST.Sequential,
+               let members = sequential.compositionMemberBaseOperands()
+            {
+                collectConformances(members, into: symbol)
+                continue
+            }
+            if let binary = expression as? AST.Binary, binary.operatorToken.value == "&" {
+                collectConformances([binary.left, binary.right], into: symbol)
+                continue
+            }
+            let base = genericBase(expression)
+            guard let resolved = resolvedSymbol(base) else { continue }
+            if let classSymbol = symbol as? Symbol.ClassSymbol,
+               let baseClass = resolved as? Symbol.ClassSymbol,
+               classSymbol.superclass == nil
+            {
+                classSymbol.superclass = baseClass
+            } else if let protocolSymbol = resolved as? Symbol.ProtocolSymbol {
+                if symbol.conformances.contains(where: { $0.id == protocolSymbol.id }) {
+                    context.emitError(
+                        "duplicate conformance to protocol '\(protocolSymbol.name)'",
+                        at: expression.sourceRange
+                    )
+                } else {
+                    symbol.conformances.append(protocolSymbol)
+                }
+            }
+        }
+    }
+
+    private func genericBase(_ expression: AST.Expression) -> AST.Expression {
+        if let genericApplication = expression as? AST.GenericApplication {
+            return genericApplication.base
+        }
+        if let sequential = expression as? AST.Sequential,
+           sequential.genericApplicationGroupCloseIndex() != nil,
+           let base = sequential.operands.first
+        {
+            return base
+        }
+        return expression
     }
 }
