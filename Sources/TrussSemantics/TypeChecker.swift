@@ -376,6 +376,9 @@ public final class TypeChecker: AST.Visitor {
                     variableDecl.symbol?.type = inferred
                 }
             }
+            if let type = variableDecl.symbol?.type {
+                fillAccessorSignatures(variableDecl, type: type)
+            }
             return nil
         }
         let type: TrussType.TrussType? =
@@ -386,6 +389,7 @@ public final class TypeChecker: AST.Visitor {
             }
         if let type {
             variableDecl.symbol?.type = type
+            fillAccessorSignatures(variableDecl, type: type)
             if variableDecl.initializer == nil, !functionReturnTypes.isEmpty,
                variableDecl.token.value == "let"
             {
@@ -405,6 +409,9 @@ public final class TypeChecker: AST.Visitor {
         } else if let initializer = variableDecl.initializer {
             let inferred = infer(initializer, at: variableDecl.name)
             variableDecl.symbol?.type = inferred.map { resolveTop($0) }
+            if let resolved = variableDecl.symbol?.type {
+                fillAccessorSignatures(variableDecl, type: resolved)
+            }
             for accessor in variableDecl.accessors {
                 if let inferred {
                     checkAccessor(accessor, inferred, at: variableDecl.name)
@@ -623,6 +630,24 @@ public final class TypeChecker: AST.Visitor {
     private func fillSelfType(of symbol: Symbol.FunctionSymbol?) {
         guard let symbol, let selfType = instanceSelfType(symbol) else { return }
         (symbol.scope.values["self"]?.first as? Symbol.SelfSymbol)?.type = selfType
+    }
+
+    private func fillAccessorSignatures(
+        _ variableDecl: AST.VariableDecl, type: TrussType.TrussType
+    ) {
+        guard let property = variableDecl.symbol else { return }
+        for (kind, symbol) in property.accessors {
+            let isGetter = kind == .Get
+            symbol.functionType = functionType(
+                selfType: instanceSelfType(symbol),
+                labels: isGetter ? [] : [nil],
+                parameterTypes: isGetter ? [] : [type],
+                varargToken: nil,
+                asyncToken: variableDecl.asyncToken,
+                throwsClause: nil,
+                returnType: isGetter ? type : TrussType.VoidType.INSTANCE
+            )
+        }
     }
 
     private func fillParameterTypes(
@@ -3190,11 +3215,14 @@ public final class TypeChecker: AST.Visitor {
     ) {
         fillSelfType(of: accessor.symbol)
         withScope(accessor.scope!) {
-            if let parameterName = accessor.parameterName,
-               let variable = accessor.scope?.values[parameterName.value]?.first
-               as? Symbol.VariableSymbol
-            {
-                variable.type = type
+            if accessor.kind != .Get {
+                let name = accessor.parameterName?.value
+                    ?? (accessor.kind == .DidSet ? "oldValue" : "newValue")
+                if let variable = accessor.scope?.values[name]?.first
+                    as? Symbol.VariableSymbol
+                {
+                    variable.type = type
+                }
             }
             switch accessor.kind {
             case .Get:

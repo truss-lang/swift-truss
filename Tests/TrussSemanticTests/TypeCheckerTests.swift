@@ -2195,6 +2195,69 @@ private func collectSelfExpressions(_ program: AST.Program) -> [AST.SelfExpressi
     #expect(context.diagnositicEngine.diagnostics.isEmpty)
 }
 
+@Test func propertyAccessorFunctionTypes() throws {
+    let source = """
+    struct Int {}
+    struct S {
+        var p: Int {
+            get { 0 }
+            set { }
+        }
+        static var q: Int {
+            get { 0 }
+        }
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    let structDecl = programs[0].statements[1] as! AST.StructDecl
+    let typeId = try #require(structDecl.symbol?.typeId)
+    let expectedSelf = context.typeTable[typeId]
+    let property = try #require((structDecl.body[0] as! AST.VariableDecl).symbol)
+    let getter = try #require(property.accessors[.Get]?.functionType)
+    #expect(getter.selfType as AnyObject === expectedSelf as AnyObject)
+    #expect(getter.parameters.isEmpty)
+    #expect(getter.returnType is TrussType.StructType)
+    let setter = try #require(property.accessors[.Set]?.functionType)
+    #expect(setter.selfType as AnyObject === expectedSelf as AnyObject)
+    #expect(setter.parameters.count == 1)
+    #expect(setter.parameters[0].label == nil)
+    #expect(setter.parameters[0].type is TrussType.StructType)
+    #expect(setter.returnType is TrussType.VoidType)
+    let staticProperty = try #require((structDecl.body[1] as! AST.VariableDecl).symbol)
+    let staticGetter = try #require(staticProperty.accessors[.Get]?.functionType)
+    #expect(staticGetter.selfType == nil)
+    #expect(staticGetter.returnType is TrussType.StructType)
+    #expect(context.diagnositicEngine.diagnostics.isEmpty)
+}
+
+@Test func observerImplicitParameterTypes() throws {
+    let source = """
+    struct Int {}
+    struct S {
+        var p: Int = 0 {
+            willSet { }
+            didSet { }
+        }
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    let structDecl = programs[0].statements[1] as! AST.StructDecl
+    let variableDecl = structDecl.body[0] as! AST.VariableDecl
+    let newValue = try #require(
+        variableDecl.accessors[0].scope?.values["newValue"]?.first as? Symbol.VariableSymbol
+    )
+    let oldValue = try #require(
+        variableDecl.accessors[1].scope?.values["oldValue"]?.first as? Symbol.VariableSymbol
+    )
+    #expect(newValue.type is TrussType.StructType)
+    #expect(oldValue.type is TrussType.StructType)
+    let willSet = try #require(variableDecl.symbol?.accessors[.WillSet]?.functionType)
+    #expect(willSet.parameters.count == 1)
+    #expect(willSet.parameters[0].type is TrussType.StructType)
+    #expect(willSet.returnType is TrussType.VoidType)
+    #expect(context.diagnositicEngine.diagnostics.isEmpty)
+}
+
 @Test func staticMethodSelfHasNoCascadeDiagnostic() throws {
     let (context, programs) = runTypeChecker(["struct S { static func f() { self } }"])
     let structDecl = programs[0].statements[0] as! AST.StructDecl
