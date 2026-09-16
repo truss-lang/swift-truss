@@ -7,50 +7,34 @@ public final class TypeBuilder: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil)
-        -> Any?
-    {
-        build(structDecl.symbol) { TrussType.StructType(id: $0, name: $1) }
-        return super.visitStructDecl(structDecl, additional: additional)
-    }
-
-    @discardableResult
-    public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil)
-        -> Any?
-    {
-        build(classDecl.symbol) { TrussType.ClassType(id: $0, name: $1) }
-        return super.visitClassDecl(classDecl, additional: additional)
-    }
-
-    @discardableResult
-    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil)
-        -> Any?
-    {
-        build(enumDecl.symbol) { TrussType.EnumType(id: $0, name: $1) }
-        return super.visitEnumDecl(enumDecl, additional: additional)
-    }
-
-    @discardableResult
-    public override func visitProtocolDecl(
-        _ protocolDecl: AST.ProtocolDecl, additional: Any? = nil
+    public override func visitNominalTypeDecl(
+        _ nominalTypeDecl: AST.NominalTypeDecl, additional: Any? = nil
     ) -> Any? {
-        build(protocolDecl.symbol) { TrussType.ProtocolType(id: $0, name: $1) }
-        return super.visitProtocolDecl(protocolDecl, additional: additional)
-    }
-
-    @discardableResult
-    public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil)
-        -> Any?
-    {
-        build(actorDecl.symbol) { TrussType.ActorType(id: $0, name: $1) }
-        return super.visitActorDecl(actorDecl, additional: additional)
+        let symbol = nominalTypeDecl.symbol!
+        build(symbol) { typeId, name in
+            let type: TrussType.NominalType = switch symbol {
+            case is Symbol.StructSymbol:
+                TrussType.StructType(id: typeId, name: name)
+            case is Symbol.ClassSymbol:
+                TrussType.ClassType(id: typeId, name: name)
+            case is Symbol.EnumSymbol:
+                TrussType.EnumType(id: typeId, name: name)
+            case is Symbol.ProtocolSymbol:
+                TrussType.ProtocolType(id: typeId, name: name)
+            case is Symbol.ActorSymbol:
+                TrussType.ActorType(id: typeId, name: name)
+            default:
+                fatalError("unreachable: unknown nominal type symbol \(Swift.type(of: symbol))")
+            }
+            return type
+        }
+        return super.visitNominalTypeDecl(nominalTypeDecl, additional: additional)
     }
 
     private func build(
-        _ symbol: Symbol.NominalTypeSymbol?,
+        _ symbol: Symbol.NominalTypeSymbol,
         make: (Id.ASTTypeId, String) -> TrussType.NominalType
     ) {
-        guard let symbol else { return }
         let typeId = context.nextTypeId
         let type = make(typeId, symbol.name)
         type.symbol = symbol
