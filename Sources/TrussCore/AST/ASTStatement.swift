@@ -804,6 +804,12 @@ public extension AST {
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitFor(self, additional: additional)
         }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            if let otherFor = other as? AST.For {
+                scope = otherFor.scope
+            }
+        }
     }
 
     final class Defer: Statement {
