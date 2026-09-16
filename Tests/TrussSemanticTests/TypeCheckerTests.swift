@@ -2208,3 +2208,69 @@ private func collectSelfExpressions(_ program: AST.Program) -> [AST.SelfExpressi
             == ["'self' is only available in an instance context"]
     )
 }
+
+@Test func typeChecksForBodyRewrittenByOperatorPass() {
+    let (context, programs) = runTypeChecker(["""
+    precedencegroup AssignmentPrecedence {
+        associativity: right
+        assignment: true
+    }
+    infix operator = : AssignmentPrecedence
+    func f() {
+        var i = 0
+        for j in 0 {
+            i = 1
+        }
+    }
+    """])
+    #expect(programs.count == 1)
+    #expect(context.diagnositicEngine.diagnostics.isEmpty)
+}
+
+@Test func typeChecksRewrittenLoopAndClosureBodies() {
+    let (context, programs) = runTypeChecker(["""
+    precedencegroup AssignmentPrecedence {
+        associativity: right
+        assignment: true
+    }
+    infix operator = : AssignmentPrecedence
+    struct Holder {
+        var stored = 1
+        var computed: Builtin.Int32 {
+            get { return self.stored }
+            set { self.stored = 1 }
+        }
+        subscript(index: Builtin.Int32) -> Builtin.Int32 {
+            get { return self.stored }
+            set { self.stored = 1 }
+        }
+    }
+    func f() {
+        var i = 0
+        while true {
+            i = 1
+        }
+        loop {
+            i = 1
+        }
+        repeat {
+            i = 1
+        } while true
+        if true {
+            i = 1
+        }
+        let g: () -> Builtin.Int32 = {
+            var k = 0
+            while true {
+                k = 1
+            }
+            return k
+        }
+        var h = Holder()
+        h.computed = 2
+        g()
+    }
+    """], installBuiltin: true)
+    #expect(programs.count == 1)
+    #expect(context.diagnositicEngine.diagnostics.isEmpty)
+}
