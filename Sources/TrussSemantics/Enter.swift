@@ -9,114 +9,9 @@ public final class Enter: AST.Visitor {
     private var moduleScope: Scope? = nil
     private var inFunctionBody = 0
     private var inExtension = 0
+
     public init(context: Context) {
         self.context = context
-    }
-
-    private func containsAbstract(_ modifiers: [AST.Modifier]) -> Bool {
-        modifiers.contains { if case .Abstract = $0.kind { true } else { false } }
-    }
-
-    private func containsStatic(_ modifiers: [AST.Modifier]) -> Bool {
-        modifiers.contains { if case .Static = $0.kind { true } else { false } }
-    }
-
-    private var isMemberImplementation: Bool {
-        inFunctionBody == 0 && (typeStack.last != nil || inExtension > 0)
-            && !(typeStack.last is Symbol.ProtocolSymbol)
-    }
-
-    private func registerValueSymbol(_ symbol: Symbol.Symbol, at token: Token) {
-        AccessExtractor.record(
-            symbol, package: currentPackageSymbol, module: currentModuleSymbol
-        )
-        if inFunctionBody == 0 {
-            symbol.memberOf = typeStack.last?.id
-        }
-        context.register(symbol: symbol)
-        currentScope!.registerValue(symbol, at: token, context: context)
-    }
-
-    private func registerSelfSymbol(in scope: Scope, at token: Token) {
-        let symbol = Symbol.SelfSymbol(kind: .Local, id: context.nextSymbolId, name: "self")
-        symbol.memberOf = typeStack.last?.id
-        context.register(symbol: symbol)
-        scope.registerValue(symbol, at: token, context: context)
-    }
-
-    private func registerMemberSymbol(
-        _ symbol: Symbol.Symbol, at token: Token, modifiers: [AST.Modifier]
-    ) {
-        AccessExtractor.apply(to: symbol, modifiers: modifiers, context: context)
-        symbol.isAbstract = containsAbstract(modifiers)
-        symbol.isFinal = modifiers.contains { if case .Final = $0.kind { true } else { false } }
-        registerValueSymbol(symbol, at: token)
-    }
-
-    private func registerAccessorSymbol(
-        _ symbol: Symbol.FunctionSymbol, at token: Token?, memberOf: Id.SymbolId?
-    ) {
-        symbol.memberOf = memberOf
-        AccessExtractor.record(
-            symbol, package: currentPackageSymbol, module: currentModuleSymbol
-        )
-        symbol.sourceToken = token
-        context.register(symbol: symbol)
-    }
-
-    private func registerGenericParams(_ genericDecl: AST.GenericDecl?, into scope: Scope) {
-        guard let genericDecl else { return }
-        for param in genericDecl.generics {
-            let symbol = Symbol.GenericParamSymbol(
-                id: context.nextSymbolId, name: param.name.value
-            )
-            context.register(symbol: symbol)
-            scope.registerType(symbol, at: param.name, context: context)
-        }
-    }
-
-    private func locals(of scope: Scope) -> [Symbol.VariableSymbol] {
-        scope.values.values.flatMap { $0 }.compactMap { $0 as? Symbol.VariableSymbol }
-    }
-
-    private func signature(
-        of parameters: [AST.FunctionDecl.Parameter], isVariadic: Bool
-    ) -> Symbol.FunctionSignature {
-        var labels: [String?] = []
-        var hasDefaults: [Bool] = []
-        var isVararg: [Bool] = []
-        for parameter in parameters {
-            labels.append(parameter.label?.value)
-            hasDefaults.append(parameter.defaultValue != nil)
-            isVararg.append(parameter.type is AST.VariadicType)
-        }
-        return Symbol.FunctionSignature(
-            labels: labels, hasDefaults: hasDefaults, isVararg: isVararg, isVariadic: isVariadic
-        )
-    }
-
-    @discardableResult
-    private func registerLocal(_ name: Token) -> Symbol.VariableSymbol {
-        let symbol = Symbol.VariableSymbol(kind: .Local, id: context.nextSymbolId, name: name.value)
-        registerValueSymbol(symbol, at: name)
-        return symbol
-    }
-
-    @discardableResult
-    private func withScope(_ body: (Scope) -> Void) -> Scope {
-        let scope = Scope()
-        let lastScope = currentScope
-        currentScope = scope
-        body(scope)
-        currentScope = lastScope
-        return scope
-    }
-
-    @discardableResult
-    private func withFunctionBody<T>(_ body: () -> T) -> T {
-        inFunctionBody += 1
-        defer { inFunctionBody -= 1 }
-        return body()
     }
 
     @discardableResult
@@ -573,5 +468,111 @@ public final class Enter: AST.Visitor {
             return nil
         }
         return super.visitExternDecl(externDecl, additional: additional)
+    }
+
+    private func containsAbstract(_ modifiers: [AST.Modifier]) -> Bool {
+        modifiers.contains { if case .Abstract = $0.kind { true } else { false } }
+    }
+
+    private func containsStatic(_ modifiers: [AST.Modifier]) -> Bool {
+        modifiers.contains { if case .Static = $0.kind { true } else { false } }
+    }
+
+    private var isMemberImplementation: Bool {
+        inFunctionBody == 0 && (typeStack.last != nil || inExtension > 0)
+            && !(typeStack.last is Symbol.ProtocolSymbol)
+    }
+
+    private func registerValueSymbol(_ symbol: Symbol.Symbol, at token: Token) {
+        AccessExtractor.record(
+            symbol, package: currentPackageSymbol, module: currentModuleSymbol
+        )
+        if inFunctionBody == 0 {
+            symbol.memberOf = typeStack.last?.id
+        }
+        context.register(symbol: symbol)
+        currentScope!.registerValue(symbol, at: token, context: context)
+    }
+
+    private func registerSelfSymbol(in scope: Scope, at token: Token) {
+        let symbol = Symbol.SelfSymbol(kind: .Local, id: context.nextSymbolId, name: "self")
+        symbol.memberOf = typeStack.last?.id
+        context.register(symbol: symbol)
+        scope.registerValue(symbol, at: token, context: context)
+    }
+
+    private func registerMemberSymbol(
+        _ symbol: Symbol.Symbol, at token: Token, modifiers: [AST.Modifier]
+    ) {
+        AccessExtractor.apply(to: symbol, modifiers: modifiers, context: context)
+        symbol.isAbstract = containsAbstract(modifiers)
+        symbol.isFinal = modifiers.contains { if case .Final = $0.kind { true } else { false } }
+        registerValueSymbol(symbol, at: token)
+    }
+
+    private func registerAccessorSymbol(
+        _ symbol: Symbol.FunctionSymbol, at token: Token?, memberOf: Id.SymbolId?
+    ) {
+        symbol.memberOf = memberOf
+        AccessExtractor.record(
+            symbol, package: currentPackageSymbol, module: currentModuleSymbol
+        )
+        symbol.sourceToken = token
+        context.register(symbol: symbol)
+    }
+
+    private func registerGenericParams(_ genericDecl: AST.GenericDecl?, into scope: Scope) {
+        guard let genericDecl else { return }
+        for param in genericDecl.generics {
+            let symbol = Symbol.GenericParamSymbol(
+                id: context.nextSymbolId, name: param.name.value
+            )
+            context.register(symbol: symbol)
+            scope.registerType(symbol, at: param.name, context: context)
+        }
+    }
+
+    private func locals(of scope: Scope) -> [Symbol.VariableSymbol] {
+        scope.values.values.flatMap { $0 }.compactMap { $0 as? Symbol.VariableSymbol }
+    }
+
+    private func signature(
+        of parameters: [AST.FunctionDecl.Parameter], isVariadic: Bool
+    ) -> Symbol.FunctionSignature {
+        var labels: [String?] = []
+        var hasDefaults: [Bool] = []
+        var isVararg: [Bool] = []
+        for parameter in parameters {
+            labels.append(parameter.label?.value)
+            hasDefaults.append(parameter.defaultValue != nil)
+            isVararg.append(parameter.type is AST.VariadicType)
+        }
+        return Symbol.FunctionSignature(
+            labels: labels, hasDefaults: hasDefaults, isVararg: isVararg, isVariadic: isVariadic
+        )
+    }
+
+    @discardableResult
+    private func registerLocal(_ name: Token) -> Symbol.VariableSymbol {
+        let symbol = Symbol.VariableSymbol(kind: .Local, id: context.nextSymbolId, name: name.value)
+        registerValueSymbol(symbol, at: name)
+        return symbol
+    }
+
+    @discardableResult
+    private func withScope(_ body: (Scope) -> Void) -> Scope {
+        let scope = Scope()
+        let lastScope = currentScope
+        currentScope = scope
+        body(scope)
+        currentScope = lastScope
+        return scope
+    }
+
+    @discardableResult
+    private func withFunctionBody<T>(_ body: () -> T) -> T {
+        inFunctionBody += 1
+        defer { inFunctionBody -= 1 }
+        return body()
     }
 }
