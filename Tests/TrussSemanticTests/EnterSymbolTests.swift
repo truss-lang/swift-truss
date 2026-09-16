@@ -503,6 +503,47 @@ import TrussCore
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
+@Test func variableSymbolStoresAccessorSymbols() throws {
+    let (context, program) = runEnter([
+        """
+        struct S {
+            var x: Int { get { 0 } set { } }
+            var y: Int = 0 { willSet { } didSet { } }
+        }
+        """,
+    ])
+    let structDecl = program[0].statements[0] as! AST.StructDecl
+    let computed = structDecl.body[0] as! AST.VariableDecl
+    let observed = structDecl.body[1] as! AST.VariableDecl
+    let computedSymbol = try #require(computed.symbol)
+    let observedSymbol = try #require(observed.symbol)
+    #expect(Set(computedSymbol.accessors.keys) == [.Get, .Set])
+    #expect(Set(observedSymbol.accessors.keys) == [.WillSet, .DidSet])
+    for variableDecl in [computed, observed] {
+        let symbol = try #require(variableDecl.symbol)
+        #expect(variableDecl.accessors.allSatisfy { symbol.accessors[$0.kind] === $0.symbol })
+    }
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
+@Test func extensionPropertyAccessorSymbolsAdoptedByBaseType() throws {
+    let (context, program) = runEnter([
+        """
+        struct S {}
+        extension S { var x: Int { get { 0 } set { } } }
+        """,
+    ])
+    let s = try #require(program[0].packageSymbol!.scope.types["S"] as? Symbol.NominalTypeSymbol)
+    let x = try #require(s.scope.values["x"]?.first as? Symbol.VariableSymbol)
+    let getter = try #require(x.accessors[.Get])
+    let setter = try #require(x.accessors[.Set])
+    #expect(getter.memberOf == s.id)
+    #expect(setter.memberOf == s.id)
+    #expect(getter.scope.values["self"]?.first?.memberOf == s.id)
+    #expect(setter.scope.values["self"]?.first?.memberOf == s.id)
+    #expect(!context.diagnositicEngine.hasErrors)
+}
+
 @Test func repeatedLocalNamesInSameFunctionScope() {
     let (context, _) = runEnter(["func f() { var x = 1; var x = 2 }"])
     #expect(!context.diagnositicEngine.hasErrors)

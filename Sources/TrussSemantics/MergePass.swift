@@ -88,7 +88,6 @@ public final class MergePass: AST.Visitor {
                 )
             }
         }
-        adoptAccessors(of: extensionDecl, into: base.id)
         for (_, module) in virtualScope.modules {
             baseScope.registerModule(module)
         }
@@ -110,19 +109,12 @@ public final class MergePass: AST.Visitor {
             if let setter = subscriptSymbol.setter {
                 adopt(setter, into: base)
             }
+        case let variable as Symbol.VariableSymbol:
+            for accessor in variable.accessors.values {
+                adopt(accessor, into: base)
+            }
         default:
             break
-        }
-    }
-
-    private func adoptAccessors(of extensionDecl: AST.ExtensionDecl, into base: Id.SymbolId) {
-        for statement in extensionDecl.body {
-            guard let variableDecl = statement as? AST.VariableDecl else { continue }
-            for accessor in variableDecl.accessors {
-                if let symbol = accessor.symbol {
-                    adopt(symbol, into: base)
-                }
-            }
         }
     }
 

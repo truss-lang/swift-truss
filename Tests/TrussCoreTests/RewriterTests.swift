@@ -258,6 +258,8 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     let variableDecl = classDecl.body[1] as! AST.VariableDecl
     let getterScope = try #require(variableDecl.accessors[0].scope)
     let setterScope = try #require(variableDecl.accessors[1].scope)
+    let getterSymbol = try #require(variableDecl.accessors[0].symbol)
+    let setterSymbol = try #require(variableDecl.accessors[1].symbol)
     let rewritten = IncrementLiteralRewriter().rewrite(program)
     let newClassDecl = rewritten.statements[0] as! AST.ClassDecl
     let newDeinitDecl = newClassDecl.body[0] as! AST.DeinitDecl
@@ -267,6 +269,8 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     #expect(newVariableDecl.accessors[0] !== variableDecl.accessors[0])
     #expect(newVariableDecl.accessors[0].scope === getterScope)
     #expect(newVariableDecl.accessors[1].scope === setterScope)
+    #expect(newVariableDecl.accessors[0].symbol === getterSymbol)
+    #expect(newVariableDecl.accessors[1].symbol === setterSymbol)
 }
 
 @Test func rewriteClosureCaptureItemsAndFreeVariables() throws {

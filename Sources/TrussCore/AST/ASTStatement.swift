@@ -962,6 +962,7 @@ public extension AST {
         public override func copySemantics(from other: AST.AstNode) {
             if let otherAccessor = other as? AST.Accessor {
                 scope = otherAccessor.scope
+                symbol = otherAccessor.symbol
             }
         }
 

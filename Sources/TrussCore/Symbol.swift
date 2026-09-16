@@ -177,6 +177,7 @@ public enum Symbol {
         public var kind: Kind
         public var type: TrussType.TrussType? = nil
         public var isMutable: Bool = true
+        public var accessors: [AST.Accessor.Kind: FunctionSymbol] = [:]
         public init(kind: Kind, id: Id.SymbolId, name: String) {
             self.kind = kind
             super.init(id, name)

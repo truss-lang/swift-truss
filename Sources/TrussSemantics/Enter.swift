@@ -279,6 +279,7 @@ public final class Enter: AST.Visitor {
                 memberOf: symbol.memberOf
             )
             accessor.symbol = accessorSymbol
+            symbol.accessors[accessor.kind] = accessorSymbol
             if isMemberImplementation, !isStatic, !containsAbstract(variableDecl.modifiers) {
                 registerSelfSymbol(
                     in: scope, at: accessor.token ?? accessor.parameterName ?? variableDecl.name
