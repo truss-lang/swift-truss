@@ -319,3 +319,103 @@ private func interfaceVariableKinds(of scope: InterfaceScope) -> [String: Interf
     #expect(symbolFunctionKind(of: cls.scope, "staticMethod") == .StaticMethod)
     #expect(symbolFunctionKind(of: package.scope, "free") == .Function)
 }
+
+@Test func interfaceExtractorPreservesAccessors() throws {
+    let (context, programs) = runEnter([
+        """
+        public struct S {
+            public var p: Int { get { 0 } set { } }
+            public var o: Int = 0 { willSet { } didSet { } }
+            public static var sp: Int { get { 0 } }
+        }
+        """,
+    ])
+    let interface = InterfaceExtractor(context: context).extract(from: programs[0])
+    let scope = try #require(nominalScope("S", in: interface))
+    var accessors: [String: [InterfaceAccessorKind]] = [:]
+    for value in scope.values {
+        if case let .Variable(v) = value { accessors[v.name] = v.accessors }
+    }
+    #expect(accessors["p"] == [.Get, .Set])
+    #expect(accessors["o"] == [.WillSet, .DidSet])
+    #expect(accessors["sp"] == [.Get])
+}
+
+@Test func interfaceDumperPrintsAccessors() throws {
+    let interface = ModuleInterface(
+        name: "D",
+        root: InterfaceScope(
+            types: [
+                .Nominal(InterfaceNominal(
+                    kind: .StructType,
+                    name: "S",
+                    scope: InterfaceScope(values: [
+                        .Variable(InterfaceVariable(
+                            name: "p", kind: .Property, type: .Builtin("Int"),
+                            accessors: [.Get, .Set]
+                        )),
+                        .Variable(InterfaceVariable(name: "g", kind: .Global, type: .Builtin("Int"))),
+                    ])
+                )),
+            ]
+        )
+    )
+    let text = ModuleInterfaceDumper().dump(interface)
+    #expect(text.contains("var p: Int { get set }"))
+    #expect(text.contains("var g: Int"))
+}
+
+@Test func accessorsSurviveEncodingAndLoading() throws {
+    let interface = ModuleInterface(
+        name: "A",
+        root: InterfaceScope(
+            types: [
+                .Nominal(InterfaceNominal(
+                    kind: .StructType,
+                    name: "S",
+                    scope: InterfaceScope(values: [
+                        .Variable(InterfaceVariable(
+                            name: "p", kind: .Property, type: .Builtin("Int"),
+                            accessors: [.Get, .Set]
+                        )),
+                        .Variable(InterfaceVariable(
+                            name: "sp", kind: .StaticProperty, type: .Builtin("Int"),
+                            accessors: [.Get]
+                        )),
+                    ])
+                )),
+            ]
+        )
+    )
+    let decoded = try TrussPackageDecoder().decode(TrussPackageEncoder(interface: interface).encode())
+    #expect(decoded.interface == interface)
+
+    let context = Context()
+    InterfaceLoader(context: context).load(decoded.interface)
+    let package = try #require(context.name2Package["A"])
+    let type = try #require(package.scope.types["S"] as? Symbol.StructSymbol)
+    let property = try #require(type.scope.values["p"]?.first as? Symbol.VariableSymbol)
+    let getter = try #require(property.accessors[.Get])
+    let setter = try #require(property.accessors[.Set])
+    #expect(property.memberOf == type.id)
+    #expect(getter.memberOf == type.id)
+    #expect(setter.memberOf == type.id)
+    #expect(getter.kind == .Method)
+    let getterType = try #require(getter.functionType)
+    let typeId = try #require(type.typeId)
+    #expect(getterType.selfType === context.typeTable[typeId])
+    #expect(getterType.parameters.isEmpty)
+    #expect(getterType.returnType is TrussType.BuiltinType)
+    let setterType = try #require(setter.functionType)
+    #expect(setterType.selfType === getterType.selfType)
+    #expect(setterType.parameters.count == 1)
+    #expect(setterType.parameters[0].type is TrussType.BuiltinType)
+    #expect(setterType.returnType is TrussType.VoidType)
+
+    let staticProperty = try #require(type.scope.values["sp"]?.first as? Symbol.VariableSymbol)
+    let staticGetter = try #require(staticProperty.accessors[.Get])
+    #expect(staticGetter.kind == .StaticMethod)
+    let staticGetterType = try #require(staticGetter.functionType)
+    #expect(staticGetterType.selfType == nil)
+    #expect(staticGetterType.returnType is TrussType.BuiltinType)
+}

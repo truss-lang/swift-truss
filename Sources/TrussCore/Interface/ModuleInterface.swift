@@ -88,6 +88,13 @@ public enum InterfaceVariableKind: UInt8, Equatable, Hashable {
     case StaticProperty = 2
 }
 
+public enum InterfaceAccessorKind: UInt8, Equatable, Hashable {
+    case Get = 0
+    case Set = 1
+    case WillSet = 2
+    case DidSet = 3
+}
+
 public struct InterfaceNominal: Equatable, Hashable {
     public var kind: InterfaceNominalKind
     public var name: String
@@ -172,14 +179,16 @@ public struct InterfaceVariable: Equatable, Hashable {
     public var isMutable: Bool
     public var kind: InterfaceVariableKind
     public var type: InterfaceTypeRef?
+    public var accessors: [InterfaceAccessorKind]
     public init(
         name: String, isMutable: Bool = true, kind: InterfaceVariableKind = .Global,
-        type: InterfaceTypeRef? = nil
+        type: InterfaceTypeRef? = nil, accessors: [InterfaceAccessorKind] = []
     ) {
         self.name = name
         self.isMutable = isMutable
         self.kind = kind
         self.type = type
+        self.accessors = accessors
     }
 }
 

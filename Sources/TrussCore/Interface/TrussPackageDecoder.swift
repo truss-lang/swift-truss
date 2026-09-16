@@ -235,8 +235,16 @@ public struct TrussPackageDecoder {
             }
             let hasType = try reader.bool()
             let t = hasType ? try decodeRef(&reader) : nil
+            let accessorCount = try Int(reader.u32())
+            var accessors: [InterfaceAccessorKind] = []
+            for _ in 0 ..< accessorCount {
+                guard let accessor = try InterfaceAccessorKind(rawValue: reader.u8()) else {
+                    throw TrussPackageCodecError.Truncated
+                }
+                accessors.append(accessor)
+            }
             return .Variable(InterfaceVariable(
-                name: name, isMutable: isMutable, kind: kind, type: t
+                name: name, isMutable: isMutable, kind: kind, type: t, accessors: accessors
             ))
         }
     }

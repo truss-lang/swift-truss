@@ -15,7 +15,10 @@ public struct InterfaceLoader {
         return package
     }
 
-    private func loadScope(_ scope: InterfaceScope, into scope_: Scope, package: Symbol.PackageSymbol) {
+    private func loadScope(
+        _ scope: InterfaceScope, into scope_: Scope, package: Symbol.PackageSymbol,
+        owner: Symbol.NominalTypeSymbol? = nil
+    ) {
         for m in scope.modules {
             let mod = Symbol.ModuleSymbol(id: context.nextSymbolId, name: m.name)
             mod.packageId = package.id
@@ -27,7 +30,7 @@ public struct InterfaceLoader {
             loadType(type, into: scope_, package: package)
         }
         for value in scope.values {
-            loadValue(value, into: scope_, package: package)
+            loadValue(value, into: scope_, package: package, owner: owner)
         }
     }
 
@@ -66,7 +69,7 @@ public struct InterfaceLoader {
                 context.register(symbol: caseSymbol)
                 symbol.scope.values[c.name, default: []].append(caseSymbol)
             }
-            loadScope(n.scope, into: symbol.scope, package: package)
+            loadScope(n.scope, into: symbol.scope, package: package, owner: symbol)
         case let .TypeAlias(a):
             let symbol = Symbol.TypeAliasSymbol(id: context.nextSymbolId, name: a.name)
             symbol.access = .Public
@@ -107,7 +110,10 @@ public struct InterfaceLoader {
         }
     }
 
-    private func loadValue(_ v: InterfaceValue, into scope: Scope, package: Symbol.PackageSymbol) {
+    private func loadValue(
+        _ v: InterfaceValue, into scope: Scope, package: Symbol.PackageSymbol,
+        owner: Symbol.NominalTypeSymbol?
+    ) {
         switch v {
         case let .Function(f):
             let signature = Symbol.FunctionSignature(
@@ -134,8 +140,51 @@ public struct InterfaceLoader {
             symbol.packageId = package.id
             symbol.type = x.type.map(makeTypeRef)
             symbol.isMutable = x.isMutable
+            symbol.memberOf = owner?.id
             context.register(symbol: symbol)
+            loadAccessors(x, property: symbol, owner: owner)
             scope.registerValue(symbol, at: syntheticToken(x.name), context: context)
+        }
+    }
+
+    private func loadAccessors(
+        _ x: InterfaceVariable, property: Symbol.VariableSymbol, owner: Symbol.NominalTypeSymbol?
+    ) {
+        guard let valueType = property.type else { return }
+        let isStatic = property.kind == .StaticProperty
+        let selfType = isStatic ? nil : owner?.typeId.flatMap { context.typeTable[$0] }
+        for kind in x.accessors {
+            let accessorKind = accessorKind(kind)
+            let isGetter = accessorKind == .Get
+            let symbol = Symbol.FunctionSymbol(
+                id: context.nextSymbolId, name: x.name, locals: [], scope: Scope(),
+                signature: isGetter
+                    ? Symbol.FunctionSignature(labels: [], hasDefaults: [], isVararg: [], isVariadic: false)
+                    : Symbol.FunctionSignature(
+                        labels: [nil], hasDefaults: [false], isVararg: [false], isVariadic: false
+                    ),
+                kind: isStatic ? .StaticMethod : .Method
+            )
+            symbol.access = .Public
+            symbol.packageId = property.packageId
+            symbol.memberOf = owner?.id
+            symbol.functionType = TrussType.FunctionType(
+                selfType: selfType,
+                parameters: isGetter
+                    ? [] : [TrussType.FunctionType.Parameter(label: nil, type: valueType)],
+                returnType: isGetter ? valueType : TrussType.VoidType.INSTANCE
+            )
+            context.register(symbol: symbol)
+            property.accessors[accessorKind] = symbol
+        }
+    }
+
+    private func accessorKind(_ kind: InterfaceAccessorKind) -> AST.Accessor.Kind {
+        switch kind {
+        case .Get: .Get
+        case .Set: .Set
+        case .WillSet: .WillSet
+        case .DidSet: .DidSet
         }
     }
 

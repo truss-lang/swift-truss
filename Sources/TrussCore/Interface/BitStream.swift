@@ -2,7 +2,7 @@ import Foundation
 
 public enum TrussPackageFormat {
     public static let magic: [UInt8] = Array("TRSP".utf8)
-    public static let version: UInt32 = 4
+    public static let version: UInt32 = 0
 }
 
 public enum TrussPackageCodecError: Error, Equatable {

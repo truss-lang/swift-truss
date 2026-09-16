@@ -108,11 +108,22 @@ public struct InterfaceExtractor {
         case let v as Symbol.VariableSymbol:
             return .Variable(InterfaceVariable(
                 name: v.name, isMutable: v.isMutable, kind: variableKind(v.kind),
-                type: v.type.map(typeRef)
+                type: v.type.map(typeRef), accessors: accessorKinds(v)
             ))
         default:
             return nil
         }
+    }
+
+    private func accessorKinds(_ variable: Symbol.VariableSymbol) -> [InterfaceAccessorKind] {
+        variable.accessors.keys.map { kind in
+            switch kind {
+            case .Get: InterfaceAccessorKind.Get
+            case .Set: InterfaceAccessorKind.Set
+            case .WillSet: InterfaceAccessorKind.WillSet
+            case .DidSet: InterfaceAccessorKind.DidSet
+            }
+        }.sorted { $0.rawValue < $1.rawValue }
     }
 
     private func variableKind(_ kind: Symbol.VariableSymbol.Kind) -> InterfaceVariableKind {

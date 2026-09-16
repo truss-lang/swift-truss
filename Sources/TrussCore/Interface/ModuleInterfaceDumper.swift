@@ -55,8 +55,22 @@ public struct ModuleInterfaceDumper {
             case let .Variable(x):
                 out += "\(pad)var \(x.name)"
                 if let ty = x.type { out += ": \(typeText(ty))" }
+                if !x.accessors.isEmpty {
+                    let names = x.accessors.sorted { $0.rawValue < $1.rawValue }
+                        .map(accessorName).joined(separator: " ")
+                    out += " { \(names) }"
+                }
                 out += "\n"
             }
+        }
+    }
+
+    private func accessorName(_ kind: InterfaceAccessorKind) -> String {
+        switch kind {
+        case .Get: "get"
+        case .Set: "set"
+        case .WillSet: "willSet"
+        case .DidSet: "didSet"
         }
     }
 

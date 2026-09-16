@@ -197,6 +197,11 @@ public final class TrussPackageEncoder {
             w.u8(InterfaceValueDeclCode.Variable.rawValue)
             w.string(v.name); w.bool(v.isMutable); w.u8(v.kind.rawValue)
             w.bool(v.type != nil); if let t = v.type { encodeRef(t, w) }
+            let accessors = v.accessors.sorted { $0.rawValue < $1.rawValue }
+            w.u32(UInt32(accessors.count))
+            for a in accessors {
+                w.u8(a.rawValue)
+            }
         }
     }
 
