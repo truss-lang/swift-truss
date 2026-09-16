@@ -6,20 +6,9 @@ public final class DeclCollector: AST.Visitor {
     private var currentPackageSymbol: Symbol.PackageSymbol? = nil
     private var currentModuleSymbol: Symbol.ModuleSymbol? = nil
     private var typeStack: [Symbol.NominalTypeSymbol] = []
+
     public init(context: Context) {
         self.context = context
-    }
-
-    private func registerTypeSymbol(
-        _ symbol: Symbol.Symbol, at token: Token, modifiers: [AST.Modifier]
-    ) {
-        AccessExtractor.record(
-            symbol, package: currentPackageSymbol, module: currentModuleSymbol
-        )
-        symbol.memberOf = typeStack.last?.id
-        AccessExtractor.apply(to: symbol, modifiers: modifiers, context: context)
-        context.register(symbol: symbol)
-        currentScope!.registerType(symbol, at: token, context: context)
     }
 
     @discardableResult
@@ -194,5 +183,17 @@ public final class DeclCollector: AST.Visitor {
     @discardableResult
     public override func visitExternDecl(_ externDecl: AST.ExternDecl, additional: Any? = nil) -> Any? {
         nil
+    }
+
+    private func registerTypeSymbol(
+        _ symbol: Symbol.Symbol, at token: Token, modifiers: [AST.Modifier]
+    ) {
+        AccessExtractor.record(
+            symbol, package: currentPackageSymbol, module: currentModuleSymbol
+        )
+        symbol.memberOf = typeStack.last?.id
+        AccessExtractor.apply(to: symbol, modifiers: modifiers, context: context)
+        context.register(symbol: symbol)
+        currentScope!.registerType(symbol, at: token, context: context)
     }
 }
