@@ -160,12 +160,10 @@ final class FunctionCollector {
             returnType: functionType?.returnType ?? TrussType.VoidType.INSTANCE,
             modulePath: gen.modulePathStack
         )
-        let getter = createFunction(
+        createFunction(
             getterSymbol, name: name, returnType: returnType,
             parameters: decl.parameters, symbolType: getterSymbol
         )
-        var pair = gen.accessorFunctions[symbol.id] ?? AccessorPair()
-        pair.getter = getter
         if let setterSymbol = symbol.setter,
            let owner = ownerSymbol(getterSymbol),
            let ownerType = owner.typeId.flatMap({ context.typeTable[$0] })
@@ -195,10 +193,8 @@ final class FunctionCollector {
                 name: setterName, parameters: tirParameters, returnType: setterReturn.id,
                 isVariadic: false, isExtern: false, callingConvention: nil
             )
-            pair.setter = setter
             gen.functionsBySymbol[setterSymbol.id] = setter
         }
-        gen.accessorFunctions[symbol.id] = pair
     }
 
     private func ownerSymbol(_ symbol: Symbol.FunctionSymbol) -> Symbol.NominalTypeSymbol? {
@@ -276,77 +272,47 @@ final class FunctionCollector {
             ?? (decl.initializer?.ty).map { gen.typeLower.lower($0) }
             ?? gen.registry.voidType()
         let cnameOverride = cname(decl.attributes)
-        var pair = gen.accessorFunctions[symbol.id] ?? AccessorPair()
         for accessor in decl.accessors {
+            guard let accessorSymbol = symbol.accessors[accessor.kind],
+                  gen.functionsBySymbol[accessorSymbol.id] == nil
+            else { continue }
+            let suffix: String
+            let returnType: TIRType.TIRType
+            var parameters: [TIR.Parameter] = isStatic ? [] : [TIR.Parameter(ty: selfType.id, name: "self")]
             switch accessor.kind {
             case .Get:
-                if pair.getter == nil {
-                    let name = cnameOverride ?? gen.mangler.mangleAccessorName(
-                        symbol, suffix: "Getter",
-                        returnType: symbol.type ?? TrussType.VoidType.INSTANCE,
-                        modulePath: gen.modulePathStack
-                    )
-                    pair.getter = gen.currentModule!.addFunction(
-                        name: name,
-                        parameters: isStatic ? [] : [TIR.Parameter(ty: selfType.id, name: "self")],
-                        returnType: valueType.id,
-                        isVariadic: false, isExtern: false, callingConvention: nil
-                    )
-                }
+                suffix = "Getter"
+                returnType = valueType
             case .Set:
-                if pair.setter == nil {
-                    let name = cnameOverride.map { $0 + "Setter" } ?? gen.mangler.mangleAccessorName(
-                        symbol, suffix: "Setter",
-                        returnType: TrussType.VoidType.INSTANCE,
-                        modulePath: gen.modulePathStack
-                    )
-                    var parameters: [TIR.Parameter] = isStatic ? [] : [TIR.Parameter(ty: selfType.id, name: "self")]
-                    parameters.append(TIR.Parameter(
-                        ty: valueType.id,
-                        name: accessor.parameterName?.value ?? "newValue"
-                    ))
-                    pair.setter = gen.currentModule!.addFunction(
-                        name: name, parameters: parameters, returnType: gen.registry.voidType().id,
-                        isVariadic: false, isExtern: false, callingConvention: nil
-                    )
-                }
+                suffix = "Setter"
+                returnType = gen.registry.voidType()
+                parameters.append(TIR.Parameter(
+                    ty: valueType.id, name: accessor.parameterName?.value ?? "newValue"
+                ))
             case .WillSet:
-                if pair.willSet == nil {
-                    let name = cnameOverride.map { $0 + "WillSet" } ?? gen.mangler.mangleAccessorName(
-                        symbol, suffix: "WillSet",
-                        returnType: TrussType.VoidType.INSTANCE,
-                        modulePath: gen.modulePathStack
-                    )
-                    var parameters: [TIR.Parameter] = isStatic ? [] : [TIR.Parameter(ty: selfType.id, name: "self")]
-                    parameters.append(TIR.Parameter(
-                        ty: valueType.id,
-                        name: accessor.parameterName?.value ?? "newValue"
-                    ))
-                    pair.willSet = gen.currentModule!.addFunction(
-                        name: name, parameters: parameters, returnType: gen.registry.voidType().id,
-                        isVariadic: false, isExtern: false, callingConvention: nil
-                    )
-                }
+                suffix = "WillSet"
+                returnType = gen.registry.voidType()
+                parameters.append(TIR.Parameter(
+                    ty: valueType.id, name: accessor.parameterName?.value ?? "newValue"
+                ))
             case .DidSet:
-                if pair.didSet == nil {
-                    let name = cnameOverride.map { $0 + "DidSet" } ?? gen.mangler.mangleAccessorName(
-                        symbol, suffix: "DidSet",
-                        returnType: TrussType.VoidType.INSTANCE,
-                        modulePath: gen.modulePathStack
-                    )
-                    var parameters: [TIR.Parameter] = isStatic ? [] : [TIR.Parameter(ty: selfType.id, name: "self")]
-                    parameters.append(TIR.Parameter(
-                        ty: valueType.id,
-                        name: accessor.parameterName?.value ?? "oldValue"
-                    ))
-                    pair.didSet = gen.currentModule!.addFunction(
-                        name: name, parameters: parameters, returnType: gen.registry.voidType().id,
-                        isVariadic: false, isExtern: false, callingConvention: nil
-                    )
-                }
+                suffix = "DidSet"
+                returnType = gen.registry.voidType()
+                parameters.append(TIR.Parameter(
+                    ty: valueType.id, name: accessor.parameterName?.value ?? "oldValue"
+                ))
             }
+            let name = cnameOverride.map { $0 + suffix } ?? gen.mangler.mangleAccessorName(
+                symbol, suffix: suffix,
+                returnType: accessor.kind == .Get
+                    ? (symbol.type ?? TrussType.VoidType.INSTANCE) : TrussType.VoidType.INSTANCE,
+                modulePath: gen.modulePathStack
+            )
+            gen.functionsBySymbol[accessorSymbol.id] = gen.currentModule!.addFunction(
+                name: name, parameters: parameters, returnType: returnType.id,
+                isVariadic: false, isExtern: false, callingConvention: nil
+            )
         }
-        gen.accessorFunctions[symbol.id] = pair
     }
 
     private func createGlobal(_ variableDecl: AST.VariableDecl, symbol: Symbol.VariableSymbol) {

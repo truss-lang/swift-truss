@@ -1,12 +1,5 @@
 import TrussCore
 
-struct AccessorPair {
-    var getter: TIR.Function?
-    var setter: TIR.Function?
-    var willSet: TIR.Function?
-    var didSet: TIR.Function?
-}
-
 struct VirtualMethodSlot {
     let metadata: Id.TIRMetadataId
     let index: Int
@@ -27,7 +20,6 @@ final class GenerationContext {
     var externContextStack: [String] = []
     var collectTypeStack: [Symbol.NominalTypeSymbol] = []
     var staticVariableSymbols: Set<Id.SymbolId> = []
-    var accessorFunctions: [Id.SymbolId: AccessorPair] = [:]
     var deinitFunctions: [ObjectIdentifier: TIR.Function] = [:]
     var deinitOwners: [ObjectIdentifier: Symbol.NominalTypeSymbol] = [:]
     var existentialBoxes: [Id.SymbolId: ExistentialBox] = [:]

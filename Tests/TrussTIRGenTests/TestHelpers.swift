@@ -4,7 +4,7 @@ import TrussCore
 import TrussOperator
 import TrussSemantics
 import TrussSyntax
-import TrussTIRGen
+@testable import TrussTIRGen
 
 func parseProgram(_ source: String) -> AST.Program {
     let context = Context()
@@ -49,4 +49,16 @@ func dumpTIR(_ source: String, installBuiltin: Bool = false) -> String {
     let (context, program) = runPipeline(source, installBuiltin: installBuiltin)
     let module = TIRGen(context: context).generate(program)
     return TIR.Dumper().dump(module)
+}
+
+func collectTIR(_ source: String) -> (Context, GenerationContext, AST.Program) {
+    let (context, program) = runPipeline(source)
+    let gen = GenerationContext(context: context)
+    let typeCollector = TypeCollector(context: context)
+    typeCollector.collect(program)
+    gen.typeLower.setStoredProperties(typeCollector.storedProperties)
+    gen.typeLower.setEnumCases(typeCollector.enumCases)
+    gen.makeModule()
+    FunctionCollector(context: context, gen: gen).collect(in: program)
+    return (context, gen, program)
 }

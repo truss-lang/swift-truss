@@ -44,7 +44,8 @@ final class WitnessCollector {
                     return function
                 }
                 if let variableSymbol = entries.first as? Symbol.VariableSymbol,
-                   let getter = gen.accessorFunctions[variableSymbol.id]?.getter
+                   let getterSymbol = variableSymbol.accessors[.Get],
+                   let getter = gen.functionsBySymbol[getterSymbol.id]
                 {
                     return getter
                 }

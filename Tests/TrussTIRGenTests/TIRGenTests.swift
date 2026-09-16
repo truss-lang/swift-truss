@@ -1,5 +1,6 @@
 import Testing
-import TrussTIRGen
+import TrussCore
+@testable import TrussTIRGen
 
 @Suite struct TIRGenTests {
     @Test func basicFunction() throws {
@@ -1069,6 +1070,35 @@ import TrussTIRGen
 }
 
 @Suite struct AccessorTests {
+    @Test func accessorFunctionsRegisteredByAccessorSymbol() throws {
+        let (_, gen, program) = collectTIR(
+            """
+            struct S {}
+            struct T {
+                var x: S {
+                    get { return y }
+                    set { let v = newValue }
+                }
+                var y: S = S()
+                init() {}
+            }
+            """
+        )
+        let structDecl = try #require(
+            program.statements.compactMap { $0 as? AST.StructDecl }.first { $0.symbol?.name == "T" }
+        )
+        let variableDecl = try #require(
+            structDecl.body.compactMap { $0 as? AST.VariableDecl }.first { $0.symbol?.name == "x" }
+        )
+        let property = try #require(variableDecl.symbol)
+        let getterSymbol = try #require(property.accessors[.Get])
+        let setterSymbol = try #require(property.accessors[.Set])
+        let getter = try #require(gen.functionsBySymbol[getterSymbol.id])
+        let setter = try #require(gen.functionsBySymbol[setterSymbol.id])
+        #expect(getter.name.contains("xGetter"))
+        #expect(setter.name.contains("xSetter"))
+    }
+
     @Test func accessorFunctionsMangled() throws {
         let tir = dumpTIR(
             """
