@@ -493,7 +493,7 @@ public final class TypeChecker: AST.Visitor {
 
     @discardableResult
     public override func visitFor(_ forStatement: AST.For, additional: Any? = nil) -> Any? {
-        withScope(forStatement.scope) {
+        withScope(forStatement.scope!) {
             let sequenceType = infer(forStatement.sequence, at: forStatement.token)
             checkPattern(forStatement.pattern, against: sequenceType, at: forStatement.token)
             if let whereClause = forStatement.whereClause {
