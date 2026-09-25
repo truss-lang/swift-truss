@@ -11,6 +11,7 @@ let package = Package(
         .package(url: "https://github.com/xiaoli-white/swift-abstract.git", from: "1.0.0"),
         .package(url: "https://github.com/xiaoli-white/swift-better-diagnostic.git", from: "1.1.2"),
         .package(url: "https://github.com/xiaoli-white/llvm-swift-binding", from: "1.0.6"),
+        .package(url: "https://github.com/LuizZak/swift-z3.git", branch: "master"),
     ],
     targets: [
         .target(
@@ -35,6 +36,10 @@ let package = Package(
                 .product(name: "SwiftGraph", package: "SwiftGraph"),
                 .product(name: "SwiftBetterDiagnostic", package: "swift-better-diagnostic"),
             ]
+        ),
+        .target(
+            name: "TrussProof",
+            dependencies: ["TrussCore"]
         ),
         .target(
             name: "TrussTIRGen",

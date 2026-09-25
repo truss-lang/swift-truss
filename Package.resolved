@@ -1,5 +1,5 @@
 {
-  "originHash" : "956c6d8c63bac390f1ed9a3f3efbd6b13b0f12359e23d29e973feec11007e407",
+  "originHash" : "e92deff7d323e58680f9582925dea8e92f2799a7e9c506de29eae855cb2ffaa7",
   "pins" : [
     {
       "identity" : "llvm-swift-binding",
@@ -44,6 +44,15 @@
       "state" : {
         "revision" : "4799286537280063c85a32f09884cfbca301b1a1",
         "version" : "602.0.0"
+      }
+    },
+    {
+      "identity" : "swift-z3",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/LuizZak/swift-z3.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "872e516feb689f17a2fcd5fe32b344dabdb9074b"
       }
     },
     {
