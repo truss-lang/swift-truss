@@ -135,6 +135,24 @@ func expectAccessNoError(_ sources: [String]) {
     )
 }
 
+@Test func finalSuperclassNotFirstInInheritanceClauses() {
+    let (context, _) = runChecks(["final class Base {}\nprotocol P {}\nclass C: P, Base {}"])
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.filter { $0 == "cannot inherit from final class 'Base'" }.count == 1)
+}
+
+@Test func superclassAccessNarrowedWhenNotFirst() {
+    let (context, _) = runChecks(
+        ["private class Base {}\nprotocol P {}\npublic class C: P, Base {}"]
+    )
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(
+        messages.filter {
+            $0 == "'C' must be declared private because its superclass 'Base' is private"
+        }.count == 1
+    )
+}
+
 @Test func overrideWithoutTarget() {
     expectAccessError(
         ["class A {}\nclass B: A {\n    override func f() {}\n}"],

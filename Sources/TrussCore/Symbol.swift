@@ -342,6 +342,12 @@ public enum Symbol {
                         return result
                     }
                 }
+            case let extensionDecl as AST.ExtensionDecl:
+                for stmt in extensionDecl.body {
+                    if let result = findFunctionBodyInStatement(function, stmt) {
+                        return result
+                    }
+                }
             case let functionDecl as AST.FunctionDecl:
                 guard functionDecl.symbol?.id == function.id else { return nil }
                 switch functionDecl.body {

@@ -102,6 +102,12 @@ import TrussCore
     #expect(messages.contains("unknown attribute 'foo'"))
 }
 
+@Test func theoremAttributeIsChecked() {
+    let (context, _) = runFullChecks(["module M {\n    #[foo]\n    theorem t() : true\n}"])
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.filter { $0 == "unknown attribute 'foo'" }.count == 1)
+}
+
 @Test func cnameAttributeIsAccepted() {
     let (context, _) = runFullChecks(
         ["#[cname(\"truss_f\")]\nfunc f() { 1 }"]

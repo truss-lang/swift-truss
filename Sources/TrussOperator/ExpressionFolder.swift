@@ -8,7 +8,7 @@ public final class ExpressionFolder: AST.Rewriter {
     private var modulePath: [String] = []
 
     private lazy var graph = PrecedenceGraphBuilder(table: table, context: context).build()
-    private lazy var ranks: [ObjectIdentifier: Int]? = computeRanks()
+    private lazy var hasAcyclicPrecedenceGraph: Bool = isAcyclicPrecedenceGraph()
     private lazy var reachability: [ObjectIdentifier: Set<ObjectIdentifier>] =
         computeReachability()
 
@@ -40,7 +40,7 @@ public final class ExpressionFolder: AST.Rewriter {
         let rewritten =
             super.visitSequential(sequentialExpression, additional: additional)
                 as? AST.Sequential ?? sequentialExpression
-        guard !rewritten.ops.isEmpty, ranks != nil else { return rewritten }
+        guard !rewritten.ops.isEmpty, hasAcyclicPrecedenceGraph else { return rewritten }
         if rewritten.ops.allSatisfy({ op in
             if case .Operator(.BitAnd) = op.kind { return true }
             return false
@@ -331,7 +331,7 @@ public final class ExpressionFolder: AST.Rewriter {
         )
     }
 
-    private func computeRanks() -> [ObjectIdentifier: Int]? {
+    private func isAcyclicPrecedenceGraph() -> Bool {
         var inDegree: [ObjectIdentifier: Int] = [:]
         for vertex in graph.vertices {
             inDegree[ObjectIdentifier(vertex)] = 0
@@ -343,12 +343,10 @@ public final class ExpressionFolder: AST.Rewriter {
             }
         }
         var queue = graph.vertices.filter { inDegree[ObjectIdentifier($0)] == 0 }
-        var ranks: [ObjectIdentifier: Int] = [:]
-        var next = 0
+        var visitedCount = 0
         while !queue.isEmpty {
             let vertex = queue.removeFirst()
-            ranks[ObjectIdentifier(vertex)] = next
-            next += 1
+            visitedCount += 1
             for edge in graph.edgesForVertex(vertex) ?? [] {
                 let target = ObjectIdentifier(graph.vertices[edge.v])
                 inDegree[target] = inDegree[target]! - 1
@@ -357,8 +355,7 @@ public final class ExpressionFolder: AST.Rewriter {
                 }
             }
         }
-        if ranks.count != graph.vertexCount { return nil }
-        return ranks
+        return visitedCount == graph.vertexCount
     }
 
     private func computeReachability() -> [ObjectIdentifier: Set<ObjectIdentifier>] {

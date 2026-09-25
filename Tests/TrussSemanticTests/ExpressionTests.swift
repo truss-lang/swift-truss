@@ -7,6 +7,25 @@ infix operator =: Assignment
 
 """
 
+private let compoundAssignmentPrelude = """
+precedencegroup Assignment { assignment: true }
+infix operator =: Assignment
+infix operator >>>=: Assignment
+func >>>=(lhs: Builtin.Int32, rhs: Builtin.Int32) -> Builtin.Int32 {
+    return Builtin.builtin_add_int32(lhs, rhs)
+}
+
+"""
+
+private let nonAssignmentCompoundPrelude = """
+precedencegroup NotAssignment { assignment: false }
+infix operator >>>=: NotAssignment
+func >>>=(lhs: Builtin.Int32, rhs: Builtin.Int32) -> Builtin.Int32 {
+    return Builtin.builtin_add_int32(lhs, rhs)
+}
+
+"""
+
 @Test func assignToLetMemberInInitIsAllowed() {
     let (context, _) = runFullChecks(
         [assignmentPrelude + "struct S {\n    let x: Builtin.Int32\n    init(x: Builtin.Int32) { self.x = x }\n}"],
@@ -42,6 +61,24 @@ infix operator =: Assignment
     )
     let messages = context.diagnositicEngine.diagnostics.map(\.message)
     #expect(messages.contains("cannot assign to immutable variable 'y'"))
+}
+
+@Test func compoundAssignmentOperatorOnLetIsError() {
+    let (context, _) = runFullChecks(
+        [compoundAssignmentPrelude + "func f() {\n    let a = 1\n    a >>>= 2\n}"],
+        installBuiltin: true
+    )
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(messages.filter { $0 == "cannot assign to immutable variable 'a'" }.count == 1)
+}
+
+@Test func compoundLookingOperatorWithoutAssignmentGroupOnLetIsAllowed() {
+    let (context, _) = runFullChecks(
+        [nonAssignmentCompoundPrelude + "func f() {\n    let a = 1\n    a >>>= 2\n}"],
+        installBuiltin: true
+    )
+    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(!messages.contains(where: { $0.contains("cannot assign to immutable") }))
 }
 
 @Test func matchNotExhaustiveIsError() {

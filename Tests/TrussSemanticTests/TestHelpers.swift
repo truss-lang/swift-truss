@@ -54,6 +54,11 @@ func runTypeBuilder(_ sources: [String], installBuiltin: Bool = false)
     return (context, programs)
 }
 
+func dumpSemanticSymbols(_ source: String) -> String {
+    let (context, programs) = runEnter([source])
+    return Symbol.Dumper(context: context).dump(programs[0])
+}
+
 func runTypeChecker(_ sources: [String], installBuiltin: Bool = false)
     -> (Context, [AST.Program])
 {

@@ -3,51 +3,28 @@ import TrussCore
 
 public final class TypeChecker: AST.Visitor {
     private let context: Context
-
     private var collectingTypealiases = false
-
     private var collectFunctionSignatures = false
-
     private var collectingSignatures = false
-
     private var typealiasDecls: [Id.SymbolId: AST.TypeAliasDecl] = [:]
-
     private var resolvingTypealiases: Set<Id.SymbolId> = []
-
     private var scopeStack: [Scope] = []
-
     private var typeStack: [Symbol.NominalTypeSymbol] = []
-
     private var functionReturnTypes: [TrussType.TrussType] = []
-
     private var functionThrowsStack: [(isThrowing: Bool, types: [TrussType.TrussType])] = []
-
     private var reportedUntriedCalls: Set<ObjectIdentifier> = []
-
     private var reportedTypeArgumentCounts: Set<ObjectIdentifier> = []
-
     private var constructionResults: [Id.ASTTypeId: TrussType.GenericInstantiation] = [:]
-
     private var tryContextDepth = 0
-
     private var doThrownTypeStack: [[TrussType.TrussType]] = []
-
     private var constraintFrames: [[Id.TypeVariableId: [TrussType.ProtocolType]]] = []
-
     private var closureParameterTypes: [[TrussType.TrussType]] = []
-
     private var rawTypeStack: [TrussType.TrussType?] = []
-
     private var nextTypeVariableId: UInt64 = 0
-
     private var sourceId: Id.SourceId = .init(0)
-
     private var nullablePointerConstraints: Set<ObjectIdentifier> = []
-
     private var narrowedPointerTypes: [Id.SymbolId: TrussType.PointerType] = [:]
-
     private var nullptrLiteralTokens: [ObjectIdentifier: Token] = [:]
-
     private var reportedNullptrBindings: Set<ObjectIdentifier> = []
 
     public init(context: Context) {
@@ -2359,7 +2336,6 @@ public final class TypeChecker: AST.Visitor {
             return expression.ty
 
         case let memberAccess as AST.MemberAccess:
-            memberAccess.object.isLeftValue = true
             _ = infer(memberAccess.object, at: token)
             let objectType = memberAccess.object.ty
             if let caseSymbol = memberAccess.symbol as? Symbol.CaseSymbol,

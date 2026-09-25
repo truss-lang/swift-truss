@@ -39,8 +39,8 @@ public final class UnusedDeclarationChecker: AST.Visitor {
                     )
                 }
             }
-            let isOverride = functionDecl.modifiers.contains { if case .Override = $0.kind { true } else { false } }
-            let isAbstract = functionDecl.modifiers.contains { if case .Abstract = $0.kind { true } else { false } }
+            let isOverride = functionDecl.modifiers.hasModifier(.Override)
+            let isAbstract = functionDecl.modifiers.hasModifier(.Abstract)
             if [.Private, .FilePrivate].contains(symbol.access),
                !isOverride,
                externDepth == 0,

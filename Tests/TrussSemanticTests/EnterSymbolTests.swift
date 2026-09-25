@@ -52,6 +52,20 @@ import TrussCore
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
+@Test func extensionFunctionBodyScopesEnterSymbolDump() throws {
+    let dump = dumpSemanticSymbols(
+        "struct S {}\nextension S {\n    func f() {\n        if true {\n            let x = 1\n        }\n    }\n}"
+    )
+    let lines = dump.split(separator: "\n").map(String.init)
+    let functionIndex = try #require(lines.firstIndex { $0.contains("function f ") })
+    let scopeIndex = try #require(lines.firstIndex { $0.contains("(scope):") })
+    try #require(scopeIndex > functionIndex)
+    try #require(scopeIndex + 1 < lines.count)
+    #expect(lines[scopeIndex].hasPrefix("      if at "))
+    #expect(lines[scopeIndex].contains("(scope):"))
+    #expect(lines[scopeIndex + 1].hasPrefix("        var x (Local)"))
+}
+
 @Test func memberFunctionAndLocals() throws {
     let (context, program) = runEnter(["struct S { func m() { var x = 1 } }"])
     let packageScope = program[0].packageSymbol!.scope

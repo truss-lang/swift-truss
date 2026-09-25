@@ -9,10 +9,6 @@ public final class AccessChecker: AST.Visitor {
     private var currentPackageSymbol: Symbol.PackageSymbol? = nil
     private var currentModuleSymbol: Symbol.ModuleSymbol? = nil
 
-    private static let assignmentOperators: Set<String> = [
-        "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=",
-    ]
-
     public init(context: Context) {
         self.context = context
     }
@@ -78,23 +74,19 @@ public final class AccessChecker: AST.Visitor {
     @discardableResult
     public override func visitClassDecl(_ classDecl: AST.ClassDecl, additional: Any? = nil) -> Any? {
         let symbol = classDecl.symbol as? Symbol.ClassSymbol
-        if let symbol {
-            if let first = classDecl.inheritanceClauses.first,
-               let superclass = resolveTypeSymbol(first) as? Symbol.ClassSymbol
-            {
-                checkAccess(of: superclass, at: classDecl.name)
-                if superclass.isFinal {
-                    context.emitError(
-                        "cannot inherit from final class '\(superclass.name)'",
-                        at: classDecl.name
-                    )
-                }
-                if !superclass.access.isAtLeast(symbol.access) {
-                    context.emitError(
-                        "'\(symbol.name)' must be declared \(superclass.access.sourceText) because its superclass '\(superclass.name)' is \(superclass.access.sourceText)",
-                        at: classDecl.name
-                    )
-                }
+        if let symbol, let superclass = symbol.superclass {
+            checkAccess(of: superclass, at: classDecl.name)
+            if superclass.isFinal {
+                context.emitError(
+                    "cannot inherit from final class '\(superclass.name)'",
+                    at: classDecl.name
+                )
+            }
+            if !superclass.access.isAtLeast(symbol.access) {
+                context.emitError(
+                    "'\(symbol.name)' must be declared \(superclass.access.sourceText) because its superclass '\(superclass.name)' is \(superclass.access.sourceText)",
+                    at: classDecl.name
+                )
             }
         }
         withType(symbol) {
@@ -214,7 +206,7 @@ public final class AccessChecker: AST.Visitor {
     public override func visitBinary(_ binary: AST.Binary, additional: Any? = nil) -> Any? {
         visit(binary.left, additional: additional)
         visit(binary.right, additional: additional)
-        if Self.assignmentOperators.contains(binary.operatorToken.value) {
+        if binary.isAssignment {
             checkWriteAccess(of: binary.left)
         }
         return nil
@@ -227,7 +219,7 @@ public final class AccessChecker: AST.Visitor {
         if let symbol = functionDecl.symbol {
             checkOverride(
                 of: symbol,
-                hasOverrideModifier: hasModifier(.Override, in: functionDecl.modifiers),
+                hasOverrideModifier: functionDecl.modifiers.contains { $0.kind == .Override },
                 at: functionDecl.name
             )
             checkDeclarationAccess(
@@ -248,7 +240,7 @@ public final class AccessChecker: AST.Visitor {
         if let symbol = initDecl.symbol {
             checkOverride(
                 of: symbol,
-                hasOverrideModifier: hasModifier(.Override, in: initDecl.modifiers),
+                hasOverrideModifier: initDecl.modifiers.contains { $0.kind == .Override },
                 at: initDecl.token
             )
             checkDeclarationAccess(
@@ -273,7 +265,7 @@ public final class AccessChecker: AST.Visitor {
         if let symbol = subscriptDecl.symbol {
             checkOverride(
                 of: symbol,
-                hasOverrideModifier: hasModifier(.Override, in: subscriptDecl.modifiers),
+                hasOverrideModifier: subscriptDecl.modifiers.contains { $0.kind == .Override },
                 at: subscriptDecl.token
             )
             checkDeclarationAccess(
@@ -293,7 +285,7 @@ public final class AccessChecker: AST.Visitor {
         if let symbol = variableDecl.symbol {
             checkOverride(
                 of: symbol,
-                hasOverrideModifier: hasModifier(.Override, in: variableDecl.modifiers),
+                hasOverrideModifier: variableDecl.modifiers.contains { $0.kind == .Override },
                 at: variableDecl.name
             )
             checkDeclarationAccess(
@@ -329,15 +321,6 @@ public final class AccessChecker: AST.Visitor {
         }
         super.visitTypeAliasDecl(typeAliasDecl, additional: additional)
         return nil
-    }
-
-    private func hasModifier(_ kind: AST.ModifierKind, in modifiers: [AST.Modifier]) -> Bool {
-        modifiers.contains { modifier in
-            switch (kind, modifier.kind) {
-            case (.Override, .Override): true
-            default: false
-            }
-        }
     }
 
     private func isVisible(_ symbol: Symbol.Symbol, at token: Token, using level: AccessLevel) -> Bool {

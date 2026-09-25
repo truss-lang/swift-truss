@@ -3,7 +3,6 @@ import TrussCore
 public final class ModifierChecker: AST.Visitor {
     private let context: Context
     private var typeStack: [Symbol.NominalTypeSymbol] = []
-    private var abstractClassStack: [Bool] = []
 
     public init(context: Context) {
         self.context = context
@@ -12,7 +11,7 @@ public final class ModifierChecker: AST.Visitor {
     @discardableResult
     public override func visitStructDecl(_ structDecl: AST.StructDecl, additional: Any? = nil) -> Any? {
         checkTypeAccess(structDecl.modifiers, on: "'struct'")
-        withType(structDecl.symbol, isAbstract: false) {
+        withType(structDecl.symbol) {
             super.visitStructDecl(structDecl, additional: additional)
         }
         return nil
@@ -24,8 +23,7 @@ public final class ModifierChecker: AST.Visitor {
             classDecl.modifiers, on: "'class'", allowed: Self.plainAccess + [.Abstract, .Final]
         )
         checkCombinations(classDecl.modifiers)
-        let isAbstractClass = classDecl.modifiers.contains { if case .Abstract = $0.kind { true } else { false } }
-        withType(classDecl.symbol, isAbstract: isAbstractClass) {
+        withType(classDecl.symbol) {
             super.visitClassDecl(classDecl, additional: additional)
         }
         return nil
@@ -34,7 +32,7 @@ public final class ModifierChecker: AST.Visitor {
     @discardableResult
     public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil) -> Any? {
         checkTypeAccess(enumDecl.modifiers, on: "'enum'", extraAllowed: [.Indirect])
-        withType(enumDecl.symbol, isAbstract: false) {
+        withType(enumDecl.symbol) {
             super.visitEnumDecl(enumDecl, additional: additional)
         }
         return nil
@@ -45,7 +43,7 @@ public final class ModifierChecker: AST.Visitor {
         _ protocolDecl: AST.ProtocolDecl, additional: Any? = nil
     ) -> Any? {
         checkTypeAccess(protocolDecl.modifiers, on: "'protocol'")
-        withType(protocolDecl.symbol, isAbstract: false) {
+        withType(protocolDecl.symbol) {
             super.visitProtocolDecl(protocolDecl, additional: additional)
         }
         return nil
@@ -54,7 +52,7 @@ public final class ModifierChecker: AST.Visitor {
     @discardableResult
     public override func visitActorDecl(_ actorDecl: AST.ActorDecl, additional: Any? = nil) -> Any? {
         checkTypeAccess(actorDecl.modifiers, on: "'actor'")
-        withType(actorDecl.symbol, isAbstract: false) {
+        withType(actorDecl.symbol) {
             super.visitActorDecl(actorDecl, additional: additional)
         }
         return nil
@@ -154,9 +152,10 @@ public final class ModifierChecker: AST.Visitor {
                 }
             case .Final, .Override, .Open, .Protected:
                 if enclosingClass == nil {
-                    let what = kindText(modifier.kind) == "open" ? "a class or class member" : "a class member"
+                    let text = kindText(modifier.kind)
+                    let what = if case .Open = modifier.kind { "a class or class member" } else { "a class member" }
                     context.emitError(
-                        "'\(kindText(modifier.kind))' modifier can only be applied to \(what)",
+                        "'\(text)' modifier can only be applied to \(what)",
                         at: modifier.token
                     )
                 }
@@ -178,7 +177,7 @@ public final class ModifierChecker: AST.Visitor {
                 .Static, .Lazy, .Weak, .Unowned, .Final, .Override,
             ]
         )
-        let isVar = variableDecl.token.value == "var"
+        let isVar = if case .Keyword(.Var) = variableDecl.token.kind { true } else { false }
         let hasInitializer = variableDecl.initializer != nil
         for modifier in variableDecl.modifiers {
             switch modifier.kind {
@@ -191,9 +190,10 @@ public final class ModifierChecker: AST.Visitor {
                 }
             case .Final, .Override, .Open, .Protected:
                 if enclosingClass == nil {
-                    let what = kindText(modifier.kind) == "open" ? "a class or class member" : "a class member"
+                    let text = kindText(modifier.kind)
+                    let what = if case .Open = modifier.kind { "a class or class member" } else { "a class member" }
                     context.emitError(
-                        "'\(kindText(modifier.kind))' modifier can only be applied to \(what)",
+                        "'\(text)' modifier can only be applied to \(what)",
                         at: modifier.token
                     )
                 }
@@ -272,18 +272,27 @@ public final class ModifierChecker: AST.Visitor {
     }
 
     private static var setterOnly: [AST.ModifierKind] {
-        [
-            .Open(setter: true), .Public(setter: true), .Protected(setter: true),
-            .PackagePrivate(setter: true), .Internal(setter: true), .FilePrivate(setter: true),
-            .Private(setter: true),
-        ]
+        plainAccess.map { kind in
+            switch kind {
+            case .Open: .Open(setter: true)
+            case .Public: .Public(setter: true)
+            case .Protected: .Protected(setter: true)
+            case .PackagePrivate: .PackagePrivate(setter: true)
+            case .Internal: .Internal(setter: true)
+            case .FilePrivate: .FilePrivate(setter: true)
+            case .Private: .Private(setter: true)
+            default: kind
+            }
+        }
     }
 
     private static var typeAccess: [AST.ModifierKind] {
-        [
-            .Public(setter: false), .PackagePrivate(setter: false), .Internal(setter: false),
-            .FilePrivate(setter: false), .Private(setter: false),
-        ]
+        plainAccess.filter { kind in
+            switch kind {
+            case .Open, .Protected: false
+            default: true
+            }
+        }
     }
 
     private var enclosingClass: Symbol.ClassSymbol? {
@@ -298,14 +307,10 @@ public final class ModifierChecker: AST.Visitor {
         !typeStack.isEmpty
     }
 
-    private func withType(
-        _ type: Symbol.NominalTypeSymbol?, isAbstract: Bool, body: () -> Void
-    ) {
+    private func withType(_ type: Symbol.NominalTypeSymbol?, body: () -> Void) {
         guard let type else { return }
         typeStack.append(type)
-        abstractClassStack.append(isAbstract)
         body()
-        abstractClassStack.removeLast()
         typeStack.removeLast()
     }
 
@@ -319,9 +324,9 @@ public final class ModifierChecker: AST.Visitor {
     }
 
     private func checkCombinations(_ modifiers: [AST.Modifier]) {
-        let hasFinal = modifiers.contains { if case .Final = $0.kind { true } else { false } }
-        let hasOpen = modifiers.contains { if case .Open = $0.kind { true } else { false } }
-        let hasAbstract = modifiers.contains { if case .Abstract = $0.kind { true } else { false } }
+        let hasFinal = modifiers.hasModifier(.Final)
+        let hasOpen = modifiers.hasModifier(.Open(setter: false)) || modifiers.hasModifier(.Open(setter: true))
+        let hasAbstract = modifiers.hasModifier(.Abstract)
         if hasFinal, hasOpen {
             for modifier in modifiers where modifier.kind == .Final {
                 context.emitError(
@@ -380,7 +385,7 @@ public final class ModifierChecker: AST.Visitor {
                         at: modifier.token
                     )
                 }
-                if enclosingClass != nil, !(abstractClassStack.last ?? false) {
+                if let enclosingClass, !enclosingClass.isAbstract {
                     context.emitError(
                         "'abstract' member in non-abstract class", at: modifier.token
                     )
