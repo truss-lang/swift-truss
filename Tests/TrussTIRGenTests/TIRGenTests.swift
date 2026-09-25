@@ -2272,7 +2272,7 @@ import TrussCore
         )
         let fBlock = tir.components(separatedBy: "function ").last ?? ""
         try #require(fBlock.range(
-            of: #"structelementaddr %\d+, #1 y"#, options: .regularExpression
+            of: #"structelementaddr %\w+, #1 y"#, options: .regularExpression
         ) != nil)
     }
 

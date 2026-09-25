@@ -238,4 +238,30 @@ public enum TIR {
             super.init(ty: ty, name: "")
         }
     }
+
+    public class PropertyBinding: Value {
+        public let object: Value
+        public let value: Value?
+        public let getter: Value?
+        public let setter: Value?
+        public let willSetAccessor: Value?
+        public let didSetAccessor: Value?
+        public init(
+            object: Value,
+            value: Value?,
+            getter: Value?,
+            setter: Value?,
+            willSetAccessor: Value?,
+            didSetAccessor: Value?,
+            ty: Id.TIRTypeId
+        ) {
+            self.object = object
+            self.value = value
+            self.getter = getter
+            self.setter = setter
+            self.willSetAccessor = willSetAccessor
+            self.didSetAccessor = didSetAccessor
+            super.init(ty: ty, name: "")
+        }
+    }
 }

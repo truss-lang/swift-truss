@@ -3,8 +3,9 @@ import TrussCore
 final class TypeLower {
     private let context: Context
     private var nominalInProgress: [Id.ASTTypeId: TIRType.NominalType] = [:]
-    private var storedProperties: [Id.ASTTypeId: [(name: String, type: TrussType.TrussType)]] = [:]
+    private var storedProperties: [Id.ASTTypeId: [StoredProperty]] = [:]
     private var enumCases: [Id.ASTTypeId: [(name: String, types: [TrussType.TrussType])]] = [:]
+    private var fieldIndexBySymbol: [ObjectIdentifier: Int] = [:]
     private var optionalEnums: [Id.TIRTypeId: TIRType.EnumType] = [:]
     private var metadataByType: [Id.TIRTypeId: Id.TIRMetadataId] = [:]
     private var protocolBySymbol: [Id.SymbolId: Id.TIRProtocolId] = [:]
@@ -19,7 +20,7 @@ final class TypeLower {
         self.registry = registry
     }
 
-    func setStoredProperties(_ stored: [Id.ASTTypeId: [(name: String, type: TrussType.TrussType)]]) {
+    func setStoredProperties(_ stored: [Id.ASTTypeId: [StoredProperty]]) {
         storedProperties = stored
     }
 
@@ -124,6 +125,18 @@ final class TypeLower {
             }
         }
         return result
+    }
+
+    func fieldIndex(of symbol: Symbol.VariableSymbol) -> Int? {
+        guard let memberOf = symbol.memberOf,
+              let owner = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol,
+              let typeId = owner.typeId,
+              let type = context.typeTable[typeId]
+        else {
+            fatalError("unreachable: a stored property must belong to a declared nominal type")
+        }
+        _ = lower(type)
+        return fieldIndexBySymbol[ObjectIdentifier(symbol)]
     }
 
     func metadataId(for type: TrussType.NominalType) -> Id.TIRMetadataId? {
@@ -248,9 +261,12 @@ final class TypeLower {
 
     private func fillMembers(_ lowered: TIRType.NominalType, type: TrussType.NominalType) {
         if let structType = lowered as? TIRType.StructType {
-            structType.fields = (storedProperties[type.id] ?? []).map {
-                (name: $0.name, type: lower($0.type).id)
+            var fields: [(name: String, type: Id.TIRTypeId)] = []
+            for property in storedProperties[type.id] ?? [] {
+                fieldIndexBySymbol[ObjectIdentifier(property.symbol)] = fields.count
+                fields.append((name: property.name, type: lower(property.type).id))
             }
+            structType.fields = fields
         } else if let classType = lowered as? TIRType.ClassType {
             var fields: [(name: String, type: Id.TIRTypeId)] = []
             if let superclassType = superclassType(of: type),
@@ -258,11 +274,10 @@ final class TypeLower {
             {
                 fields = superLowered.fields
             }
-            fields.append(
-                contentsOf: (storedProperties[type.id] ?? []).map {
-                    (name: $0.name, type: lower($0.type).id)
-                }
-            )
+            for property in storedProperties[type.id] ?? [] {
+                fieldIndexBySymbol[ObjectIdentifier(property.symbol)] = fields.count
+                fields.append((name: property.name, type: lower(property.type).id))
+            }
             classType.fields = fields
         } else if let enumType = lowered as? TIRType.EnumType {
             enumType.cases = (enumCases[type.id] ?? []).map {

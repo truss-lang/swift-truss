@@ -45,6 +45,17 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitTypeAliasDecl(_ typeAliasDecl: AST.TypeAliasDecl, additional: Any? = nil) -> Any? {
+        nil
+    }
+
+    @discardableResult
+    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil) -> Any? {
+        // TODO:
+        nil
+    }
+
+    @discardableResult
     public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil) -> Any? {
         guard let symbol = functionDecl.symbol,
               let fn = gen.functionsBySymbol[symbol.id]
@@ -78,8 +89,7 @@ public final class TIREmitter: AST.Visitor {
     @discardableResult
     public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil) -> Any? {
         guard let symbol = initDecl.symbol,
-              let fn = gen.functionsBySymbol[symbol.id],
-              let builder
+              let fn = gen.functionsBySymbol[symbol.id]
         else {
             fatalError("unreachable")
         }
@@ -151,7 +161,9 @@ public final class TIREmitter: AST.Visitor {
         guard let builder, let symbol = variableDecl.symbol else {
             fatalError("unreachable")
         }
-        if let global = gen.globalsBySymbol[symbol.id] {
+        switch symbol.kind {
+        case .Global:
+            let global = gen.globalsBySymbol[symbol.id]!
             if let initializer = variableDecl.initializer {
                 guard let initializerId = global.initializer,
                       let initializerFunction = gen.registry.functions[initializerId]
@@ -172,20 +184,34 @@ public final class TIREmitter: AST.Visitor {
                 builder.insertPoint = lastInsertPoint
                 currentFunction = lastFunction
             }
-        } else {
+        case .Local:
             let name = mangleVariable(variableDecl.name.value)
-            let alloc = builder.buildAllocStack(
-                allocatedType: lowerType(symbol.type).id,
-                name: name
-            )
-            bindLocal(variableDecl.name.value, alloc.result)
-            if let initializer = variableDecl.initializer {
-                builder.buildStore(value: visitExpression(initializer), to: alloc.result)
+            if symbol.kind == .Free {
+                let alloc = builder.buildAllocCell(
+                    allocatedType: lowerType(symbol.type).id,
+                    name: name
+                )
+                bindLocal(variableDecl.name.value, alloc.result)
+                if let initializer = variableDecl.initializer {
+                    builder.buildStore(value: visitExpression(initializer), to: alloc.result)
+                }
+            } else {
+                let alloc = builder.buildAllocStack(
+                    allocatedType: lowerType(symbol.type).id,
+                    name: name
+                )
+                bindLocal(variableDecl.name.value, alloc.result)
+                if let initializer = variableDecl.initializer {
+                    builder.buildStore(value: visitExpression(initializer), to: alloc.result)
+                }
             }
+        default:
+            break
         }
         return nil
     }
 
+    @discardableResult
     public override func visitLoop(_ loopStatement: AST.Loop, additional: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
@@ -411,10 +437,13 @@ public final class TIREmitter: AST.Visitor {
 
     @discardableResult
     public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
-        guard let builder, let symbol = variable.symbol else {
+        guard let builder,
+              let symbol = variable.symbol
+        else {
             fatalError("unreachable")
         }
-        if let functionSymbol = symbol as? Symbol.FunctionSymbol {
+        switch symbol {
+        case let functionSymbol as Symbol.FunctionSymbol:
             if variable.willBeCalled {
                 switch functionSymbol.kind {
                 case .Initializer:
@@ -434,7 +463,12 @@ public final class TIREmitter: AST.Visitor {
 
                 case .Method:
                     let obj = getSelf()
-                    return objectBinding(obj: obj, of: functionSymbol, sourceRange: variable.sourceRange)
+                    let method = functionValue(of: functionSymbol, obj: obj, sourceRange: variable.sourceRange)
+                    return builder.buildObjectBinding(
+                        object: obj,
+                        method: method,
+                        ty: lowerType(functionSymbol.functionType).id
+                    )
 
                 default:
                     let ref = functionRefValue(functionSymbol, at: variable.sourceRange)
@@ -444,23 +478,73 @@ public final class TIREmitter: AST.Visitor {
                 let ref = functionRefValue(functionSymbol, at: variable.sourceRange)
                 return builder.buildClosure(function: ref, captures: []).result
             }
-        }
-        if let nominal = symbol as? Symbol.NominalTypeSymbol {
+        case let nominal as Symbol.NominalTypeSymbol:
             // TODO: return reflection of the nominal type
+            fatalError()
+        case is Symbol.SelfSymbol:
+            let v = getSelf()
+            if variable.isLeftValue {
+                return v
+            } else {
+                let inst = builder.buildLoad(ptr: v)
+                return inst.result
+            }
+        case let variableSymbol as Symbol.VariableSymbol:
+            switch variableSymbol.kind {
+            case .Global, .StaticProperty:
+                let addr = builder.buildGlobalAddr(global: gen.globalsBySymbol[variableSymbol.id]!)
+                if variable.isLeftValue {
+                    return addr
+                }
+                return builder.buildLoad(ptr: addr).result
+            case .Local:
+                let addr = lookupLocal(variable.name.value)!
+                if variable.isLeftValue {
+                    return addr
+                }
+                return builder.buildLoad(ptr: addr).result
+            case .Property:
+                let selfValue = getSelf()
+                if let getter = variableSymbol.accessors[.Get] {
+                    if variable.isLeftValue {
+                        let setter = functionValue(
+                            of: variableSymbol.accessors[.Set]!,
+                            obj: selfValue,
+                            sourceRange: variable.sourceRange
+                        )
+                        return builder.buildPropertyBinding(
+                            object: selfValue,
+                            value: nil,
+                            getter: nil,
+                            setter: setter,
+                            willSetAccessor: nil,
+                            didSetAccessor: nil
+                        )
+                    } else {
+                        let callee = functionValue(
+                            of: getter, obj: selfValue,
+                            sourceRange: variable.sourceRange
+                        )
+                        return builder.buildCall(
+                            callee: callee,
+                            arguments: [selfValue]
+                        ).result
+                    }
+                } else {
+                    let slot = propertyValue(
+                        of: variableSymbol, obj: selfValue, sourceRange: variable.sourceRange
+                    )
+                    if variable.isLeftValue {
+                        return slot
+                    }
+                    return builder.buildLoad(ptr: slot).result
+                }
+            case .Free:
+                fatalError()
+            }
+        default:
+            fatalError()
         }
-        let addr: TIR.Value
-        if let global = gen.globalsBySymbol[symbol.id] {
-            addr = builder.buildGlobalAddr(global: global)
-        } else if let value = lookupLocal(variable.name.value) {
-            addr = value
-        } else {
-            return nil
-        }
-        if variable.isLeftValue {
-            return addr
-        }
-        let load = builder.buildLoad(ptr: addr)
-        return load.result
     }
 
     @discardableResult
@@ -468,7 +552,8 @@ public final class TIREmitter: AST.Visitor {
         guard let builder, let symbol = memberAccess.symbol else {
             fatalError("unreachable")
         }
-        if let functionSymbol = symbol as? Symbol.FunctionSymbol {
+        switch symbol {
+        case let functionSymbol as Symbol.FunctionSymbol:
             if memberAccess.willBeCalled {
                 switch functionSymbol.kind {
                 case .Initializer:
@@ -487,15 +572,13 @@ public final class TIREmitter: AST.Visitor {
                     )
 
                 case .Method:
-                    guard let memberOf = functionSymbol.memberOf,
-                          let nominalTypeSymbol = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol
-                    else {
-                        fatalError()
-                    }
-                    memberAccess.object.isLeftValue = true
                     let obj = visitExpression(memberAccess.object)
-                    memberAccess.object.isLeftValue = false
-                    return objectBinding(obj: obj, of: functionSymbol, sourceRange: memberAccess.sourceRange)
+                    let method = functionValue(of: functionSymbol, obj: obj, sourceRange: memberAccess.sourceRange)
+                    return builder.buildObjectBinding(
+                        object: obj,
+                        method: method,
+                        ty: lowerType(functionSymbol.functionType).id
+                    )
 
                 default:
                     let ref = functionRefValue(functionSymbol, at: memberAccess.sourceRange)
@@ -504,6 +587,73 @@ public final class TIREmitter: AST.Visitor {
             } else {
                 let ref = functionRefValue(functionSymbol, at: memberAccess.sourceRange)
                 return builder.buildClosure(function: ref, captures: []).result
+            }
+        case let variableSymbol as Symbol.VariableSymbol:
+            let addr: TIR.Value
+            switch variableSymbol.kind {
+            case .Global, .StaticProperty:
+                addr = builder.buildGlobalAddr(global: gen.globalsBySymbol[variableSymbol.id]!)
+            case .Property:
+                let v = visitExpression(memberAccess.object)
+                let obj = builder.buildAllocStack(
+                    allocatedType: lowerType(memberAccess.object.ty!).id
+                ).result
+                builder.buildStore(value: v, to: obj)
+                if let getter = variableSymbol.accessors[.Get] {
+                    if memberAccess.isLeftValue {
+                        let setter = functionValue(
+                            of: variableSymbol.accessors[.Set]!,
+                            obj: obj,
+                            sourceRange: memberAccess.sourceRange
+                        )
+                        return builder.buildPropertyBinding(
+                            object: obj,
+                            value: nil,
+                            getter: nil,
+                            setter: setter,
+                            willSetAccessor: nil,
+                            didSetAccessor: nil
+                        )
+                    } else {
+                        let callee = functionValue(
+                            of: getter, obj: obj,
+                            sourceRange: memberAccess.sourceRange
+                        )
+                        return builder.buildCall(
+                            callee: callee,
+                            arguments: [obj]
+                        ).result
+                    }
+
+                } else {
+                    let slot = propertyValue(
+                        of: variableSymbol, obj: obj,
+                        sourceRange: memberAccess.sourceRange
+                    )
+                    if memberAccess.isLeftValue {
+                        return slot
+                    }
+                    return builder.buildLoad(ptr: slot).result
+                }
+            case .Local, .Free:
+                fatalError("unreachable")
+            }
+            if memberAccess.isLeftValue {
+                return addr
+            }
+            let load = builder.buildLoad(ptr: addr)
+            return load.result
+        default:
+            guard let memberOf = symbol.memberOf,
+                  let nominalTypeSymbol = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol
+            else {
+                fatalError()
+            }
+            switch nominalTypeSymbol {
+            case is Symbol.StructSymbol:
+                break
+            default:
+                break
             }
         }
         return nil
@@ -561,7 +711,11 @@ public final class TIREmitter: AST.Visitor {
         let left = visitExpression(binary.left)
         let right = visitExpression(binary.right)
         if binary.operatorToken.kind == .Operator(.Assign) {
-            builder.buildStore(value: right, to: left)
+            if let propertyBinding = left as? TIR.PropertyBinding {
+                builder.buildCall(callee: propertyBinding.setter!, arguments: [propertyBinding.object, right])
+            } else {
+                builder.buildStore(value: right, to: left)
+            }
             return right
         } else {
             guard let symbol = binary.symbol else {
@@ -711,9 +865,9 @@ public final class TIREmitter: AST.Visitor {
         lookupLocal("<self>")!
     }
 
-    private func objectBinding(
-        obj: TIR.Value, of symbol: Symbol.FunctionSymbol, sourceRange: SourceRange
-    ) -> TIR.ObjectBinding {
+    private func functionValue(
+        of symbol: Symbol.FunctionSymbol, obj: TIR.Value?, sourceRange: SourceRange
+    ) -> TIR.Value {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -724,12 +878,7 @@ public final class TIREmitter: AST.Visitor {
         }
         switch nominalTypeSymbol {
         case is Symbol.StructSymbol, is Symbol.EnumSymbol:
-            let ref = functionRefValue(symbol, at: sourceRange)
-            return builder.buildObjectBinding(
-                object: obj,
-                method: ref,
-                ty: lowerType(symbol.functionType).id
-            )
+            return functionRefValue(symbol, at: sourceRange)
         case is Symbol.ClassSymbol, is Symbol.ActorSymbol:
             let loweredType = lowerType(symbol.functionType).id
             let metadataId = metadata(of: nominalTypeSymbol)
@@ -737,17 +886,42 @@ public final class TIREmitter: AST.Visitor {
             let index = metadata.vtable.enumerated().filter { _, entry in
                 entry.name == symbol.name && entry.signature == loweredType
             }.first!.offset
-            let callee = builder.buildVirtualMethod(
+            guard let obj else {
+                fatalError()
+            }
+            return builder.buildVirtualMethod(
                 metadata: metadataId,
                 index: index,
                 selfValue: obj,
                 ty: loweredType
-            )
-            return builder.buildObjectBinding(
-                object: obj,
-                method: callee.result,
-                ty: loweredType
-            )
+            ).result
+        default:
+            fatalError()
+        }
+    }
+
+    private func propertyValue(
+        of symbol: Symbol.VariableSymbol, obj: TIR.Value, sourceRange: SourceRange
+    ) -> TIR.Value {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        guard let memberOf = symbol.memberOf,
+              let nominalTypeSymbol = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol
+        else {
+            fatalError()
+        }
+        switch nominalTypeSymbol {
+        case is Symbol.StructSymbol:
+            guard let index = gen.typeLower.fieldIndex(of: symbol) else {
+                fatalError("unreachable: a struct stored property must have a lowered field index")
+            }
+            return builder.buildStructElementAddr(base: obj, index: index).result
+        case is Symbol.ClassSymbol, is Symbol.ActorSymbol:
+            guard let index = gen.typeLower.fieldIndex(of: symbol) else {
+                fatalError("unreachable: a class/actor stored property must have a lowered field index")
+            }
+            return builder.buildClassElementAddr(base: obj, index: index).result
         default:
             fatalError()
         }

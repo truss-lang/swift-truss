@@ -40,11 +40,7 @@ final class FunctionCollector {
             case let decl as AST.VariableDecl:
                 collectVariable(decl)
                 if let symbol = decl.symbol {
-                    let isStatic = decl.modifiers.contains { modifier in
-                        if case .Static = modifier.kind { return true }
-                        return false
-                    }
-                    if symbol.memberOf == nil || isStatic {
+                    if symbol.kind == .Global || symbol.kind == .StaticProperty {
                         createGlobal(decl, symbol: symbol)
                     }
                 }
@@ -248,7 +244,7 @@ final class FunctionCollector {
     }
 
     private func collectVariable(_ decl: AST.VariableDecl) {
-        guard let symbol = decl.symbol, let memberOf = symbol.memberOf else { return }
+        guard let symbol = decl.symbol else { return }
         let isStatic = decl.modifiers.contains { modifier in
             if case .Static = modifier.kind { return true }
             return false
@@ -257,7 +253,6 @@ final class FunctionCollector {
             gen.staticVariableSymbols.insert(symbol.id)
         }
         collectVariableAccessors(decl, symbol: symbol, isStatic: isStatic)
-        _ = memberOf
     }
 
     private func collectVariableAccessors(
@@ -266,8 +261,10 @@ final class FunctionCollector {
         guard let memberOf = symbol.memberOf,
               let owner = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol,
               let ownerType = owner.typeId.flatMap({ context.typeTable[$0] })
-        else { return }
-        let selfType = gen.typeLower.lower(ownerType)
+        else {
+            return
+        }
+        let selfType = gen.registry.pointerType(pointee: gen.typeLower.lower(ownerType).id)
         let valueType = symbol.type.map { gen.typeLower.lower($0) }
             ?? (decl.initializer?.ty).map { gen.typeLower.lower($0) }
             ?? gen.registry.voidType()
@@ -319,7 +316,9 @@ final class FunctionCollector {
         guard let currentModule = gen.currentModule else {
             fatalError("unreachable")
         }
-        guard gen.globalsBySymbol[symbol.id] == nil else { return }
+        guard gen.globalsBySymbol[symbol.id] == nil else {
+            fatalError()
+        }
         let type = symbol.type.map { gen.typeLower.lower($0) }
             ?? (variableDecl.initializer?.ty).map { gen.typeLower.lower($0) }
             ?? gen.registry.voidType()

@@ -38,10 +38,15 @@ final class VTableCollector {
         }
         for (_, entries) in symbol.scope.values.sorted(by: { $0.key < $1.key }) {
             for entry in entries {
-                guard let function = entry as? Symbol.FunctionSymbol, isVirtual(function) else {
-                    continue
+                if let function = entry as? Symbol.FunctionSymbol, isVirtual(function) {
+                    register(function, metadataId: metadataId, record: record)
+                } else if let variable = entry as? Symbol.VariableSymbol {
+                    for f in variable.accessors.values {
+                        if isVirtual(f) {
+                            register(f, metadataId: metadataId, record: record)
+                        }
+                    }
                 }
-                register(function, metadataId: metadataId, record: record)
             }
         }
     }

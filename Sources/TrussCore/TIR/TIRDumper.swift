@@ -151,6 +151,25 @@ public extension TIR {
             return type.cases[tag].name
         }
 
+        private func fieldText(_ base: Value, _ index: Int) -> String {
+            guard let pointer = registry?.type(base.ty) as? TIRType.PointerType,
+                  let nominal = registry?.type(pointer.pointee)
+            else {
+                return "#\(index)"
+            }
+            let name: String? = if let structType = nominal as? TIRType.StructType {
+                structType.fields.indices.contains(index) ? structType.fields[index].name : nil
+            } else if let classType = nominal as? TIRType.ClassType {
+                classType.fields.indices.contains(index) ? classType.fields[index].name : nil
+            } else {
+                nil
+            }
+            guard let name else {
+                return "#\(index)"
+            }
+            return "#\(index) \(name)"
+        }
+
         private func valueText(_ value: Value) -> String {
             switch value {
             case let literal as IntegerLiteral:
@@ -254,7 +273,8 @@ public extension TIR {
             case let sizeOf as SizeOf:
                 return "%\(sizeOf.result.name) = sizeof \(typeText(sizeOf.sizedType))"
             case let structAddr as StructElementAddr:
-                return "%\(structAddr.result.name) = structelementaddr \(typeText(structAddr.base.ty)) \(valueText(structAddr.base)), \(structAddr.index)"
+                return "%\(structAddr.result.name) = structelementaddr \(valueText(structAddr.base)), "
+                    + fieldText(structAddr.base, structAddr.index)
             case let tupleAddr as TupleElementAddr:
                 return "%\(tupleAddr.result.name) = tupleelementaddr \(typeText(tupleAddr.base.ty)) \(valueText(tupleAddr.base)), \(tupleAddr.index)"
             case let classAddr as ClassElementAddr:

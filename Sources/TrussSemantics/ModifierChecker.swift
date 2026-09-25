@@ -324,9 +324,9 @@ public final class ModifierChecker: AST.Visitor {
     }
 
     private func checkCombinations(_ modifiers: [AST.Modifier]) {
-        let hasFinal = modifiers.hasModifier(.Final)
-        let hasOpen = modifiers.hasModifier(.Open(setter: false)) || modifiers.hasModifier(.Open(setter: true))
-        let hasAbstract = modifiers.hasModifier(.Abstract)
+        let hasFinal = modifiers.contains { $0.kind == .Final }
+        let hasOpen = modifiers.contains { if case .Open = $0.kind { true } else { false } }
+        let hasAbstract = modifiers.contains { $0.kind == .Abstract }
         if hasFinal, hasOpen {
             for modifier in modifiers where modifier.kind == .Final {
                 context.emitError(

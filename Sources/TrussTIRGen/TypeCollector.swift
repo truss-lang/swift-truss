@@ -1,8 +1,14 @@
 import TrussCore
 
+struct StoredProperty {
+    let symbol: Symbol.VariableSymbol
+    let name: String
+    let type: TrussType.TrussType
+}
+
 final class TypeCollector {
     private let context: Context
-    var storedProperties: [Id.ASTTypeId: [(name: String, type: TrussType.TrussType)]] = [:]
+    var storedProperties: [Id.ASTTypeId: [StoredProperty]] = [:]
     var enumCases: [Id.ASTTypeId: [(name: String, types: [TrussType.TrussType])]] = [:]
 
     init(context: Context) {
@@ -51,7 +57,9 @@ final class TypeCollector {
         else {
             return
         }
-        storedProperties[typeId, default: []].append((name: symbol.name, type: type))
+        storedProperties[typeId, default: []].append(
+            StoredProperty(symbol: symbol, name: symbol.name, type: type)
+        )
     }
 
     private func collectEnumCases(_ decl: AST.EnumDecl) {

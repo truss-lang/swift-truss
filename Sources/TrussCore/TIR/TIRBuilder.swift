@@ -596,5 +596,25 @@ public extension TIR {
         public func buildObjectBinding(object: Value, method: Value, ty: Id.TIRTypeId) -> ObjectBinding {
             TIR.ObjectBinding(object: object, method: method, ty: ty)
         }
+
+        @discardableResult
+        public func buildPropertyBinding(
+            object: Value,
+            value: Value?,
+            getter: Value?,
+            setter: Value?,
+            willSetAccessor: Value?,
+            didSetAccessor: Value?
+        ) -> PropertyBinding {
+            TIR.PropertyBinding(
+                object: object,
+                value: value,
+                getter: getter,
+                setter: setter,
+                willSetAccessor: willSetAccessor,
+                didSetAccessor: didSetAccessor,
+                ty: registry.voidType().id
+            )
+        }
     }
 }
