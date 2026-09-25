@@ -6146,16 +6146,6 @@ public final class Parser {
         return (modifiers, attributes)
     }
 
-    private func isContractKeyword(_ token: Token) -> Bool {
-        switch token.kind {
-        case .Identifier(.Requires), .Identifier(.Ensures), .Identifier(.Invariant),
-             .Identifier(.Decreases):
-            true
-        default:
-            false
-        }
-    }
-
     private func parseContractClauses() -> [AST.Contract] {
         var contracts: [AST.Contract] = []
         while let token = peek {
@@ -6389,7 +6379,7 @@ public final class Parser {
             if case .Separator(.CloseBrace) = token.kind {
                 break
             }
-            if case .SemiColon = (token.kind as? SeparatorKind) {
+            if token.kind == .Separator(.SemiColon) {
                 index += 1
                 continue
             }
@@ -6398,7 +6388,7 @@ public final class Parser {
                 var arguments: [AST.Expression] = []
                 while let argToken = peek {
                     if case .Separator(.CloseBrace) = argToken.kind { break }
-                    if case .SemiColon = (argToken.kind as? SeparatorKind) { break }
+                    if argToken.kind == .Separator(.SemiColon) { break }
                     if argToken.kind.isIdentifier { break }
                     if let expr = parseExpression() {
                         arguments.append(expr)

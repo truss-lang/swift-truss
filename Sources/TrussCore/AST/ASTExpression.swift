@@ -15,6 +15,8 @@ public extension AST {
         public override func copySemantics(from other: AST.AstNode) {
             if let otherExpression = other as? AST.Expression {
                 ty = otherExpression.ty
+                isLeftValue = otherExpression.isLeftValue
+                willBeCalled = otherExpression.willBeCalled
             }
         }
     }
