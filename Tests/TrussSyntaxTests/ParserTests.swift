@@ -3638,7 +3638,9 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 }
 
 private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
-    if case let .Member(_, sub) = node { return sub }
+    if case let .Member(_, sub) = node {
+        return sub
+    }
     return node
 }
 
@@ -6684,7 +6686,9 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 func captureItems(_ source: String) -> ([AST.CaptureItem], [Diagnostic]) {
     let (program, errors) = parseWithDiagnostics("func main() { \(source) }")
     let funcDecl = program.statements[0] as! AST.FunctionDecl
-    guard case let .Block(statements) = funcDecl.body else { return ([], errors) }
+    guard case let .Block(statements) = funcDecl.body else {
+        return ([], errors)
+    }
     let exprStmt = statements[0] as! AST.ExpressionStatement
     let closure = exprStmt.expression as! AST.Closure
     return (closure.signature?.captureList ?? [], errors)

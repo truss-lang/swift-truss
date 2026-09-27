@@ -41,14 +41,20 @@ public final class TrussPackageEncoder {
                     }
                 }
                 collectTypes(in: n.scope)
-            case let .TypeAlias(a): if let t = a.target { indexType(t) }
+            case let .TypeAlias(a): if let t = a.target {
+                indexType(t)
+            }
             case .AssociatedType, .Builtin, .GenericParam: break
             }
         }
         for value in scope.values {
             switch value {
-            case let .Function(f): if let t = f.functionType { indexType(t) }
-            case let .Variable(v): if let t = v.type { indexType(t) }
+            case let .Function(f): if let t = f.functionType {
+                indexType(t)
+            }
+            case let .Variable(v): if let t = v.type {
+                indexType(t)
+            }
             }
         }
         for m in scope.modules {
@@ -57,7 +63,9 @@ public final class TrussPackageEncoder {
     }
 
     private func indexType(_ t: InterfaceTypeRef) {
-        if typeIndex[t] != nil { return }
+        if typeIndex[t] != nil {
+            return
+        }
         for child in typeChildren(t) {
             indexType(child)
         }
@@ -170,7 +178,9 @@ public final class TrussPackageEncoder {
             encodeScope(n.scope, into: w, toc: TocBuilder(), prefix: n.name)
         case let .TypeAlias(a):
             w.u8(InterfaceTypeDeclCode.TypeAlias.rawValue)
-            w.string(a.name); w.bool(a.target != nil); if let t = a.target { encodeRef(t, w) }
+            w.string(a.name); w.bool(a.target != nil); if let t = a.target {
+                encodeRef(t, w)
+            }
         case let .AssociatedType(s):
             w.u8(InterfaceTypeDeclCode.AssociatedType.rawValue); w.string(s.name)
         case let .Builtin(s): w.u8(InterfaceTypeDeclCode.Builtin.rawValue); w.string(s.name)
@@ -192,11 +202,15 @@ public final class TrussPackageEncoder {
                 w.bool(b)
             }
             w.bool(f.isVariadic); w.u8(f.kind.rawValue)
-            w.bool(f.functionType != nil); if let t = f.functionType { encodeRef(t, w) }
+            w.bool(f.functionType != nil); if let t = f.functionType {
+                encodeRef(t, w)
+            }
         case let .Variable(v):
             w.u8(InterfaceValueDeclCode.Variable.rawValue)
             w.string(v.name); w.bool(v.isMutable); w.u8(v.kind.rawValue)
-            w.bool(v.type != nil); if let t = v.type { encodeRef(t, w) }
+            w.bool(v.type != nil); if let t = v.type {
+                encodeRef(t, w)
+            }
             let accessors = v.accessors.sorted { $0.rawValue < $1.rawValue }
             w.u32(UInt32(accessors.count))
             for a in accessors {

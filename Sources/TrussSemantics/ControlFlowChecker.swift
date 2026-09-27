@@ -182,7 +182,9 @@ public final class ControlFlowChecker: AST.Visitor {
     }
 
     private func hasReturnPath(_ statements: [AST.Statement]) -> Bool {
-        guard let last = statements.last else { return false }
+        guard let last = statements.last else {
+            return false
+        }
         if last is AST.Return || last is AST.Throw {
             return true
         }
@@ -194,7 +196,9 @@ public final class ControlFlowChecker: AST.Visitor {
 
     private func expressionHasReturnPath(_ expression: AST.Expression) -> Bool {
         if let ifExpression = expression as? AST.If {
-            guard let elseKind = ifExpression.elseKind else { return false }
+            guard let elseKind = ifExpression.elseKind else {
+                return false
+            }
             switch elseKind {
             case let .Block(elseStatements):
                 return hasReturnPath(ifExpression.then) && hasReturnPath(elseStatements)
@@ -212,7 +216,9 @@ public final class ControlFlowChecker: AST.Visitor {
     }
 
     private func collectLabels(_ body: AST.FunctionDecl.Body?) -> Set<String> {
-        guard let body else { return [] }
+        guard let body else {
+            return []
+        }
         let collector = LabelCollector()
         switch body {
         case let .Block(statements):

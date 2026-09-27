@@ -79,7 +79,6 @@ struct truss {
         }
         #[cname("has_cname")]
         func hasCName() {
-            /*
             match 1 {
                 2 => {
                     let a = 1
@@ -88,7 +87,6 @@ struct truss {
                     let b = 2
                 }
             }
-            */
             match En.SomeCase {
                 .SomeCase => {
 
@@ -97,6 +95,9 @@ struct truss {
 
                 }
             }
+        }
+        func f() {
+            return
         }
         """
         let result = Driver(

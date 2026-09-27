@@ -22,7 +22,9 @@ enum AccessExtractor {
         var setter: AccessLevel?
         var setterToken: Token?
         for modifier in modifiers {
-            guard let level = modifier.kind.accessLevel else { continue }
+            guard let level = modifier.kind.accessLevel else {
+                continue
+            }
             let isSetter: Bool = switch modifier.kind {
             case let .Open(setterFlag): setterFlag
             case let .Public(setterFlag): setterFlag

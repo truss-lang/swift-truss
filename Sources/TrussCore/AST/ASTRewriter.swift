@@ -8,7 +8,9 @@ extension AST {
 
         @discardableResult
         public func rewrite<T: AST.AstNode>(_ node: T) -> T {
-            guard let result = node.accept(self, additional: nil) else { return node }
+            guard let result = node.accept(self, additional: nil) else {
+                return node
+            }
             if result is AST.Deleted {
                 preconditionFailure("rewrite: cannot delete a single node")
             }
@@ -26,8 +28,12 @@ extension AST {
         @discardableResult
         public func rewriteAll<T: AST.AstNode>(_ nodes: [T]) -> [T] {
             nodes.compactMap { node in
-                guard let result = node.accept(self, additional: nil) else { return node }
-                if result is AST.Deleted { return nil }
+                guard let result = node.accept(self, additional: nil) else {
+                    return node
+                }
+                if result is AST.Deleted {
+                    return nil
+                }
                 guard let typed = result as? T else {
                     preconditionFailure(
                         "rewriteAll: visit returned \(type(of: result)), expected \(T.self)"
@@ -54,11 +60,15 @@ extension AST {
             case let .Conformance(expression):
                 let rewritten = rewrite(expression)
                 constraint = .Conformance(rewritten)
-                if rewritten !== expression { changed = true }
+                if rewritten !== expression {
+                    changed = true
+                }
             case let .Equality(expression):
                 let rewritten = rewrite(expression)
                 constraint = .Equality(rewritten)
-                if rewritten !== expression { changed = true }
+                if rewritten !== expression {
+                    changed = true
+                }
             }
             return changed
                 ? AST.WhereRequirement(left, constraint)
@@ -68,14 +78,18 @@ extension AST {
         private func rewriteWhereRequirements(
             _ requirements: [AST.WhereRequirement]?
         ) -> [AST.WhereRequirement]? {
-            guard let requirements else { return nil }
+            guard let requirements else {
+                return nil
+            }
             return requirements.map { rewriteWhereRequirement($0) }
         }
 
         private func rewriteThrowsClause(
             _ throwsClause: AST.ThrowsClause?
         ) -> AST.ThrowsClause? {
-            guard let throwsClause else { return nil }
+            guard let throwsClause else {
+                return nil
+            }
             let types: [Expression]? = if let oldTypes = throwsClause.types {
                 rewriteAll(oldTypes)
             } else {
@@ -86,7 +100,9 @@ extension AST {
             } else {
                 (throwsClause.types != nil) != (types != nil)
             }
-            if !typesChanged { return throwsClause }
+            if !typesChanged {
+                return throwsClause
+            }
             return AST.ThrowsClause(
                 throwsClause.token, types, sourceRange: throwsClause.sourceRange
             )
@@ -100,7 +116,9 @@ extension AST {
             if let oldType = parameter.type {
                 let newType = rewrite(oldType)
                 type = newType
-                if newType !== oldType { changed = true }
+                if newType !== oldType {
+                    changed = true
+                }
             } else {
                 type = nil
             }
@@ -108,11 +126,15 @@ extension AST {
             if let oldDefault = parameter.defaultValue {
                 let newDefault = rewrite(oldDefault)
                 defaultValue = newDefault
-                if newDefault !== oldDefault { changed = true }
+                if newDefault !== oldDefault {
+                    changed = true
+                }
             } else {
                 defaultValue = nil
             }
-            if !changed { return parameter }
+            if !changed {
+                return parameter
+            }
             return AST.FunctionDecl.Parameter(
                 label: parameter.label, name: parameter.name, type: type,
                 defaultValue: defaultValue, sourceRange: parameter.sourceRange
@@ -131,11 +153,15 @@ extension AST {
             switch body {
             case let .Block(statements):
                 let rewritten = rewriteAll(statements)
-                if unchanged(statements, rewritten) { return body }
+                if unchanged(statements, rewritten) {
+                    return body
+                }
                 return .Block(rewritten)
             case let .Expression(expression):
                 let rewritten = rewrite(expression)
-                if rewritten === expression { return body }
+                if rewritten === expression {
+                    return body
+                }
                 return .Expression(rewritten)
             }
         }
@@ -144,25 +170,35 @@ extension AST {
             switch body {
             case let .Block(statements):
                 let rewritten = rewriteAll(statements)
-                if unchanged(statements, rewritten) { return body }
+                if unchanged(statements, rewritten) {
+                    return body
+                }
                 return .Block(rewritten)
             case let .Declaration(decl):
                 let rewritten = rewrite(decl)
-                if rewritten === decl { return body }
+                if rewritten === decl {
+                    return body
+                }
                 return .Declaration(rewritten)
             }
         }
 
         private func rewriteElseKind(_ elseKind: AST.If.ElseKind?) -> AST.If.ElseKind? {
-            guard let elseKind else { return nil }
+            guard let elseKind else {
+                return nil
+            }
             switch elseKind {
             case let .Block(statements):
                 let rewritten = rewriteAll(statements)
-                if unchanged(statements, rewritten) { return elseKind }
+                if unchanged(statements, rewritten) {
+                    return elseKind
+                }
                 return .Block(rewritten)
             case let .If(elseIf):
                 let rewritten = rewrite(elseIf)
-                if rewritten === elseIf { return elseKind }
+                if rewritten === elseIf {
+                    return elseKind
+                }
                 return .If(rewritten)
             }
         }
@@ -170,18 +206,26 @@ extension AST {
         private func rewriteMatchCase(_ matchCase: AST.Match.Case) -> AST.Match.Case {
             var changed = false
             let patterns = rewriteAll(matchCase.patterns)
-            if !unchanged(matchCase.patterns, patterns) { changed = true }
+            if !unchanged(matchCase.patterns, patterns) {
+                changed = true
+            }
             let body = rewriteAll(matchCase.body)
-            if !unchanged(matchCase.body, body) { changed = true }
+            if !unchanged(matchCase.body, body) {
+                changed = true
+            }
             let whereCondition: Expression?
             if let oldCondition = matchCase.whereCondition {
                 let newCondition = rewrite(oldCondition)
                 whereCondition = newCondition
-                if newCondition !== oldCondition { changed = true }
+                if newCondition !== oldCondition {
+                    changed = true
+                }
             } else {
                 whereCondition = nil
             }
-            if !changed { return matchCase }
+            if !changed {
+                return matchCase
+            }
             return AST.Match.Case(
                 patterns, body, whereCondition: whereCondition, sourceRange: matchCase.sourceRange
             )
@@ -195,7 +239,9 @@ extension AST {
             if let oldPattern = catchClause.pattern {
                 let newPattern = rewrite(oldPattern)
                 pattern = newPattern
-                if newPattern !== oldPattern { changed = true }
+                if newPattern !== oldPattern {
+                    changed = true
+                }
             } else {
                 pattern = nil
             }
@@ -203,13 +249,19 @@ extension AST {
             if let oldCondition = catchClause.whereCondition {
                 let newCondition = rewrite(oldCondition)
                 whereCondition = newCondition
-                if newCondition !== oldCondition { changed = true }
+                if newCondition !== oldCondition {
+                    changed = true
+                }
             } else {
                 whereCondition = nil
             }
             let body = rewriteAll(catchClause.body)
-            if !unchanged(catchClause.body, body) { changed = true }
-            if !changed { return catchClause }
+            if !unchanged(catchClause.body, body) {
+                changed = true
+            }
+            if !changed {
+                return catchClause
+            }
             return AST.Do.CatchClause(
                 pattern, catchClause.whereToken, whereCondition, body,
                 sourceRange: catchClause.sourceRange
@@ -220,7 +272,9 @@ extension AST {
             _ argument: AST.LabeledArgument
         ) -> AST.LabeledArgument {
             let value = rewrite(argument.value)
-            if value === argument.value { return argument }
+            if value === argument.value {
+                return argument
+            }
             return AST.LabeledArgument(
                 label: argument.label, value: value, sourceRange: argument.sourceRange
             )
@@ -229,26 +283,38 @@ extension AST {
         private func rewriteClosureSignature(
             _ signature: AST.ClosureSignature?
         ) -> AST.ClosureSignature? {
-            guard let signature else { return nil }
+            guard let signature else {
+                return nil
+            }
             var changed = false
             let captureList = signature.captureList.map { item -> AST.CaptureItem in
                 let newExpr = rewrite(item.expr)
-                if newExpr !== item.expr { changed = true }
+                if newExpr !== item.expr {
+                    changed = true
+                }
                 return AST.CaptureItem(item.specifier, newExpr)
             }
             let parameters = rewriteParameters(signature.parameters)
-            if !parametersUnchanged(signature.parameters, parameters) { changed = true }
+            if !parametersUnchanged(signature.parameters, parameters) {
+                changed = true
+            }
             let throwsClause = rewriteThrowsClause(signature.throwsClause)
-            if !throwsClauseUnchanged(signature.throwsClause, throwsClause) { changed = true }
+            if !throwsClauseUnchanged(signature.throwsClause, throwsClause) {
+                changed = true
+            }
             let returnType: Expression?
             if let oldReturnType = signature.returnType {
                 let newReturnType = rewrite(oldReturnType)
                 returnType = newReturnType
-                if newReturnType !== oldReturnType { changed = true }
+                if newReturnType !== oldReturnType {
+                    changed = true
+                }
             } else {
                 returnType = nil
             }
-            if !changed { return signature }
+            if !changed {
+                return signature
+            }
             return AST.ClosureSignature(
                 captureList, parameters, throwsClause, returnType,
                 signature.asyncToken, signature.inToken
@@ -259,7 +325,9 @@ extension AST {
             _ associatedValue: AST.EnumCaseDecl.AssociatedValue
         ) -> AST.EnumCaseDecl.AssociatedValue {
             let typeExpression = rewrite(associatedValue.typeExpression)
-            if typeExpression === associatedValue.typeExpression { return associatedValue }
+            if typeExpression === associatedValue.typeExpression {
+                return associatedValue
+            }
             return AST.EnumCaseDecl.AssociatedValue(
                 label: associatedValue.label, typeExpression: typeExpression,
                 sourceRange: associatedValue.sourceRange
@@ -273,7 +341,9 @@ extension AST {
             let associatedValues = element.associatedValues.map { value
                 -> AST.EnumCaseDecl.AssociatedValue in
                 let typeExpression = rewrite(value.typeExpression)
-                if typeExpression !== value.typeExpression { changed = true }
+                if typeExpression !== value.typeExpression {
+                    changed = true
+                }
                 return AST.EnumCaseDecl.AssociatedValue(
                     label: value.label, typeExpression: typeExpression,
                     sourceRange: value.sourceRange
@@ -283,11 +353,15 @@ extension AST {
             if let oldRawValue = element.rawValue {
                 let newRawValue = rewrite(oldRawValue)
                 rawValue = newRawValue
-                if newRawValue !== oldRawValue { changed = true }
+                if newRawValue !== oldRawValue {
+                    changed = true
+                }
             } else {
                 rawValue = nil
             }
-            if !changed { return element }
+            if !changed {
+                return element
+            }
             return AST.EnumCaseDecl.Element(
                 name: element.name, associatedValues: associatedValues, rawValue: rawValue,
                 sourceRange: element.sourceRange
@@ -299,7 +373,9 @@ extension AST {
         ) -> AST.DictionaryLiteral.Entry {
             let key = rewrite(entry.key)
             let value = rewrite(entry.value)
-            if key === entry.key, value === entry.value { return entry }
+            if key === entry.key, value === entry.value {
+                return entry
+            }
             return AST.DictionaryLiteral.Entry(
                 key: key, value: value, sourceRange: entry.sourceRange
             )
@@ -311,7 +387,9 @@ extension AST {
                 return segment
             case let .Expression(expression):
                 let rewritten = rewrite(expression)
-                if rewritten === expression { return segment }
+                if rewritten === expression {
+                    return segment
+                }
                 return .Expression(rewritten)
             }
         }
@@ -321,7 +399,9 @@ extension AST {
             _ program: AST.Program, additional: Any? = nil
         ) -> Any? {
             let statements = rewriteAll(program.statements)
-            if unchanged(program.statements, statements) { return program }
+            if unchanged(program.statements, statements) {
+                return program
+            }
             let newProgram = AST.Program(
                 program.id, program.packageName, statements, sourceRange: program.sourceRange
             )
@@ -333,7 +413,9 @@ extension AST {
             _ genericDecl: GenericDecl, additional: Any? = nil
         ) -> Any? {
             let generics = rewriteAll(genericDecl.generics)
-            if unchanged(genericDecl.generics, generics) { return genericDecl }
+            if unchanged(genericDecl.generics, generics) {
+                return genericDecl
+            }
             return GenericDecl(
                 genericDecl.begin, generics, genericDecl.end, sourceRange: genericDecl.sourceRange
             )
@@ -347,7 +429,9 @@ extension AST {
                 return genericParameter
             }
             let newConstraint = rewrite(constraint)
-            if newConstraint === constraint { return genericParameter }
+            if newConstraint === constraint {
+                return genericParameter
+            }
             return GenericParameter(
                 genericParameter.eachToken, genericParameter.name, newConstraint,
                 sourceRange: genericParameter.sourceRange
@@ -387,7 +471,9 @@ extension AST {
             _ externDecl: AST.ExternDecl, additional: Any? = nil
         ) -> Any? {
             let body = rewriteExternBody(externDecl.body)
-            if bodyMatches(externDecl.body, body) { return externDecl }
+            if bodyMatches(externDecl.body, body) {
+                return externDecl
+            }
             let newExternDecl = AST.ExternDecl(
                 externDecl.modifiers, externDecl.attributes, externDecl.token,
                 externDecl.convention, body, sourceRange: externDecl.sourceRange
@@ -411,7 +497,9 @@ extension AST {
             _ expressionStatement: AST.ExpressionStatement, additional: Any? = nil
         ) -> Any? {
             let expression = rewrite(expressionStatement.expression)
-            if expression === expressionStatement.expression { return expressionStatement }
+            if expression === expressionStatement.expression {
+                return expressionStatement
+            }
             return AST.ExpressionStatement(expression)
         }
 
@@ -420,7 +508,9 @@ extension AST {
             _ typeAliasDecl: AST.TypeAliasDecl, additional: Any? = nil
         ) -> Any? {
             let typeExpression = rewrite(typeAliasDecl.typeExpression)
-            if typeExpression === typeAliasDecl.typeExpression { return typeAliasDecl }
+            if typeExpression === typeAliasDecl.typeExpression {
+                return typeAliasDecl
+            }
             let newTypeAliasDecl = AST.TypeAliasDecl(
                 typeAliasDecl.modifiers, typeAliasDecl.attributes, typeAliasDecl.token,
                 typeAliasDecl.name, typeExpression, sourceRange: typeAliasDecl.sourceRange
@@ -433,7 +523,9 @@ extension AST {
             _ moduleDecl: AST.ModuleDecl, additional: Any? = nil
         ) -> Any? {
             let body = rewriteAll(moduleDecl.body)
-            if unchanged(moduleDecl.body, body) { return moduleDecl }
+            if unchanged(moduleDecl.body, body) {
+                return moduleDecl
+            }
             let newModuleDecl = AST.ModuleDecl(
                 moduleDecl.modifiers, moduleDecl.attributes, moduleDecl.token, moduleDecl.name,
                 body, sourceRange: moduleDecl.sourceRange
@@ -645,10 +737,14 @@ extension AST {
             let elements = enumCaseDecl.elements.map { element
                 -> AST.EnumCaseDecl.Element in
                 let rewritten = rewriteEnumCaseElement(element)
-                if !enumElementUnchanged(element, rewritten) { changed = true }
+                if !enumElementUnchanged(element, rewritten) {
+                    changed = true
+                }
                 return rewritten
             }
-            if !changed { return enumCaseDecl }
+            if !changed {
+                return enumCaseDecl
+            }
             let newEnumCaseDecl = AST.EnumCaseDecl(
                 enumCaseDecl.modifiers, enumCaseDecl.attributes, enumCaseDecl.token, elements,
                 sourceRange: enumCaseDecl.sourceRange
@@ -659,7 +755,9 @@ extension AST {
         private func enumElementUnchanged(
             _ old: AST.EnumCaseDecl.Element, _ new: AST.EnumCaseDecl.Element
         ) -> Bool {
-            guard old.associatedValues.count == new.associatedValues.count else { return false }
+            guard old.associatedValues.count == new.associatedValues.count else {
+                return false
+            }
             for (oldValue, newValue) in zip(old.associatedValues, new.associatedValues)
                 where oldValue.typeExpression !== newValue.typeExpression
             {
@@ -701,7 +799,9 @@ extension AST {
         private func parametersUnchanged(
             _ old: [AST.FunctionDecl.Parameter], _ new: [AST.FunctionDecl.Parameter]
         ) -> Bool {
-            guard old.count == new.count else { return false }
+            guard old.count == new.count else {
+                return false
+            }
             for (oldParameter, newParameter) in zip(old, new) {
                 if oldParameter.type !== newParameter.type
                     || oldParameter.defaultValue !== newParameter.defaultValue
@@ -731,7 +831,9 @@ extension AST {
             _ deinitDecl: AST.DeinitDecl, additional: Any? = nil
         ) -> Any? {
             let body = rewriteAll(deinitDecl.body)
-            if unchanged(deinitDecl.body, body) { return deinitDecl }
+            if unchanged(deinitDecl.body, body) {
+                return deinitDecl
+            }
             return AST.DeinitDecl(
                 deinitDecl.modifiers, deinitDecl.attributes, deinitDecl.token, body,
                 sourceRange: deinitDecl.sourceRange
@@ -799,7 +901,9 @@ extension AST {
             var accessorsChanged = false
             let accessors = variableDecl.accessors.map { accessor -> AST.Accessor in
                 let rewritten = rewrite(accessor)
-                if rewritten !== accessor { accessorsChanged = true }
+                if rewritten !== accessor {
+                    accessorsChanged = true
+                }
                 return rewritten
             }
             if typeExpression === variableDecl.typeExpression,
@@ -819,9 +923,13 @@ extension AST {
         open override func visitReturn(
             _ ret: AST.Return, additional: Any? = nil
         ) -> Any? {
-            guard let value = ret.value else { return ret }
+            guard let value = ret.value else {
+                return ret
+            }
             let newValue = rewrite(value)
-            if newValue === value { return ret }
+            if newValue === value {
+                return ret
+            }
             return AST.Return(ret.token, newValue, sourceRange: ret.sourceRange)
         }
 
@@ -830,7 +938,9 @@ extension AST {
             _ throwStatement: AST.Throw, additional: Any? = nil
         ) -> Any? {
             let expression = rewrite(throwStatement.expression)
-            if expression === throwStatement.expression { return throwStatement }
+            if expression === throwStatement.expression {
+                return throwStatement
+            }
             return AST.Throw(throwStatement.token, expression, sourceRange: throwStatement.sourceRange)
         }
 
@@ -919,7 +1029,9 @@ extension AST {
             _ deferStatement: AST.Defer, additional: Any? = nil
         ) -> Any? {
             let body = rewriteAll(deferStatement.body)
-            if unchanged(deferStatement.body, body) { return deferStatement }
+            if unchanged(deferStatement.body, body) {
+                return deferStatement
+            }
             return AST.Defer(
                 deferStatement.token, deferStatement.beginToken, body, deferStatement.endToken,
                 sourceRange: deferStatement.sourceRange
@@ -931,7 +1043,9 @@ extension AST {
             _ asmStatement: AST.Asm, additional: Any? = nil
         ) -> Any? {
             let templates = rewriteAll(asmStatement.templates)
-            if unchanged(asmStatement.templates, templates) { return asmStatement }
+            if unchanged(asmStatement.templates, templates) {
+                return asmStatement
+            }
             return AST.Asm(
                 asmStatement.token, asmStatement.beginToken, templates, asmStatement.bindings,
                 asmStatement.options, asmStatement.endToken, sourceRange: asmStatement.sourceRange
@@ -964,7 +1078,9 @@ extension AST {
             _ labeledStatement: AST.LabeledStatement, additional: Any? = nil
         ) -> Any? {
             let body = rewrite(labeledStatement.body)
-            if body === labeledStatement.body { return labeledStatement }
+            if body === labeledStatement.body {
+                return labeledStatement
+            }
             return AST.LabeledStatement(
                 labeledStatement.label, body, sourceRange: labeledStatement.sourceRange
             )
@@ -975,7 +1091,9 @@ extension AST {
             _ accessor: AST.Accessor, additional: Any? = nil
         ) -> Any? {
             let body = rewriteFunctionBody(accessor.body)
-            if functionBodyUnchanged(accessor.body, body) { return accessor }
+            if functionBodyUnchanged(accessor.body, body) {
+                return accessor
+            }
             return AST.Accessor(
                 accessor.modifiers, accessor.attributes, accessor.token, accessor.parameterName,
                 body, kind: accessor.kind, sourceRange: accessor.sourceRange
@@ -994,7 +1112,9 @@ extension AST {
             _ parentheticalExpression: AST.Parenthetical, additional: Any? = nil
         ) -> Any? {
             let inner = rewrite(parentheticalExpression.inner)
-            if inner === parentheticalExpression.inner { return parentheticalExpression }
+            if inner === parentheticalExpression.inner {
+                return parentheticalExpression
+            }
             let newParentheticalExpression = AST.Parenthetical(
                 inner, sourceRange: parentheticalExpression.sourceRange
             )
@@ -1128,10 +1248,14 @@ extension AST {
             var casesChanged = false
             let cases = matchExpression.cases.map { matchCase -> AST.Match.Case in
                 let rewritten = rewriteMatchCase(matchCase)
-                if !matchCaseUnchanged(matchCase, rewritten) { casesChanged = true }
+                if !matchCaseUnchanged(matchCase, rewritten) {
+                    casesChanged = true
+                }
                 return rewritten
             }
-            if subject === matchExpression.subject, !casesChanged { return matchExpression }
+            if subject === matchExpression.subject, !casesChanged {
+                return matchExpression
+            }
             let newMatch = AST.Match(
                 matchExpression.token, subject, cases, sourceRange: matchExpression.sourceRange
             )
@@ -1141,10 +1265,14 @@ extension AST {
         private func matchCaseUnchanged(
             _ old: AST.Match.Case, _ new: AST.Match.Case
         ) -> Bool {
-            if !unchanged(old.patterns, new.patterns) { return false }
+            if !unchanged(old.patterns, new.patterns) {
+                return false
+            }
             switch (old.whereCondition, new.whereCondition) {
             case let (oldCondition?, newCondition?):
-                if oldCondition !== newCondition { return false }
+                if oldCondition !== newCondition {
+                    return false
+                }
             case (nil, nil):
                 break
             default:
@@ -1161,7 +1289,9 @@ extension AST {
             var catchesChanged = false
             let catches = doExpression.catches.map { catchClause -> AST.Do.CatchClause in
                 let rewritten = rewriteCatchClause(catchClause)
-                if !catchClauseUnchanged(catchClause, rewritten) { catchesChanged = true }
+                if !catchClauseUnchanged(catchClause, rewritten) {
+                    catchesChanged = true
+                }
                 return rewritten
             }
             let finallyBody: [Statement]? = if let oldFinallyBody = doExpression.finallyBody {
@@ -1189,7 +1319,9 @@ extension AST {
         ) -> Bool {
             switch (old.pattern, new.pattern) {
             case let (oldPattern?, newPattern?):
-                if oldPattern !== newPattern { return false }
+                if oldPattern !== newPattern {
+                    return false
+                }
             case (nil, nil):
                 break
             default:
@@ -1197,7 +1329,9 @@ extension AST {
             }
             switch (old.whereCondition, new.whereCondition) {
             case let (oldCondition?, newCondition?):
-                if oldCondition !== newCondition { return false }
+                if oldCondition !== newCondition {
+                    return false
+                }
             case (nil, nil):
                 break
             default:
@@ -1214,7 +1348,9 @@ extension AST {
             var argumentsChanged = false
             let arguments = call.arguments.map { argument -> AST.LabeledArgument in
                 let value = rewrite(argument.value)
-                if value !== argument.value { argumentsChanged = true }
+                if value !== argument.value {
+                    argumentsChanged = true
+                }
                 return AST.LabeledArgument(
                     label: argument.label, value: value, sourceRange: argument.sourceRange
                 )
@@ -1222,14 +1358,18 @@ extension AST {
             var trailingClosuresChanged = false
             let trailingClosures = call.trailingClosures.map { pair -> (Token?, AST.Closure) in
                 let closure = rewrite(pair.1)
-                if closure !== pair.1 { trailingClosuresChanged = true }
+                if closure !== pair.1 {
+                    trailingClosuresChanged = true
+                }
                 return (pair.0, closure)
             }
             var inPlaceChanged = false
             let inPlace: AST.Expression?
             if let ip = call.inPlace {
                 let rewritten = rewrite(ip)
-                if rewritten !== ip { inPlaceChanged = true }
+                if rewritten !== ip {
+                    inPlaceChanged = true
+                }
                 inPlace = rewritten
             } else {
                 inPlace = nil
@@ -1251,7 +1391,9 @@ extension AST {
             _ memberAccess: AST.MemberAccess, additional: Any? = nil
         ) -> Any? {
             let object = rewrite(memberAccess.object)
-            if object === memberAccess.object { return memberAccess }
+            if object === memberAccess.object {
+                return memberAccess
+            }
             let newMemberAccess = AST.MemberAccess(
                 object, memberAccess.token, memberAccess.member,
                 isOptional: memberAccess.isOptional,
@@ -1327,7 +1469,9 @@ extension AST {
             var changed = false
             let parameters = closureType.parameters.map { parameter -> AST.ClosureType.Parameter in
                 let newType = rewrite(parameter.type)
-                if newType === parameter.type { return parameter }
+                if newType === parameter.type {
+                    return parameter
+                }
                 changed = true
                 return AST.ClosureType.Parameter(
                     label: parameter.label, type: newType, sourceRange: parameter.sourceRange
@@ -1353,7 +1497,9 @@ extension AST {
             _ optionalType: AST.OptionalType, additional: Any? = nil
         ) -> Any? {
             let wrappedType = rewrite(optionalType.wrappedType)
-            if wrappedType === optionalType.wrappedType { return optionalType }
+            if wrappedType === optionalType.wrappedType {
+                return optionalType
+            }
             let newOptionalType = AST.OptionalType(
                 wrappedType, optionalType.token, sourceRange: optionalType.sourceRange
             )
@@ -1365,7 +1511,9 @@ extension AST {
             _ pointerType: AST.PointerType, additional: Any? = nil
         ) -> Any? {
             let wrappedType = rewrite(pointerType.wrappedType)
-            if wrappedType === pointerType.wrappedType { return pointerType }
+            if wrappedType === pointerType.wrappedType {
+                return pointerType
+            }
             let newPointerType = AST.PointerType(
                 wrappedType, pointerType.token, isNonnull: pointerType.isNonnull,
                 sourceRange: pointerType.sourceRange
@@ -1378,7 +1526,9 @@ extension AST {
             _ variadicType: AST.VariadicType, additional: Any? = nil
         ) -> Any? {
             let base = rewrite(variadicType.base)
-            if base === variadicType.base { return variadicType }
+            if base === variadicType.base {
+                return variadicType
+            }
             let newVariadicType = AST.VariadicType(
                 base, variadicType.token, sourceRange: variadicType.sourceRange
             )
@@ -1390,7 +1540,9 @@ extension AST {
             _ someType: AST.SomeType, additional: Any? = nil
         ) -> Any? {
             let wrappedType = rewrite(someType.wrappedType)
-            if wrappedType === someType.wrappedType { return someType }
+            if wrappedType === someType.wrappedType {
+                return someType
+            }
             let newSomeType = AST.SomeType(
                 someType.token, wrappedType, sourceRange: someType.sourceRange
             )
@@ -1402,7 +1554,9 @@ extension AST {
             _ anyType: AST.AnyType, additional: Any? = nil
         ) -> Any? {
             let wrappedType = rewrite(anyType.wrappedType)
-            if wrappedType === anyType.wrappedType { return anyType }
+            if wrappedType === anyType.wrappedType {
+                return anyType
+            }
             let newAnyType = AST.AnyType(
                 anyType.token, wrappedType, sourceRange: anyType.sourceRange
             )
@@ -1414,7 +1568,9 @@ extension AST {
             _ protocolCompositionType: AST.ProtocolCompositionType, additional: Any? = nil
         ) -> Any? {
             let types = rewriteAll(protocolCompositionType.types)
-            if unchanged(protocolCompositionType.types, types) { return protocolCompositionType }
+            if unchanged(protocolCompositionType.types, types) {
+                return protocolCompositionType
+            }
             let newProtocolCompositionType = AST.ProtocolCompositionType(
                 types, sourceRange: protocolCompositionType.sourceRange
             )
@@ -1428,12 +1584,16 @@ extension AST {
             var elementsChanged = false
             let elements = tupleExpression.elements.map { element -> AST.LabeledArgument in
                 let value = rewrite(element.value)
-                if value !== element.value { elementsChanged = true }
+                if value !== element.value {
+                    elementsChanged = true
+                }
                 return AST.LabeledArgument(
                     label: element.label, value: value, sourceRange: element.sourceRange
                 )
             }
-            if !elementsChanged { return tupleExpression }
+            if !elementsChanged {
+                return tupleExpression
+            }
             let newTupleExpression = AST.Tuple(
                 elements, sourceRange: tupleExpression.sourceRange
             )
@@ -1445,7 +1605,9 @@ extension AST {
             _ isPattern: AST.IsPattern, additional: Any? = nil
         ) -> Any? {
             let typeExpression = rewrite(isPattern.typeExpression)
-            if typeExpression === isPattern.typeExpression { return isPattern }
+            if typeExpression === isPattern.typeExpression {
+                return isPattern
+            }
             let newIsPattern = AST.IsPattern(
                 isPattern.token, typeExpression, sourceRange: isPattern.sourceRange
             )
@@ -1487,7 +1649,9 @@ extension AST {
         ) -> Any? {
             let left = rewrite(binary.left)
             let right = rewrite(binary.right)
-            if left === binary.left, right === binary.right { return binary }
+            if left === binary.left, right === binary.right {
+                return binary
+            }
             let newBinary = AST.Binary(
                 left, right, binary.operatorToken,
                 isAssignment: binary.isAssignment, sourceRange: binary.sourceRange
@@ -1500,7 +1664,9 @@ extension AST {
             _ prefixExpression: AST.Prefix, additional: Any? = nil
         ) -> Any? {
             let expression = rewrite(prefixExpression.expression)
-            if expression === prefixExpression.expression { return prefixExpression }
+            if expression === prefixExpression.expression {
+                return prefixExpression
+            }
             let newPrefix = AST.Prefix(
                 prefixExpression.operatorToken, expression,
                 sourceRange: prefixExpression.sourceRange
@@ -1513,7 +1679,9 @@ extension AST {
             _ postfixExpression: AST.Postfix, additional: Any? = nil
         ) -> Any? {
             let expression = rewrite(postfixExpression.expression)
-            if expression === postfixExpression.expression { return postfixExpression }
+            if expression === postfixExpression.expression {
+                return postfixExpression
+            }
             let newPostfix = AST.Postfix(
                 expression, postfixExpression.operatorToken,
                 sourceRange: postfixExpression.sourceRange
@@ -1526,7 +1694,9 @@ extension AST {
             _ dereference: AST.Dereference, additional: Any? = nil
         ) -> Any? {
             let expression = rewrite(dereference.expression)
-            if expression === dereference.expression { return dereference }
+            if expression === dereference.expression {
+                return dereference
+            }
             let newDereference = AST.Dereference(
                 dereference.operatorToken, expression, sourceRange: dereference.sourceRange
             )
@@ -1538,7 +1708,9 @@ extension AST {
             _ addressOf: AST.AddressOf, additional: Any? = nil
         ) -> Any? {
             let expression = rewrite(addressOf.expression)
-            if expression === addressOf.expression { return addressOf }
+            if expression === addressOf.expression {
+                return addressOf
+            }
             let newAddressOf = AST.AddressOf(
                 addressOf.operatorToken, expression, sourceRange: addressOf.sourceRange
             )
@@ -1550,7 +1722,9 @@ extension AST {
             _ arrayLiteral: AST.ArrayLiteral, additional: Any? = nil
         ) -> Any? {
             let elements = rewriteAll(arrayLiteral.elements)
-            if unchanged(arrayLiteral.elements, elements) { return arrayLiteral }
+            if unchanged(arrayLiteral.elements, elements) {
+                return arrayLiteral
+            }
             let newArrayLiteral = AST.ArrayLiteral(
                 elements, sourceRange: arrayLiteral.sourceRange
             )
@@ -1564,10 +1738,14 @@ extension AST {
             var entriesChanged = false
             let entries = dictionaryLiteral.entries.map { entry -> AST.DictionaryLiteral.Entry in
                 let rewritten = rewriteDictionaryEntry(entry)
-                if !dictionaryEntryUnchanged(entry, rewritten) { entriesChanged = true }
+                if !dictionaryEntryUnchanged(entry, rewritten) {
+                    entriesChanged = true
+                }
                 return rewritten
             }
-            if !entriesChanged { return dictionaryLiteral }
+            if !entriesChanged {
+                return dictionaryLiteral
+            }
             let newDictionaryLiteral = AST.DictionaryLiteral(
                 entries, sourceRange: dictionaryLiteral.sourceRange
             )
@@ -1601,7 +1779,9 @@ extension AST {
             _ tryExpression: AST.Try, additional: Any? = nil
         ) -> Any? {
             let expression = rewrite(tryExpression.expression)
-            if expression === tryExpression.expression { return tryExpression }
+            if expression === tryExpression.expression {
+                return tryExpression
+            }
             let newTryExpression = AST.Try(
                 tryExpression.token, tryExpression.kind, expression,
                 sourceRange: tryExpression.sourceRange
@@ -1614,7 +1794,9 @@ extension AST {
             _ awaitExpression: AST.Await, additional: Any? = nil
         ) -> Any? {
             let expression = rewrite(awaitExpression.expression)
-            if expression === awaitExpression.expression { return awaitExpression }
+            if expression === awaitExpression.expression {
+                return awaitExpression
+            }
             let newAwaitExpression = AST.Await(
                 awaitExpression.token, expression, sourceRange: awaitExpression.sourceRange
             )
@@ -1629,12 +1811,16 @@ extension AST {
             var argumentsChanged = false
             let arguments = subscriptExpr.arguments.map { argument -> AST.LabeledArgument in
                 let value = rewrite(argument.value)
-                if value !== argument.value { argumentsChanged = true }
+                if value !== argument.value {
+                    argumentsChanged = true
+                }
                 return AST.LabeledArgument(
                     label: argument.label, value: value, sourceRange: argument.sourceRange
                 )
             }
-            if base === subscriptExpr.base, !argumentsChanged { return subscriptExpr }
+            if base === subscriptExpr.base, !argumentsChanged {
+                return subscriptExpr
+            }
             let newSubscript = AST.Subscript(
                 base: base, arguments: arguments, sourceRange: subscriptExpr.sourceRange
             )
@@ -1721,9 +1907,13 @@ extension AST {
         open override func visitKeyPathExpression(
             _ keyPathExpression: AST.KeyPathExpression, additional: Any? = nil
         ) -> Any? {
-            guard let root = keyPathExpression.root else { return keyPathExpression }
+            guard let root = keyPathExpression.root else {
+                return keyPathExpression
+            }
             let newRoot = rewrite(root)
-            if newRoot === root { return keyPathExpression }
+            if newRoot === root {
+                return keyPathExpression
+            }
             let newKeyPathExpression = AST.KeyPathExpression(
                 keyPathExpression.backslashToken, newRoot, keyPathExpression.rootPostfix,
                 keyPathExpression.components, sourceRange: keyPathExpression.sourceRange
@@ -1738,10 +1928,14 @@ extension AST {
             var segmentsChanged = false
             let segments = interpolation.segments.map { segment -> AST.StringSegment in
                 let rewritten = rewriteStringSegment(segment)
-                if !stringSegmentUnchanged(segment, rewritten) { segmentsChanged = true }
+                if !stringSegmentUnchanged(segment, rewritten) {
+                    segmentsChanged = true
+                }
                 return rewritten
             }
-            if !segmentsChanged { return interpolation }
+            if !segmentsChanged {
+                return interpolation
+            }
             let newInterpolation = AST.StringInterpolation(
                 segments, sourceRange: interpolation.sourceRange
             )
@@ -1772,7 +1966,9 @@ extension AST {
             var accessorsChanged = false
             let accessors = subscriptDecl.accessors.map { accessor -> AST.Accessor in
                 let rewritten = rewrite(accessor)
-                if rewritten !== accessor { accessorsChanged = true }
+                if rewritten !== accessor {
+                    accessorsChanged = true
+                }
                 return rewritten
             }
             if genericDecl === subscriptDecl.genericDecl,
@@ -1795,7 +1991,9 @@ extension AST {
             _ sizeofExpression: AST.SizeofExpression, additional: Any? = nil
         ) -> Any? {
             let type = rewrite(sizeofExpression.type)
-            if type === sizeofExpression.type { return sizeofExpression }
+            if type === sizeofExpression.type {
+                return sizeofExpression
+            }
             return AST.SizeofExpression(
                 sizeofExpression.token, type, sourceRange: sizeofExpression.sourceRange
             )
@@ -1843,7 +2041,9 @@ extension AST {
                 } else {
                     for (a, b) in zip(tactics, pb.tactics) {
                         for (x, y) in zip(a.arguments, b.arguments) {
-                            if x !== y { proofBodyChanged = true }
+                            if x !== y {
+                                proofBodyChanged = true
+                            }
                         }
                     }
                 }
@@ -1888,7 +2088,9 @@ extension AST {
         ) -> Any? {
             let lhs = rewrite(implyExpr.lhs)
             let rhs = rewrite(implyExpr.rhs)
-            if lhs === implyExpr.lhs, rhs === implyExpr.rhs { return implyExpr }
+            if lhs === implyExpr.lhs, rhs === implyExpr.rhs {
+                return implyExpr
+            }
             return AST.ImplyExpr(lhs, implyExpr.arrow, rhs, sourceRange: implyExpr.sourceRange)
         }
 
@@ -1898,7 +2100,9 @@ extension AST {
         ) -> Any? {
             let lhs = rewrite(propConjunction.lhs)
             let rhs = rewrite(propConjunction.rhs)
-            if lhs === propConjunction.lhs, rhs === propConjunction.rhs { return propConjunction }
+            if lhs === propConjunction.lhs, rhs === propConjunction.rhs {
+                return propConjunction
+            }
             return AST.PropConjunction(
                 lhs, propConjunction.op, rhs, sourceRange: propConjunction.sourceRange
             )
@@ -1923,7 +2127,9 @@ extension AST {
             _ propNegation: AST.PropNegation, additional: Any? = nil
         ) -> Any? {
             let operand = rewrite(propNegation.operand)
-            if operand === propNegation.operand { return propNegation }
+            if operand === propNegation.operand {
+                return propNegation
+            }
             return AST.PropNegation(propNegation.op, operand, sourceRange: propNegation.sourceRange)
         }
 
@@ -1933,7 +2139,9 @@ extension AST {
         ) -> Any? {
             let lhs = rewrite(propEquality.lhs)
             let rhs = rewrite(propEquality.rhs)
-            if lhs === propEquality.lhs, rhs === propEquality.rhs { return propEquality }
+            if lhs === propEquality.lhs, rhs === propEquality.rhs {
+                return propEquality
+            }
             return AST.PropEquality(
                 lhs, propEquality.op, rhs, sourceRange: propEquality.sourceRange
             )

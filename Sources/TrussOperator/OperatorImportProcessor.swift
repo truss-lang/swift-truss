@@ -30,12 +30,16 @@ public final class OperatorImportProcessor: AST.Visitor {
             }
             process(sub, source: child, into: target, fullPath: fullPath)
         case let .Name(token):
-            if isSelf(token) { return }
+            if isSelf(token) {
+                return
+            }
             importOperator(
                 token.value, from: source, into: target, fullPath: fullPath, at: token
             )
         case let .Alias(token, _):
-            if isSelf(token) { return }
+            if isSelf(token) {
+                return
+            }
             importOperator(
                 token.value, from: source, into: target, fullPath: fullPath, at: token
             )
@@ -95,7 +99,9 @@ public final class OperatorImportProcessor: AST.Visitor {
     private func emitUnresolved(
         _ fullPath: String, missing: String, parent: String, at token: Token
     ) {
-        guard let source = context.sourceTable[token.id] else { return }
+        guard let source = context.sourceTable[token.id] else {
+            return
+        }
         let buffer = source.stringSourceBuffer
         let range = token.sourceRange(in: buffer)
         let note = Diagnostic(

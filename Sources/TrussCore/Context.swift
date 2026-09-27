@@ -56,7 +56,9 @@ public extension Context {
     }
 
     func emitError(_ message: String, at token: Token, notes: [Diagnostic]) {
-        guard let source = sourceTable[token.id] else { return }
+        guard let source = sourceTable[token.id] else {
+            return
+        }
         diagnositicEngine.emit(
             Diagnostic(
                 severity: .error, message: message,
@@ -75,7 +77,9 @@ public extension Context {
     }
 
     func emitWarning(_ message: String, at token: Token, notes: [Diagnostic]) {
-        guard let source = sourceTable[token.id] else { return }
+        guard let source = sourceTable[token.id] else {
+            return
+        }
         diagnositicEngine.emit(
             Diagnostic(
                 severity: .warning, message: message,
@@ -96,7 +100,9 @@ public extension Context {
     }
 
     func isWarningAllowed(at token: Token) -> Bool {
-        guard let source = sourceTable[token.id] else { return false }
+        guard let source = sourceTable[token.id] else {
+            return false
+        }
         return isWarningAllowed(at: token.sourceRange(in: source.stringSourceBuffer))
     }
 }

@@ -614,7 +614,13 @@ public final class Lexer {
         var idx = line.startIndex
         while i < col - 1, idx < line.endIndex {
             let ch = line[idx]
-            if ch == " " { i += 1 } else if ch == "\t" { i += 1 } else { break }
+            if ch == " " {
+                i += 1
+            } else if ch == "\t" {
+                i += 1
+            } else {
+                break
+            }
             idx = line.index(after: idx)
         }
         return String(line[idx...])
@@ -649,7 +655,9 @@ public final class Lexer {
                                 hex.append(raw[i])
                                 i = raw.index(after: i)
                             }
-                            if i < raw.endIndex { i = raw.index(after: i) }
+                            if i < raw.endIndex {
+                                i = raw.index(after: i)
+                            }
                             if let scalar = UInt32(hex, radix: 16),
                                let unicode = Unicode.Scalar(scalar)
                             {
@@ -727,8 +735,12 @@ public final class Lexer {
         var isFloat = false
         if input.peek == "0", let next = input.peek2 {
             if next == "x" || next == "X" {
-                if let c = input.next() { chars.append(c) }
-                if let c = input.next() { chars.append(c) }
+                if let c = input.next() {
+                    chars.append(c)
+                }
+                if let c = input.next() {
+                    chars.append(c)
+                }
                 while let c = input.peek, c.isHexDigit || c == "_" {
                     chars.append(c)
                     input.incrementPosition()
@@ -741,8 +753,12 @@ public final class Lexer {
                     id: input.id
                 )
             } else if next == "b" || next == "B" {
-                if let c = input.next() { chars.append(c) }
-                if let c = input.next() { chars.append(c) }
+                if let c = input.next() {
+                    chars.append(c)
+                }
+                if let c = input.next() {
+                    chars.append(c)
+                }
                 while let c = input.peek, c == "0" || c == "1" || c == "_" {
                     chars.append(c)
                     input.incrementPosition()
@@ -755,8 +771,12 @@ public final class Lexer {
                     id: input.id
                 )
             } else if next == "o" || next == "O" {
-                if let c = input.next() { chars.append(c) }
-                if let c = input.next() { chars.append(c) }
+                if let c = input.next() {
+                    chars.append(c)
+                }
+                if let c = input.next() {
+                    chars.append(c)
+                }
                 while let c = input.peek, (c >= "0" && c <= "7") || c == "_" {
                     chars.append(c)
                     input.incrementPosition()
@@ -776,7 +796,9 @@ public final class Lexer {
         }
         if input.peek == ".", let next = input.peek2, next >= "0" && next <= "9" {
             isFloat = true
-            if let c = input.next() { chars.append(c) }
+            if let c = input.next() {
+                chars.append(c)
+            }
             while let c = input.peek, (c >= "0" && c <= "9") || c == "_" {
                 chars.append(c)
                 input.incrementPosition()
@@ -885,7 +907,9 @@ public final class Lexer {
     private func skipBlockComment() {
         var depth = 1
         while depth > 0 {
-            guard let c = input.peek else { break }
+            guard let c = input.peek else {
+                break
+            }
             if c == "/", input.peek2 == "*" {
                 input.incrementPosition()
                 input.incrementPosition()

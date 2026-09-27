@@ -8,7 +8,11 @@ func firstBodyExpression(_ program: AST.Program) -> AST.Expression {
         statements = moduleDecl.body
     }
     let funcDecl = statements.first(where: { $0 is AST.FunctionDecl }) as! AST.FunctionDecl
-    let body = if case let .Block(stmts) = funcDecl.body { stmts } else { [] }
+    let body = if case let .Block(stmts) = funcDecl.body {
+        stmts
+    } else {
+        []
+    }
     let exprStmt = body[0] as! AST.ExpressionStatement
     return exprStmt.expression
 }
@@ -17,7 +21,11 @@ func bodyExpression(
     _ program: AST.Program, at index: Int
 ) -> AST.Expression {
     let funcDecl = program.statements.first(where: { $0 is AST.FunctionDecl }) as! AST.FunctionDecl
-    let body = if case let .Block(stmts) = funcDecl.body { stmts } else { [] }
+    let body = if case let .Block(stmts) = funcDecl.body {
+        stmts
+    } else {
+        []
+    }
     let exprStmt = body[index] as! AST.ExpressionStatement
     return exprStmt.expression
 }
@@ -275,7 +283,11 @@ func variable(_ expr: AST.Expression?, _ name: String) -> Bool {
     ])
     #expect(!context.diagnositicEngine.hasErrors)
     let funcDecl = programs[0].statements.first(where: { $0 is AST.FunctionDecl }) as! AST.FunctionDecl
-    let body = if case let .Block(stmts) = funcDecl.body { stmts } else { [] }
+    let body = if case let .Block(stmts) = funcDecl.body {
+        stmts
+    } else {
+        []
+    }
     let ifStmt = (body[0] as! AST.ExpressionStatement).expression as! AST.If
     let condition = binary(ifStmt.condition, op: "+")
     #expect(integer(condition?.left, "1"))

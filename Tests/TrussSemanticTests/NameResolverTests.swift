@@ -100,7 +100,9 @@ func resolve(_ source: String) -> (Context, AST.Program) {
         "func f() {} func f(x: Int) {} func caller() { var f: Int = 0 let x = f }"
     )
     let caller = program.statements[2] as! AST.FunctionDecl
-    guard case let .Block(statements) = caller.body else { return }
+    guard case let .Block(statements) = caller.body else {
+        return
+    }
     let decl = statements[1] as! AST.VariableDecl
     let initializer = decl.initializer as! AST.Variable
     #expect(initializer.symbol is Symbol.VariableSymbol)
@@ -161,7 +163,9 @@ func resolve(_ source: String) -> (Context, AST.Program) {
         "struct S { var x: Int } func caller() { let s: S = S() s.x }"
     )
     let caller = program.statements[1] as! AST.FunctionDecl
-    guard case let .Block(statements) = caller.body else { return }
+    guard case let .Block(statements) = caller.body else {
+        return
+    }
     let member = (statements[1] as! AST.ExpressionStatement).expression as! AST.MemberAccess
     #expect(member.symbol == nil)
     #expect(member.overloads == nil)
@@ -591,7 +595,9 @@ func resolve(_ source: String) -> (Context, AST.Program) {
 @Test func ifLetShorthandShadowResolved() {
     let (context, program) = resolve("func f(x: Int?) { if let x { g(x) } }")
     let functionDecl = program.statements[0] as! AST.FunctionDecl
-    guard case let .Block(statements) = functionDecl.body else { return }
+    guard case let .Block(statements) = functionDecl.body else {
+        return
+    }
     let ifExpr = (statements[0] as! AST.ExpressionStatement).expression as! AST.If
     let binding = ifExpr.condition as! AST.OptionalBinding
     let value = binding.value as! AST.Variable
@@ -607,7 +613,9 @@ func resolve(_ source: String) -> (Context, AST.Program) {
 @Test func ifLetExplicitShadowResolved() {
     let (context, program) = resolve("func f(x: Int?) { if let x = x { g(x) } }")
     let functionDecl = program.statements[0] as! AST.FunctionDecl
-    guard case let .Block(statements) = functionDecl.body else { return }
+    guard case let .Block(statements) = functionDecl.body else {
+        return
+    }
     let ifExpr = (statements[0] as! AST.ExpressionStatement).expression as! AST.If
     let binding = ifExpr.condition as! AST.OptionalBinding
     let value = binding.value as! AST.Variable

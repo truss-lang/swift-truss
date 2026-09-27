@@ -113,7 +113,9 @@ public extension TIR {
         }
 
         private func typeText(_ typeId: Id.TIRTypeId) -> String {
-            guard let type = registry?.types[typeId] else { return "?" }
+            guard let type = registry?.types[typeId] else {
+                return "?"
+            }
             switch type {
             case _ as TIRType.VoidType:
                 return "void"

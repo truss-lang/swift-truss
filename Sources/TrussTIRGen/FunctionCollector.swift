@@ -93,7 +93,9 @@ final class FunctionCollector {
     }
 
     private func collectFunction(_ decl: AST.FunctionDecl) {
-        guard let symbol = decl.symbol else { return }
+        guard let symbol = decl.symbol else {
+            return
+        }
         let functionType = symbol.functionType
         let returnType = functionType.map { gen.typeLower.lower($0.returnType) }
             ?? gen.registry.voidType()
@@ -114,7 +116,9 @@ final class FunctionCollector {
     }
 
     private func collectInit(_ decl: AST.InitDecl) {
-        guard let symbol = decl.symbol else { return }
+        guard let symbol = decl.symbol else {
+            return
+        }
         let initReturnType = symbol.functionType?.returnType ?? TrussType.VoidType.INSTANCE
         let name = cname(decl.attributes) ?? gen.mangler.mangleFunctionName(
             symbol, baseName: "init", returnType: initReturnType,
@@ -135,7 +139,9 @@ final class FunctionCollector {
     }
 
     private func collectDeinit(_ decl: AST.DeinitDecl) {
-        guard let owner = gen.collectTypeStack.last else { return }
+        guard let owner = gen.collectTypeStack.last else {
+            return
+        }
         let name = cname(decl.attributes) ?? gen.mangler.mangleDeinitName(
             owner, modulePath: gen.modulePathStack
         )
@@ -145,7 +151,9 @@ final class FunctionCollector {
     }
 
     private func collectSubscript(_ decl: AST.SubscriptDecl) {
-        guard let symbol = decl.symbol else { return }
+        guard let symbol = decl.symbol else {
+            return
+        }
         let getterSymbol = symbol.getter
         let functionType = getterSymbol.functionType
         let returnType = functionType.map { gen.typeLower.lower($0.returnType) }
@@ -194,7 +202,9 @@ final class FunctionCollector {
     }
 
     private func ownerSymbol(_ symbol: Symbol.FunctionSymbol) -> Symbol.NominalTypeSymbol? {
-        guard let memberOf = symbol.memberOf else { return nil }
+        guard let memberOf = symbol.memberOf else {
+            return nil
+        }
         return context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol
     }
 
@@ -239,14 +249,20 @@ final class FunctionCollector {
     }
 
     private func throwingErrorType(_ symbol: Symbol.FunctionSymbol?) -> TrussType.TrussType? {
-        guard symbol?.functionType?.isThrowing == true else { return nil }
+        guard symbol?.functionType?.isThrowing == true else {
+            return nil
+        }
         return symbol?.functionType?.throwsTypes.first
     }
 
     private func collectVariable(_ decl: AST.VariableDecl) {
-        guard let symbol = decl.symbol else { return }
+        guard let symbol = decl.symbol else {
+            return
+        }
         let isStatic = decl.modifiers.contains { modifier in
-            if case .Static = modifier.kind { return true }
+            if case .Static = modifier.kind {
+                return true
+            }
             return false
         }
         if isStatic {
@@ -272,7 +288,9 @@ final class FunctionCollector {
         for accessor in decl.accessors {
             guard let accessorSymbol = symbol.accessors[accessor.kind],
                   gen.functionsBySymbol[accessorSymbol.id] == nil
-            else { continue }
+            else {
+                continue
+            }
             let suffix: String
             let returnType: TIRType.TIRType
             var parameters: [TIR.Parameter] = isStatic ? [] : [TIR.Parameter(ty: selfType.id, name: "self")]

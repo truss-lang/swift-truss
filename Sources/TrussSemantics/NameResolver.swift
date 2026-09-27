@@ -207,14 +207,18 @@ public final class NameResolver: AST.Visitor {
 
     @discardableResult
     public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
-        guard let (index, entries) = lookupScopeEntry(variable.name.value) else { return nil }
+        guard let (index, entries) = lookupScopeEntry(variable.name.value) else {
+            return nil
+        }
         if entries.allSatisfy({ $0 is Symbol.FunctionSymbol }) {
             variable.overloads = entries.map { $0 as! Symbol.FunctionSymbol }
             variable.symbol = nil
         } else {
             let offset = variable.sourceRange.start.offset
             let symbol = entries.last { entry in
-                guard entry is Symbol.VariableSymbol, let token = entry.sourceToken else { return false }
+                guard entry is Symbol.VariableSymbol, let token = entry.sourceToken else {
+                    return false
+                }
                 return token.pos.pos <= offset
             } ?? entries.first
             variable.symbol = symbol
@@ -234,7 +238,9 @@ public final class NameResolver: AST.Visitor {
     @discardableResult
     public override func visitMemberAccess(_ memberAccess: AST.MemberAccess, additional: Any? = nil) -> Any? {
         visit(memberAccess.object, additional: additional)
-        guard let objectSymbol = resolvedSymbol(memberAccess.object) else { return nil }
+        guard let objectSymbol = resolvedSymbol(memberAccess.object) else {
+            return nil
+        }
         let (symbol, overloads): (Symbol.Symbol?, [Symbol.FunctionSymbol]?)
         if let typeSymbol = objectSymbol as? Symbol.NominalTypeSymbol {
             (symbol, overloads) = memberResolution(memberAccess.member.value, in: typeSymbol)
@@ -254,7 +260,9 @@ public final class NameResolver: AST.Visitor {
     public override func visitImplicitMemberAccess(
         _ implicitMemberAccess: AST.ImplicitMemberAccess, additional: Any? = nil
     ) -> Any? {
-        guard let type = typeStack.last else { return nil }
+        guard let type = typeStack.last else {
+            return nil
+        }
         let (symbol, overloads) = memberResolution(implicitMemberAccess.name.value, in: type)
         implicitMemberAccess.symbol = symbol
         implicitMemberAccess.overloads = overloads
@@ -272,7 +280,9 @@ public final class NameResolver: AST.Visitor {
         for argument in subscriptExpression.arguments {
             visit(argument.value, additional: additional)
         }
-        guard let baseSymbol = resolvedSymbol(subscriptExpression.base) else { return nil }
+        guard let baseSymbol = resolvedSymbol(subscriptExpression.base) else {
+            return nil
+        }
         if let typeSymbol = baseSymbol as? Symbol.NominalTypeSymbol {
             subscriptExpression.overloads = subscriptOverloads(of: typeSymbol)
         }
@@ -298,7 +308,9 @@ public final class NameResolver: AST.Visitor {
     public override func visitSuperExpression(
         _ superExpression: AST.SuperExpression, additional: Any? = nil
     ) -> Any? {
-        guard let (index, symbol) = resolveSelfSymbol() else { return nil }
+        guard let (index, symbol) = resolveSelfSymbol() else {
+            return nil
+        }
         superExpression.symbol = symbol
         recordFreeReference(symbol, foundAt: index)
         return nil
@@ -313,8 +325,12 @@ public final class NameResolver: AST.Visitor {
         }
         var base = keyPathExpression.root.flatMap { resolvedSymbol($0) }
         for component in keyPathExpression.components {
-            guard let baseSymbol = base else { break }
-            guard let name = component.name else { continue }
+            guard let baseSymbol = base else {
+                break
+            }
+            guard let name = component.name else {
+                continue
+            }
             if component.name?.kind == .Keyword(.SelfKw) {
                 component.symbol = baseSymbol
                 continue
@@ -352,7 +368,9 @@ public final class NameResolver: AST.Visitor {
     }
 
     private func isCaptured(at index: Int) -> Bool {
-        guard let boundary = boundaryStack.last else { return false }
+        guard let boundary = boundaryStack.last else {
+            return false
+        }
         return index < boundary
     }
 
@@ -368,7 +386,9 @@ public final class NameResolver: AST.Visitor {
     }
 
     private func recordFreeReference(_ symbol: Symbol.Symbol, foundAt index: Int) {
-        guard isCaptured(at: index) else { return }
+        guard isCaptured(at: index) else {
+            return
+        }
         if let captured = markedFree(symbol) {
             appendCapture(captured, foundAt: index)
         }
@@ -466,7 +486,9 @@ public final class NameResolver: AST.Visitor {
     }
 
     private func memberOfType(_ symbol: Symbol.SelfSymbol?) -> Symbol.NominalTypeSymbol? {
-        guard let memberOf = symbol?.memberOf else { return nil }
+        guard let memberOf = symbol?.memberOf else {
+            return nil
+        }
         return context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol
     }
 
@@ -500,7 +522,9 @@ public final class NameResolver: AST.Visitor {
         case let variable as AST.Variable:
             return lookupScopeEntry(variable.name.value)?.1.first
         case let memberAccess as AST.MemberAccess:
-            guard let object = resolveBase(memberAccess.object) else { return nil }
+            guard let object = resolveBase(memberAccess.object) else {
+                return nil
+            }
             let scope = (object as? Symbol.NominalTypeSymbol)?.scope
                 ?? (object as? Symbol.ModuleSymbol)?.scope
                 ?? (object as? Symbol.PackageSymbol)?.scope
@@ -542,7 +566,9 @@ public final class NameResolver: AST.Visitor {
         _ clauses: [AST.Expression], into symbol: Symbol.ClassSymbol
     ) {
         for expression in clauses {
-            guard let base = resolveBase(expression) as? Symbol.ClassSymbol else { continue }
+            guard let base = resolveBase(expression) as? Symbol.ClassSymbol else {
+                continue
+            }
             symbol.superclass = base
             return
         }
@@ -569,7 +595,9 @@ public final class NameResolver: AST.Visitor {
                 continue
             }
             let base = genericBase(expression)
-            guard let resolved = resolvedSymbol(base) else { continue }
+            guard let resolved = resolvedSymbol(base) else {
+                continue
+            }
             if let classSymbol = symbol as? Symbol.ClassSymbol,
                let baseClass = resolved as? Symbol.ClassSymbol,
                classSymbol.superclass == nil

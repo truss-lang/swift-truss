@@ -153,7 +153,11 @@ public final class ModifierChecker: AST.Visitor {
             case .Final, .Override, .Open, .Protected:
                 if enclosingClass == nil {
                     let text = kindText(modifier.kind)
-                    let what = if case .Open = modifier.kind { "a class or class member" } else { "a class member" }
+                    let what = if case .Open = modifier.kind {
+                        "a class or class member"
+                    } else {
+                        "a class member"
+                    }
                     context.emitError(
                         "'\(text)' modifier can only be applied to \(what)",
                         at: modifier.token
@@ -177,7 +181,11 @@ public final class ModifierChecker: AST.Visitor {
                 .Static, .Lazy, .Weak, .Unowned, .Final, .Override,
             ]
         )
-        let isVar = if case .Keyword(.Var) = variableDecl.token.kind { true } else { false }
+        let isVar = if case .Keyword(.Var) = variableDecl.token.kind {
+            true
+        } else {
+            false
+        }
         let hasInitializer = variableDecl.initializer != nil
         for modifier in variableDecl.modifiers {
             switch modifier.kind {
@@ -191,7 +199,11 @@ public final class ModifierChecker: AST.Visitor {
             case .Final, .Override, .Open, .Protected:
                 if enclosingClass == nil {
                     let text = kindText(modifier.kind)
-                    let what = if case .Open = modifier.kind { "a class or class member" } else { "a class member" }
+                    let what = if case .Open = modifier.kind {
+                        "a class or class member"
+                    } else {
+                        "a class member"
+                    }
                     context.emitError(
                         "'\(text)' modifier can only be applied to \(what)",
                         at: modifier.token
@@ -308,7 +320,9 @@ public final class ModifierChecker: AST.Visitor {
     }
 
     private func withType(_ type: Symbol.NominalTypeSymbol?, body: () -> Void) {
-        guard let type else { return }
+        guard let type else {
+            return
+        }
         typeStack.append(type)
         body()
         typeStack.removeLast()
@@ -325,7 +339,11 @@ public final class ModifierChecker: AST.Visitor {
 
     private func checkCombinations(_ modifiers: [AST.Modifier]) {
         let hasFinal = modifiers.contains { $0.kind == .Final }
-        let hasOpen = modifiers.contains { if case .Open = $0.kind { true } else { false } }
+        let hasOpen = modifiers.contains { if case .Open = $0.kind {
+            true
+        } else {
+            false
+        } }
         let hasAbstract = modifiers.contains { $0.kind == .Abstract }
         if hasFinal, hasOpen {
             for modifier in modifiers where modifier.kind == .Final {

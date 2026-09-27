@@ -473,7 +473,9 @@ public final class Parser {
         }
         if path.count == 1 {
             let token = path[0]
-            if let alias { return .Alias(token, alias) }
+            if let alias {
+                return .Alias(token, alias)
+            }
             return .Name(token)
         }
         let terminal = path[path.count - 1]
@@ -1069,7 +1071,9 @@ public final class Parser {
     }
 
     private func parseGroupReference() -> AST.Expression? {
-        guard let ident = next else { return nil }
+        guard let ident = next else {
+            return nil
+        }
         guard case .Identifier = ident.kind else {
             emitError(
                 "expected precedence group name after ':', but got '\(ident.value)'", at: ident
@@ -1837,7 +1841,9 @@ public final class Parser {
         if peek?.kind == .Separator(.OpenParen) {
             index += 1
             while let t = peek {
-                if t.kind == .Separator(.CloseParen) { break }
+                if t.kind == .Separator(.CloseParen) {
+                    break
+                }
                 if t.kind == .Separator(.Comma) {
                     index += 1
                     continue
@@ -3517,7 +3523,9 @@ public final class Parser {
         }
         var templates: [AST.StringLiteral] = []
         while let t = peek {
-            guard case .StringLiteral = t.kind else { break }
+            guard case .StringLiteral = t.kind else {
+                break
+            }
             if t.isUnterminated {
                 emitError("asm template must not contain string interpolation", at: t)
                 index += 1
@@ -3598,7 +3606,9 @@ public final class Parser {
         if let t = peek, case .Separator(.Colon) = t.kind {
             index += 1
             while let option = peek {
-                if case .Separator(.CloseBrace) = option.kind { break }
+                if case .Separator(.CloseBrace) = option.kind {
+                    break
+                }
                 guard case .Identifier = option.kind else {
                     emitError("expected asm option, but got '\(option.value)'", at: option)
                     skipAsmUntilSyncPoint()
@@ -3941,7 +3951,9 @@ public final class Parser {
                             label = t
                             index += 2
                         }
-                        guard peek?.kind == .Separator(.OpenBrace) else { break }
+                        guard peek?.kind == .Separator(.OpenBrace) else {
+                            break
+                        }
                         if !trailing.isEmpty, label == nil {
                             stoppedUnlabeled = true
                             break
@@ -4002,11 +4014,15 @@ public final class Parser {
                     case .Greater:
                         let prev = angleDepth
                         angleDepth = max(0, angleDepth - 1)
-                        if prev > 0, angleDepth == 0 { justClosedAngle = true }
+                        if prev > 0, angleDepth == 0 {
+                            justClosedAngle = true
+                        }
                     case .RightShift:
                         let prev = angleDepth
                         angleDepth = max(0, angleDepth - 2)
-                        if prev > 0, angleDepth == 0 { justClosedAngle = true }
+                        if prev > 0, angleDepth == 0 {
+                            justClosedAngle = true
+                        }
                     case .GreaterEqual:
                         angleDepth = max(0, angleDepth - 1)
                     case .RightShiftAssign:
@@ -4014,7 +4030,9 @@ public final class Parser {
                     case .RightShiftLogical:
                         let prev = angleDepth
                         angleDepth = max(0, angleDepth - 3)
-                        if prev > 0, angleDepth == 0 { justClosedAngle = true }
+                        if prev > 0, angleDepth == 0 {
+                            justClosedAngle = true
+                        }
                     case .RightShiftLogicalAssign:
                         angleDepth = max(0, angleDepth - 3)
                     default:
@@ -4201,7 +4219,9 @@ public final class Parser {
                     if let seq = wrapped as? AST.Sequential,
                     !seq.ops.isEmpty,
                     seq.ops.allSatisfy({ op in
-                        if case .Operator(.BitAnd) = op.kind { return true }
+                        if case .Operator(.BitAnd) = op.kind {
+                            return true
+                        }
                         return false
                     }) {
                         AST.ProtocolCompositionType(
@@ -4228,7 +4248,9 @@ public final class Parser {
                     )
                 }
             case .Is:
-                if !inPatternContext { return nil }
+                if !inPatternContext {
+                    return nil
+                }
                 index += 1
                 let typeExpr =
                     parseExpression(excepts: excepts, isTypeContext: isTypeContext)
@@ -4451,7 +4473,9 @@ public final class Parser {
     private func parseUnaryExpression(
         _ excepts: [OperatorKind]?, isCondition: Bool, isTypeContext: Bool
     ) -> AST.Expression? {
-        guard let token = peek else { return nil }
+        guard let token = peek else {
+            return nil
+        }
         switch token.kind {
         case .Operator(.Multiply):
             index += 1
@@ -4782,7 +4806,9 @@ public final class Parser {
             case let .Separator(kind):
                 switch kind {
                 case .Arrow:
-                    if inPatternContext { break _loop }
+                    if inPatternContext {
+                        break _loop
+                    }
                     guard let parameters = closureTypeParameters(from: expression) else {
                         break _loop
                     }
@@ -5406,7 +5432,9 @@ public final class Parser {
         if peek?.kind == .Separator(.OpenParen) {
             index += 1
             while let t = peek {
-                if t.kind == .Separator(.CloseParen) { break }
+                if t.kind == .Separator(.CloseParen) {
+                    break
+                }
                 if t.kind == .Separator(.Comma) {
                     index += 1
                     continue
@@ -5460,7 +5488,9 @@ public final class Parser {
         index += 1
         var items: [AST.CaptureItem] = []
         while let t = peek {
-            if t.kind == .Separator(.CloseBracket) { break }
+            if t.kind == .Separator(.CloseBracket) {
+                break
+            }
             var specifier: Token?
             if t.value == "weak" || t.value == "unowned" {
                 specifier = t
@@ -5647,8 +5677,12 @@ public final class Parser {
         var start = first.start
         var end = first.end
         for range in ranges.dropFirst() {
-            if range.start.offset < start.offset { start = range.start }
-            if range.end.offset > end.offset { end = range.end }
+            if range.start.offset < start.offset {
+                start = range.start
+            }
+            if range.end.offset > end.offset {
+                end = range.end
+            }
         }
         emitError(
             "\(what.joined(separator: " and ")) are not allowed on \(kind)",
@@ -6071,7 +6105,9 @@ public final class Parser {
                 if case .OpenParen = t2Kind {
                     index += 1
                     while let t = peek {
-                        if case .Separator(.CloseParen) = t.kind { break }
+                        if case .Separator(.CloseParen) = t.kind {
+                            break
+                        }
                         index += 1
                         if case .Identifier = t.kind, let t2 = peek,
                            case .Separator(.Colon) = t2.kind
@@ -6151,11 +6187,19 @@ public final class Parser {
         while let token = peek {
             guard token.kind == .Identifier(.Requires) || token.kind == .Identifier(.Ensures)
                 || token.kind == .Identifier(.Invariant)
-            else { break }
+            else {
+                break
+            }
             let kind: AST.Contract.Kind =
-                if token.kind == .Identifier(.Requires) { .Requires }
-                else if token.kind == .Identifier(.Ensures) { .Ensures }
-                else { .Invariant }
+                if token.kind == .Identifier(.Requires) {
+                    .Requires
+                }
+                else if token.kind == .Identifier(.Ensures) {
+                    .Ensures
+                }
+                else {
+                    .Invariant
+                }
             index += 1
             let expr =
                 parseExpression()
@@ -6387,9 +6431,15 @@ public final class Parser {
                 let name = next!
                 var arguments: [AST.Expression] = []
                 while let argToken = peek {
-                    if case .Separator(.CloseBrace) = argToken.kind { break }
-                    if argToken.kind == .Separator(.SemiColon) { break }
-                    if argToken.kind.isIdentifier { break }
+                    if case .Separator(.CloseBrace) = argToken.kind {
+                        break
+                    }
+                    if argToken.kind == .Separator(.SemiColon) {
+                        break
+                    }
+                    if argToken.kind.isIdentifier {
+                        break
+                    }
                     if let expr = parseExpression() {
                         arguments.append(expr)
                     } else {

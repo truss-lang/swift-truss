@@ -20,7 +20,9 @@ final class WitnessCollector {
             let protocolId = gen.typeLower.protocolId(for: protocolType)
             let concreteId = gen.typeLower.lower(concrete).id
             let witness = gen.registry.addWitness(protocolId: protocolId, concreteType: concreteId)
-            guard let protocolRecord = gen.registry.protocols[protocolId] else { continue }
+            guard let protocolRecord = gen.registry.protocols[protocolId] else {
+                continue
+            }
             for requirement in protocolRecord.requirements {
                 if let function = resolveFunction(requirement, in: symbol) {
                     witness.entries.append(

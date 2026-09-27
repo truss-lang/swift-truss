@@ -19,9 +19,13 @@ public struct TrussPackageDecoder {
     public func decode(_ bytes: [UInt8]) throws -> TrussPackageDocument {
         var reader = BitReader(bytes)
         let magic = try (0 ..< 4).map { _ in try reader.u8() }
-        guard magic == TrussPackageFormat.magic else { throw TrussPackageCodecError.BadMagic }
+        guard magic == TrussPackageFormat.magic else {
+            throw TrussPackageCodecError.BadMagic
+        }
         let version = try reader.u32()
-        guard version == TrussPackageFormat.version else { throw TrussPackageCodecError.BadVersion }
+        guard version == TrussPackageFormat.version else {
+            throw TrussPackageCodecError.BadVersion
+        }
         let name = try reader.string()
         let tocCount = try Int(reader.u32())
         for _ in 0 ..< tocCount {
@@ -119,7 +123,9 @@ public struct TrussPackageDecoder {
 
     private func decodeRef(_ reader: inout BitReader) throws -> InterfaceTypeRef {
         let idx = try Int(reader.u32())
-        guard idx != Int(UInt32.max) else { throw TrussPackageCodecError.TypeIndexOutOfRange(-1) }
+        guard idx != Int(UInt32.max) else {
+            throw TrussPackageCodecError.TypeIndexOutOfRange(-1)
+        }
         guard idx >= 0, idx < typeTable.count else {
             throw TrussPackageCodecError.TypeIndexOutOfRange(idx)
         }

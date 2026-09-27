@@ -2,3 +2,9 @@
 --modifierorder "open,public,fileprivate,private,internal,override"
 --disable unusedArguments
 --maxwidth 120
+--wrapparameters before-first
+--wraparguments before-first
+--wrapcollections before-first
+--funcattributes prev-line
+--typeattributes prev-line
+--rules wrapConditionalBodies,wrapLoopBodies

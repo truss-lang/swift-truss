@@ -38,7 +38,11 @@ public final class BitWriter {
     }
 
     public func stringOpt(_ s: String?) {
-        if let s { bool(true); string(s) } else { bool(false) }
+        if let s {
+            bool(true); string(s)
+        } else {
+            bool(false)
+        }
     }
 
     public func appendBytes(_ data: [UInt8]) { bytes.append(contentsOf: data) }
@@ -57,7 +61,9 @@ public final class BitReader {
     public func seek(_ p: Int) { index = p }
     public func hasMore() -> Bool { index < bytes.count }
     public func u8() throws -> UInt8 {
-        guard index < bytes.count else { throw TrussPackageCodecError.Truncated }
+        guard index < bytes.count else {
+            throw TrussPackageCodecError.Truncated
+        }
         defer { index += 1 }
         return bytes[index]
     }
@@ -81,13 +87,19 @@ public final class BitReader {
     public func bool() throws -> Bool { try u8() != 0 }
     public func string() throws -> String {
         let len = try Int(u32())
-        guard index + len <= bytes.count else { throw TrussPackageCodecError.Truncated }
+        guard index + len <= bytes.count else {
+            throw TrussPackageCodecError.Truncated
+        }
         let data = Array(bytes[index ..< (index + len)])
         index += len
         return String(decoding: data, as: UTF8.self)
     }
 
     public func stringOpt() throws -> String? {
-        if try bool() { try string() } else { nil }
+        if try bool() {
+            try string()
+        } else {
+            nil
+        }
     }
 }

@@ -63,7 +63,9 @@ final class TypeCollector {
     }
 
     private func collectEnumCases(_ decl: AST.EnumDecl) {
-        guard let typeId = decl.symbol?.typeId else { return }
+        guard let typeId = decl.symbol?.typeId else {
+            return
+        }
         for statement in decl.body {
             if let caseDecl = statement as? AST.EnumCaseDecl {
                 for caseSymbol in caseDecl.symbols {
@@ -77,7 +79,9 @@ final class TypeCollector {
 
     private func isStaticDecl(_ decl: AST.VariableDecl) -> Bool {
         decl.modifiers.contains { modifier in
-            if case .Static = modifier.kind { return true }
+            if case .Static = modifier.kind {
+                return true
+            }
             return false
         }
     }

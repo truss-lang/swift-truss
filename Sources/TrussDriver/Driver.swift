@@ -254,14 +254,20 @@ public final class Driver {
             TrussOperator.DeclCollector(table: table, context: context),
             context: context, programs: programs
         )
-        if context.diagnositicEngine.hasErrors { return }
+        if context.diagnositicEngine.hasErrors {
+            return
+        }
         runPass(
             TrussOperator.OperatorImportProcessor(table: table, context: context),
             context: context, programs: programs
         )
-        if context.diagnositicEngine.hasErrors { return }
+        if context.diagnositicEngine.hasErrors {
+            return
+        }
         PrecedenceResolver(table: table, context: context).resolve()
-        if context.diagnositicEngine.hasErrors { return }
+        if context.diagnositicEngine.hasErrors {
+            return
+        }
         let folder = ExpressionFolder(context: context, table: table)
         programs = programs.map { folder.rewrite($0) }
     }

@@ -36,12 +36,16 @@ public enum TargetPointer {
 
     public static func read(root: URL, targetName: String) -> String? {
         let pointer = root.appendingPathComponent(targetName).appendingPathComponent("current")
-        guard let data = try? Data(contentsOf: pointer) else { return nil }
+        guard let data = try? Data(contentsOf: pointer) else {
+            return nil
+        }
         return String(data: data, encoding: .utf8)
     }
 
     public static func artifactURL(root: URL, targetName: String) -> URL? {
-        guard let hash = read(root: root, targetName: targetName) else { return nil }
+        guard let hash = read(root: root, targetName: targetName) else {
+            return nil
+        }
         return root.appendingPathComponent("cas")
             .appendingPathComponent(hash)
             .appendingPathComponent(targetName + ".trusspackage")

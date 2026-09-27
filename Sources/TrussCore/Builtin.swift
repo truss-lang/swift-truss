@@ -41,12 +41,18 @@ public enum Builtin {
 
     public static func builtinFunctionInfo(named name: String) -> (opName: String, typeName: String)? {
         let prefix = "builtin_"
-        guard name.hasPrefix(prefix) else { return nil }
+        guard name.hasPrefix(prefix) else {
+            return nil
+        }
         let rest = name.dropFirst(prefix.count)
-        guard let separator = rest.firstIndex(of: "_") else { return nil }
+        guard let separator = rest.firstIndex(of: "_") else {
+            return nil
+        }
         let opName = String(rest[..<separator])
         let typeName = String(rest[rest.index(after: separator)...])
-        guard allOpNames.contains(opName) else { return nil }
+        guard allOpNames.contains(opName) else {
+            return nil
+        }
         return (opName, typeName)
     }
 
@@ -78,7 +84,9 @@ public enum Builtin {
             package.scope.types[info.name] = symbol
             let builtinType = TrussType.BuiltinType(info.name)
             for opName in allOpNames {
-                guard allows(info, opName: opName) else { continue }
+                guard allows(info, opName: opName) else {
+                    continue
+                }
                 let arity = unaryArithOpNames.contains(opName) ? 1 : 2
                 let returnType: TrussType.TrussType =
                     compareOpNames.contains(opName) ? TrussType.BuiltinType("Bool") : builtinType

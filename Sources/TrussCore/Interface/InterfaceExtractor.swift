@@ -22,7 +22,9 @@ public struct InterfaceExtractor {
         }
         var types: [InterfaceType] = []
         for (name, symbol) in scope.types.sorted(by: { $0.key < $1.key }) {
-            if !isExported(symbol) { continue }
+            if !isExported(symbol) {
+                continue
+            }
             if let t = extractType(name, symbol) {
                 types.append(t)
             }
@@ -30,7 +32,9 @@ public struct InterfaceExtractor {
         var values: [InterfaceValue] = []
         for (name, symbols) in scope.values.sorted(by: { $0.key < $1.key }) {
             for symbol in symbols {
-                if !isExported(symbol) { continue }
+                if !isExported(symbol) {
+                    continue
+                }
                 if let v = extractValue(name, symbol) {
                     values.append(v)
                 }
@@ -81,7 +85,9 @@ public struct InterfaceExtractor {
         var result: [InterfaceCase] = []
         for (_, values) in symbol.scope.values.sorted(by: { $0.key < $1.key }) {
             for value in values {
-                guard let caseSymbol = value as? Symbol.CaseSymbol else { continue }
+                guard let caseSymbol = value as? Symbol.CaseSymbol else {
+                    continue
+                }
                 result.append(
                     InterfaceCase(
                         name: caseSymbol.name,

@@ -40,27 +40,37 @@ public final class ExpressionFolder: AST.Rewriter {
         let rewritten =
             super.visitSequential(sequentialExpression, additional: additional)
                 as? AST.Sequential ?? sequentialExpression
-        guard !rewritten.ops.isEmpty, hasAcyclicPrecedenceGraph else { return rewritten }
+        guard !rewritten.ops.isEmpty, hasAcyclicPrecedenceGraph else {
+            return rewritten
+        }
         if rewritten.ops.allSatisfy({ op in
-            if case .Operator(.BitAnd) = op.kind { return true }
+            if case .Operator(.BitAnd) = op.kind {
+                return true
+            }
             return false
         }), rewritten.operands.allSatisfy({ isTypeSymbol(baseSymbol($0)) }) {
             return AST.ProtocolCompositionType(
                 rewritten.operands, sourceRange: rewritten.sourceRange
             )
         }
-        guard let folded = foldGeneric(rewritten) ?? fold(rewritten) else { return rewritten }
+        guard let folded = foldGeneric(rewritten) ?? fold(rewritten) else {
+            return rewritten
+        }
         return folded
     }
 
     private func foldGeneric(_ sequence: AST.Sequential) -> AST.Expression? {
-        guard let extraction = extractGenericApplication(sequence) else { return nil }
+        guard let extraction = extractGenericApplication(sequence) else {
+            return nil
+        }
         let (application, restOps, restOperands) = extraction
         if restOps.isEmpty, restOperands.isEmpty {
             return application
         }
         if restOps.allSatisfy({ op in
-            if case .Operator(.BitAnd) = op.kind { return true }
+            if case .Operator(.BitAnd) = op.kind {
+                return true
+            }
             return false
         }), restOperands.allSatisfy({ isTypeSymbol(baseSymbol($0)) }) {
             return AST.ProtocolCompositionType(
@@ -104,7 +114,11 @@ public final class ExpressionFolder: AST.Rewriter {
                     if info == nil {
                         context.emitError("unknown operator '\(op.value)'", at: op)
                     } else if !info!.kinds.contains(where: {
-                        if case .Prefix = $0 { true } else { false }
+                        if case .Prefix = $0 {
+                            true
+                        } else {
+                            false
+                        }
                     }) {
                         context.emitError("operator '\(op.value)' is not prefix", at: op)
                     }
@@ -120,10 +134,18 @@ public final class ExpressionFolder: AST.Rewriter {
                     } else {
                         let info = findOperator(op.value)
                         let isInfix = info?.kinds.contains(where: {
-                            if case .Infix = $0 { true } else { false }
+                            if case .Infix = $0 {
+                                true
+                            } else {
+                                false
+                            }
                         }) ?? false
                         let isPostfix = info?.kinds.contains(where: {
-                            if case .Postfix = $0 { true } else { false }
+                            if case .Postfix = $0 {
+                                true
+                            } else {
+                                false
+                            }
                         }) ?? false
                         if info == nil {
                             context.emitError("unknown operator '\(op.value)'", at: op)
@@ -169,7 +191,9 @@ public final class ExpressionFolder: AST.Rewriter {
         if chainOps.isEmpty {
             return head
         }
-        guard chainOperands.count == chainOps.count + 1 else { return nil }
+        guard chainOperands.count == chainOps.count + 1 else {
+            return nil
+        }
         return foldChain(chainOperands, chainOps, in: sequence)
     }
 
@@ -257,12 +281,20 @@ public final class ExpressionFolder: AST.Rewriter {
     }
 
     private func group(of op: Token) -> PrecedenceGroupInfo? {
-        guard let info = findOperator(op.value) else { return nil }
+        guard let info = findOperator(op.value) else {
+            return nil
+        }
         if let resolved = info.resolvedGroup {
             return resolved
         }
-        if info.group != nil { return nil }
-        guard info.kinds.contains(where: { if case .Infix = $0 { true } else { false } }) else {
+        if info.group != nil {
+            return nil
+        }
+        guard info.kinds.contains(where: { if case .Infix = $0 {
+            true
+        } else {
+            false
+        } }) else {
             return nil
         }
         context.emitError("infix operator '\(op.value)' has no precedence group", at: op)
@@ -389,15 +421,21 @@ public final class ExpressionFolder: AST.Rewriter {
     private func extractGenericApplication(
         _ sequence: AST.Sequential
     ) -> (AST.GenericApplication, [Token], [AST.Expression])? {
-        guard let closeIndex = sequence.genericApplicationGroupCloseIndex() else { return nil }
+        guard let closeIndex = sequence.genericApplicationGroupCloseIndex() else {
+            return nil
+        }
         let operands = sequence.operands
         let ops = sequence.ops
-        guard operands.count >= 2 else { return nil }
+        guard operands.count >= 2 else {
+            return nil
+        }
         let base = baseSymbol(operands[0])
         let functionBase =
             (operands[0] as? AST.Variable)?.overloads != nil
                 || (operands[0] as? AST.MemberAccess)?.overloads != nil
-        guard isTypeSymbol(base) || functionBase else { return nil }
+        guard isTypeSymbol(base) || functionBase else {
+            return nil
+        }
 
         var stack: [GenericLevel] = [GenericLevel(base: operands[0])]
         var operandIndex = 1
@@ -410,7 +448,9 @@ public final class ExpressionFolder: AST.Rewriter {
             let op = ops[opIndex]
             switch op.kind {
             case .Operator(.Less):
-                guard operandIndex < operands.count else { return nil }
+                guard operandIndex < operands.count else {
+                    return nil
+                }
                 stack.append(GenericLevel(base: operands[operandIndex]))
                 operandIndex += 1
             case .Separator(.Comma):
@@ -418,12 +458,16 @@ public final class ExpressionFolder: AST.Rewriter {
                     stack[stack.count - 1].args.append(current)
                     stack[stack.count - 1].current = nil
                 } else {
-                    guard operandIndex < operands.count else { return nil }
+                    guard operandIndex < operands.count else {
+                        return nil
+                    }
                     stack[stack.count - 1].args.append(operands[operandIndex])
                     operandIndex += 1
                 }
             case let .Operator(kind?):
-                guard let levels = kind.genericCloseLevels else { return nil }
+                guard let levels = kind.genericCloseLevels else {
+                    return nil
+                }
                 if operandIndex < operands.count {
                     stack[stack.count - 1].current = operands[operandIndex]
                     operandIndex += 1
@@ -464,7 +508,9 @@ public final class ExpressionFolder: AST.Rewriter {
             }
             opIndex += 1
         }
-        guard let application = lastApplication else { return nil }
+        guard let application = lastApplication else {
+            return nil
+        }
 
         var remainderOps: [Token] = []
         if extraGtCount > 0 || assignRemainder {
@@ -536,7 +582,9 @@ public final class ExpressionFolder: AST.Rewriter {
     }
 
     private func isTypeSymbol(_ symbol: Symbol.Symbol?) -> Bool {
-        guard let symbol else { return false }
+        guard let symbol else {
+            return false
+        }
         return symbol is Symbol.NominalTypeSymbol
             || symbol is Symbol.TypeAliasSymbol
             || symbol is Symbol.GenericParamSymbol

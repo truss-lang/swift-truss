@@ -298,12 +298,16 @@ public enum TokenKind: Hashable, Equatable {
     case Unknown
 
     public var isIdentifier: Bool {
-        if case .Identifier = self { return true }
+        if case .Identifier = self {
+            return true
+        }
         return false
     }
 
     public var contextualKeyword: ContextualKeyword? {
-        if case let .Identifier(keyword) = self { return keyword }
+        if case let .Identifier(keyword) = self {
+            return keyword
+        }
         return nil
     }
 }
@@ -361,9 +365,13 @@ public final class Token: Hashable, Equatable {
 
 public extension Token {
     func expansionNotes(in context: Context) -> [Diagnostic] {
-        guard let chain = expansion, !chain.isEmpty else { return [] }
+        guard let chain = expansion, !chain.isEmpty else {
+            return []
+        }
         return chain.compactMap { site in
-            guard let source = context.sourceTable[site.definitionSourceId] else { return nil }
+            guard let source = context.sourceTable[site.definitionSourceId] else {
+                return nil
+            }
             let buffer = source.stringSourceBuffer
             let position = site.definitionPosition
             let start = SourceLocation(

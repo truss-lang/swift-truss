@@ -66,7 +66,9 @@ public extension AST {
 
         public override func copySemantics(from other: AST.AstNode) {
             super.copySemantics(from: other)
-            guard let otherVariable = other as? AST.Variable else { return }
+            guard let otherVariable = other as? AST.Variable else {
+                return
+            }
             symbol = otherVariable.symbol
             overloads = otherVariable.overloads
         }
@@ -218,7 +220,9 @@ public extension AST {
 
         public override func copySemantics(from other: AST.AstNode) {
             super.copySemantics(from: other)
-            guard let otherIf = other as? AST.If else { return }
+            guard let otherIf = other as? AST.If else {
+                return
+            }
             scope = otherIf.scope
         }
 
@@ -361,7 +365,9 @@ public extension AST {
 
         public override func copySemantics(from other: AST.AstNode) {
             super.copySemantics(from: other)
-            guard let otherMember = other as? AST.MemberAccess else { return }
+            guard let otherMember = other as? AST.MemberAccess else {
+                return
+            }
             symbol = otherMember.symbol
             overloads = otherMember.overloads
         }
@@ -397,7 +403,9 @@ public extension AST {
 
         public override func copySemantics(from other: AST.AstNode) {
             super.copySemantics(from: other)
-            guard let otherSelf = other as? AST.SelfExpression else { return }
+            guard let otherSelf = other as? AST.SelfExpression else {
+                return
+            }
             symbol = otherSelf.symbol
         }
     }
@@ -418,7 +426,9 @@ public extension AST {
 
         public override func copySemantics(from other: AST.AstNode) {
             super.copySemantics(from: other)
-            guard let otherSuper = other as? AST.SuperExpression else { return }
+            guard let otherSuper = other as? AST.SuperExpression else {
+                return
+            }
             symbol = otherSuper.symbol
         }
     }
@@ -440,7 +450,9 @@ public extension AST {
 
         public override func copySemantics(from other: AST.AstNode) {
             super.copySemantics(from: other)
-            guard let otherImplicit = other as? AST.ImplicitMemberAccess else { return }
+            guard let otherImplicit = other as? AST.ImplicitMemberAccess else {
+                return
+            }
             symbol = otherImplicit.symbol
             overloads = otherImplicit.overloads
         }
@@ -495,7 +507,9 @@ public extension AST {
 
         public override func copySemantics(from other: AST.AstNode) {
             super.copySemantics(from: other)
-            guard let otherClosure = other as? AST.Closure else { return }
+            guard let otherClosure = other as? AST.Closure else {
+                return
+            }
             scope = otherClosure.scope
             freeVariables = otherClosure.freeVariables
         }
@@ -889,7 +903,9 @@ public extension AST {
 
         public override func copySemantics(from other: AST.AstNode) {
             super.copySemantics(from: other)
-            guard let otherSubscript = other as? AST.Subscript else { return }
+            guard let otherSubscript = other as? AST.Subscript else {
+                return
+            }
             overloads = otherSubscript.overloads
         }
     }
@@ -1200,7 +1216,9 @@ public extension OperatorKind {
 
 public extension AST.Sequential {
     func genericApplicationGroupCloseIndex() -> Int? {
-        guard let first = ops.first, case .Operator(.Less) = first.kind else { return nil }
+        guard let first = ops.first, case .Operator(.Less) = first.kind else {
+            return nil
+        }
         var depth = 0
         for (index, op) in ops.enumerated() {
             switch op.kind {
@@ -1225,12 +1243,16 @@ public extension AST.Sequential {
     }
 
     func compositionMemberBaseOperands() -> [AST.Expression]? {
-        guard !ops.isEmpty else { return nil }
+        guard !ops.isEmpty else {
+            return nil
+        }
         guard case let .Operator(first?) = ops[0].kind, first == .Less || first == .BitAnd
         else {
             return nil
         }
-        guard let firstOperand = operands.first else { return nil }
+        guard let firstOperand = operands.first else {
+            return nil
+        }
         var depth = 0
         var members: [AST.Expression] = [firstOperand]
         for op in ops {
@@ -1258,7 +1280,9 @@ public extension AST.Sequential {
                 return nil
             }
         }
-        guard depth == 0 else { return nil }
+        guard depth == 0 else {
+            return nil
+        }
         return members
     }
 }

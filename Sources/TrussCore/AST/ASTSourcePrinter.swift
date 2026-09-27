@@ -103,10 +103,14 @@ public final class SourcePrinter: AST.Visitor {
     private func annotations(_ modifiers: [AST.Modifier], _ attributes: [AST.Attribute]) -> String {
         var text = attributesText(attributes)
         if !modifiers.isEmpty {
-            if !text.isEmpty { text += " " }
+            if !text.isEmpty {
+                text += " "
+            }
             text += modifiersText(modifiers)
         }
-        if !text.isEmpty { text += " " }
+        if !text.isEmpty {
+            text += " "
+        }
         return text
     }
 
@@ -114,9 +118,13 @@ public final class SourcePrinter: AST.Visitor {
         "<"
             + genericDecl.generics.map { generic in
                 var text = ""
-                if generic.eachToken != nil { text += "each " }
+                if generic.eachToken != nil {
+                    text += "each "
+                }
                 text += generic.name.value
-                if let constraint = generic.constraint { text += ": " + render(constraint) }
+                if let constraint = generic.constraint {
+                    text += ": " + render(constraint)
+                }
                 return text
             }.joined(separator: ", ") + ">"
     }
@@ -145,9 +153,13 @@ public final class SourcePrinter: AST.Visitor {
     ) -> String {
         var text = "("
         for (index, parameter) in parameters.enumerated() {
-            if index > 0 { text += ", " }
+            if index > 0 {
+                text += ", "
+            }
             text += parameterText(parameter)
-            if vararg, index == parameters.count - 1 { text += "..." }
+            if vararg, index == parameters.count - 1 {
+                text += "..."
+            }
         }
         text += ")"
         return text
@@ -175,7 +187,9 @@ public final class SourcePrinter: AST.Visitor {
     @discardableResult
     public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         for (index, statement) in program.statements.enumerated() {
-            if index > 0 { state.write("\n") }
+            if index > 0 {
+                state.write("\n")
+            }
             beginLine()
             visit(statement)
         }
@@ -194,7 +208,9 @@ public final class SourcePrinter: AST.Visitor {
     public override func visitGenericParameter(
         _ genericParameter: AST.GenericParameter, additional: Any? = nil
     ) -> Any? {
-        if genericParameter.eachToken != nil { state.write("each ") }
+        if genericParameter.eachToken != nil {
+            state.write("each ")
+        }
         state.write(genericParameter.name.value)
         if let constraint = genericParameter.constraint {
             state.write(": ")
@@ -249,7 +265,9 @@ public final class SourcePrinter: AST.Visitor {
         case let .List(items):
             state.write("{")
             for (index, item) in items.enumerated() {
-                if index > 0 { state.write(", ") }
+                if index > 0 {
+                    state.write(", ")
+                }
                 writeImportNode(item)
             }
             state.write("}")
@@ -356,11 +374,15 @@ public final class SourcePrinter: AST.Visitor {
         _ conformances: [AST.Expression], _ whereClause: [AST.WhereRequirement]?
     ) {
         state.write(keyword + " " + name.value)
-        if let genericDecl { state.write(genericDeclText(genericDecl)) }
+        if let genericDecl {
+            state.write(genericDeclText(genericDecl))
+        }
         if !conformances.isEmpty {
             state.write(": " + conformances.map { render($0) }.joined(separator: ", "))
         }
-        if let whereClause { state.write(whereClauseText(whereClause)) }
+        if let whereClause {
+            state.write(whereClauseText(whereClause))
+        }
     }
 
     @discardableResult
@@ -444,13 +466,19 @@ public final class SourcePrinter: AST.Visitor {
         state.write(annotations(enumCaseDecl.modifiers, enumCaseDecl.attributes))
         state.write("case ")
         for (index, element) in enumCaseDecl.elements.enumerated() {
-            if index > 0 { state.write(", ") }
+            if index > 0 {
+                state.write(", ")
+            }
             state.write(element.name.value)
             if !element.associatedValues.isEmpty {
                 state.write("(")
                 for (valueIndex, associatedValue) in element.associatedValues.enumerated() {
-                    if valueIndex > 0 { state.write(", ") }
-                    if let label = associatedValue.label { state.write(label.value + ": ") }
+                    if valueIndex > 0 {
+                        state.write(", ")
+                    }
+                    if let label = associatedValue.label {
+                        state.write(label.value + ": ")
+                    }
                     visit(associatedValue.typeExpression)
                 }
                 state.write(")")
@@ -467,8 +495,12 @@ public final class SourcePrinter: AST.Visitor {
     public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil) -> Any? {
         state.write(annotations(initDecl.modifiers, initDecl.attributes))
         state.write("init")
-        if initDecl.optionalToken != nil { state.write("?") }
-        if let genericDecl = initDecl.genericDecl { state.write(genericDeclText(genericDecl)) }
+        if initDecl.optionalToken != nil {
+            state.write("?")
+        }
+        if let genericDecl = initDecl.genericDecl {
+            state.write(genericDeclText(genericDecl))
+        }
         state.write(parametersText(initDecl.parameters))
         if initDecl.asyncToken != nil {
             state.write(" async")
@@ -508,7 +540,9 @@ public final class SourcePrinter: AST.Visitor {
             state.write(modifiers + " ")
         }
         state.write("func " + functionDecl.name.value)
-        if let genericDecl = functionDecl.genericDecl { state.write(genericDeclText(genericDecl)) }
+        if let genericDecl = functionDecl.genericDecl {
+            state.write(genericDeclText(genericDecl))
+        }
         state.write(
             parametersText(functionDecl.parameters, vararg: functionDecl.varargToken != nil)
         )
@@ -642,8 +676,12 @@ public final class SourcePrinter: AST.Visitor {
     @discardableResult
     public override func visitFor(_ forStatement: AST.For, additional: Any? = nil) -> Any? {
         state.write("for")
-        if forStatement.asyncToken != nil { state.write(" await") }
-        if forStatement.caseToken != nil { state.write(" case") }
+        if forStatement.asyncToken != nil {
+            state.write(" await")
+        }
+        if forStatement.caseToken != nil {
+            state.write(" case")
+        }
         state.write(" ")
         visit(forStatement.pattern)
         state.write(" in ")
@@ -667,16 +705,22 @@ public final class SourcePrinter: AST.Visitor {
     public override func visitAsm(_ asmStatement: AST.Asm, additional: Any? = nil) -> Any? {
         state.write("asm { ")
         for (index, template) in asmStatement.templates.enumerated() {
-            if index > 0 { state.write(" ") }
+            if index > 0 {
+                state.write(" ")
+            }
             visit(template)
         }
         if !asmStatement.bindings.isEmpty {
             state.write(" : ")
             for (index, binding) in asmStatement.bindings.enumerated() {
-                if index > 0 { state.write(", ") }
+                if index > 0 {
+                    state.write(", ")
+                }
                 state.write(binding.name.value + " = " + binding.kind.value + "(")
                 state.write(binding.constraint.value + ")")
-                if let local = binding.local { state.write(" " + local.value) }
+                if let local = binding.local {
+                    state.write(" " + local.value)
+                }
             }
         }
         if !asmStatement.options.isEmpty {
@@ -689,7 +733,9 @@ public final class SourcePrinter: AST.Visitor {
     @discardableResult
     public override func visitBreak(_ breakStatement: AST.Break, additional: Any? = nil) -> Any? {
         state.write("break")
-        if let label = breakStatement.label { state.write(" " + label.value) }
+        if let label = breakStatement.label {
+            state.write(" " + label.value)
+        }
         return nil
     }
 
@@ -698,7 +744,9 @@ public final class SourcePrinter: AST.Visitor {
         -> Any?
     {
         state.write("continue")
-        if let label = continueStatement.label { state.write(" " + label.value) }
+        if let label = continueStatement.label {
+            state.write(" " + label.value)
+        }
         return nil
     }
 
@@ -726,7 +774,9 @@ public final class SourcePrinter: AST.Visitor {
         case .WillSet: text += "willSet"
         case .DidSet: text += "didSet"
         }
-        if let parameterName = accessor.parameterName { text += "(\(parameterName.value))" }
+        if let parameterName = accessor.parameterName {
+            text += "(\(parameterName.value))"
+        }
         switch accessor.body {
         case let .Block(statements):
             blockHeader(text, statements)
@@ -743,7 +793,9 @@ public final class SourcePrinter: AST.Visitor {
     ) -> Any? {
         state.write(annotations(subscriptDecl.modifiers, subscriptDecl.attributes))
         state.write("subscript")
-        if let genericDecl = subscriptDecl.genericDecl { state.write(genericDeclText(genericDecl)) }
+        if let genericDecl = subscriptDecl.genericDecl {
+            state.write(genericDeclText(genericDecl))
+        }
         state.write(parametersText(subscriptDecl.parameters))
         if subscriptDecl.asyncToken != nil {
             state.write(" async")
@@ -815,7 +867,9 @@ public final class SourcePrinter: AST.Visitor {
         visit(genericApplication.base)
         state.write("<")
         for (index, argument) in genericApplication.genericArguments.enumerated() {
-            if index > 0 { state.write(", ") }
+            if index > 0 {
+                state.write(", ")
+            }
             visit(argument)
         }
         state.write(">")
@@ -917,7 +971,9 @@ public final class SourcePrinter: AST.Visitor {
         for matchCase in matchExpression.cases {
             beginLine()
             for (index, pattern) in matchCase.patterns.enumerated() {
-                if index > 0 { state.write(", ") }
+                if index > 0 {
+                    state.write(", ")
+                }
                 visit(pattern)
             }
             if let whereCondition = matchCase.whereCondition {
@@ -961,7 +1017,9 @@ public final class SourcePrinter: AST.Visitor {
         visit(call.callee)
         state.write("(")
         for (index, argument) in call.arguments.enumerated() {
-            if index > 0 { state.write(", ") }
+            if index > 0 {
+                state.write(", ")
+            }
             if let label = argument.label {
                 state.write(label.value + ": ")
             }
@@ -970,7 +1028,9 @@ public final class SourcePrinter: AST.Visitor {
         state.write(")")
         for (label, closure) in call.trailingClosures {
             state.write(" ")
-            if let label { state.write(label.value + ":") }
+            if let label {
+                state.write(label.value + ":")
+            }
             visitClosure(closure, additional: additional)
         }
         if let inPlace = call.inPlace {
@@ -1030,7 +1090,9 @@ public final class SourcePrinter: AST.Visitor {
             if !signature.captureList.isEmpty {
                 let items = signature.captureList.map { item in
                     var text = render(item.expr)
-                    if let specifier = item.specifier { text = specifier.value + " " + text }
+                    if let specifier = item.specifier {
+                        text = specifier.value + " " + text
+                    }
                     return text
                 }.joined(separator: ", ")
                 state.write("[" + items + "] ")
@@ -1038,7 +1100,9 @@ public final class SourcePrinter: AST.Visitor {
             if !signature.parameters.isEmpty {
                 state.write(parametersText(signature.parameters) + " ")
             }
-            if signature.asyncToken != nil { state.write("async ") }
+            if signature.asyncToken != nil {
+                state.write("async ")
+            }
             if let throwsClause = signature.throwsClause {
                 state.write(throwsClauseText(throwsClause) + " ")
             }
@@ -1065,7 +1129,9 @@ public final class SourcePrinter: AST.Visitor {
     ) -> Any? {
         state.write("(")
         for (index, parameter) in closureType.parameters.enumerated() {
-            if index > 0 { state.write(", ") }
+            if index > 0 {
+                state.write(", ")
+            }
             if let label = parameter.label {
                 state.write(label.value)
                 state.write(": ")
@@ -1131,7 +1197,9 @@ public final class SourcePrinter: AST.Visitor {
         _ protocolCompositionType: AST.ProtocolCompositionType, additional: Any? = nil
     ) -> Any? {
         for (index, type) in protocolCompositionType.types.enumerated() {
-            if index > 0 { state.write(" & ") }
+            if index > 0 {
+                state.write(" & ")
+            }
             visit(type)
         }
         return nil
@@ -1143,7 +1211,9 @@ public final class SourcePrinter: AST.Visitor {
     ) -> Any? {
         state.write("(")
         for (index, element) in tupleExpression.elements.enumerated() {
-            if index > 0 { state.write(", ") }
+            if index > 0 {
+                state.write(", ")
+            }
             if let label = element.label {
                 state.write(label.value + ": ")
             }
@@ -1176,7 +1246,9 @@ public final class SourcePrinter: AST.Visitor {
         let operands = sequentialExpression.operands
         if ops.isEmpty {
             for (index, operand) in operands.enumerated() {
-                if index > 0 { state.write(", ") }
+                if index > 0 {
+                    state.write(", ")
+                }
                 visit(operand)
             }
             return nil
@@ -1202,7 +1274,9 @@ public final class SourcePrinter: AST.Visitor {
                     state.write(" " + token.value + " ")
                     lastWasPrefixOp = false
                 } else {
-                    if lastWasPrefixOp { state.write(" ") }
+                    if lastWasPrefixOp {
+                        state.write(" ")
+                    }
                     state.write(token.value)
                     lastWasPrefixOp = true
                 }
@@ -1265,7 +1339,9 @@ public final class SourcePrinter: AST.Visitor {
     ) -> Any? {
         state.write("[")
         for (index, element) in arrayLiteral.elements.enumerated() {
-            if index > 0 { state.write(", ") }
+            if index > 0 {
+                state.write(", ")
+            }
             visit(element)
         }
         state.write("]")
@@ -1282,7 +1358,9 @@ public final class SourcePrinter: AST.Visitor {
         }
         state.write("[")
         for (index, entry) in dictionaryLiteral.entries.enumerated() {
-            if index > 0 { state.write(", ") }
+            if index > 0 {
+                state.write(", ")
+            }
             visit(entry.key)
             state.write(": ")
             visit(entry.value)
@@ -1336,7 +1414,9 @@ public final class SourcePrinter: AST.Visitor {
         visit(subscriptExpr.base)
         state.write("[")
         for (index, argument) in subscriptExpr.arguments.enumerated() {
-            if index > 0 { state.write(", ") }
+            if index > 0 {
+                state.write(", ")
+            }
             if let label = argument.label {
                 state.write(label.value + ": ")
             }
@@ -1429,7 +1509,9 @@ public final class SourcePrinter: AST.Visitor {
             if !component.arguments.isEmpty {
                 state.write("[")
                 for (index, argument) in component.arguments.enumerated() {
-                    if index > 0 { state.write(", ") }
+                    if index > 0 {
+                        state.write(", ")
+                    }
                     if let label = argument.label {
                         state.write(label.value + ": ")
                     }
@@ -1491,19 +1573,27 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     private func printDecreases(_ decreases: [AST.Expression]?) {
-        guard let decreases else { return }
+        guard let decreases else {
+            return
+        }
         state.write(" decreases ")
         for (i, expr) in decreases.enumerated() {
-            if i > 0 { state.write(", ") }
+            if i > 0 {
+                state.write(", ")
+            }
             visit(expr)
         }
     }
 
     private func printTacticBlock(_ proofBody: AST.TacticBlock?) {
-        guard let proofBody else { return }
+        guard let proofBody else {
+            return
+        }
         state.write(" by {")
         for (i, tactic) in proofBody.tactics.enumerated() {
-            if i > 0 { state.write("; ") }
+            if i > 0 {
+                state.write("; ")
+            }
             state.write(tactic.name.value)
             for arg in tactic.arguments {
                 state.write(" ")
@@ -1530,7 +1620,9 @@ public final class SourcePrinter: AST.Visitor {
             state.write(modifiers + " ")
         }
         state.write(theoremDecl.keyword.value + " " + theoremDecl.name.value)
-        if let genericDecl = theoremDecl.genericDecl { state.write(genericDeclText(genericDecl)) }
+        if let genericDecl = theoremDecl.genericDecl {
+            state.write(genericDeclText(genericDecl))
+        }
         state.write(
             parametersText(theoremDecl.parameters, vararg: false)
         )

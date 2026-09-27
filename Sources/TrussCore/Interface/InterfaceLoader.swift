@@ -150,7 +150,9 @@ public struct InterfaceLoader {
     private func loadAccessors(
         _ x: InterfaceVariable, property: Symbol.VariableSymbol, owner: Symbol.NominalTypeSymbol?
     ) {
-        guard let valueType = property.type else { return }
+        guard let valueType = property.type else {
+            return
+        }
         let isStatic = property.kind == .StaticProperty
         let selfType = isStatic ? nil : owner?.typeId.flatMap { context.typeTable[$0] }
         for kind in x.accessors {
@@ -220,7 +222,9 @@ public struct InterfaceLoader {
             if let proto = findProtocol(n) {
                 let t = TrussType.ProtocolType(id: proto.typeId ?? context.nextTypeId, name: n)
                 t.symbol = proto
-                if proto.typeId == nil { context.register(type: t); proto.typeId = t.id }
+                if proto.typeId == nil {
+                    context.register(type: t); proto.typeId = t.id
+                }
                 return t
             }
             let t = TrussType.StructType(id: context.nextTypeId, name: n)

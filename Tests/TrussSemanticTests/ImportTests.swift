@@ -193,14 +193,18 @@ private func fooInterface() -> ModuleInterface {
 private func interfaceFunctionKinds(of scope: InterfaceScope) -> [String: InterfaceFunctionKind] {
     var result: [String: InterfaceFunctionKind] = [:]
     for value in scope.values {
-        if case let .Function(f) = value { result[f.name] = f.kind }
+        if case let .Function(f) = value {
+            result[f.name] = f.kind
+        }
     }
     return result
 }
 
 private func nominalScope(_ name: String, in interface: ModuleInterface) -> InterfaceScope? {
     for type in interface.root.types {
-        if case let .Nominal(n) = type, n.name == name { return n.scope }
+        if case let .Nominal(n) = type, n.name == name {
+            return n.scope
+        }
     }
     return nil
 }
@@ -216,7 +220,9 @@ private func symbolVariableKind(of scope: Scope, _ name: String) -> Symbol.Varia
 private func interfaceVariableKinds(of scope: InterfaceScope) -> [String: InterfaceVariableKind] {
     var result: [String: InterfaceVariableKind] = [:]
     for value in scope.values {
-        if case let .Variable(v) = value { result[v.name] = v.kind }
+        if case let .Variable(v) = value {
+            result[v.name] = v.kind
+        }
     }
     return result
 }
@@ -334,7 +340,9 @@ private func interfaceVariableKinds(of scope: InterfaceScope) -> [String: Interf
     let scope = try #require(nominalScope("S", in: interface))
     var accessors: [String: [InterfaceAccessorKind]] = [:]
     for value in scope.values {
-        if case let .Variable(v) = value { accessors[v.name] = v.accessors }
+        if case let .Variable(v) = value {
+            accessors[v.name] = v.accessors
+        }
     }
     #expect(accessors["p"] == [.Get, .Set])
     #expect(accessors["o"] == [.WillSet, .DidSet])

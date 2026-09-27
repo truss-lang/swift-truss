@@ -28,7 +28,11 @@ public final class PrecedenceResolver {
     }
 
     private func resolveOperator(_ op: OperatorInfo, modulePath: [String]) {
-        guard op.kinds.contains(where: { if case .Infix = $0 { true } else { false } }) else {
+        guard op.kinds.contains(where: { if case .Infix = $0 {
+            true
+        } else {
+            false
+        } }) else {
             return
         }
         if let groupReference = op.group {
@@ -53,10 +57,16 @@ public final class PrecedenceResolver {
         )
         var reported: [ObjectIdentifier] = []
         for (index, target) in group.resolvedHigherThan.enumerated() {
-            guard let target else { continue }
-            guard group.resolvedLowerThan.contains(where: { $0 === target }) else { continue }
+            guard let target else {
+                continue
+            }
+            guard group.resolvedLowerThan.contains(where: { $0 === target }) else {
+                continue
+            }
             let id = ObjectIdentifier(target)
-            if reported.contains(id) { continue }
+            if reported.contains(id) {
+                continue
+            }
             reported.append(id)
             context.emitError(
                 "precedence group '\(group.name.value)' is both higher than and lower than '\(target.name.value)'",
@@ -77,7 +87,9 @@ public final class PrecedenceResolver {
                 return nil
             }
             guard let target = lookup(path, modulePath: modulePath, at: location)
-            else { return nil }
+            else {
+                return nil
+            }
             if target === group {
                 context.emitError(
                     "precedence group '\(group.name.value)' cannot be \(relation) than itself",
@@ -141,7 +153,9 @@ public final class PrecedenceResolver {
     ) -> Namespace? {
         var current = namespace
         for component in path {
-            guard let child = current.children[component] else { return nil }
+            guard let child = current.children[component] else {
+                return nil
+            }
             current = child
         }
         return current
@@ -152,7 +166,9 @@ public final class PrecedenceResolver {
             return ([variable.name.value], variable.name)
         }
         if let member = expression as? AST.MemberAccess {
-            guard let (path, _) = referencePath(member.object) else { return nil }
+            guard let (path, _) = referencePath(member.object) else {
+                return nil
+            }
             return (path + [member.member.value], member.member)
         }
         return nil

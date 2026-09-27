@@ -77,7 +77,9 @@ public final class TrussPackageManager {
                 continue
             }
             let depInterfaces = try targetDesc.dependencies.map { depName -> ModuleInterface in
-                guard let i = interfaces[depName] else { throw PackageBuildError.MissingDependencyArtifact(depName) }
+                guard let i = interfaces[depName] else {
+                    throw PackageBuildError.MissingDependencyArtifact(depName)
+                }
                 return i
             }
             let config = DriverConfig(
@@ -113,7 +115,9 @@ public final class TrussPackageManager {
             return ModuleInterfaceDumper().dump(doc.interface)
         }
         let order = try topologicalOrder()
-        guard order.contains(targetName) else { throw PackageBuildError.UnknownTarget(targetName) }
+        guard order.contains(targetName) else {
+            throw PackageBuildError.UnknownTarget(targetName)
+        }
         _ = try build()
         guard let artifact = TargetPointer.artifactURL(root: buildRoot, targetName: targetName) else {
             throw PackageBuildError.MissingDependencyArtifact(targetName)

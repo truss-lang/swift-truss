@@ -344,8 +344,12 @@ public final class AccessChecker: AST.Visitor {
     }
 
     private func isPrivateVisible(_ symbol: Symbol.Symbol, at token: Token) -> Bool {
-        guard symbol.sourceToken?.id == token.id else { return false }
-        guard let memberOf = symbol.memberOf else { return true }
+        guard symbol.sourceToken?.id == token.id else {
+            return false
+        }
+        guard let memberOf = symbol.memberOf else {
+            return true
+        }
         return typeStack.last?.id == memberOf
     }
 
@@ -358,14 +362,18 @@ public final class AccessChecker: AST.Visitor {
         }
         var current: Symbol.NominalTypeSymbol? = accessPoint
         while let c = current {
-            if c.id == declaring.id { return true }
+            if c.id == declaring.id {
+                return true
+            }
             current = (c as? Symbol.ClassSymbol)?.superclass
         }
         return false
     }
 
     private func withType(_ type: Symbol.NominalTypeSymbol?, body: () -> Void) {
-        guard let type else { return }
+        guard let type else {
+            return
+        }
         typeStack.append(type)
         scopeStack.append(type.scope)
         body()
@@ -376,7 +384,9 @@ public final class AccessChecker: AST.Visitor {
     private func withFunctionScope(
         _ symbol: Symbol.FunctionSymbol?, body: () -> Void
     ) {
-        guard let symbol else { return }
+        guard let symbol else {
+            return
+        }
         scopeStack.append(symbol.scope)
         body()
         scopeStack.removeLast()
@@ -472,7 +482,9 @@ public final class AccessChecker: AST.Visitor {
     private func checkOverride(
         of symbol: Symbol.Symbol, hasOverrideModifier: Bool, at token: Token
     ) {
-        guard let enclosing = typeStack.last as? Symbol.ClassSymbol else { return }
+        guard let enclosing = typeStack.last as? Symbol.ClassSymbol else {
+            return
+        }
         guard let target = findOverrideTarget(symbol.name, from: enclosing.superclass) else {
             if hasOverrideModifier {
                 context.emitError(
@@ -515,7 +527,9 @@ public final class AccessChecker: AST.Visitor {
     }
 
     private func checkAbstractImplementations(of classSymbol: Symbol.ClassSymbol, at token: Token) {
-        guard !classSymbol.isAbstract else { return }
+        guard !classSymbol.isAbstract else {
+            return
+        }
         var missing: [Symbol.FunctionSymbol] = []
         var current = classSymbol.superclass
         while let c = current {
@@ -585,19 +599,25 @@ public final class AccessChecker: AST.Visitor {
     }
 
     private func memberSymbol(of memberAccess: AST.MemberAccess) -> Symbol.Symbol? {
-        guard let declaring = staticTypeSymbol(of: memberAccess.object) else { return nil }
+        guard let declaring = staticTypeSymbol(of: memberAccess.object) else {
+            return nil
+        }
         return declaring.scope.values[memberAccess.member.value]?.first
     }
 
     private func staticTypeSymbol(of expression: AST.Expression) -> Symbol.NominalTypeSymbol? {
-        guard let ty = expression.ty else { return nil }
+        guard let ty = expression.ty else {
+            return nil
+        }
         let nominal: TrussType.NominalType? =
             ty as? TrussType.NominalType
                 ?? (ty as? TrussType.GenericInstantiation).flatMap { generic in
                     generic.base.name == "Optional" ? generic.arguments.first : nil
                 } as? TrussType.NominalType
                 ?? (ty as? TrussType.GenericInstantiation)?.base as? TrussType.NominalType
-        guard let nominal else { return nil }
+        guard let nominal else {
+            return nil
+        }
         for symbol in context.id2Symbol.values {
             if let nominalSymbol = symbol as? Symbol.NominalTypeSymbol,
                nominalSymbol.typeId == nominal.id
@@ -613,7 +633,9 @@ public final class AccessChecker: AST.Visitor {
         case let variable as AST.Variable:
             return lookupType(variable.name.value)
         case let member as AST.MemberAccess:
-            guard let object = resolveTypeSymbol(member.object) else { return nil }
+            guard let object = resolveTypeSymbol(member.object) else {
+                return nil
+            }
             let scope = (object as? Symbol.NominalTypeSymbol)?.scope
                 ?? (object as? Symbol.ModuleSymbol)?.scope
             return scope?.types[member.member.value]

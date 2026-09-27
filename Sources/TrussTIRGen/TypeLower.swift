@@ -53,7 +53,9 @@ final class TypeLower {
     private func fillProtocolRequirements(
         _ record: TIR.ProtocolRecord, type: TrussType.ProtocolType
     ) {
-        guard let symbol = type.symbol as? Symbol.ProtocolSymbol else { return }
+        guard let symbol = type.symbol as? Symbol.ProtocolSymbol else {
+            return
+        }
         var names: [String] = []
         var visited: Set<Id.SymbolId> = []
         collectRequirementNames(of: symbol, into: &names, visited: &visited)
@@ -63,7 +65,9 @@ final class TypeLower {
     private func collectRequirementNames(
         of symbol: Symbol.ProtocolSymbol, into names: inout [String], visited: inout Set<Id.SymbolId>
     ) {
-        guard visited.insert(symbol.id).inserted else { return }
+        guard visited.insert(symbol.id).inserted else {
+            return
+        }
         for (name, entries) in symbol.scope.values.sorted(by: { $0.key < $1.key }) {
             for entry in entries {
                 if entry is Symbol.FunctionSymbol || entry is Symbol.VariableSymbol {
@@ -144,7 +148,9 @@ final class TypeLower {
         if let existing = metadataByType[lowered.id] {
             return existing
         }
-        guard let classType = lowered as? TIRType.ClassType else { return nil }
+        guard let classType = lowered as? TIRType.ClassType else {
+            return nil
+        }
         let record = registry.addMetadata(name: classType.name)
         metadataByType[lowered.id] = record.id
         if let superclass = superclassType(of: type), let superId = metadataId(for: superclass) {
@@ -189,7 +195,9 @@ final class TypeLower {
             return nominalType(nominal)
         case let optional as TrussType.GenericInstantiation
             where optional.base.name == "Optional":
-            if let wrapped = optional.arguments.first { return optionalEnumType(wrapped) }
+            if let wrapped = optional.arguments.first {
+                return optionalEnumType(wrapped)
+            }
             return registry.voidType()
         case let pointer as TrussType.PointerType:
             return registry.pointerType(pointee: lower(pointer.pointee).id)

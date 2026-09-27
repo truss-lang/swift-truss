@@ -60,12 +60,16 @@ public extension AST {
         }
 
         private func modifiersText(_ modifiers: [Modifier]) -> String {
-            if modifiers.isEmpty { return "" }
+            if modifiers.isEmpty {
+                return ""
+            }
             return " [" + modifiers.map(\.kind.sourceText).joined(separator: ", ") + "]"
         }
 
         private func attributesText(_ attributes: [Attribute]) -> String {
-            if attributes.isEmpty { return "" }
+            if attributes.isEmpty {
+                return ""
+            }
             return " "
                 + attributes.map { attribute in
                     var parts: [String] = []
@@ -90,7 +94,9 @@ public extension AST {
         }
 
         private func tyText(_ ty: TrussType.TrussType?) -> String {
-            guard let ty else { return "" }
+            guard let ty else {
+                return ""
+            }
             return " ty:" + typeText(ty)
         }
 
@@ -128,7 +134,9 @@ public extension AST {
                     return type
                 }.joined(separator: ", ")
                 text += ")"
-                if function.isAsync { text += " async" }
+                if function.isAsync {
+                    text += " async"
+                }
                 if function.isThrowing {
                     text += " throws"
                     if !function.throwsTypes.isEmpty {
@@ -173,17 +181,23 @@ public extension AST {
         }
 
         private func symText(_ symbol: Symbol.Symbol?) -> String {
-            guard let symbol else { return "" }
+            guard let symbol else {
+                return ""
+            }
             return " sym:\(symbol.name)#\(symbol.id.id)"
         }
 
         private func superclassText(_ superclass: Symbol.ClassSymbol?) -> String {
-            guard let superclass else { return "" }
+            guard let superclass else {
+                return ""
+            }
             return " super:\(superclass.name)#\(superclass.id.id)"
         }
 
         private func overloadsText(_ overloads: [Symbol.FunctionSymbol]?) -> String {
-            guard let overloads, !overloads.isEmpty else { return "" }
+            guard let overloads, !overloads.isEmpty else {
+                return ""
+            }
             let rendered = overloads.map(signatureText).joined(separator: ", ")
             return " overloads:\(overloads.count) [\(rendered)]"
         }
@@ -194,15 +208,21 @@ public extension AST {
             let hasDefaults = symbol.signature.hasDefaults
             let isVararg = symbol.signature.isVararg
             for (index, label) in labels.enumerated() {
-                if index > 0 { text += ", " }
+                if index > 0 {
+                    text += ", "
+                }
                 if let label {
                     text += label
                 } else {
                     text += "_"
                 }
                 text += ":"
-                if index < hasDefaults.count, hasDefaults[index] { text += " =" }
-                if index < isVararg.count, isVararg[index] { text += " ..." }
+                if index < hasDefaults.count, hasDefaults[index] {
+                    text += " ="
+                }
+                if index < isVararg.count, isVararg[index] {
+                    text += " ..."
+                }
             }
             text += ")"
             return text
@@ -225,8 +245,12 @@ public extension AST {
         }
 
         private func throwsText(_ throwsClause: ThrowsClause?) -> String {
-            guard let throwsClause else { return "" }
-            if throwsClause.types == nil { return " throws" }
+            guard let throwsClause else {
+                return ""
+            }
+            if throwsClause.types == nil {
+                return " throws"
+            }
             return " throws(\(throwsClause.types!.count) types)"
         }
 
@@ -238,9 +262,13 @@ public extension AST {
             parameters.map { parameter in
                 {
                     var text = "Parameter \(parameter.name.value)"
-                    if let label = parameter.label { text += " label:\(label.value)" }
+                    if let label = parameter.label {
+                        text += " label:\(label.value)"
+                    }
                     var children: [() -> Void] = []
-                    if let type = parameter.type { children.append { self.visit(type) } }
+                    if let type = parameter.type {
+                        children.append { self.visit(type) }
+                    }
                     if let defaultValue = parameter.defaultValue {
                         children.append {
                             self.dumpNode("Default", children: [{ self.visit(defaultValue) }])
@@ -273,7 +301,9 @@ public extension AST {
         }
 
         private func throwsClauseNodes(_ throwsClause: ThrowsClause?) -> [() -> Void] {
-            guard let throwsClause, let types = throwsClause.types else { return [] }
+            guard let throwsClause, let types = throwsClause.types else {
+                return []
+            }
             return types.map { type in
                 { self.dumpNode("Throws", children: [{ self.visit(type) }]) }
             }
@@ -313,7 +343,9 @@ public extension AST {
             _ genericParameter: GenericParameter, additional: Any? = nil
         ) -> Any? {
             var text = "GenericParameter "
-            if genericParameter.eachToken != nil { text += "each " }
+            if genericParameter.eachToken != nil {
+                text += "each "
+            }
             text += genericParameter.name.value
             var children: [() -> Void] = []
             if let constraint = genericParameter.constraint {
@@ -448,7 +480,9 @@ public extension AST {
             case .Right: text += " [right]"
             case .None: break
             }
-            if precedenceGroupDecl.assignment { text += " [assignment]" }
+            if precedenceGroupDecl.assignment {
+                text += " [assignment]"
+            }
             var children: [() -> Void] = []
             if !precedenceGroupDecl.higherThan.isEmpty {
                 children.append {
@@ -479,13 +513,17 @@ public extension AST {
             _ whereClause: [WhereRequirement]?, _ body: [Statement]
         ) -> [() -> Void] {
             var children: [() -> Void] = []
-            if let genericDecl { children.append { self.visitGenericDecl(genericDecl) } }
+            if let genericDecl {
+                children.append { self.visitGenericDecl(genericDecl) }
+            }
             for conformance in conformances {
                 children.append {
                     self.dumpNode("Conformance", children: [{ self.visit(conformance) }])
                 }
             }
-            if let whereClause { children.append(contentsOf: whereClauseNodes(whereClause)) }
+            if let whereClause {
+                children.append(contentsOf: whereClauseNodes(whereClause))
+            }
             children.append(contentsOf: statementNodes(body))
             return children
         }
@@ -591,7 +629,9 @@ public extension AST {
                     for associatedValue in element.associatedValues {
                         elementChildren.append {
                             var text = "AssociatedValue "
-                            if let label = associatedValue.label { text += "\(label.value):" }
+                            if let label = associatedValue.label {
+                                text += "\(label.value):"
+                            }
                             self.dumpNode(
                                 text, children: [{ self.visit(associatedValue.typeExpression) }]
                             )
@@ -618,8 +658,12 @@ public extension AST {
             -> Any?
         {
             var text = declText("InitDecl", initDecl) + symText(initDecl.symbol)
-            if initDecl.optionalToken != nil { text += " ?" }
-            if initDecl.asyncToken != nil { text += " async" }
+            if initDecl.optionalToken != nil {
+                text += " ?"
+            }
+            if initDecl.asyncToken != nil {
+                text += " async"
+            }
             var children: [() -> Void] = []
             if let genericDecl = initDecl.genericDecl {
                 children.append { self.visitGenericDecl(genericDecl) }
@@ -650,9 +694,15 @@ public extension AST {
             _ functionDecl: FunctionDecl, additional: Any? = nil
         ) -> Any? {
             var text = declText("FunctionDecl \(functionDecl.name.value)", functionDecl)
-            if functionDecl.varargToken != nil { text += " [vararg]" }
-            if functionDecl.asyncToken != nil { text += " async" }
-            if let throwsClause = functionDecl.throwsClause { text += throwsText(throwsClause) }
+            if functionDecl.varargToken != nil {
+                text += " [vararg]"
+            }
+            if functionDecl.asyncToken != nil {
+                text += " async"
+            }
+            if let throwsClause = functionDecl.throwsClause {
+                text += throwsText(throwsClause)
+            }
             text += symText(functionDecl.symbol)
             var children: [() -> Void] = []
             if let genericDecl = functionDecl.genericDecl {
@@ -701,8 +751,12 @@ public extension AST {
             _ variableDecl: VariableDecl, additional: Any? = nil
         ) -> Any? {
             var text = declText("VariableDecl \(variableDecl.name.value)", variableDecl)
-            if variableDecl.asyncToken != nil { text += " async" }
-            if variableDecl.internalToken != nil { text += " [internal]" }
+            if variableDecl.asyncToken != nil {
+                text += " async"
+            }
+            if variableDecl.internalToken != nil {
+                text += " [internal]"
+            }
             text += symText(variableDecl.symbol)
             var children: [() -> Void] = []
             if let typeExpression = variableDecl.typeExpression {
@@ -725,7 +779,9 @@ public extension AST {
         @discardableResult
         public override func visitReturn(_ ret: Return, additional: Any? = nil) -> Any? {
             var children: [() -> Void] = []
-            if let value = ret.value { children.append { self.visit(value) } }
+            if let value = ret.value {
+                children.append { self.visit(value) }
+            }
             dumpNode("Return", children: children)
             return nil
         }
@@ -934,8 +990,12 @@ public extension AST {
         @discardableResult
         public override func visitFor(_ forStatement: For, additional: Any? = nil) -> Any? {
             var text = "For"
-            if forStatement.asyncToken != nil { text += " async" }
-            if forStatement.caseToken != nil { text += " case" }
+            if forStatement.asyncToken != nil {
+                text += " async"
+            }
+            if forStatement.caseToken != nil {
+                text += " case"
+            }
             var children: [() -> Void] = [
                 { self.dumpNode("Pattern", children: [{ self.visit(forStatement.pattern) }]) },
                 { self.dumpNode("Sequence", children: [{ self.visit(forStatement.sequence) }]) },
@@ -968,7 +1028,9 @@ public extension AST {
                 children.append {
                     var text =
                         "Binding \(binding.name.value) = \(binding.kind.value)(\(binding.constraint.value))"
-                    if let local = binding.local { text += " \(local.value)" }
+                    if let local = binding.local {
+                        text += " \(local.value)"
+                    }
                     self.dumpNode(text)
                 }
             }
@@ -988,7 +1050,9 @@ public extension AST {
             -> Any?
         {
             var text = "Break"
-            if let label = breakStatement.label { text += " \(label.value)" }
+            if let label = breakStatement.label {
+                text += " \(label.value)"
+            }
             dumpNode(text)
             return nil
         }
@@ -1000,7 +1064,9 @@ public extension AST {
             -> Any?
         {
             var text = "Continue"
-            if let label = continueStatement.label { text += " \(label.value)" }
+            if let label = continueStatement.label {
+                text += " \(label.value)"
+            }
             dumpNode(text)
             return nil
         }
@@ -1033,7 +1099,9 @@ public extension AST {
                 case .WillSet: "Accessor willSet"
                 case .DidSet: "Accessor didSet"
                 }
-            if let parameterName = accessor.parameterName { text += " \(parameterName.value)" }
+            if let parameterName = accessor.parameterName {
+                text += " \(parameterName.value)"
+            }
             text += modifiersText(accessor.modifiers) + attributesText(accessor.attributes)
             var children: [() -> Void] = []
             switch accessor.body {
@@ -1053,8 +1121,12 @@ public extension AST {
             _ subscriptDecl: SubscriptDecl, additional: Any? = nil
         ) -> Any? {
             var text = declText("SubscriptDecl", subscriptDecl) + symText(subscriptDecl.symbol)
-            if subscriptDecl.asyncToken != nil { text += " async" }
-            if let throwsClause = subscriptDecl.throwsClause { text += throwsText(throwsClause) }
+            if subscriptDecl.asyncToken != nil {
+                text += " async"
+            }
+            if let throwsClause = subscriptDecl.throwsClause {
+                text += throwsText(throwsClause)
+            }
             var children: [() -> Void] = []
             if let genericDecl = subscriptDecl.genericDecl {
                 children.append { self.visitGenericDecl(genericDecl) }
@@ -1296,14 +1368,18 @@ public extension AST {
             for argument in call.arguments {
                 children.append {
                     var text = "Argument"
-                    if let label = argument.label { text += " label:\(label.value)" }
+                    if let label = argument.label {
+                        text += " label:\(label.value)"
+                    }
                     self.dumpNode(text, children: [{ self.visit(argument.value) }])
                 }
             }
             for (label, closure) in call.trailingClosures {
                 children.append {
                     var text = "TrailingClosure"
-                    if let label { text += " label:\(label.value)" }
+                    if let label {
+                        text += " label:\(label.value)"
+                    }
                     self.dumpNode(text, children: [{ self.visitClosure(closure) }])
                 }
             }
@@ -1316,7 +1392,9 @@ public extension AST {
             _ memberAccess: MemberAccess, additional: Any? = nil
         ) -> Any? {
             var text = "MemberAccess \(memberAccess.member.value)"
-            if memberAccess.isOptional { text += " ?" }
+            if memberAccess.isOptional {
+                text += " ?"
+            }
             dumpNode(
                 text + tyText(memberAccess.ty) + symText(memberAccess.symbol)
                     + overloadsText(memberAccess.overloads),
@@ -1369,7 +1447,9 @@ public extension AST {
             if let signature = closure.signature {
                 children.append {
                     var text = "Signature"
-                    if signature.asyncToken != nil { text += " async" }
+                    if signature.asyncToken != nil {
+                        text += " async"
+                    }
                     if !signature.captureList.isEmpty {
                         text +=
                             " ["
@@ -1404,12 +1484,18 @@ public extension AST {
             _ closureType: ClosureType, additional: Any? = nil
         ) -> Any? {
             var text = "ClosureType"
-            if closureType.asyncToken != nil { text += " async" }
-            if let throwsClause = closureType.throwsClause { text += throwsText(throwsClause) }
+            if closureType.asyncToken != nil {
+                text += " async"
+            }
+            if let throwsClause = closureType.throwsClause {
+                text += throwsText(throwsClause)
+            }
             var children: [() -> Void] = []
             for parameter in closureType.parameters {
                 var parameterText = "Parameter"
-                if let label = parameter.label { parameterText += " label:\(label.value)" }
+                if let label = parameter.label {
+                    parameterText += " label:\(label.value)"
+                }
                 children.append {
                     self.dumpNode(parameterText, children: [{ self.visit(parameter.type) }])
                 }
@@ -1496,7 +1582,9 @@ public extension AST {
             for element in tuple.elements {
                 children.append {
                     var text = "Element"
-                    if let label = element.label { text += " label:\(label.value)" }
+                    if let label = element.label {
+                        text += " label:\(label.value)"
+                    }
                     self.dumpNode(text, children: [{ self.visit(element.value) }])
                 }
             }
@@ -1682,7 +1770,9 @@ public extension AST {
             for argument in subscriptExpr.arguments {
                 children.append {
                     var text = "Argument"
-                    if let label = argument.label { text += " label:\(label.value)" }
+                    if let label = argument.label {
+                        text += " label:\(label.value)"
+                    }
                     self.dumpNode(text, children: [{ self.visit(argument.value) }])
                 }
             }

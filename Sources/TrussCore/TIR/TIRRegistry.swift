@@ -135,7 +135,9 @@ public extension TIR {
         public func witness(for conformance: (protocolId: Id.TIRProtocolId, concreteType: Id.TIRTypeId))
             -> WitnessRecord?
         {
-            guard let id = witnessByConformance[WitnessKey(conformance)] else { return nil }
+            guard let id = witnessByConformance[WitnessKey(conformance)] else {
+                return nil
+            }
             return witnesses[id]
         }
 
@@ -198,7 +200,11 @@ public extension TIR {
         }
 
         public func integerType(isSigned: Bool, bitWidth: Int) -> TIRType.PrimitiveType {
-            let kind: TIRType.PrimitiveKind = if isSigned { .Signed } else { .Unsigned }
+            let kind: TIRType.PrimitiveKind = if isSigned {
+                .Signed
+            } else {
+                .Unsigned
+            }
             return primitiveType(kind: kind, bitWidth: bitWidth)
         }
 

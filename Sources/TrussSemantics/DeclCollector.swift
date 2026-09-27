@@ -91,10 +91,18 @@ public final class DeclCollector: AST.Visitor {
             fatalError("unreachable: unknown nominal type declaration \(type(of: nominalTypeDecl))")
         }
         symbol.isAbstract = nominalTypeDecl.modifiers.contains {
-            if case .Abstract = $0.kind { true } else { false }
+            if case .Abstract = $0.kind {
+                true
+            } else {
+                false
+            }
         }
         symbol.isFinal = nominalTypeDecl.modifiers.contains {
-            if case .Final = $0.kind { true } else { false }
+            if case .Final = $0.kind {
+                true
+            } else {
+                false
+            }
         }
         return symbol
     }

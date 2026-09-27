@@ -31,7 +31,9 @@ public final class ImportProcessor: AST.Visitor {
     }
 
     private func importStd(into scope: Scope) {
-        guard let package = context.name2Package["Truss"] else { return }
+        guard let package = context.name2Package["Truss"] else {
+            return
+        }
         let namespace = Namespace(
             name: package.name, symbol: package, scope: package.scope
         )
@@ -70,7 +72,9 @@ public final class ImportProcessor: AST.Visitor {
                 pathParts: pathParts + [nameStr]
             )
         case let .Name(token):
-            if case let .Keyword(kind) = token.kind, kind == .SelfKw || kind == .SelfTypeKw { return }
+            if case let .Keyword(kind) = token.kind, kind == .SelfKw || kind == .SelfTypeKw {
+                return
+            }
             if atRoot {
                 guard let _ = resolveRoot(token.value, at: token) else {
                     emitUnresolved(
@@ -87,7 +91,9 @@ public final class ImportProcessor: AST.Visitor {
                 )
             }
         case let .Alias(token, alias):
-            if case let .Keyword(kind) = token.kind, kind == .SelfKw || kind == .SelfTypeKw { return }
+            if case let .Keyword(kind) = token.kind, kind == .SelfKw || kind == .SelfTypeKw {
+                return
+            }
             if atRoot {
                 guard let root = resolveRoot(token.value, at: token) else {
                     emitUnresolved(
@@ -192,7 +198,9 @@ public final class ImportProcessor: AST.Visitor {
     private func emitUnresolved(
         _ fullPath: String, missing: String, parent: String, at token: Token
     ) {
-        guard let source = context.sourceTable[token.id] else { return }
+        guard let source = context.sourceTable[token.id] else {
+            return
+        }
         let buffer = source.stringSourceBuffer
         let range = token.sourceRange(in: buffer)
         let note = Diagnostic(

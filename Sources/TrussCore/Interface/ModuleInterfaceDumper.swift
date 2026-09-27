@@ -24,7 +24,9 @@ public struct ModuleInterfaceDumper {
                 if !n.conformances.isEmpty {
                     out += ": \(n.conformances.joined(separator: ", "))"
                 }
-                if let sup = n.superclass { out += " : \(sup)" }
+                if let sup = n.superclass {
+                    out += " : \(sup)"
+                }
                 out += " {\n"
                 for c in n.cases {
                     let assoc = c.associatedTypes.isEmpty
@@ -36,7 +38,9 @@ public struct ModuleInterfaceDumper {
                 out += "\(pad)}\n"
             case let .TypeAlias(a):
                 out += "\(pad)typealias \(a.name)"
-                if let tgt = a.target { out += " = \(typeText(tgt))" }
+                if let tgt = a.target {
+                    out += " = \(typeText(tgt))"
+                }
                 out += "\n"
             case let .AssociatedType(s): out += "\(pad)associatedtype \(s.name)\n"
             case let .Builtin(s): out += "\(pad)builtin \(s.name)\n"
@@ -54,7 +58,9 @@ public struct ModuleInterfaceDumper {
                 }
             case let .Variable(x):
                 out += "\(pad)var \(x.name)"
-                if let ty = x.type { out += ": \(typeText(ty))" }
+                if let ty = x.type {
+                    out += ": \(typeText(ty))"
+                }
                 if !x.accessors.isEmpty {
                     let names = x.accessors.sorted { $0.rawValue < $1.rawValue }
                         .map(accessorName).joined(separator: " ")
@@ -97,7 +103,9 @@ public struct ModuleInterfaceDumper {
     private func signatureText(_ f: InterfaceFunction) -> String {
         let parts = f.labels.enumerated().map { i, label in
             var p = label ?? "_"
-            if i < f.hasDefaults.count, f.hasDefaults[i] { p += " = _default" }
+            if i < f.hasDefaults.count, f.hasDefaults[i] {
+                p += " = _default"
+            }
             return p
         }
         return "(\(parts.joined(separator: ", ")))"

@@ -81,7 +81,9 @@ public final class CodeGen: TIR.Visitor {
     }
 
     private func lowerGlobal(_ global: TIR.GlobalVariable) -> LLVMSwiftBinding.GlobalVariable {
-        guard let module else { fatalError("unreachable") }
+        guard let module else {
+            fatalError("unreachable")
+        }
         let valueType = lowerType(global.type)
         let globalType: LLVMSwiftBinding.LLVMType =
             valueType is LLVMSwiftBinding.FunctionType ? llvmContext.pointerType() : valueType
@@ -93,7 +95,9 @@ public final class CodeGen: TIR.Visitor {
     }
 
     private func createFunctionDecl(_ tirFunction: TIR.Function) -> LLVMSwiftBinding.Function {
-        guard let module else { fatalError("unreachable") }
+        guard let module else {
+            fatalError("unreachable")
+        }
         let returnType = lowerType(tirFunction.returnType)
         let parameterTypes = tirFunction.parameters.map { lowerType($0.ty) }
         let functionType = llvmContext.functionType(
@@ -111,7 +115,9 @@ public final class CodeGen: TIR.Visitor {
         let blocks = reachableBlocks(tirFunction)
         guard !blocks.isEmpty,
               let llvmFunction = functionMap[tirFunction.id]
-        else { return }
+        else {
+            return
+        }
         currentFunction = llvmFunction
         currentLLVMBlock = nil
         valueMap = [:]
@@ -128,7 +134,9 @@ public final class CodeGen: TIR.Visitor {
             blockMap[ObjectIdentifier(block)] = llvmFunction.appendBasicBlock(block.name)
         }
         for block in blocks {
-            guard let llvmBlock = blockMap[ObjectIdentifier(block)] else { continue }
+            guard let llvmBlock = blockMap[ObjectIdentifier(block)] else {
+                continue
+            }
             builder.positionAtEnd(of: llvmBlock)
             var phis: [LLVMSwiftBinding.PHINode] = []
             for parameter in block.parameters {
@@ -154,7 +162,9 @@ public final class CodeGen: TIR.Visitor {
             }
         }
         for block in blocks {
-            guard let llvmBlock = blockMap[ObjectIdentifier(block)] else { continue }
+            guard let llvmBlock = blockMap[ObjectIdentifier(block)] else {
+                continue
+            }
             builder.positionAtEnd(of: llvmBlock)
             currentLLVMBlock = llvmBlock
             for instruction in block.instructions {
@@ -169,7 +179,9 @@ public final class CodeGen: TIR.Visitor {
                 for (index, phi) in phis.enumerated() {
                     guard index < edge.args.count,
                           let incoming = value(edge.args[index])
-                    else { continue }
+                    else {
+                        continue
+                    }
                     phi.addIncoming(incoming, from: edge.from)
                 }
             }
@@ -177,7 +189,9 @@ public final class CodeGen: TIR.Visitor {
         for pending in pendingPhiIncoming {
             guard let from = blockMap[ObjectIdentifier(pending.block)],
                   let incoming = value(pending.value)
-            else { continue }
+            else {
+                continue
+            }
             pending.phi.addIncoming(incoming, from: from)
         }
         currentFunction = nil
@@ -185,7 +199,9 @@ public final class CodeGen: TIR.Visitor {
     }
 
     private func reachableBlocks(_ function: TIR.Function) -> [TIR.BasicBlock] {
-        guard let entry = function.basicBlocks.first else { return [] }
+        guard let entry = function.basicBlocks.first else {
+            return []
+        }
         var visited: Set<ObjectIdentifier> = []
         var queue: [TIR.BasicBlock] = [entry]
         var result: [TIR.BasicBlock] = []
@@ -341,7 +357,9 @@ public final class CodeGen: TIR.Visitor {
     }
 
     private func enumType(of value: TIR.Value) -> TIRType.EnumType? {
-        guard let registry else { return nil }
+        guard let registry else {
+            return nil
+        }
         if let enumType = registry.type(pointeeTypeID(value.ty)) as? TIRType.EnumType {
             return enumType
         }
@@ -351,7 +369,9 @@ public final class CodeGen: TIR.Visitor {
     private func loadDiscriminant(
         from slot: LLVMSwiftBinding.Value, enumType: TIRType.EnumType
     ) -> LLVMSwiftBinding.Value? {
-        guard let builder else { return nil }
+        guard let builder else {
+            return nil
+        }
         let discriminant = discriminantType(enumType)
         if enumHasPayload(enumType) {
             let structType = lowerType(enumType.id)
@@ -366,7 +386,9 @@ public final class CodeGen: TIR.Visitor {
     private func discriminantValue(
         from enumValue: TIR.Value, enumType: TIRType.EnumType
     ) -> LLVMSwiftBinding.Value? {
-        guard let builder, let resolved = value(enumValue) else { return nil }
+        guard let builder, let resolved = value(enumValue) else {
+            return nil
+        }
         if lowerType(enumValue.ty) is LLVMSwiftBinding.PointerType {
             return loadDiscriminant(from: resolved, enumType: enumType)
         }
@@ -379,7 +401,9 @@ public final class CodeGen: TIR.Visitor {
     private func slotPointer(
         from enumValue: TIR.Value, structType: LLVMSwiftBinding.LLVMType
     ) -> LLVMSwiftBinding.Value? {
-        guard let builder, let resolved = value(enumValue) else { return nil }
+        guard let builder, let resolved = value(enumValue) else {
+            return nil
+        }
         if lowerType(enumValue.ty) is LLVMSwiftBinding.PointerType {
             return resolved
         }
@@ -486,7 +510,9 @@ public final class CodeGen: TIR.Visitor {
     private func recordBlockArgEdge(
         target: TIR.BasicBlock, arguments: [TIR.Value]
     ) {
-        guard let currentLLVMBlock else { return }
+        guard let currentLLVMBlock else {
+            return
+        }
         blockArgEdges[ObjectIdentifier(target), default: []].append(
             BlockArgEdge(target: target, args: arguments, from: currentLLVMBlock)
         )
@@ -497,9 +523,13 @@ public final class CodeGen: TIR.Visitor {
     }
 
     public override func visitReturn(_ instruction: TIR.Return, additional: Any? = nil) -> Any? {
-        guard let builder else { return nil }
+        guard let builder else {
+            return nil
+        }
         if let returned = instruction.value {
-            guard let value = value(returned) else { return nil }
+            guard let value = value(returned) else {
+                return nil
+            }
             builder.buildRet(value)
         } else {
             builder.buildRetVoid()
@@ -523,7 +553,9 @@ public final class CodeGen: TIR.Visitor {
               let condition = value(instruction.condition),
               let trueBlock = blockMap[ObjectIdentifier(instruction.trueBranch)],
               let falseBlock = blockMap[ObjectIdentifier(instruction.falseBranch)]
-        else { return nil }
+        else {
+            return nil
+        }
         builder.buildCondBr(condition, then: trueBlock, else: falseBlock)
         recordBlockArgEdge(target: instruction.trueBranch, arguments: instruction.trueArguments)
         recordBlockArgEdge(target: instruction.falseBranch, arguments: instruction.falseArguments)
@@ -548,17 +580,23 @@ public final class CodeGen: TIR.Visitor {
         _ instruction: TIR.SwitchEnum, additional: Any? = nil
     ) -> Any? {
         guard let builder, let enumType = enumType(of: instruction.value)
-        else { return nil }
+        else {
+            return nil
+        }
         let discriminant = discriminantType(enumType)
         guard let condition = discriminantValue(from: instruction.value, enumType: enumType)
-        else { return nil }
+        else {
+            return nil
+        }
         let defaultBlock: LLVMSwiftBinding.BasicBlock
         if let tirDefault = instruction.defaultBlock,
            let llvmDefault = blockMap[ObjectIdentifier(tirDefault)]
         {
             defaultBlock = llvmDefault
         } else {
-            guard let currentFunction, let currentLLVMBlock else { return nil }
+            guard let currentFunction, let currentLLVMBlock else {
+                return nil
+            }
             defaultBlock = currentFunction.appendBasicBlock("default")
             builder.positionAtEnd(of: defaultBlock)
             builder.buildUnreachable()
@@ -568,7 +606,9 @@ public final class CodeGen: TIR.Visitor {
             condition, default: defaultBlock, numCases: UInt32(instruction.cases.count)
         )
         for caseInfo in instruction.cases {
-            guard let caseBlock = blockMap[ObjectIdentifier(caseInfo.block)] else { continue }
+            guard let caseBlock = blockMap[ObjectIdentifier(caseInfo.block)] else {
+                continue
+            }
             switchInstruction.addCase(
                 llvmContext.constantInt(UInt64(caseInfo.tag), type: discriminant),
                 caseBlock
@@ -582,7 +622,9 @@ public final class CodeGen: TIR.Visitor {
         _ instruction: TIR.ExtractPayload, additional: Any? = nil
     ) -> Any? {
         guard let builder, let enumType = enumType(of: instruction.value)
-        else { return nil }
+        else {
+            return nil
+        }
         let payloadType = lowerType(instruction.result.ty)
         let structType = lowerType(enumType.id)
         guard let slot = slotPointer(from: instruction.value, structType: structType) else {
@@ -597,9 +639,13 @@ public final class CodeGen: TIR.Visitor {
     public override func visitAllocStack(
         _ instruction: TIR.AllocStack, additional: Any? = nil
     ) -> Any? {
-        guard let builder else { return nil }
+        guard let builder else {
+            return nil
+        }
         let lowered = lowerType(instruction.allocatedType)
-        guard lowered is LLVMSwiftBinding.VoidType == false else { return nil }
+        guard lowered is LLVMSwiftBinding.VoidType == false else {
+            return nil
+        }
         let alloca = builder.buildAlloca(lowered, name: instruction.result.name)
         valueMap[ObjectIdentifier(instruction.result)] = alloca
         return nil
@@ -612,7 +658,9 @@ public final class CodeGen: TIR.Visitor {
     }
 
     public override func visitLoad(_ instruction: TIR.Load, additional: Any? = nil) -> Any? {
-        guard let builder, let pointer = value(instruction.ptr) else { return nil }
+        guard let builder, let pointer = value(instruction.ptr) else {
+            return nil
+        }
         let loaded = builder.buildLoad(lowerType(instruction.result.ty), pointer)
         valueMap[ObjectIdentifier(instruction.result)] = loaded
         return nil
@@ -622,7 +670,9 @@ public final class CodeGen: TIR.Visitor {
         guard let builder,
               let stored = value(instruction.value),
               let pointer = value(instruction.ptr)
-        else { return nil }
+        else {
+            return nil
+        }
         builder.buildStore(stored, to: pointer)
         return nil
     }
@@ -636,7 +686,9 @@ public final class CodeGen: TIR.Visitor {
     public override func visitStructElementAddr(
         _ instruction: TIR.StructElementAddr, additional: Any? = nil
     ) -> Any? {
-        guard let builder, let base = value(instruction.base) else { return nil }
+        guard let builder, let base = value(instruction.base) else {
+            return nil
+        }
         let structType = lowerType(pointeeTypeID(instruction.base.ty))
         let address = builder.buildStructGEP(structType, base, index: UInt32(instruction.index))
         valueMap[ObjectIdentifier(instruction.result)] = address
@@ -646,7 +698,9 @@ public final class CodeGen: TIR.Visitor {
     public override func visitTupleElementAddr(
         _ instruction: TIR.TupleElementAddr, additional: Any? = nil
     ) -> Any? {
-        guard let builder, let base = value(instruction.base) else { return nil }
+        guard let builder, let base = value(instruction.base) else {
+            return nil
+        }
         let tupleType = lowerType(pointeeTypeID(instruction.base.ty))
         let address = builder.buildStructGEP(tupleType, base, index: UInt32(instruction.index))
         valueMap[ObjectIdentifier(instruction.result)] = address
@@ -656,11 +710,15 @@ public final class CodeGen: TIR.Visitor {
     public override func visitStructValue(
         _ instruction: TIR.StructValue, additional: Any? = nil
     ) -> Any? {
-        guard let builder else { return nil }
+        guard let builder else {
+            return nil
+        }
         let structType = lowerType(instruction.result.ty)
         let slot = builder.buildAlloca(structType, name: instruction.result.name)
         for (index, field) in instruction.fields.enumerated() {
-            guard let fieldValue = value(field) else { continue }
+            guard let fieldValue = value(field) else {
+                continue
+            }
             let fieldPointer = builder.buildStructGEP(structType, slot, index: UInt32(index))
             builder.buildStore(fieldValue, to: fieldPointer)
         }
@@ -671,11 +729,15 @@ public final class CodeGen: TIR.Visitor {
     public override func visitTupleValue(
         _ instruction: TIR.TupleValue, additional: Any? = nil
     ) -> Any? {
-        guard let builder else { return nil }
+        guard let builder else {
+            return nil
+        }
         let tupleType = lowerType(instruction.result.ty)
         let slot = builder.buildAlloca(tupleType, name: instruction.result.name)
         for (index, element) in instruction.elements.enumerated() {
-            guard let elementValue = value(element) else { continue }
+            guard let elementValue = value(element) else {
+                continue
+            }
             let elementPointer = builder.buildStructGEP(tupleType, slot, index: UInt32(index))
             builder.buildStore(elementValue, to: elementPointer)
         }
@@ -687,7 +749,9 @@ public final class CodeGen: TIR.Visitor {
         _ instruction: TIR.EnumValue, additional: Any? = nil
     ) -> Any? {
         guard let builder, let enumType = registry?.type(instruction.result.ty) as? TIRType.EnumType
-        else { return nil }
+        else {
+            return nil
+        }
         let discriminant = discriminantType(enumType)
         if enumHasPayload(enumType) {
             let structType = lowerType(enumType.id)
@@ -716,7 +780,9 @@ public final class CodeGen: TIR.Visitor {
     public override func visitUnaryArith(
         _ instruction: TIR.UnaryArith, additional: Any? = nil
     ) -> Any? {
-        guard let builder, let operand = value(instruction.operand) else { return nil }
+        guard let builder, let operand = value(instruction.operand) else {
+            return nil
+        }
         let kind = (registry?.type(instruction.operand.ty) as? TIRType.PrimitiveType)?.kind
         let built: LLVMSwiftBinding.Value? = switch instruction.op {
         case .Neg:
@@ -740,7 +806,9 @@ public final class CodeGen: TIR.Visitor {
         guard let builder,
               let lhs = value(instruction.lhs),
               let rhs = value(instruction.rhs)
-        else { return nil }
+        else {
+            return nil
+        }
         let kind = (registry?.type(instruction.lhs.ty) as? TIRType.PrimitiveType)?.kind
         let built: LLVMSwiftBinding.Value? = switch instruction.op {
         case .Add:
@@ -797,7 +865,9 @@ public final class CodeGen: TIR.Visitor {
         rhs: LLVMSwiftBinding.Value, kind: TIRType.PrimitiveKind?,
         predicate: LLVMSwiftBinding.IntPredicate?
     ) -> LLVMSwiftBinding.Value? {
-        guard let builder else { return nil }
+        guard let builder else {
+            return nil
+        }
         switch kind {
         case .Float:
             return builder.buildFCmp(realPredicate(for: instruction.op), lhs, rhs)
@@ -855,7 +925,9 @@ public final class CodeGen: TIR.Visitor {
     public override func visitCall(_ instruction: TIR.Call, additional: Any? = nil) -> Any? {
         guard let builder,
               let callee = value(instruction.callee)
-        else { return nil }
+        else {
+            return nil
+        }
         if let functionReference = instruction.callee as? TIR.FunctionRef,
            let tirFunction = registry?.functions[functionReference.functionId],
            let builtinOp = builtinArithOp(from: tirFunction.name)
@@ -864,7 +936,9 @@ public final class CodeGen: TIR.Visitor {
             return nil
         }
         guard let functionType = lowerType(instruction.callee.ty) as? LLVMSwiftBinding.FunctionType
-        else { return nil }
+        else {
+            return nil
+        }
         let arguments = instruction.arguments.compactMap { value($0) }
         let call = builder.buildCall(callee, type: functionType, arguments, name: "")
         if let result = instruction.result {
@@ -874,11 +948,15 @@ public final class CodeGen: TIR.Visitor {
     }
 
     private func builtinArithOp(from name: String) -> TIR.ArithOp? {
-        guard name.hasPrefix("builtin_") else { return nil }
+        guard name.hasPrefix("builtin_") else {
+            return nil
+        }
         let rest = String(name.dropFirst("builtin_".count))
         guard
             let opName = rest.split(separator: "_", maxSplits: 1, omittingEmptySubsequences: true).first
-        else { return nil }
+        else {
+            return nil
+        }
         switch opName {
         case "add":
             return .Add
@@ -927,7 +1005,9 @@ public final class CodeGen: TIR.Visitor {
         if op.isUnary {
             guard let argument = instruction.arguments.first,
                   let operand = value(argument)
-            else { return }
+            else {
+                return
+            }
             let kind = (registry?.type(argument.ty) as? TIRType.PrimitiveType)?.kind
             let built = emitBuiltinUnary(op: op, operand: operand, kind: kind)
             if let built, let result = instruction.result {
@@ -938,7 +1018,9 @@ public final class CodeGen: TIR.Visitor {
         guard let lhs = instruction.arguments.first,
               let rhs = instruction.arguments.dropFirst().first,
               let lhsValue = value(lhs), let rhsValue = value(rhs)
-        else { return }
+        else {
+            return
+        }
         let kind = (registry?.type(lhs.ty) as? TIRType.PrimitiveType)?.kind
         let built: LLVMSwiftBinding.Value? = if op.isCompare {
             emitBuiltinCompare(op: op, lhs: lhsValue, rhs: rhsValue, kind: kind)
@@ -953,7 +1035,9 @@ public final class CodeGen: TIR.Visitor {
     private func emitBuiltinUnary(
         op: TIR.ArithOp, operand: LLVMSwiftBinding.Value, kind: TIRType.PrimitiveKind?
     ) -> LLVMSwiftBinding.Value? {
-        guard let builder else { return nil }
+        guard let builder else {
+            return nil
+        }
         switch op {
         case .Neg:
             return kind == .Float ? builder.buildFNeg(operand) : builder.buildNeg(operand)
@@ -968,7 +1052,9 @@ public final class CodeGen: TIR.Visitor {
         op: TIR.ArithOp, lhs: LLVMSwiftBinding.Value,
         rhs: LLVMSwiftBinding.Value, kind: TIRType.PrimitiveKind?
     ) -> LLVMSwiftBinding.Value? {
-        guard let builder else { return nil }
+        guard let builder else {
+            return nil
+        }
         switch op {
         case .Add:
             return kind == .Float ? builder.buildFAdd(lhs, rhs) : builder.buildAdd(lhs, rhs)
@@ -1003,7 +1089,9 @@ public final class CodeGen: TIR.Visitor {
         op: TIR.ArithOp, lhs: LLVMSwiftBinding.Value,
         rhs: LLVMSwiftBinding.Value, kind: TIRType.PrimitiveKind?
     ) -> LLVMSwiftBinding.Value? {
-        guard let builder else { return nil }
+        guard let builder else {
+            return nil
+        }
         switch kind {
         case .Float:
             return builder.buildFCmp(realPredicate(for: op), lhs, rhs)
@@ -1152,7 +1240,9 @@ public final class CodeGen: TIR.Visitor {
     public override func visitInlineAsm(
         _ instruction: TIR.InlineAsm, additional: Any? = nil
     ) -> Any? {
-        guard let builder else { return nil }
+        guard let builder else {
+            return nil
+        }
         let operandValues = instruction.operands.compactMap { value($0) }
         let operandTypes = instruction.operands.compactMap { lowerType($0.ty) }
         let functionType = llvmContext.functionType(

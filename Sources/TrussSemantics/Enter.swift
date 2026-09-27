@@ -254,7 +254,11 @@ public final class Enter: AST.Visitor {
             symbol.isMutable = false
         }
         symbol.isAbstract = containsAbstract(variableDecl.modifiers)
-        symbol.isFinal = variableDecl.modifiers.contains { if case .Final = $0.kind { true } else { false } }
+        symbol.isFinal = variableDecl.modifiers.contains { if case .Final = $0.kind {
+            true
+        } else {
+            false
+        } }
         registerValueSymbol(symbol, at: variableDecl.name)
         variableDecl.symbol = symbol
         let isStatic = containsStatic(variableDecl.modifiers)
@@ -472,11 +476,19 @@ public final class Enter: AST.Visitor {
     }
 
     private func containsAbstract(_ modifiers: [AST.Modifier]) -> Bool {
-        modifiers.contains { if case .Abstract = $0.kind { true } else { false } }
+        modifiers.contains { if case .Abstract = $0.kind {
+            true
+        } else {
+            false
+        } }
     }
 
     private func containsStatic(_ modifiers: [AST.Modifier]) -> Bool {
-        modifiers.contains { if case .Static = $0.kind { true } else { false } }
+        modifiers.contains { if case .Static = $0.kind {
+            true
+        } else {
+            false
+        } }
     }
 
     private var isMemberImplementation: Bool {
@@ -507,7 +519,11 @@ public final class Enter: AST.Visitor {
     ) {
         AccessExtractor.apply(to: symbol, modifiers: modifiers, context: context)
         symbol.isAbstract = containsAbstract(modifiers)
-        symbol.isFinal = modifiers.contains { if case .Final = $0.kind { true } else { false } }
+        symbol.isFinal = modifiers.contains { if case .Final = $0.kind {
+            true
+        } else {
+            false
+        } }
         registerValueSymbol(symbol, at: token)
     }
 
@@ -523,7 +539,9 @@ public final class Enter: AST.Visitor {
     }
 
     private func registerGenericParams(_ genericDecl: AST.GenericDecl?, into scope: Scope) {
-        guard let genericDecl else { return }
+        guard let genericDecl else {
+            return
+        }
         for param in genericDecl.generics {
             let symbol = Symbol.GenericParamSymbol(
                 id: context.nextSymbolId, name: param.name.value

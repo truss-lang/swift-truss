@@ -64,10 +64,14 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
             let rewritten = super.visitSequential(
                 sequentialExpression, additional: additional
             ) as? AST.Sequential
-        else { return nil }
+        else {
+            return nil
+        }
         let ops = rewritten.ops
         let operands = rewritten.operands
-        guard operands.count == ops.count + 1, operands.count >= 2 else { return rewritten }
+        guard operands.count == ops.count + 1, operands.count >= 2 else {
+            return rewritten
+        }
         var tree = operands[0]
         for index in 0 ..< ops.count {
             tree = AST.Binary(

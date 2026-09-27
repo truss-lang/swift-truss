@@ -12,7 +12,9 @@ final class VTableCollector {
 
     func collect() {
         for (_, entry) in context.typeTable {
-            guard let classType = entry as? TrussType.ClassType else { continue }
+            guard let classType = entry as? TrussType.ClassType else {
+                continue
+            }
             fill(classType)
         }
     }
@@ -58,7 +60,9 @@ final class VTableCollector {
     private func register(
         _ function: Symbol.FunctionSymbol, metadataId: Id.TIRMetadataId, record: TIR.MetadataRecord
     ) {
-        guard let tirFunction = gen.functionsBySymbol[function.id] else { return }
+        guard let tirFunction = gen.functionsBySymbol[function.id] else {
+            return
+        }
         let signature = methodSignature(function)
         if let index = record.vtable.firstIndex(where: {
             $0.name == function.name && $0.signature == signature

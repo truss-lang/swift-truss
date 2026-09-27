@@ -115,7 +115,9 @@ import TrussTIRGen
     private func slotIndex(of name: String, in vtableLine: String) -> Int? {
         for entry in vtableLine.components(separatedBy: ", ") {
             let parts = entry.components(separatedBy: ": ")
-            guard parts.count == 2, parts[1].hasPrefix(name) else { continue }
+            guard parts.count == 2, parts[1].hasPrefix(name) else {
+                continue
+            }
             return Int(parts[0].components(separatedBy: " ").last ?? "")
         }
         return nil

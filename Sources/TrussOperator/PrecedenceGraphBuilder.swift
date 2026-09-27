@@ -63,12 +63,16 @@ public final class PrecedenceGraphBuilder {
     private func reportCycles(in graph: UnweightedGraph<PrecedenceGroupInfo>) {
         var reported: Set<[ObjectIdentifier]> = []
         for cycle in graph.detectCycles() {
-            if cycle.count == 2, cycle[0] === cycle[1] { continue }
+            if cycle.count == 2, cycle[0] === cycle[1] {
+                continue
+            }
             if cycle.count == 3, cycle[0] === cycle[2], isContradiction(cycle[0], cycle[1]) {
                 continue
             }
             let ids = cycle.map { ObjectIdentifier($0) }
-            if !reported.insert(ids).inserted { continue }
+            if !reported.insert(ids).inserted {
+                continue
+            }
             let names = cycle.map { qualifiedName($0) }
             context.emitError(
                 "cyclic dependency between precedence groups: "
@@ -87,7 +91,9 @@ public final class PrecedenceGraphBuilder {
     }
 
     private func cycleNote(for group: PrecedenceGroupInfo) -> Diagnostic? {
-        guard let source = context.sourceTable[group.name.id] else { return nil }
+        guard let source = context.sourceTable[group.name.id] else {
+            return nil
+        }
         return Diagnostic(
             severity: .note,
             message: "precedence group '\(qualifiedName(group))' participates in this cycle",

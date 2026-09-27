@@ -39,7 +39,9 @@ public extension Scope {
             }
             if let variable = symbol as? Symbol.VariableSymbol, isFunctionScoped(variable.kind),
                existing.allSatisfy({
-                   guard let existingVariable = $0 as? Symbol.VariableSymbol else { return false }
+                   guard let existingVariable = $0 as? Symbol.VariableSymbol else {
+                       return false
+                   }
                    return isFunctionScoped(existingVariable.kind)
                })
             {

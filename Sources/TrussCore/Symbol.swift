@@ -213,7 +213,9 @@ public enum Symbol {
         }
 
         public func dump(_ program: AST.Program) -> String {
-            guard let packageSymbol = program.packageSymbol else { return "" }
+            guard let packageSymbol = program.packageSymbol else {
+                return ""
+            }
             var out = "\(packageSymbol.name) (package) #\(packageSymbol.id.id)\n"
             dumpScope(packageSymbol.scope, into: &out, indent: 2, program: program)
             return out
@@ -349,7 +351,9 @@ public enum Symbol {
                     }
                 }
             case let functionDecl as AST.FunctionDecl:
-                guard functionDecl.symbol?.id == function.id else { return nil }
+                guard functionDecl.symbol?.id == function.id else {
+                    return nil
+                }
                 switch functionDecl.body {
                 case let .Block(statements):
                     return statements
@@ -357,7 +361,9 @@ public enum Symbol {
                     return nil
                 }
             case let initDecl as AST.InitDecl:
-                guard initDecl.symbol?.id == function.id else { return nil }
+                guard initDecl.symbol?.id == function.id else {
+                    return nil
+                }
                 return initDecl.body
             default:
                 break
@@ -460,13 +466,17 @@ public enum Symbol {
         }
 
         private func conformsText(_ symbol: NominalTypeSymbol) -> String {
-            if symbol.conformances.isEmpty { return "" }
+            if symbol.conformances.isEmpty {
+                return ""
+            }
             return " conforms:"
                 + symbol.conformances.map { "\($0.name)#\($0.id.id)" }.joined(separator: ", ")
         }
 
         private func superText(_ symbol: ClassSymbol) -> String {
-            guard let superclass = symbol.superclass else { return "" }
+            guard let superclass = symbol.superclass else {
+                return ""
+            }
             return " super:\(superclass.name)#\(superclass.id.id)"
         }
 
@@ -476,15 +486,21 @@ public enum Symbol {
             let hasDefaults = symbol.signature.hasDefaults
             let isVararg = symbol.signature.isVararg
             for (index, label) in labels.enumerated() {
-                if index > 0 { text += ", " }
+                if index > 0 {
+                    text += ", "
+                }
                 if let label {
                     text += label
                 } else {
                     text += "_"
                 }
                 text += ":"
-                if index < hasDefaults.count, hasDefaults[index] { text += " =" }
-                if index < isVararg.count, isVararg[index] { text += " ..." }
+                if index < hasDefaults.count, hasDefaults[index] {
+                    text += " ="
+                }
+                if index < isVararg.count, isVararg[index] {
+                    text += " ..."
+                }
             }
             text += ")"
             return text
