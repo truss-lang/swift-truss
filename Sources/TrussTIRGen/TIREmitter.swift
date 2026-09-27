@@ -9,9 +9,15 @@ public final class TIREmitter: AST.Visitor {
 
     private class LabelTarget {
         let block: TIR.BasicBlock
-        public init(block: TIR.BasicBlock) {
+        init(block: TIR.BasicBlock) {
             self.block = block
         }
+    }
+
+    private class LoopTarget {
+        var condBlock: TIR.BasicBlock?
+        var nextBlock: TIR.BasicBlock?
+        init() {}
     }
 
     private let context: Context
@@ -20,6 +26,10 @@ public final class TIREmitter: AST.Visitor {
     private var variableMap: [ObjectIdentifier: [String: Int]] = [:]
     private var localVariableMap: [[String: TIR.Value]] = []
     private var labelMap: [String: LabelTarget] = [:]
+    private var loopLabelMap: [ObjectIdentifier: [String]] = [:]
+    private var loopTargetMap: [String: LoopTarget] = [:]
+    private var loopTargetCache: [ObjectIdentifier: LoopTarget] = [:]
+    private var loopStack: [LoopTarget] = []
 
     private var currentModule: TIR.Module? {
         get {
@@ -50,7 +60,14 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitEnumDecl(_ enumDecl: AST.EnumDecl, additional: Any? = nil) -> Any? {
+    public override func visitAssociatedTypeDecl(
+        _ associatedTypeDecl: AST.AssociatedTypeDecl, additional: Any? = nil
+    ) -> Any? {
+        nil
+    }
+
+    @discardableResult
+    public override func visitEnumCaseDecl(_ enumCaseDecl: AST.EnumCaseDecl, additional: Any? = nil) -> Any? {
         // TODO:
         nil
     }
@@ -65,10 +82,15 @@ public final class TIREmitter: AST.Visitor {
         guard let body = functionDecl.body else {
             return nil
         }
+        let parameterStartIndex = if symbol.kind != .Function, symbol.kind != .StaticMethod {
+            1
+        } else {
+            0
+        }
         emitFunctionBody(
             fn: fn,
             parameters: functionDecl.parameters,
-            parameterStartIndex: 0
+            parameterStartIndex: parameterStartIndex
         ) {
             switch body {
             case let .Block(statements):
@@ -96,10 +118,66 @@ public final class TIREmitter: AST.Visitor {
         emitFunctionBody(
             fn: fn,
             parameters: initDecl.parameters,
-            parameterStartIndex: 1,
+            parameterStartIndex: 1
         ) {
             for statement in initDecl.body {
                 visit(statement)
+            }
+        } prologue: { [self] in
+            bindLocal("<self>", fn.parameters[0])
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil) -> Any? {
+        guard let symbol = deinitDecl.symbol,
+              let fn = gen.functionsBySymbol[symbol.id]
+        else {
+            fatalError("unreachable")
+        }
+        emitFunctionBody(
+            fn: fn,
+            parameters: [],
+            parameterStartIndex: 1
+        ) {
+            for statement in deinitDecl.body {
+                visit(statement)
+            }
+        } prologue: { [self] in
+            bindLocal("<self>", fn.parameters[0])
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitSubscriptDecl(_ subscriptDecl: AST.SubscriptDecl, additional: Any? = nil) -> Any? {
+        for accessor in subscriptDecl.accessors {
+            visitAccessor(accessor, additional: additional)
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitAccessor(_ accessor: AST.Accessor, additional: Any? = nil) -> Any? {
+        guard let symbol = accessor.symbol,
+              let fn = gen.functionsBySymbol[symbol.id]
+        else {
+            fatalError("unreachable")
+        }
+        // TODO: bind newValue/oldValue
+        emitFunctionBody(
+            fn: fn,
+            parameters: [],
+            parameterStartIndex: 1
+        ) {
+            switch accessor.body {
+            case let .Block(statements):
+                for statement in statements {
+                    visit(statement)
+                }
+            case let .Expression(expression):
+                emitReturn(visitExpression(expression))
             }
         } prologue: { [self] in
             bindLocal("<self>", fn.parameters[0])
@@ -116,7 +194,15 @@ public final class TIREmitter: AST.Visitor {
     ) {
         let lastFunction = currentFunction
         let lastLabelMap = labelMap
+        let lastLoopLabelMap = loopLabelMap
+        let lastLoopTargetMap = loopTargetMap
+        let lastLoopTargetCache = loopTargetCache
+        let lastLoopStack = loopStack
         labelMap = [:]
+        loopLabelMap = [:]
+        loopTargetMap = [:]
+        loopTargetCache = [:]
+        loopStack = []
 
         currentFunction = fn
         variableMap[ObjectIdentifier(fn)] = [:]
@@ -142,6 +228,10 @@ public final class TIREmitter: AST.Visitor {
 
         currentFunction = lastFunction
         labelMap = lastLabelMap
+        loopLabelMap = lastLoopLabelMap
+        loopTargetMap = lastLoopTargetMap
+        loopTargetCache = lastLoopTargetCache
+        loopStack = lastLoopStack
         variableMap.removeValue(forKey: ObjectIdentifier(fn))
         popScope()
     }
@@ -208,6 +298,9 @@ public final class TIREmitter: AST.Visitor {
         default:
             break
         }
+        for accessor in variableDecl.accessors {
+            visitAccessor(accessor, additional: additional)
+        }
         return nil
     }
 
@@ -216,9 +309,19 @@ public final class TIREmitter: AST.Visitor {
         guard let builder else {
             fatalError("unreachable")
         }
+        let loopTarget: LoopTarget = if let labels = loopLabelMap[ObjectIdentifier(loopStatement)],
+                                        let first = labels.first,
+                                        let target = loopTargetMap[first]
+        {
+            target
+        } else {
+            LoopTarget()
+        }
+        loopStack.append(loopTarget)
         pushScope()
         let block = buildBlock()
         let nextBlock = buildBlock()
+        loopTarget.nextBlock = nextBlock
 
         builder.buildBranch(to: block)
 
@@ -230,6 +333,7 @@ public final class TIREmitter: AST.Visitor {
 
         builder.insertPoint = nextBlock
         popScope()
+        loopStack.removeLast()
         return nil
     }
 
@@ -238,10 +342,21 @@ public final class TIREmitter: AST.Visitor {
         guard let builder else {
             fatalError("unreachable")
         }
+        let loopTarget: LoopTarget = if let labels = loopLabelMap[ObjectIdentifier(whileStatement)],
+                                        let first = labels.first,
+                                        let target = loopTargetMap[first]
+        {
+            target
+        } else {
+            LoopTarget()
+        }
+        loopStack.append(loopTarget)
         pushScope()
         let condBlock = buildBlock()
         let thenBlock = buildBlock()
         let nextBlock = buildBlock()
+        loopTarget.condBlock = condBlock
+        loopTarget.nextBlock = nextBlock
 
         builder.buildBranch(to: condBlock)
 
@@ -257,6 +372,7 @@ public final class TIREmitter: AST.Visitor {
 
         builder.insertPoint = nextBlock
         popScope()
+        loopStack.removeLast()
         return nil
     }
 
@@ -265,9 +381,21 @@ public final class TIREmitter: AST.Visitor {
         guard let builder else {
             fatalError("unreachable")
         }
+        let loopTarget: LoopTarget = if let labels = loopLabelMap[ObjectIdentifier(repeatWhile)],
+                                        let first = labels.first,
+                                        let target = loopTargetMap[first]
+        {
+            target
+        } else {
+            LoopTarget()
+        }
+        loopStack.append(loopTarget)
         pushScope()
         let bodyBlock = buildBlock()
+        let condBlock = buildBlock()
         let nextBlock = buildBlock()
+        loopTarget.condBlock = condBlock
+        loopTarget.nextBlock = nextBlock
 
         builder.buildBranch(to: bodyBlock)
 
@@ -275,11 +403,14 @@ public final class TIREmitter: AST.Visitor {
         for statement in repeatWhile.body {
             visit(statement)
         }
+        builder.buildBranch(to: condBlock)
+        builder.insertPoint = condBlock
         let cond = visitExpression(repeatWhile.condition)
         builder.buildConditionalBranch(condition: cond, trueBranch: bodyBlock, falseBranch: nextBlock)
 
         builder.insertPoint = nextBlock
         popScope()
+        loopStack.removeLast()
         return nil
     }
 
@@ -294,20 +425,84 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitBreak(_ breakStatement: AST.Break, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let target = if let label = breakStatement.label?.value {
+            loopTargetMap[label]!
+        } else {
+            loopStack.last!
+        }
+        builder.buildBranch(to: target.nextBlock!)
+        return nil
+    }
+
+    public override func visitContinue(_ continueStatement: AST.Continue, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let target = if let label = continueStatement.label?.value {
+            loopTargetMap[label]!
+        } else {
+            loopStack.last!
+        }
+        builder.buildBranch(to: target.condBlock!)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitGuard(_ guardStatement: AST.Guard, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let falseBlock = buildBlock()
+        let trueBlock = buildBlock()
+        let cond = visitExpression(guardStatement.condition)
+        builder.buildConditionalBranch(condition: cond, trueBranch: trueBlock, falseBranch: falseBlock)
+        builder.insertPoint = falseBlock
+        for statement in guardStatement.body {
+            visit(statement, additional: additional)
+        }
+        builder.insertPoint = trueBlock
+        return nil
+    }
+
+    @discardableResult
     public override func visitLabeledStatement(
-        _ labeledStatement: AST.LabeledStatement, additional: Any? = nil
+        _ labeledStatement: AST.LabeledStatement,
+        additional: Any? = nil
     ) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
-        let target = getLabelTarget(labeledStatement.label.value)
+        let label = labeledStatement.label.value
+        let target = getLabelTarget(label)
         builder.insertPoint = target.block
+        var body = labeledStatement.body
+        if let labeled = body as? AST.LabeledStatement,
+           let inner = labeled.innerLoop
+        {
+            body = inner
+        }
+        if body.isLoop {
+            let key = ObjectIdentifier(body)
+            loopLabelMap[key, default: []].append(label)
+            if let loopTarget = loopTargetCache[key] {
+                loopTargetMap[label] = loopTarget
+            } else {
+                let loopTarget = LoopTarget()
+                loopTargetMap[label] = loopTarget
+                loopTargetCache[key] = loopTarget
+            }
+        }
         return visit(labeledStatement.body, additional: additional)
     }
 
     @discardableResult
     public override func visitExpressionStatement(
-        _ expressionStatement: AST.ExpressionStatement, additional: Any? = nil
+        _ expressionStatement: AST.ExpressionStatement,
+        additional: Any? = nil
     ) -> Any? {
         visit(expressionStatement.expression, additional: additional)
     }
@@ -319,7 +514,8 @@ public final class TIREmitter: AST.Visitor {
 
     @discardableResult
     public override func visitErrorExpressionStatement(
-        _ errorStatement: AST.ErrorExpressionStatement, additional: Any? = nil
+        _ errorStatement: AST.ErrorExpressionStatement,
+        additional: Any? = nil
     ) -> Any? {
         nil
     }
@@ -331,15 +527,14 @@ public final class TIREmitter: AST.Visitor {
 
     @discardableResult
     public override func visitParenthetical(
-        _ parentheticalExpression: AST.Parenthetical, additional: Any? = nil
+        _ parentheticalExpression: AST.Parenthetical,
+        additional: Any? = nil
     ) -> Any? {
         visit(parentheticalExpression.inner)
     }
 
     @discardableResult
-    public override func visitIntegerLiteral(
-        _ integerLiteral: AST.IntegerLiteral, additional: Any? = nil
-    ) -> Any? {
+    public override func visitIntegerLiteral(_ integerLiteral: AST.IntegerLiteral, additional: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -351,9 +546,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitFloatLiteral(
-        _ floatLiteral: AST.FloatLiteral, additional: Any? = nil
-    ) -> Any? {
+    public override func visitFloatLiteral(_ floatLiteral: AST.FloatLiteral, additional: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -362,9 +555,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitBoolLiteral(
-        _ boolLiteral: AST.BoolLiteral, additional: Any? = nil
-    ) -> Any? {
+    public override func visitBoolLiteral(_ boolLiteral: AST.BoolLiteral, additional: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -373,9 +564,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitCharLiteral(
-        _ charLiteral: AST.CharLiteral, additional: Any? = nil
-    ) -> Any? {
+    public override func visitCharLiteral(_ charLiteral: AST.CharLiteral, additional: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -384,9 +573,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitStringLiteral(
-        _ stringLiteral: AST.StringLiteral, additional: Any? = nil
-    ) -> Any? {
+    public override func visitStringLiteral(_ stringLiteral: AST.StringLiteral, additional: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -395,9 +582,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitNullptrLiteral(
-        _ nullPointerLiteral: AST.NullptrLiteral, additional: Any? = nil
-    ) -> Any? {
+    public override func visitNullptrLiteral(_ nullPointerLiteral: AST.NullptrLiteral, additional: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -406,9 +591,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitNullLiteral(
-        _ nullLiteral: AST.NullLiteral, additional: Any? = nil
-    ) -> Any? {
+    public override func visitNullLiteral(_ nullLiteral: AST.NullLiteral, additional: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -417,10 +600,10 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitVoidLiteral(
-        _ voidLiteral: AST.VoidLiteral, additional: Any? = nil
-    ) -> Any? {
-        guard let builder else { return nil }
+    public override func visitVoidLiteral(_ voidLiteral: AST.VoidLiteral, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            return nil
+        }
         return builder.buildVoidLiteral(ty: lowerType(voidLiteral.ty).id)
     }
 
@@ -522,7 +705,8 @@ public final class TIREmitter: AST.Visitor {
                         )
                     } else {
                         let callee = functionValue(
-                            of: getter, obj: selfValue,
+                            of: getter,
+                            obj: selfValue,
                             sourceRange: variable.sourceRange
                         )
                         return builder.buildCall(
@@ -531,9 +715,7 @@ public final class TIREmitter: AST.Visitor {
                         ).result
                     }
                 } else {
-                    let slot = propertyValue(
-                        of: variableSymbol, obj: selfValue, sourceRange: variable.sourceRange
-                    )
+                    let slot = propertyValue(of: variableSymbol, obj: selfValue, sourceRange: variable.sourceRange)
                     if variable.isLeftValue {
                         return slot
                     }
@@ -595,9 +777,7 @@ public final class TIREmitter: AST.Visitor {
                 addr = builder.buildGlobalAddr(global: gen.globalsBySymbol[variableSymbol.id]!)
             case .Property:
                 let v = visitExpression(memberAccess.object)
-                let obj = builder.buildAllocStack(
-                    allocatedType: lowerType(memberAccess.object.ty!).id
-                ).result
+                let obj = builder.buildAllocStack(allocatedType: lowerType(memberAccess.object.ty!).id).result
                 builder.buildStore(value: v, to: obj)
                 if let getter = variableSymbol.accessors[.Get] {
                     if memberAccess.isLeftValue {
@@ -616,7 +796,8 @@ public final class TIREmitter: AST.Visitor {
                         )
                     } else {
                         let callee = functionValue(
-                            of: getter, obj: obj,
+                            of: getter,
+                            obj: obj,
                             sourceRange: memberAccess.sourceRange
                         )
                         return builder.buildCall(
@@ -627,7 +808,8 @@ public final class TIREmitter: AST.Visitor {
 
                 } else {
                     let slot = propertyValue(
-                        of: variableSymbol, obj: obj,
+                        of: variableSymbol,
+                        obj: obj,
                         sourceRange: memberAccess.sourceRange
                     )
                     if memberAccess.isLeftValue {
@@ -729,7 +911,9 @@ public final class TIREmitter: AST.Visitor {
 
     @discardableResult
     public override func visitPrefix(_ prefix: AST.Prefix, additional: Any? = nil) -> Any? {
-        guard let builder, let symbol = prefix.symbol else { return nil }
+        guard let builder, let symbol = prefix.symbol else {
+            return nil
+        }
         if symbol.isBuiltin {
             if let arith = arithOp(named: builtinOpName(of: symbol)) {
                 let operand = visitExpression(prefix.expression)
@@ -743,7 +927,9 @@ public final class TIREmitter: AST.Visitor {
 
     @discardableResult
     public override func visitPostfix(_ postfix: AST.Postfix, additional: Any? = nil) -> Any? {
-        guard let builder, let symbol = postfix.symbol else { return nil }
+        guard let builder, let symbol = postfix.symbol else {
+            return nil
+        }
         let callee = functionRefValue(symbol, at: postfix.sourceRange)
         let operand = visitExpression(postfix.expression)
         return builder.buildCall(callee: callee, arguments: [operand]).result
@@ -835,7 +1021,9 @@ public final class TIREmitter: AST.Visitor {
     }
 
     private func functionRefValue(_ symbol: Symbol.FunctionSymbol, at range: SourceRange) -> TIR.FunctionRef {
-        guard let builder else { fatalError() }
+        guard let builder else {
+            fatalError()
+        }
         let function: TIR.Function
         if let existing = gen.functionsBySymbol[symbol.id] {
             function = existing
@@ -866,7 +1054,9 @@ public final class TIREmitter: AST.Visitor {
     }
 
     private func functionValue(
-        of symbol: Symbol.FunctionSymbol, obj: TIR.Value?, sourceRange: SourceRange
+        of symbol: Symbol.FunctionSymbol,
+        obj: TIR.Value?,
+        sourceRange: SourceRange
     ) -> TIR.Value {
         guard let builder else {
             fatalError("unreachable")
@@ -901,7 +1091,9 @@ public final class TIREmitter: AST.Visitor {
     }
 
     private func propertyValue(
-        of symbol: Symbol.VariableSymbol, obj: TIR.Value, sourceRange: SourceRange
+        of symbol: Symbol.VariableSymbol,
+        obj: TIR.Value,
+        sourceRange: SourceRange
     ) -> TIR.Value {
         guard let builder else {
             fatalError("unreachable")
@@ -947,9 +1139,15 @@ public final class TIREmitter: AST.Visitor {
         } else {
             nil
         }
-        guard let symbol, symbol.isBuiltin else { return nil }
-        guard let info = Builtin.builtinFunctionInfo(named: symbol.name) else { return nil }
-        guard let op = arithOp(named: info.opName) else { return nil }
+        guard let symbol, symbol.isBuiltin else {
+            return nil
+        }
+        guard let info = Builtin.builtinFunctionInfo(named: symbol.name) else {
+            return nil
+        }
+        guard let op = arithOp(named: info.opName) else {
+            return nil
+        }
         let arity = Builtin.unaryArithOpNames.contains(info.opName) ? 1 : 2
         return BuiltinArith(op: op, arity: arity)
     }
@@ -975,7 +1173,9 @@ public final class TIREmitter: AST.Visitor {
     }
 
     private func emitBuiltinArith(_ arith: BuiltinArith, arguments: [TIR.Value]) -> Any? {
-        guard let builder else { return nil }
+        guard let builder else {
+            return nil
+        }
         if arith.arity == 1, let operand = arguments.first {
             return builder.buildUnaryArith(op: arith.op, operand: operand).result
         }
