@@ -326,7 +326,6 @@ public final class Enter: AST.Visitor {
                 super.visitDeinitDecl(deinitDecl, additional: additional)
             }
         }
-        deinitDecl.scope = scope
         let symbol = Symbol.FunctionSymbol(
             id: context.nextSymbolId,
             name: "deinit",
@@ -338,6 +337,7 @@ public final class Enter: AST.Visitor {
             kind: .Deinitializer
         )
         registerMemberSymbol(symbol, at: deinitDecl.token, modifiers: deinitDecl.modifiers)
+        deinitDecl.symbol = symbol
         owner.deinitializer = symbol
         return nil
     }

@@ -638,7 +638,10 @@ public extension AST {
         public override func visitDeinitDecl(_ deinitDecl: DeinitDecl, additional: Any? = nil)
             -> Any?
         {
-            dumpNode(declText("DeinitDecl", deinitDecl), children: statementNodes(deinitDecl.body))
+            dumpNode(
+                declText("DeinitDecl", deinitDecl) + symText(deinitDecl.symbol),
+                children: statementNodes(deinitDecl.body)
+            )
             return nil
         }
 

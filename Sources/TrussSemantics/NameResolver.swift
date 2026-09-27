@@ -124,10 +124,7 @@ public final class NameResolver: AST.Visitor {
 
     @discardableResult
     public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil) -> Any? {
-        guard let scope = deinitDecl.scope else {
-            return super.visitDeinitDecl(deinitDecl, additional: additional)
-        }
-        enterCallableScope(scope)
+        enterCallableScope(deinitDecl.symbol!.scope)
         super.visitDeinitDecl(deinitDecl, additional: additional)
         exitCallableScope()
         return nil

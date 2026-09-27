@@ -263,7 +263,7 @@ public final class TypeChecker: AST.Visitor {
 
     @discardableResult
     public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil) -> Any? {
-        withScope(deinitDecl.scope) {
+        withScope(deinitDecl.symbol!.scope) {
             fillSelfType(of: typeStack.last?.deinitializer)
             super.visitDeinitDecl(deinitDecl, additional: additional)
         }

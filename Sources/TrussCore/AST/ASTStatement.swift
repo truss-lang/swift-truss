@@ -8,6 +8,10 @@ public extension AST {
         public override init(_ sourceRange: SourceRange) {
             super.init(sourceRange)
         }
+
+        public var isLoop: Bool {
+            (self is Loop) || (self is While) || (self is RepeatWhile) || (self is For)
+        }
     }
 
     @abstractClass
@@ -436,7 +440,7 @@ public extension AST {
     final class DeinitDecl: Decl {
         public let token: Token
         public let body: [Statement]
-        public var scope: Scope? = nil
+        public var symbol: Symbol.FunctionSymbol? = nil
         public init(
             _ modifiers: [AST.Modifier], _ attributes: [AST.Attribute], _ token: Token,
             _ body: [Statement], sourceRange: SourceRange
@@ -452,7 +456,7 @@ public extension AST {
 
         public override func copySemantics(from other: AST.AstNode) {
             if let otherDeinit = other as? AST.DeinitDecl {
-                scope = otherDeinit.scope
+                symbol = otherDeinit.symbol
             }
         }
     }
@@ -930,6 +934,16 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitLabeledStatement(self, additional: additional)
+        }
+
+        public var innerLoop: Statement? {
+            if body.isLoop {
+                body
+            } else if let labeled = body as? LabeledStatement {
+                labeled.innerLoop
+            } else {
+                nil
+            }
         }
     }
 
