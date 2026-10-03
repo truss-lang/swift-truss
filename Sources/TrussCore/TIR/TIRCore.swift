@@ -200,9 +200,9 @@ public enum TIR {
     public final class BasicBlock {
         public weak var function: Function?
         public let name: String
-        public let parameters: [Value]
+        public let parameters: [BlockArgument]
         public var instructions: [Instruction] = []
-        public init(function: Function, name: String, parameters: [Value] = []) {
+        public init(function: Function, name: String, parameters: [BlockArgument] = []) {
             self.function = function
             self.name = name
             self.parameters = parameters
@@ -261,6 +261,26 @@ public enum TIR {
             self.setter = setter
             self.willSetAccessor = willSetAccessor
             self.didSetAccessor = didSetAccessor
+            super.init(ty: ty, name: "")
+        }
+    }
+
+    public class SubscriptBinding: Value {
+        public let object: Value
+        public let arguments: [Value]
+        public let getter: Value
+        public let setter: Value
+        public init(
+            object: Value,
+            arguments: [Value],
+            getter: Value,
+            setter: Value,
+            ty: Id.TIRTypeId
+        ) {
+            self.object = object
+            self.arguments = arguments
+            self.getter = getter
+            self.setter = setter
             super.init(ty: ty, name: "")
         }
     }

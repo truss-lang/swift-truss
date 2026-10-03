@@ -55,25 +55,25 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitTypeAliasDecl(_ typeAliasDecl: AST.TypeAliasDecl, additional: Any? = nil) -> Any? {
+    public override func visitTypeAliasDecl(_: AST.TypeAliasDecl, additional _: Any? = nil) -> Any? {
         nil
     }
 
     @discardableResult
     public override func visitAssociatedTypeDecl(
-        _ associatedTypeDecl: AST.AssociatedTypeDecl, additional: Any? = nil
+        _: AST.AssociatedTypeDecl, additional _: Any? = nil
     ) -> Any? {
         nil
     }
 
     @discardableResult
-    public override func visitEnumCaseDecl(_ enumCaseDecl: AST.EnumCaseDecl, additional: Any? = nil) -> Any? {
+    public override func visitEnumCaseDecl(_: AST.EnumCaseDecl, additional _: Any? = nil) -> Any? {
         // TODO:
         nil
     }
 
     @discardableResult
-    public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil) -> Any? {
+    public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional _: Any? = nil) -> Any? {
         guard let symbol = functionDecl.symbol,
               let fn = gen.functionsBySymbol[symbol.id]
         else {
@@ -94,8 +94,9 @@ public final class TIREmitter: AST.Visitor {
         ) {
             switch body {
             case let .Block(statements):
-                for statement in statements {
-                    visit(statement)
+                let v = visitBlock(statements)
+                if let v {
+                    emitReturn(v)
                 }
             case let .Expression(expression):
                 emitReturn(visitExpression(expression))
@@ -109,7 +110,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil) -> Any? {
+    public override func visitInitDecl(_ initDecl: AST.InitDecl, additional _: Any? = nil) -> Any? {
         guard let symbol = initDecl.symbol,
               let fn = gen.functionsBySymbol[symbol.id]
         else {
@@ -130,7 +131,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional: Any? = nil) -> Any? {
+    public override func visitDeinitDecl(_ deinitDecl: AST.DeinitDecl, additional _: Any? = nil) -> Any? {
         guard let symbol = deinitDecl.symbol,
               let fn = gen.functionsBySymbol[symbol.id]
         else {
@@ -159,7 +160,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitAccessor(_ accessor: AST.Accessor, additional: Any? = nil) -> Any? {
+    public override func visitAccessor(_ accessor: AST.Accessor, additional _: Any? = nil) -> Any? {
         guard let symbol = accessor.symbol,
               let fn = gen.functionsBySymbol[symbol.id]
         else {
@@ -237,7 +238,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitReturn(_ ret: AST.Return, additional: Any? = nil) -> Any? {
+    public override func visitReturn(_ ret: AST.Return, additional _: Any? = nil) -> Any? {
         if let v = ret.value {
             emitReturn(visitExpression(v))
         } else {
@@ -305,7 +306,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitLoop(_ loopStatement: AST.Loop, additional: Any? = nil) -> Any? {
+    public override func visitLoop(_ loopStatement: AST.Loop, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -338,7 +339,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitWhile(_ whileStatement: AST.While, additional: Any? = nil) -> Any? {
+    public override func visitWhile(_ whileStatement: AST.While, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -377,7 +378,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitRepeatWhile(_ repeatWhile: AST.RepeatWhile, additional: Any? = nil) -> Any? {
+    public override func visitRepeatWhile(_ repeatWhile: AST.RepeatWhile, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -415,7 +416,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitGoto(_ gotoStatement: AST.Goto, additional: Any? = nil) -> Any? {
+    public override func visitGoto(_ gotoStatement: AST.Goto, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -425,7 +426,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitBreak(_ breakStatement: AST.Break, additional: Any? = nil) -> Any? {
+    public override func visitBreak(_ breakStatement: AST.Break, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -438,7 +439,7 @@ public final class TIREmitter: AST.Visitor {
         return nil
     }
 
-    public override func visitContinue(_ continueStatement: AST.Continue, additional: Any? = nil) -> Any? {
+    public override func visitContinue(_ continueStatement: AST.Continue, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -508,33 +509,33 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitEmptyStatement(_ emptyStatement: AST.EmptyStatement, additional: Any? = nil) -> Any? {
+    public override func visitEmptyStatement(_: AST.EmptyStatement, additional _: Any? = nil) -> Any? {
         nil
     }
 
     @discardableResult
     public override func visitErrorExpressionStatement(
-        _ errorStatement: AST.ErrorExpressionStatement,
-        additional: Any? = nil
+        _: AST.ErrorExpressionStatement,
+        additional _: Any? = nil
     ) -> Any? {
         nil
     }
 
     @discardableResult
-    public override func visitErrorExpression(_ errorExpression: AST.ErrorExpression, additional: Any? = nil) -> Any? {
+    public override func visitErrorExpression(_: AST.ErrorExpression, additional _: Any? = nil) -> Any? {
         nil
     }
 
     @discardableResult
     public override func visitParenthetical(
         _ parentheticalExpression: AST.Parenthetical,
-        additional: Any? = nil
+        additional _: Any? = nil
     ) -> Any? {
         visit(parentheticalExpression.inner)
     }
 
     @discardableResult
-    public override func visitIntegerLiteral(_ integerLiteral: AST.IntegerLiteral, additional: Any? = nil) -> Any? {
+    public override func visitIntegerLiteral(_ integerLiteral: AST.IntegerLiteral, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -546,7 +547,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitFloatLiteral(_ floatLiteral: AST.FloatLiteral, additional: Any? = nil) -> Any? {
+    public override func visitFloatLiteral(_ floatLiteral: AST.FloatLiteral, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -555,7 +556,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitBoolLiteral(_ boolLiteral: AST.BoolLiteral, additional: Any? = nil) -> Any? {
+    public override func visitBoolLiteral(_ boolLiteral: AST.BoolLiteral, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -564,7 +565,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitCharLiteral(_ charLiteral: AST.CharLiteral, additional: Any? = nil) -> Any? {
+    public override func visitCharLiteral(_ charLiteral: AST.CharLiteral, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -573,7 +574,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitStringLiteral(_ stringLiteral: AST.StringLiteral, additional: Any? = nil) -> Any? {
+    public override func visitStringLiteral(_ stringLiteral: AST.StringLiteral, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -582,7 +583,10 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitNullptrLiteral(_ nullPointerLiteral: AST.NullptrLiteral, additional: Any? = nil) -> Any? {
+    public override func visitNullptrLiteral(
+        _ nullPointerLiteral: AST.NullptrLiteral,
+        additional _: Any? = nil
+    ) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -591,7 +595,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitNullLiteral(_ nullLiteral: AST.NullLiteral, additional: Any? = nil) -> Any? {
+    public override func visitNullLiteral(_ nullLiteral: AST.NullLiteral, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -600,7 +604,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitVoidLiteral(_ voidLiteral: AST.VoidLiteral, additional: Any? = nil) -> Any? {
+    public override func visitVoidLiteral(_ voidLiteral: AST.VoidLiteral, additional _: Any? = nil) -> Any? {
         guard let builder else {
             return nil
         }
@@ -608,7 +612,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitTuple(_ tuple: AST.Tuple, additional: Any? = nil) -> Any? {
+    public override func visitTuple(_ tuple: AST.Tuple, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -619,7 +623,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
+    public override func visitVariable(_ variable: AST.Variable, additional _: Any? = nil) -> Any? {
         guard let builder,
               let symbol = variable.symbol
         else {
@@ -689,6 +693,11 @@ public final class TIREmitter: AST.Visitor {
             case .Property:
                 let selfValue = getSelf()
                 if let getter = variableSymbol.accessors[.Get] {
+                    let getterValue = functionValue(
+                        of: getter,
+                        obj: selfValue,
+                        sourceRange: variable.sourceRange
+                    )
                     if variable.isLeftValue {
                         let setter = functionValue(
                             of: variableSymbol.accessors[.Set]!,
@@ -698,19 +707,14 @@ public final class TIREmitter: AST.Visitor {
                         return builder.buildPropertyBinding(
                             object: selfValue,
                             value: nil,
-                            getter: nil,
+                            getter: getterValue,
                             setter: setter,
                             willSetAccessor: nil,
                             didSetAccessor: nil
                         )
                     } else {
-                        let callee = functionValue(
-                            of: getter,
-                            obj: selfValue,
-                            sourceRange: variable.sourceRange
-                        )
                         return builder.buildCall(
-                            callee: callee,
+                            callee: getterValue,
                             arguments: [selfValue]
                         ).result
                     }
@@ -730,7 +734,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitMemberAccess(_ memberAccess: AST.MemberAccess, additional: Any? = nil) -> Any? {
+    public override func visitMemberAccess(_ memberAccess: AST.MemberAccess, additional _: Any? = nil) -> Any? {
         guard let builder, let symbol = memberAccess.symbol else {
             fatalError("unreachable")
         }
@@ -780,6 +784,11 @@ public final class TIREmitter: AST.Visitor {
                 let obj = builder.buildAllocStack(allocatedType: lowerType(memberAccess.object.ty!).id).result
                 builder.buildStore(value: v, to: obj)
                 if let getter = variableSymbol.accessors[.Get] {
+                    let getterValue = functionValue(
+                        of: getter,
+                        obj: obj,
+                        sourceRange: memberAccess.sourceRange
+                    )
                     if memberAccess.isLeftValue {
                         let setter = functionValue(
                             of: variableSymbol.accessors[.Set]!,
@@ -789,19 +798,14 @@ public final class TIREmitter: AST.Visitor {
                         return builder.buildPropertyBinding(
                             object: obj,
                             value: nil,
-                            getter: nil,
+                            getter: getterValue,
                             setter: setter,
                             willSetAccessor: nil,
                             didSetAccessor: nil
                         )
                     } else {
-                        let callee = functionValue(
-                            of: getter,
-                            obj: obj,
-                            sourceRange: memberAccess.sourceRange
-                        )
                         return builder.buildCall(
-                            callee: callee,
+                            callee: getterValue,
                             arguments: [obj]
                         ).result
                     }
@@ -842,7 +846,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitCall(_ call: AST.Call, additional: Any? = nil) -> Any? {
+    public override func visitCall(_ call: AST.Call, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -859,7 +863,9 @@ public final class TIREmitter: AST.Visitor {
             guard let ty = gen.registry.type(construction.objectTy) else {
                 fatalError()
             }
-            if ty is TIRType.ClassType {
+            if let inPlace = call.inPlace {
+                selfParameter = visitExpression(inPlace)
+            } else if ty is TIRType.ClassType {
                 let alloc = builder.buildAllocHeap(allocatedType: construction.objectTy)
                 selfParameter = alloc.result
             } else {
@@ -886,16 +892,19 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitBinary(_ binary: AST.Binary, additional: Any? = nil) -> Any? {
+    public override func visitBinary(_ binary: AST.Binary, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
         let left = visitExpression(binary.left)
         let right = visitExpression(binary.right)
         if binary.operatorToken.kind == .Operator(.Assign) {
-            if let propertyBinding = left as? TIR.PropertyBinding {
+            switch left {
+            case let propertyBinding as TIR.PropertyBinding:
                 builder.buildCall(callee: propertyBinding.setter!, arguments: [propertyBinding.object, right])
-            } else {
+            case let subscriptBinding as TIR.SubscriptBinding:
+                builder.buildCall(callee: subscriptBinding.setter, arguments: subscriptBinding.arguments + [right])
+            default:
                 builder.buildStore(value: right, to: left)
             }
             return right
@@ -910,7 +919,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitPrefix(_ prefix: AST.Prefix, additional: Any? = nil) -> Any? {
+    public override func visitPrefix(_ prefix: AST.Prefix, additional _: Any? = nil) -> Any? {
         guard let builder, let symbol = prefix.symbol else {
             return nil
         }
@@ -926,7 +935,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitPostfix(_ postfix: AST.Postfix, additional: Any? = nil) -> Any? {
+    public override func visitPostfix(_ postfix: AST.Postfix, additional _: Any? = nil) -> Any? {
         guard let builder, let symbol = postfix.symbol else {
             return nil
         }
@@ -936,7 +945,75 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitDereference(_ dereference: AST.Dereference, additional: Any? = nil) -> Any? {
+    public override func visitSubscript(_ subscriptExpr: AST.Subscript, additional _: Any? = nil) -> Any? {
+        guard let builder, let symbol = subscriptExpr.symbol else {
+            return nil
+        }
+        let obj = visitExpression(subscriptExpr.base)
+        let args = [obj] + subscriptExpr.arguments.map {
+            visitExpression($0.value)
+        }
+        if subscriptExpr.isLeftValue {
+            let getter = functionValue(of: symbol.getter, obj: obj, sourceRange: subscriptExpr.sourceRange)
+            let setter = functionValue(of: symbol.setter!, obj: obj, sourceRange: subscriptExpr.sourceRange)
+            return builder.buildSubscriptBinding(object: obj, arguments: args, getter: getter, setter: setter)
+        } else {
+            let getter = functionValue(of: symbol.getter, obj: obj, sourceRange: subscriptExpr.sourceRange)
+            return builder.buildCall(callee: getter, arguments: args)
+        }
+    }
+
+    @discardableResult
+    public override func visitIf(_ ifExpression: AST.If, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            return nil
+        }
+        let isVoid = ifExpression.ty is TrussType.VoidType
+        let thenBlock = buildBlock()
+        let elseBlock = ifExpression.elseKind != nil ? buildBlock() : nil
+        let resultBlock = buildBlock(parameters: isVoid ? [] : [("result", lowerType(ifExpression.ty).id)])
+        let cond = visitExpression(ifExpression.condition)
+        builder.buildConditionalBranch(
+            condition: cond,
+            trueBranch: thenBlock,
+            falseBranch: elseBlock ?? resultBlock
+        )
+        builder.insertPoint = thenBlock
+        let v = visitBlock(ifExpression.then)
+        if let v, isVoid {
+            builder.buildBranch(to: resultBlock, arguments: [v])
+        } else {
+            builder.buildBranch(to: resultBlock)
+        }
+
+        if let elseKind = ifExpression.elseKind {
+            builder.insertPoint = elseBlock
+            let v2 = switch elseKind {
+            case let .Block(statements):
+                visitBlock(statements)
+            case let .If(ifExpr):
+                visitIf(ifExpr, additional: additional) as? TIR.Value
+            }
+            if let v2, isVoid {
+                builder.buildBranch(to: resultBlock, arguments: [v2])
+            } else {
+                builder.buildBranch(to: resultBlock)
+            }
+        }
+
+        builder.insertPoint = resultBlock
+        for statement in ifExpression.then {
+            visit(statement, additional: additional)
+        }
+        return if isVoid {
+            nil
+        } else {
+            resultBlock.parameters[0]
+        }
+    }
+
+    @discardableResult
+    public override func visitDereference(_ dereference: AST.Dereference, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -955,7 +1032,7 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitSelfExpression(_ selfExpression: AST.SelfExpression, additional: Any? = nil) -> Any? {
+    public override func visitSelfExpression(_ selfExpression: AST.SelfExpression, additional _: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -969,7 +1046,10 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    public override func visitSuperExpression(_ superExpression: AST.SuperExpression, additional: Any? = nil) -> Any? {
+    public override func visitSuperExpression(
+        _ superExpression: AST.SuperExpression,
+        additional _: Any? = nil
+    ) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
@@ -983,22 +1063,45 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    private func newBlock(_ name: String? = nil) -> TIR.BasicBlock {
+    private func visitBlock(_ statements: [AST.Statement]) -> TIR.Value? {
+        for (index, statement) in statements.enumerated() {
+            if index == statements.count - 1,
+               let expressionStatement = statement as? AST.ExpressionStatement,
+               !(expressionStatement.expression.ty is TrussType.VoidType)
+            {
+                return visitExpression(expressionStatement.expression)
+            }
+            visit(statement)
+        }
+        return nil
+    }
+
+    @discardableResult
+    private func newBlock(
+        _ name: String? = nil,
+        parameters: [(name: String, ty: Id.TIRTypeId)] = []
+    ) -> TIR.BasicBlock {
         guard let builder else {
             fatalError("unreachable")
         }
-        let block = buildBlock(name)
+        let block = buildBlock(name, parameters: parameters)
         builder.insertPoint = block
         return block
     }
 
     @discardableResult
-    private func buildBlock(_ name: String? = nil) -> TIR.BasicBlock {
+    private func buildBlock(
+        _ name: String? = nil,
+        parameters: [(name: String, ty: Id.TIRTypeId)] = []
+    ) -> TIR.BasicBlock {
         guard let currentFunction else {
             fatalError("unreachable")
         }
         let blockName = name ?? "bb\(currentFunction.basicBlocks.count)"
-        return currentFunction.addBasicBlock(name: blockName)
+        return currentFunction.addBasicBlock(
+            name: blockName,
+            parameters: parameters
+        )
     }
 
     private func mangleVariable(_ name: String) -> String {
@@ -1020,7 +1123,7 @@ public final class TIREmitter: AST.Visitor {
         builder.buildReturn(value)
     }
 
-    private func functionRefValue(_ symbol: Symbol.FunctionSymbol, at range: SourceRange) -> TIR.FunctionRef {
+    private func functionRefValue(_ symbol: Symbol.FunctionSymbol, at _: SourceRange) -> TIR.FunctionRef {
         guard let builder else {
             fatalError()
         }
@@ -1093,7 +1196,7 @@ public final class TIREmitter: AST.Visitor {
     private func propertyValue(
         of symbol: Symbol.VariableSymbol,
         obj: TIR.Value,
-        sourceRange: SourceRange
+        sourceRange _: SourceRange
     ) -> TIR.Value {
         guard let builder else {
             fatalError("unreachable")
