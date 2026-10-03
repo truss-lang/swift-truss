@@ -890,7 +890,7 @@ public extension AST {
         public let base: Expression
         public let arguments: [LabeledArgument]
         public var overloads: [Symbol.SubscriptSymbol]? = nil
-        public var symbol: Symbol.FunctionSymbol? = nil
+        public var symbol: Symbol.SubscriptSymbol? = nil
         public init(base: Expression, arguments: [LabeledArgument], sourceRange: SourceRange) {
             self.base = base
             self.arguments = arguments
@@ -907,6 +907,7 @@ public extension AST {
                 return
             }
             overloads = otherSubscript.overloads
+            symbol = otherSubscript.symbol
         }
     }
 

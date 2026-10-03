@@ -258,7 +258,7 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     )
     let classDecl = program.statements[0] as! AST.ClassDecl
     let deinitDecl = classDecl.body[0] as! AST.DeinitDecl
-    let deinitScope = try #require(deinitDecl.scope)
+    let deinitSymbol = try #require(deinitDecl.symbol)
     let variableDecl = classDecl.body[1] as! AST.VariableDecl
     let getterScope = try #require(variableDecl.accessors[0].scope)
     let setterScope = try #require(variableDecl.accessors[1].scope)
@@ -268,7 +268,7 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     let newClassDecl = rewritten.statements[0] as! AST.ClassDecl
     let newDeinitDecl = newClassDecl.body[0] as! AST.DeinitDecl
     #expect(newDeinitDecl !== deinitDecl)
-    #expect(newDeinitDecl.scope === deinitScope)
+    #expect(newDeinitDecl.symbol === deinitSymbol)
     let newVariableDecl = newClassDecl.body[1] as! AST.VariableDecl
     #expect(newVariableDecl.accessors[0] !== variableDecl.accessors[0])
     #expect(newVariableDecl.accessors[0].scope === getterScope)

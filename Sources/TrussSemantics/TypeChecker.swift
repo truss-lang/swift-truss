@@ -1468,7 +1468,7 @@ public final class TypeChecker: AST.Visitor {
             setterCandidates, arguments: arguments, trailingClosures: [],
             expectedReturn: nil, at: token, fallbackName: "subscript"
         ) {
-            subscriptExpression.symbol = resolved.symbol
+            subscriptExpression.symbol = candidates.first { $0.setter === resolved.symbol }
             subscriptExpression.ty = resolved.type.returnType
         }
     }
@@ -2850,20 +2850,21 @@ public final class TypeChecker: AST.Visitor {
                 return expression.ty.map { resolve($0) }
             }
             if subscriptExpression.symbol == nil {
-                var candidates = (subscriptExpression.overloads ?? []).compactMap(\.getter)
+                var candidates = subscriptExpression.overloads ?? []
                 let baseType: TrussType.TrussType? = subscriptExpression.base.ty
                 if candidates.isEmpty, baseType != nil {
-                    candidates = memberSubscriptSymbols(of: baseType).compactMap(\.getter)
+                    candidates = memberSubscriptSymbols(of: baseType)
                 }
                 if let resolved = resolveOverloads(
-                    candidates, arguments: subscriptExpression.arguments, trailingClosures: [],
+                    candidates.compactMap(\.getter), arguments: subscriptExpression.arguments,
+                    trailingClosures: [],
                     expectedReturn: nil, at: token, fallbackName: "subscript"
                 ) {
-                    subscriptExpression.symbol = resolved.symbol
+                    subscriptExpression.symbol = candidates.first { $0.getter === resolved.symbol }
                     expression.ty = resolved.type.returnType
                 }
             } else if expression.ty == nil, let symbol = subscriptExpression.symbol {
-                expression.ty = symbol.functionType?.returnType ?? TrussType.VoidType.INSTANCE
+                expression.ty = symbol.getter.functionType?.returnType ?? TrussType.VoidType.INSTANCE
             }
             guard subscriptExpression.symbol != nil else {
                 return nil

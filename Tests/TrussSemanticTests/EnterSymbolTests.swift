@@ -215,7 +215,7 @@ import TrussCore
     #expect(c.scope.values["x"] == nil)
     let classDecl = program[0].statements[0] as! AST.ClassDecl
     let deinitDecl = classDecl.body[0] as! AST.DeinitDecl
-    #expect(deinitDecl.scope?.values["x"] != nil)
+    #expect(deinitDecl.symbol?.scope.values["x"] != nil)
     #expect(!context.diagnositicEngine.hasErrors)
 }
 
