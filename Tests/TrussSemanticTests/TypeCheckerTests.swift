@@ -2616,3 +2616,15 @@ func typeChecksRewrittenLoopAndClosureBodies() {
     #expect(programs.count == 1)
     #expect(context.diagnosticEngine.diagnostics.isEmpty)
 }
+
+@Test
+func operatorReferenceInValuePosition() throws {
+    let source =
+        "precedencegroup Additive {}\ninfix operator +: Additive\n"
+            + "struct S {}\nfunc +(lhs: S, rhs: S) -> S { lhs }\n"
+            + "func apply(f: (lhs: S, rhs: S) -> S) {}\n"
+            + "func main() {\nvar s: S\nlet f: (lhs: S, rhs: S) -> S = (+)\napply(+)\n}\n"
+    let (context, programs) = runTypeChecker([source])
+    #expect(programs.count == 1)
+    #expect(context.diagnosticEngine.diagnostics.isEmpty)
+}

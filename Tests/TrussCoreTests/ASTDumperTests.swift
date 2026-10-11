@@ -360,8 +360,8 @@ import TrussCore
             |     `-Variable Int ty:ErrorType
             `-FunctionDecl g sym:g#6
               `-ExpressionStatement
-                `-Call ty:VoidType overloads:2 [f(a:, b: =), f(xs: ...)]
-                  |-Variable f overloads:2 [f(a:, b: =), f(xs: ...)]
+                `-Call ty:VoidType
+                  |-Variable f ty:Function((a:ErrorType, b:ErrorType) -> VoidType) sym:f#3 overloads:2 [f(a:, b: =), f(xs: ...)]
                   `-Argument label:a
                     `-IntegerLiteral 1
             """

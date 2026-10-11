@@ -3736,11 +3736,11 @@ public final class Parser {
                     break _loop
                 }
                 switch member.kind {
-                case .Identifier, .IntegerLiteral, .Keyword:
+                case .Identifier, .IntegerLiteral, .Keyword, .Operator:
                     index += 1
                 default:
                     emitError(
-                        "expected identifier or keyword or integer literal after '\(token.value)', but got '\(member.value)'",
+                        "expected identifier or keyword or integer literal or operator after '\(token.value)', but got '\(member.value)'",
                         at: member
                     )
                 }
@@ -3776,11 +3776,11 @@ public final class Parser {
                     break _loop
                 }
                 switch member.kind {
-                case .Identifier, .IntegerLiteral, .Keyword:
+                case .Identifier, .IntegerLiteral, .Keyword, .Operator:
                     index += 1
                 default:
                     emitError(
-                        "expected identifier or keyword or integer literal after '\(token.value)', but got '\(member.value)'",
+                        "expected identifier or keyword or integer literal or operator after '\(token.value)', but got '\(member.value)'",
                         at: member
                     )
                 }
@@ -3992,6 +3992,18 @@ public final class Parser {
                 let postfixed = parsePostfix(variadic, excepts: excepts, isTypeContext: isTypeContext)
                 operands.append(postfixed)
                 index += 1
+                lastIsExpression = true
+                justClosedAngle = false
+            case let .Operator(kind)
+                where kind != .Dot && !lastIsExpression
+                && (
+                    peek2?.kind == .Separator(.CloseParen)
+                        || peek2?.kind == .Separator(.Comma)
+                ):
+                index += 1
+                operands.append(
+                    AST.Variable(name: token, sourceRange: token.sourceRange(in: buffer))
+                )
                 lastIsExpression = true
                 justClosedAngle = false
             case let .Operator(kind) where kind != .Dot:
@@ -4542,11 +4554,11 @@ public final class Parser {
                     break _loop
                 }
                 switch member.kind {
-                case .Identifier, .IntegerLiteral, .Keyword:
+                case .Identifier, .IntegerLiteral, .Keyword, .Operator:
                     index += 1
                 default:
                     emitError(
-                        "expected identifier or keyword or integer literal after '\(t.value)', but got '\(member.value)'",
+                        "expected identifier or keyword or integer literal or operator after '\(t.value)', but got '\(member.value)'",
                         at: member
                     )
                 }

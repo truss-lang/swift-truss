@@ -299,6 +299,18 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(!result.hasErrors)
 }
 
+@Test
+func driverSupportsMemberOperatorCall() throws {
+    let file = try writeTemp(
+        "member-op.truss",
+        "struct S { func +(rhs: S) -> S { self } }\n"
+            + "func main() {\nvar s: S\nlet a: S = s.+(s)\n}\n"
+    )
+    let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("MemberAccess"))
+}
+
 @Test func driverOperatorWithoutFunctionReportsError() throws {
     let file = try writeTemp(
         "op-noimpl.truss",

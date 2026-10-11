@@ -326,6 +326,98 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(inner!.isOptional == false)
 }
 
+@Test
+func parseMemberCallWithOperatorName() throws {
+    let expr = firstExpression("a.+(b)")
+    let call = expr as? AST.Call
+    try #require(call != nil)
+    let member = call!.callee as? AST.MemberAccess
+    try #require(member != nil)
+    #expect(member!.token.kind == .Operator(.Dot))
+    #expect(member!.member.value == "+")
+    #expect(member!.member.kind == .Operator(.Plus))
+    #expect((member!.object as? AST.Variable)?.name.value == "a")
+    #expect(call!.arguments.count == 1)
+}
+
+@Test
+func parseMemberCallWithOperatorNameOnLiteral() throws {
+    let expr = firstExpression("1.+(2)")
+    let call = expr as? AST.Call
+    try #require(call != nil)
+    let member = call!.callee as? AST.MemberAccess
+    try #require(member != nil)
+    #expect(member!.member.kind == .Operator(.Plus))
+    #expect((member!.object as? AST.IntegerLiteral)?.token.value == "1")
+}
+
+@Test
+func parseOptionalMemberCallWithOperatorName() throws {
+    let expr = firstExpression("a?.+(b)")
+    let call = expr as? AST.Call
+    try #require(call != nil)
+    let member = call!.callee as? AST.MemberAccess
+    try #require(member != nil)
+    #expect(member!.isOptional == true)
+    #expect(member!.member.kind == .Operator(.Plus))
+}
+
+@Test
+func parseMemberOperatorReference() throws {
+    let expr = firstExpression("a.+")
+    let member = expr as? AST.MemberAccess
+    try #require(member != nil)
+    #expect(member!.member.value == "+")
+}
+
+@Test
+func parseOperatorReferenceInParentheses() throws {
+    let expr = firstExpression("(+)")
+    let parenthetical = expr as? AST.Parenthetical
+    try #require(parenthetical != nil)
+    let variable = parenthetical!.inner as? AST.Variable
+    try #require(variable != nil)
+    #expect(variable!.name.value == "+")
+    #expect(variable!.name.kind == .Operator(.Plus))
+}
+
+@Test
+func parseOperatorReferenceCall() throws {
+    let expr = firstExpression("(+)(1, 2)")
+    let call = expr as? AST.Call
+    try #require(call != nil)
+    let parenthetical = call!.callee as? AST.Parenthetical
+    try #require(parenthetical != nil)
+    let variable = parenthetical!.inner as? AST.Variable
+    try #require(variable != nil)
+    #expect(variable!.name.kind == .Operator(.Plus))
+    #expect(call!.arguments.count == 2)
+}
+
+@Test
+func parseOperatorReferenceAsArgument() throws {
+    let expr = firstExpression("f(0, +)")
+    let call = expr as? AST.Call
+    try #require(call != nil)
+    #expect(call!.arguments.count == 2)
+    let argument = call!.arguments[1].value as? AST.Variable
+    try #require(argument != nil)
+    #expect(argument!.name.value == "+")
+    #expect(argument!.name.kind == .Operator(.Plus))
+}
+
+@Test
+func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
+    let expr = firstExpression("(-1)")
+    let parenthetical = expr as? AST.Parenthetical
+    try #require(parenthetical != nil)
+    let sequence = parenthetical!.inner as? AST.Sequential
+    try #require(sequence != nil)
+    #expect(sequence!.ops.count == 1)
+    #expect(sequence!.ops[0].kind == .Operator(.Minus))
+    #expect(sequence!.operands.count == 1)
+}
+
 @Test func parseCastAsExpression() {
     let expr = firstExpression("x as Int32")
     let cast = expr as? AST.Cast
@@ -526,7 +618,11 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
 @Test func parseStringLiteralMemberReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { foo.\"str\" }")
     try #require(errors.count >= 1)
-    #expect(errors.contains { $0.message.contains("expected identifier or keyword or integer literal after") })
+    #expect(
+        errors.contains {
+            $0.message.contains("expected identifier or keyword or integer literal or operator after")
+        }
+    )
 }
 
 @Test func parseMemberAtEofReportsError() throws {
