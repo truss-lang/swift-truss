@@ -2058,14 +2058,18 @@ public final class TypeChecker: AST.Visitor {
     private func canCast(
         _ actual: TrussType.TrussType, to target: TrussType.TrussType, at token: Token
     ) -> Bool {
-        if canCoerce(actual, to: target, at: token) {
-            return true
+        canCoerce(actual, to: target, at: token) || canDowncast(actual, to: target, at: token)
+    }
+
+    private func canDowncast(
+        _ actual: TrussType.TrussType, to target: TrussType.TrussType, at token: Token
+    ) -> Bool {
+        guard let targetClass = target as? TrussType.ClassType else {
+            return false
         }
-        if let targetClass = target as? TrussType.ClassType {
-            for superclass in superclassChain(of: targetClass) {
-                if unify(superclass, actual, at: token) {
-                    return true
-                }
+        for superclass in superclassChain(of: targetClass) {
+            if unify(superclass, actual, at: token) {
+                return true
             }
         }
         return false
@@ -2788,9 +2792,20 @@ public final class TypeChecker: AST.Visitor {
             let target = evaluate(castExpression.right)
             switch castExpression.kind {
             case .Is:
-                if let leftType, !canCast(leftType, to: target, at: token) {
-                    emitMismatch(at: token, expected: target, found: leftType)
+                expression.ty = stdType(named: "Bool")
+                var staticIsResult: AST.Cast.StaticIsResult?
+                if let leftType {
+                    if canCoerce(leftType, to: target, at: token) {
+                        staticIsResult = .StaticTrue
+                    } else if !canDowncast(leftType, to: target, at: token) {
+                        staticIsResult = .StaticFalse
+                        context.emitWarning(
+                            "cast from '\(typeText(leftType))' to unrelated type '\(typeText(target))' always fails",
+                            at: token
+                        )
+                    }
                 }
+                castExpression.staticIsResult = staticIsResult
             case .As:
                 if let leftType, !canCast(leftType, to: target, at: token) {
                     emitMismatch(at: token, expected: target, found: leftType)

@@ -1070,7 +1070,32 @@ public final class TIREmitter: AST.Visitor {
         let value = visitExpression(castExpression.left)
         switch castExpression.kind {
         case .Is:
-            return nil
+            switch castExpression.staticIsResult {
+            case .StaticTrue:
+                return builder.buildBoolLiteral(
+                    value: true,
+                    ty: gen.registry.primitiveType(kind: .Bool, bitWidth: 1).id
+                )
+            case .StaticFalse:
+                return builder.buildBoolLiteral(
+                    value: false,
+                    ty: gen.registry.primitiveType(kind: .Bool, bitWidth: 1).id
+                )
+            case nil:
+                guard let target = castExpression.right.ty,
+                      let nominal = target as? TrussType.NominalType,
+                      let metadataId = gen.typeLower.metadataId(for: nominal)
+                else {
+                    fatalError("type lowering: a dynamic 'is' check requires a class target with registered metadata")
+                }
+                let instanceMetadata = builder.buildTypeMetadata(value: value)
+                let targetMetadata = builder.buildTypeMetadataConstant(
+                    type: gen.typeLower.lower(target).id, metadata: metadataId
+                )
+                return builder.buildIsInstance(
+                    metadata: instanceMetadata.result, target: targetMetadata.result
+                )
+            }
         default:
             // TODO:
             return nil

@@ -1771,6 +1771,7 @@ extension AST {
                 left, castExpression.token, right, castExpression.kind,
                 sourceRange: castExpression.sourceRange
             )
+            newCastExpression.staticIsResult = castExpression.staticIsResult
             return newCastExpression
         }
 

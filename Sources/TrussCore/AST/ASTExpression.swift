@@ -821,6 +821,7 @@ public extension AST {
         public let token: Token
         public let right: Expression
         public let kind: Kind
+        public var staticIsResult: StaticIsResult? = nil
         public init(
             _ left: Expression, _ token: Token, _ right: Expression, _ kind: Kind,
             sourceRange: SourceRange
@@ -842,6 +843,11 @@ public extension AST {
             case AsExclamation
             case AsBitCast
             case Is
+        }
+
+        public enum StaticIsResult {
+            case StaticTrue
+            case StaticFalse
         }
     }
 
