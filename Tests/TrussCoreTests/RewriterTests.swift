@@ -82,7 +82,8 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     }
 }
 
-@Test func identityPreservesEveryNode() {
+@Test
+func identityPreservesEveryNode() {
     let source = """
     struct S<T> where T: P {
         func f(x: Int) -> Int {
@@ -120,19 +121,22 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     #expect(rewritten.statements[0] === structDecl)
 }
 
-@Test func unchangedNodesKeepIdentity() {
+@Test
+func unchangedNodesKeepIdentity() {
     let program = parseProgram("func f() { g(x) }")
     let rewritten = IncrementLiteralRewriter().rewrite(program)
     #expect(rewritten === program)
 }
 
-@Test func forWithWhereClauseKeepsIdentity() {
+@Test
+func forWithWhereClauseKeepsIdentity() {
     let program = parseProgram("func f(xs: [Int]) { for i in xs where i > 0 { g(i) } }")
     let rewritten = IdentityRewriter().rewrite(program)
     #expect(rewritten === program)
 }
 
-@Test func replaceWhereClauseRebuildsFor() {
+@Test
+func replaceWhereClauseRebuildsFor() {
     let program = parseProgram("func f(xs: [Int]) { for i in xs where i > 0 { g(i) } }")
     let functionDecl = program.statements[0] as! AST.FunctionDecl
     let originalFor = blockBody(functionDecl)[0] as! AST.For
@@ -145,7 +149,8 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     #expect(literal.value == 1)
 }
 
-@Test func replaceLiteralRebuildsCallArguments() {
+@Test
+func replaceLiteralRebuildsCallArguments() {
     let program = parseProgram("func g() { f(1, 2) }")
     let functionDecl = program.statements[0] as! AST.FunctionDecl
     let originalCall = (blockBody(functionDecl)[0] as! AST.ExpressionStatement).expression
@@ -160,7 +165,8 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     #expect((call.arguments[1].value as! AST.IntegerLiteral).value == 3)
 }
 
-@Test func replaceLiteralWithDifferentType() {
+@Test
+func replaceLiteralWithDifferentType() {
     let program = parseProgram("func g() { f(1) }")
     let rewritten = LiteralToVariableRewriter().rewrite(program)
     let functionDecl = rewritten.statements[0] as! AST.FunctionDecl
@@ -170,7 +176,8 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     #expect((value as! AST.Variable).name.value == "1")
 }
 
-@Test func bottomUpFoldRewritesChildrenFirst() {
+@Test
+func bottomUpFoldRewritesChildrenFirst() {
     let program = parseProgram("func g() { 1 + 2 + 3 }")
     let rewritten = FoldAndIncrementRewriter().rewrite(program)
     let functionDecl = rewritten.statements[0] as! AST.FunctionDecl
@@ -182,14 +189,16 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     #expect((expression.right as! AST.IntegerLiteral).value == 13)
 }
 
-@Test func deleteExpressionStatementsFromFunctionBody() {
+@Test
+func deleteExpressionStatementsFromFunctionBody() {
     let program = parseProgram("func f() { g()\nh() }")
     let rewritten = DropExpressionStatementsRewriter().rewrite(program)
     let functionDecl = rewritten.statements[0] as! AST.FunctionDecl
     #expect(blockBody(functionDecl).isEmpty)
 }
 
-@Test func deleteFromFunctionBodyKeepsSymbols() {
+@Test
+func deleteFromFunctionBodyKeepsSymbols() {
     let program = parseProgram("struct S { func f() { g() } }", semantic: true)
     let structDecl = program.statements[0] as! AST.StructDecl
     let structSymbol = structDecl.symbol
@@ -205,7 +214,8 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     #expect(blockBody(newFunctionDecl).isEmpty)
 }
 
-@Test func copyTyOnRebuild() {
+@Test
+func copyTyOnRebuild() {
     let program = parseProgram("func g() { f(1) }")
     let functionDecl = program.statements[0] as! AST.FunctionDecl
     let originalCall = (blockBody(functionDecl)[0] as! AST.ExpressionStatement).expression
@@ -221,7 +231,8 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     #expect((ty as! TrussType.StructType).name == "Int")
 }
 
-@Test func rebuildNestedStructs() {
+@Test
+func rebuildNestedStructs() {
     let program = parseProgram("func f() { g(1, 2) }\nlet t = (3, 4)\nlet d = [5: 6]")
     let rewritten = IncrementLiteralRewriter().rewrite(program)
     let functionDecl = rewritten.statements[0] as! AST.FunctionDecl
@@ -237,13 +248,15 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     #expect((dictionary.entries[0].value as! AST.IntegerLiteral).value == 7)
 }
 
-@Test func nilReturnKeepsNode() {
+@Test
+func nilReturnKeepsNode() {
     let program = parseProgram("func f() { g(1) }")
     let rewritten = NilReturningRewriter().rewrite(program)
     #expect(rewritten === program)
 }
 
-@Test func deinitAndAccessorScopesSurviveRewrite() throws {
+@Test
+func deinitAndAccessorScopesSurviveRewrite() throws {
     let program = parseProgram(
         """
         class C {
@@ -277,7 +290,8 @@ final class FoldAndIncrementRewriter: AST.Rewriter {
     #expect(newVariableDecl.accessors[1].symbol === setterSymbol)
 }
 
-@Test func rewriteClosureCaptureItemsAndFreeVariables() throws {
+@Test
+func rewriteClosureCaptureItemsAndFreeVariables() throws {
     let program = parseProgram("func f() { let c = { [x = g(1), y] in y } }")
     let functionDecl = program.statements[0] as! AST.FunctionDecl
     let variableDecl = blockBody(functionDecl)[0] as! AST.VariableDecl

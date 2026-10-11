@@ -8,7 +8,8 @@ func lex(_ source: String) -> [Token] {
     return lexer.parse().tokens
 }
 
-@Test func lexKeywords() throws {
+@Test
+func lexKeywords() throws {
     let tokens = lex("func return let var")
     try #require(tokens.count == 4)
     #expect(tokens[0].kind == .Keyword(.Func))
@@ -21,7 +22,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[3].value == "var")
 }
 
-@Test func lexIdentifiers() throws {
+@Test
+func lexIdentifiers() throws {
     let tokens = lex("foo _bar baz123 func_name")
     try #require(tokens.count == 4)
     #expect(tokens[0].kind == .Identifier(nil))
@@ -34,7 +36,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[3].value == "func_name")
 }
 
-@Test func lexContextualKeywords() throws {
+@Test
+func lexContextualKeywords() throws {
     let tokens = lex(
         "in get set willSet didSet requires ensures invariant decreases forall exists by result old"
     )
@@ -55,7 +58,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[13].kind == .Identifier(.Old))
 }
 
-@Test func lexPlainIdentifiersCarryNoContextualKeyword() throws {
+@Test
+func lexPlainIdentifiersCarryNoContextualKeyword() throws {
     let tokens = lex("inside gadget getter outcome")
     try #require(tokens.count == 4)
     #expect(tokens[0].kind == .Identifier(nil))
@@ -64,7 +68,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[3].kind == .Identifier(nil))
 }
 
-@Test func lexKeywordAsIdentifier() throws {
+@Test
+func lexKeywordAsIdentifier() throws {
     let tokens = lex("let func = 5")
     try #require(tokens.count == 4)
     #expect(tokens[0].kind == .Keyword(.Let))
@@ -74,21 +79,24 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[3].kind == .IntegerLiteral(5))
 }
 
-@Test func lexBacktickKeywordAsIdentifier() throws {
+@Test
+func lexBacktickKeywordAsIdentifier() throws {
     let tokens = lex("`public`")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .Identifier(nil))
     #expect(tokens[0].value == "public")
 }
 
-@Test func lexBacktickRegularIdentifier() throws {
+@Test
+func lexBacktickRegularIdentifier() throws {
     let tokens = lex("`foo`")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .Identifier(nil))
     #expect(tokens[0].value == "foo")
 }
 
-@Test func lexBacktickKeywordInContext() throws {
+@Test
+func lexBacktickKeywordInContext() throws {
     let tokens = lex("let `func` = 5")
     try #require(tokens.count == 4)
     #expect(tokens[0].kind == .Keyword(.Let))
@@ -98,7 +106,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[3].kind == .IntegerLiteral(5))
 }
 
-@Test func lexMultipleBacktickKeywords() throws {
+@Test
+func lexMultipleBacktickKeywords() throws {
     let tokens = lex("`public` `private` `class`")
     try #require(tokens.count == 3)
     #expect(tokens[0].kind == .Identifier(nil))
@@ -109,26 +118,30 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[2].value == "class")
 }
 
-@Test func lexBacktickPositionTracking() throws {
+@Test
+func lexBacktickPositionTracking() throws {
     let tokens = lex("`public`")
     try #require(tokens.count == 1)
     #expect(tokens[0].pos.col == 1)
     #expect(tokens[0].pos.len == 8)
 }
 
-@Test func lexUnclosedBacktick() throws {
+@Test
+func lexUnclosedBacktick() throws {
     let tokens = lex("`public")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .Unknown)
 }
 
-@Test func lexEmptyBackticks() throws {
+@Test
+func lexEmptyBackticks() throws {
     let tokens = lex("``")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .Unknown)
 }
 
-@Test func lexSeparators() throws {
+@Test
+func lexSeparators() throws {
     let tokens = lex("()[]{},;:")
     try #require(tokens.count == 9)
     #expect(tokens[0].kind == .Separator(.OpenParen))
@@ -142,14 +155,16 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[8].kind == .Separator(.Colon))
 }
 
-@Test func lexSharpSeparator() throws {
+@Test
+func lexSharpSeparator() throws {
     let tokens = lex("#")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .Separator(.Sharp))
     #expect(tokens[0].value == "#")
 }
 
-@Test func lexSingleCharOperators() throws {
+@Test
+func lexSingleCharOperators() throws {
     let tokens = lex("$ @ ~ . ? < > & | ^ ! = + - * / %")
     try #require(tokens.count == 17)
     #expect(tokens[0].kind == .Operator(.Dollar))
@@ -171,13 +186,15 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[16].kind == .Operator(.Modulus))
 }
 
-@Test func lexPercentOperator() throws {
+@Test
+func lexPercentOperator() throws {
     let tokens = lex("%")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .Operator(.Modulus))
 }
 
-@Test func lexMultiCharOperators() throws {
+@Test
+func lexMultiCharOperators() throws {
     let tokens = lex("<< <= >> >= >>> == != && || ++ -- -> += -= *= /= %= &= |= ^= <<=")
     try #require(tokens.count == 21)
     #expect(tokens[0].kind == .Operator(.LeftShift))
@@ -224,7 +241,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[20].value == "<<=")
 }
 
-@Test func lexShiftAssignOperators() throws {
+@Test
+func lexShiftAssignOperators() throws {
     let tokens = lex(">>= >>>=")
     try #require(tokens.count == 2)
     #expect(tokens[0].kind == .Operator(.RightShiftAssign))
@@ -233,7 +251,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[1].value == ">>>=")
 }
 
-@Test func lexQuestionOperators() throws {
+@Test
+func lexQuestionOperators() throws {
     let tokens = lex("?. ?:")
     try #require(tokens.count == 2)
     #expect(tokens[0].kind == .Operator(.QuestionMarkDot))
@@ -242,7 +261,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[1].value == "?:")
 }
 
-@Test func lexRangeOperators() throws {
+@Test
+func lexRangeOperators() throws {
     let tokens = lex(".. ..< ...")
     try #require(tokens.count == 3)
     #expect(tokens[0].kind == .Operator(.DotDot))
@@ -253,7 +273,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[2].value == "...")
 }
 
-@Test func lexRangeOperatorsInCode() throws {
+@Test
+func lexRangeOperatorsInCode() throws {
     let tokens = lex("1..<5")
     try #require(tokens.count == 3)
     #expect(tokens[0].kind == .IntegerLiteral(1))
@@ -261,35 +282,40 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[2].kind == .IntegerLiteral(5))
 }
 
-@Test func lexXorAssignOperator() throws {
+@Test
+func lexXorAssignOperator() throws {
     let tokens = lex("^=")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .Operator(.BitXorAssign))
     #expect(tokens[0].value == "^=")
 }
 
-@Test func lexStringLiteral() throws {
+@Test
+func lexStringLiteral() throws {
     let tokens = lex("\"hello\"")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .StringLiteral)
     #expect(tokens[0].value == "hello")
 }
 
-@Test func lexStringLiteralWithEscapes() throws {
+@Test
+func lexStringLiteralWithEscapes() throws {
     let tokens = lex("\"hello\\nworld\\t\\\\\\\"\"")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .StringLiteral)
     #expect(tokens[0].value == "hello\nworld\t\\\"")
 }
 
-@Test func lexStringLiteralWithUnicode() throws {
+@Test
+func lexStringLiteralWithUnicode() throws {
     let tokens = lex("\"\\u{1F600}\"")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .StringLiteral)
     #expect(tokens[0].value == "😀")
 }
 
-@Test func lexMultilineStringBasic() throws {
+@Test
+func lexMultilineStringBasic() throws {
     let src = "\"\"\"\nhello\nworld\n\"\"\""
     let tokens = lex(src)
     try #require(tokens.count == 1)
@@ -297,7 +323,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[0].value == "hello\nworld\n")
 }
 
-@Test func lexMultilineStringWithIndentation() throws {
+@Test
+func lexMultilineStringWithIndentation() throws {
     let src = "\"\"\"\n    hello\n    world\n    \"\"\""
     let tokens = lex(src)
     try #require(tokens.count == 1)
@@ -305,7 +332,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[0].value == "hello\nworld\n")
 }
 
-@Test func lexMultilineStringWithEscapes() throws {
+@Test
+func lexMultilineStringWithEscapes() throws {
     let src = "\"\"\"\nhello\\nworld\n\"\"\""
     let tokens = lex(src)
     try #require(tokens.count == 1)
@@ -313,21 +341,24 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[0].value == "hello\nworld\n")
 }
 
-@Test func lexStringLineContinuation() throws {
+@Test
+func lexStringLineContinuation() throws {
     let tokens = lex("\"foo\\\nbar\"")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .StringLiteral)
     #expect(tokens[0].value == "foobar")
 }
 
-@Test func lexStringLineContinuationCRLF() throws {
+@Test
+func lexStringLineContinuationCRLF() throws {
     let tokens = lex("\"foo\\\u{0D}\u{0A}bar\"")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .StringLiteral)
     #expect(tokens[0].value == "foobar")
 }
 
-@Test func lexMultilineStringLineContinuation() throws {
+@Test
+func lexMultilineStringLineContinuation() throws {
     let src = "\"\"\"\nfoo\\\nbar\n\"\"\""
     let tokens = lex(src)
     try #require(tokens.count == 1)
@@ -335,7 +366,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[0].value == "foobar\n")
 }
 
-@Test func lexCodeLineContinuation() throws {
+@Test
+func lexCodeLineContinuation() throws {
     let tokens = lex("let x = 1 + \\\n2")
     try #require(tokens.count == 6)
     #expect(tokens[0].kind == .Keyword(.Let))
@@ -346,7 +378,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[5].kind == .IntegerLiteral(2))
 }
 
-@Test func lexCodeLineContinuationCRLF() throws {
+@Test
+func lexCodeLineContinuationCRLF() throws {
     let tokens = lex("let x = 1 + \\\u{0D}\u{0A}2")
     try #require(tokens.count == 6)
     #expect(tokens[0].kind == .Keyword(.Let))
@@ -357,25 +390,29 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[5].kind == .IntegerLiteral(2))
 }
 
-@Test func lexCharLiteral() throws {
+@Test
+func lexCharLiteral() throws {
     let tokens = lex("'a'")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .CharLiteral("a"))
 }
 
-@Test func lexCharLiteralWithEscape() throws {
+@Test
+func lexCharLiteralWithEscape() throws {
     let tokens = lex("'\\n'")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .CharLiteral("\n"))
 }
 
-@Test func lexCharLiteralWithUnicode() throws {
+@Test
+func lexCharLiteralWithUnicode() throws {
     let tokens = lex("'\\u{41}'")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .CharLiteral("A"))
 }
 
-@Test func lexDecimalIntegers() throws {
+@Test
+func lexDecimalIntegers() throws {
     let tokens = lex("0 42 1_000_000")
     try #require(tokens.count == 3)
     #expect(tokens[0].kind == .IntegerLiteral(0))
@@ -383,7 +420,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[2].kind == .IntegerLiteral(1_000_000))
 }
 
-@Test func lexFloatNumbers() throws {
+@Test
+func lexFloatNumbers() throws {
     let tokens = lex("3.14 0.5 1e10 1.5e-3 2E+5")
     try #require(tokens.count == 5)
     #expect(tokens[0].kind == .FloatLiteral(3.14))
@@ -393,7 +431,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[4].kind == .FloatLiteral(200_000.0))
 }
 
-@Test func lexHexIntegers() throws {
+@Test
+func lexHexIntegers() throws {
     let tokens = lex("0xFF 0x1a_2b 0XABCD")
     try #require(tokens.count == 3)
     #expect(tokens[0].kind == .IntegerLiteral(255))
@@ -401,21 +440,24 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[2].kind == .IntegerLiteral(43981))
 }
 
-@Test func lexBinaryIntegers() throws {
+@Test
+func lexBinaryIntegers() throws {
     let tokens = lex("0b1010 0b1111_0000")
     try #require(tokens.count == 2)
     #expect(tokens[0].kind == .IntegerLiteral(10))
     #expect(tokens[1].kind == .IntegerLiteral(240))
 }
 
-@Test func lexOctalIntegers() throws {
+@Test
+func lexOctalIntegers() throws {
     let tokens = lex("0o777 0o123")
     try #require(tokens.count == 2)
     #expect(tokens[0].kind == .IntegerLiteral(511))
     #expect(tokens[1].kind == .IntegerLiteral(83))
 }
 
-@Test func lexLineComment() throws {
+@Test
+func lexLineComment() throws {
     let tokens = lex("let x // this is a comment\n = 5")
     try #require(tokens.count == 4)
     #expect(tokens[0].kind == .Keyword(.Let))
@@ -425,7 +467,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[3].kind == .IntegerLiteral(5))
 }
 
-@Test func lexBlockComment() throws {
+@Test
+func lexBlockComment() throws {
     let tokens = lex("let x /* comment */ = 5")
     try #require(tokens.count == 4)
     #expect(tokens[0].kind == .Keyword(.Let))
@@ -435,7 +478,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[3].kind == .IntegerLiteral(5))
 }
 
-@Test func lexNestedBlockComment() throws {
+@Test
+func lexNestedBlockComment() throws {
     let tokens = lex("let /* outer /* inner */ outer */ x = 5")
     try #require(tokens.count == 4)
     #expect(tokens[0].kind == .Keyword(.Let))
@@ -445,14 +489,16 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[3].kind == .IntegerLiteral(5))
 }
 
-@Test func lexUnknownCharacter() throws {
+@Test
+func lexUnknownCharacter() throws {
     let tokens = lex("`")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .Unknown)
     #expect(tokens[0].value == "`")
 }
 
-@Test func lexMixedTokens() throws {
+@Test
+func lexMixedTokens() throws {
     let tokens = lex("func main() { let x = 42 }")
     try #require(tokens.count == 10)
     #expect(tokens[0].kind == .Keyword(.Func))
@@ -469,7 +515,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[9].kind == .Separator(.CloseBrace))
 }
 
-@Test func lexPositionTracking() throws {
+@Test
+func lexPositionTracking() throws {
     let tokens = lex("let x\n= 5")
     try #require(tokens.count == 4)
     #expect(tokens[0].pos.line == 1)
@@ -486,14 +533,16 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[3].pos.len == 1)
 }
 
-@Test func lexCustomOperator() throws {
+@Test
+func lexCustomOperator() throws {
     let tokens = lex("+++")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .Operator(nil))
     #expect(tokens[0].value == "+++")
 }
 
-@Test func lexCustomOperatorMixed() throws {
+@Test
+func lexCustomOperatorMixed() throws {
     let tokens = lex("<>> ===")
     try #require(tokens.count == 2)
     #expect(tokens[0].kind == .Operator(nil))
@@ -502,7 +551,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[1].value == "===")
 }
 
-@Test func lexCustomOperatorThenComment() throws {
+@Test
+func lexCustomOperatorThenComment() throws {
     let tokens = lex("a /=//comment\n b")
     try #require(tokens.count == 3)
     #expect(tokens[0].kind == .Identifier(nil))
@@ -513,7 +563,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[2].value == "b")
 }
 
-@Test func lexKnownOperatorNotSplit() throws {
+@Test
+func lexKnownOperatorNotSplit() throws {
     let tokens = lex("<<= >>=")
     try #require(tokens.count == 2)
     #expect(tokens[0].kind == .Operator(.LeftShiftAssign))
@@ -522,7 +573,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[1].value == ">>=")
 }
 
-@Test func lexBooleanLiterals() throws {
+@Test
+func lexBooleanLiterals() throws {
     let tokens = lex("true false")
     try #require(tokens.count == 2)
     #expect(tokens[0].kind == .BooleanLiteral(true))
@@ -531,14 +583,16 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[1].value == "false")
 }
 
-@Test func lexNullLiteral() throws {
+@Test
+func lexNullLiteral() throws {
     let tokens = lex("null")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .NullLiteral)
     #expect(tokens[0].value == "null")
 }
 
-@Test func lexLiteralsMixed() throws {
+@Test
+func lexLiteralsMixed() throws {
     let tokens = lex("true null false 42 3.14")
     try #require(tokens.count == 5)
     #expect(tokens[0].kind == .BooleanLiteral(true))
@@ -548,7 +602,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[4].kind == .FloatLiteral(3.14))
 }
 
-@Test func lexUnterminatedStringLiteral() throws {
+@Test
+func lexUnterminatedStringLiteral() throws {
     let tokens = lex("\"abc")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .StringLiteral)
@@ -556,34 +611,39 @@ func lex(_ source: String) -> [Token] {
     #expect(!tokens[0].isUnterminated)
 }
 
-@Test func lexUnterminatedMultilineString() throws {
+@Test
+func lexUnterminatedMultilineString() throws {
     let tokens = lex("\"\"\"\nabc\n")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .StringLiteral)
     #expect(tokens[0].value == "abc\n")
 }
 
-@Test func lexEmptyMultilineString() throws {
+@Test
+func lexEmptyMultilineString() throws {
     let tokens = lex("\"\"\"\"\"\"")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .StringLiteral)
 }
 
-@Test func lexSharpAlone() throws {
+@Test
+func lexSharpAlone() throws {
     let tokens = lex("#")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .Separator(.Sharp))
     #expect(tokens[0].value == "#")
 }
 
-@Test func lexSharpFollowedByBracket() throws {
+@Test
+func lexSharpFollowedByBracket() throws {
     let tokens = lex("#[")
     try #require(tokens.count == 2)
     #expect(tokens[0].kind == .Separator(.Sharp))
     #expect(tokens[1].kind == .Separator(.OpenBracket))
 }
 
-@Test func lexStringWithInterpolationTokenSplit() throws {
+@Test
+func lexStringWithInterpolationTokenSplit() throws {
     let tokens = lex("\"a\\(b)\"")
     try #require(tokens.count == 5)
     #expect(tokens[0].kind == .StringLiteral)
@@ -597,7 +657,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[4].value == "")
 }
 
-@Test func lexStringWithNestedInterpolationTokenSplit() throws {
+@Test
+func lexStringWithNestedInterpolationTokenSplit() throws {
     let tokens = lex("\"\\(foo(\\(bar)))\"")
     try #require(tokens.count == 11)
     #expect(tokens[0].kind == .StringLiteral)
@@ -621,7 +682,8 @@ func lex(_ source: String) -> [Token] {
     #expect(!tokens[10].isUnterminated)
 }
 
-@Test func lexStringWithCallInsideInterpolation() throws {
+@Test
+func lexStringWithCallInsideInterpolation() throws {
     let tokens = lex("\"a\\(f(x))b\"")
     try #require(tokens.count == 8)
     #expect(tokens[0].value == "a")
@@ -636,7 +698,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[7].value == "b")
 }
 
-@Test func lexRawStringBasic() throws {
+@Test
+func lexRawStringBasic() throws {
     let tokens = lex("#\"hello\"#")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .StringLiteral)
@@ -644,7 +707,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[0].value == "hello")
 }
 
-@Test func lexRawStringEmpty() throws {
+@Test
+func lexRawStringEmpty() throws {
     let tokens = lex("#\"\"#")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .StringLiteral)
@@ -652,28 +716,32 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[0].value == "")
 }
 
-@Test func lexRawStringContentWithQuote() throws {
+@Test
+func lexRawStringContentWithQuote() throws {
     let tokens = lex("#\"a\"b\"#")
     try #require(tokens.count == 1)
     #expect(tokens[0].isRaw)
     #expect(tokens[0].value == "a\"b")
 }
 
-@Test func lexRawStringBackslashLiteral() throws {
+@Test
+func lexRawStringBackslashLiteral() throws {
     let tokens = lex("#\"a\\nb\"#")
     try #require(tokens.count == 1)
     #expect(tokens[0].isRaw)
     #expect(tokens[0].value == "a\\nb")
 }
 
-@Test func lexRawStringHashInsideContent() throws {
+@Test
+func lexRawStringHashInsideContent() throws {
     let tokens = lex("#\"a#\"b\"#")
     try #require(tokens.count == 1)
     #expect(tokens[0].isRaw)
     #expect(tokens[0].value == "a#\"b")
 }
 
-@Test func lexRawStringInterpolationTokenSplit() throws {
+@Test
+func lexRawStringInterpolationTokenSplit() throws {
     let tokens = lex("#\"a\\#(b)c\"#")
     try #require(tokens.count == 5)
     #expect(tokens[0].kind == .StringLiteral)
@@ -690,7 +758,8 @@ func lex(_ source: String) -> [Token] {
     #expect(!tokens[4].isUnterminated)
 }
 
-@Test func lexRawStringEmptyTrailingInterpolation() throws {
+@Test
+func lexRawStringEmptyTrailingInterpolation() throws {
     let tokens = lex("#\"a\\#(b)\"#")
     try #require(tokens.count == 5)
     #expect(tokens[4].kind == .StringLiteral)
@@ -699,14 +768,16 @@ func lex(_ source: String) -> [Token] {
     #expect(!tokens[4].isUnterminated)
 }
 
-@Test func lexRawStringBackslashHashNotInterpolation() throws {
+@Test
+func lexRawStringBackslashHashNotInterpolation() throws {
     let tokens = lex("#\"a\\#x\"#")
     try #require(tokens.count == 1)
     #expect(tokens[0].isRaw)
     #expect(tokens[0].value == "a\\#x")
 }
 
-@Test func lexRawMultilineStringBasic() throws {
+@Test
+func lexRawMultilineStringBasic() throws {
     let tokens = lex("#\"\"\"\nhello\nworld\n\"\"\"#")
     try #require(tokens.count == 1)
     #expect(tokens[0].kind == .StringLiteral)
@@ -714,21 +785,24 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[0].value == "hello\nworld\n")
 }
 
-@Test func lexRawMultilineStringWithIndentation() throws {
+@Test
+func lexRawMultilineStringWithIndentation() throws {
     let tokens = lex("#\"\"\"\n    hello\n    world\n    \"\"\"#")
     try #require(tokens.count == 1)
     #expect(tokens[0].isRaw)
     #expect(tokens[0].value == "hello\nworld\n")
 }
 
-@Test func lexRawMultilineStringBackslashLiteral() throws {
+@Test
+func lexRawMultilineStringBackslashLiteral() throws {
     let tokens = lex("#\"\"\"\nhello\\nworld\n\"\"\"#")
     try #require(tokens.count == 1)
     #expect(tokens[0].isRaw)
     #expect(tokens[0].value == "hello\\nworld\n")
 }
 
-@Test func lexMultilineStringInterpolationTokenSplit() throws {
+@Test
+func lexMultilineStringInterpolationTokenSplit() throws {
     let tokens = lex("\"\"\"\nhello \\(x) world\n\"\"\"")
     try #require(tokens.count == 5)
     #expect(tokens[0].kind == .StringLiteral)
@@ -743,7 +817,8 @@ func lex(_ source: String) -> [Token] {
     #expect(!tokens[4].isUnterminated)
 }
 
-@Test func lexMultilineStringInterpolationWithIndentation() throws {
+@Test
+func lexMultilineStringInterpolationWithIndentation() throws {
     let tokens = lex("\"\"\"\n    hello \\(x)\n    world\n    \"\"\"")
     try #require(tokens.count == 5)
     #expect(tokens[0].value == "hello ")
@@ -752,7 +827,8 @@ func lex(_ source: String) -> [Token] {
     #expect(!tokens[4].isUnterminated)
 }
 
-@Test func lexRawMultilineStringInterpolation() throws {
+@Test
+func lexRawMultilineStringInterpolation() throws {
     let tokens = lex("#\"\"\"\nhello \\#(x)\nworld\n\"\"\"#")
     try #require(tokens.count == 5)
     #expect(tokens[0].kind == .StringLiteral)
@@ -765,7 +841,8 @@ func lex(_ source: String) -> [Token] {
     #expect(!tokens[4].isUnterminated)
 }
 
-@Test func lexSharpDirectiveUnaffected() throws {
+@Test
+func lexSharpDirectiveUnaffected() throws {
     let tokens = lex("#if X")
     try #require(tokens.count == 3)
     #expect(tokens[0].kind == .Separator(.Sharp))
@@ -773,7 +850,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[2].kind == .Identifier(nil))
 }
 
-@Test func lexSharpPasteUnaffected() throws {
+@Test
+func lexSharpPasteUnaffected() throws {
     let tokens = lex("A ## B")
     try #require(tokens.count == 4)
     #expect(tokens[0].kind == .Identifier(nil))
@@ -782,7 +860,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[3].kind == .Identifier(nil))
 }
 
-@Test func lexBackslashOperator() throws {
+@Test
+func lexBackslashOperator() throws {
     let tokens = lex("\\Person.name")
     try #require(tokens.count == 4)
     #expect(tokens[0].kind == .Operator(.Backslash))
@@ -792,7 +871,8 @@ func lex(_ source: String) -> [Token] {
     #expect(tokens[3].kind == .Identifier(nil))
 }
 
-@Test func lexBackslashLineContinuationStillWorks() throws {
+@Test
+func lexBackslashLineContinuationStillWorks() throws {
     let tokens = lex("1 + \\\n2")
     try #require(tokens.count == 3)
     #expect(tokens[0].kind == .IntegerLiteral(1))

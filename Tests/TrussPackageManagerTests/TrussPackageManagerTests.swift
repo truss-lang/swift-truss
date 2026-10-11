@@ -16,8 +16,10 @@ private func write(_ file: URL, _ content: String) throws {
     try content.write(to: file, atomically: true, encoding: .utf8)
 }
 
-@Suite struct DriverImportTests {
-    @Test func driverLoadsImportedInterfaceIntoContext() throws {
+@Suite
+struct DriverImportTests {
+    @Test
+    func driverLoadsImportedInterfaceIntoContext() throws {
         // Build Library first, capture its interface.
         let libSource = """
         public func libValue() -> Builtin.Int64 { 42 }
@@ -41,7 +43,8 @@ private func write(_ file: URL, _ content: String) throws {
         #expect(!appResult.hasErrors, "diagnostics: \(appResult.stderr)")
     }
 
-    @Test func importedInterfaceDecodesToUsableSymbols() throws {
+    @Test
+    func importedInterfaceDecodesToUsableSymbols() throws {
         let source = """
         public struct Dep {
             public var value: Builtin.Int64
@@ -96,8 +99,10 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
     }
 }
 
-@Suite struct ModuleInterfaceCodecTests {
-    @Test func roundTripComplexInterface() throws {
+@Suite
+struct ModuleInterfaceCodecTests {
+    @Test
+    func roundTripComplexInterface() throws {
         let interface = ModuleInterface(
             name: "M",
             root: InterfaceScope(
@@ -138,7 +143,8 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         #expect(canonicalize(decoded.interface) == canonicalize(interface))
     }
 
-    @Test func roundTripEnumCases() throws {
+    @Test
+    func roundTripEnumCases() throws {
         let interface = ModuleInterface(
             name: "M",
             root: InterfaceScope(
@@ -170,14 +176,16 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         #expect(nominal.cases[1].associatedTypes == [.GenericParam("T")])
     }
 
-    @Test func roundTripEmpty() throws {
+    @Test
+    func roundTripEmpty() throws {
         let interface = ModuleInterface(name: "Empty", root: InterfaceScope())
         let bytes = TrussPackageEncoder(interface: interface).encode()
         let decoded = try TrussPackageDecoder().decode(bytes)
         #expect(decoded.interface == interface)
     }
 
-    @Test func rejectsBadMagic() throws {
+    @Test
+    func rejectsBadMagic() throws {
         var bytes: [UInt8] = [1, 2, 3, 4]
         bytes.append(contentsOf: [0, 0, 0, 0])
         do {
@@ -189,8 +197,10 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
     }
 }
 
-@Suite struct StdPreloadTests {
-    @Test func preloadsOptionalSymbolFromShrunkStd() throws {
+@Suite
+struct StdPreloadTests {
+    @Test
+    func preloadsOptionalSymbolFromShrunkStd() throws {
         let stdSource = """
         public enum Optional<T> {
             case None
@@ -228,8 +238,10 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
     }
 }
 
-@Suite struct InterfaceExtractionTests {
-    @Test func extractsOnlyPublicAndOpen() throws {
+@Suite
+struct InterfaceExtractionTests {
+    @Test
+    func extractsOnlyPublicAndOpen() throws {
         let source = """
         public struct S {
             public func f() -> Builtin.Int64 { 1 }
@@ -260,7 +272,8 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         #expect(!names.contains("Hidden"))
     }
 
-    @Test func dumpsFunctionKind() throws {
+    @Test
+    func dumpsFunctionKind() throws {
         let source = """
         public class C {
             public init() {}
@@ -280,7 +293,8 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
     }
 }
 
-@Suite struct PackageManagerTests {
+@Suite
+struct PackageManagerTests {
     private func makeSamplePackage() throws -> (URL, PackageDescription) {
         let root = try makeTempDir("pkg")
         try write(
@@ -328,14 +342,16 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         return (root, package)
     }
 
-    @Test func topologicalOrderDependenciesFirst() throws {
+    @Test
+    func topologicalOrderDependenciesFirst() throws {
         let (_, package) = try makeSamplePackage()
         let manager = TrussPackageManager(package: package, packageRoot: URL(fileURLWithPath: "/tmp"))
         let order = try manager.topologicalOrder()
         #expect(order == ["Library", "App"])
     }
 
-    @Test func buildProducesCasArtifacts() throws {
+    @Test
+    func buildProducesCasArtifacts() throws {
         let (root, package) = try makeSamplePackage()
         let manager = TrussPackageManager(package: package, packageRoot: root)
         let result = try manager.build()
@@ -351,7 +367,8 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         #expect(library2?.rebuilt == false)
     }
 
-    @Test func cleanRemovesBuildDir() throws {
+    @Test
+    func cleanRemovesBuildDir() throws {
         let (root, package) = try makeSamplePackage()
         let manager = TrussPackageManager(package: package, packageRoot: root)
         _ = try manager.build()
@@ -361,7 +378,8 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         #expect(!FileManager.default.fileExists(atPath: buildDir.path))
     }
 
-    @Test func graphRendersEdges() throws {
+    @Test
+    func graphRendersEdges() throws {
         let (_, package) = try makeSamplePackage()
         let manager = TrussPackageManager(package: package, packageRoot: URL(fileURLWithPath: "/tmp"))
         let text = manager.graph()
@@ -369,7 +387,8 @@ private func nameOfValue(_ v: InterfaceValue) -> String {
         #expect(text.contains("Library: "))
     }
 
-    @Test func dependencyCycleThrows() throws {
+    @Test
+    func dependencyCycleThrows() throws {
         let package = PackageDescription(
             name: "Cyc",
             targets: [

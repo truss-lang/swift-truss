@@ -1,7 +1,8 @@
 import Testing
 import TrussCore
 
-@Test func dumpSimpleFunction() {
+@Test
+func dumpSimpleFunction() {
     #expect(
         dumpProgram(
             """
@@ -24,7 +25,8 @@ import TrussCore
     )
 }
 
-@Test func dumpForWithWhereClause() {
+@Test
+func dumpForWithWhereClause() {
     #expect(
         dumpProgram(
             """
@@ -59,7 +61,8 @@ import TrussCore
     )
 }
 
-@Test func dumpFunctionDeclSemantics() {
+@Test
+func dumpFunctionDeclSemantics() {
     #expect(
         dumpProgram("func f() {}", semantic: true)
             == """
@@ -69,7 +72,8 @@ import TrussCore
     )
 }
 
-@Test func dumpVariableReferenceSemantics() {
+@Test
+func dumpVariableReferenceSemantics() {
     #expect(
         dumpProgram("func f() {\n    let a = 1\n    a\n}", semantic: true)
             == """
@@ -84,7 +88,8 @@ import TrussCore
     )
 }
 
-@Test func dumpLiterals() {
+@Test
+func dumpLiterals() {
     #expect(
         dumpProgram(
             """
@@ -123,7 +128,8 @@ import TrussCore
     )
 }
 
-@Test func dumpPrefixOperators() {
+@Test
+func dumpPrefixOperators() {
     #expect(
         dumpProgram("func f() {\n    let x = -a + -b\n}")
             == """
@@ -138,7 +144,8 @@ import TrussCore
     )
 }
 
-@Test func dumpIfElse() {
+@Test
+func dumpIfElse() {
     #expect(
         dumpProgram(
             """
@@ -171,7 +178,8 @@ import TrussCore
     )
 }
 
-@Test func dumpModuleAndStruct() {
+@Test
+func dumpModuleAndStruct() {
     #expect(
         dumpProgram(
             """
@@ -197,7 +205,8 @@ import TrussCore
     )
 }
 
-@Test func dumpClosure() {
+@Test
+func dumpClosure() {
     #expect(
         dumpProgram(
             """
@@ -222,7 +231,8 @@ import TrussCore
     )
 }
 
-@Test func dumpStringInterpolation() {
+@Test
+func dumpStringInterpolation() {
     #expect(
         dumpProgram(
             """
@@ -247,7 +257,8 @@ import TrussCore
     )
 }
 
-@Test func dumpPrecedenceGroup() {
+@Test
+func dumpPrecedenceGroup() {
     #expect(
         dumpProgram(
             """
@@ -266,7 +277,8 @@ import TrussCore
     )
 }
 
-@Test func dumpAsm() {
+@Test
+func dumpAsm() {
     #expect(
         dumpProgram(
             """
@@ -286,7 +298,8 @@ import TrussCore
     )
 }
 
-@Test func dumpPostfixOperator() {
+@Test
+func dumpPostfixOperator() {
     #expect(
         dumpProgram("func f() {\n    let x = a!\n}")
             == """
@@ -300,7 +313,8 @@ import TrussCore
     )
 }
 
-@Test func dumpTypeDeclSemantics() {
+@Test
+func dumpTypeDeclSemantics() {
     #expect(
         dumpProgram(
             """
@@ -333,7 +347,8 @@ import TrussCore
     )
 }
 
-@Test func dumpOverloadsSemantics() {
+@Test
+func dumpOverloadsSemantics() {
     #expect(
         dumpProgram(
             """
@@ -368,7 +383,8 @@ import TrussCore
     )
 }
 
-@Test func dumpTypeMemberSemantics() {
+@Test
+func dumpTypeMemberSemantics() {
     #expect(
         dumpProgram(
             """
@@ -421,7 +437,8 @@ import TrussCore
     )
 }
 
-@Test func dumpTypeCheckerStructuralAnnotations() {
+@Test
+func dumpTypeCheckerStructuralAnnotations() {
     #expect(
         dumpProgram(
             """
@@ -484,7 +501,8 @@ import TrussCore
     )
 }
 
-@Test func dumpPointerSemantics() {
+@Test
+func dumpPointerSemantics() {
     #expect(
         dumpProgram(
             "struct Int {}\nfunc f() {\n    var v: Int\n    var p: Int* = &v\n    var x = *p\n}",

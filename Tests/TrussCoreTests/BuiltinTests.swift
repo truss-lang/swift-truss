@@ -6,7 +6,8 @@ private func installedBuiltin() -> Symbol.PackageSymbol {
     return Builtin.install(context: context)
 }
 
-@Test func builtinInstallsArithFunctions() {
+@Test
+func builtinInstallsArithFunctions() {
     let package = installedBuiltin()
     for name in ["builtin_add_int32", "builtin_sub_uint64", "builtin_div_float32", "builtin_neg_int8"] {
         let symbols = package.scope.values[name] ?? []
@@ -17,7 +18,8 @@ private func installedBuiltin() -> Symbol.PackageSymbol {
     }
 }
 
-@Test func builtinArithFunctionSignature() {
+@Test
+func builtinArithFunctionSignature() {
     let package = installedBuiltin()
     let add = (package.scope.values["builtin_add_int32"] ?? []).first as? Symbol.FunctionSymbol
     let functionType = add?.functionType
@@ -27,7 +29,8 @@ private func installedBuiltin() -> Symbol.PackageSymbol {
     #expect((functionType?.returnType as? TrussType.BuiltinType)?.name == "Int32")
 }
 
-@Test func builtinNegFunctionIsUnary() {
+@Test
+func builtinNegFunctionIsUnary() {
     let package = installedBuiltin()
     let neg = (package.scope.values["builtin_neg_float64"] ?? []).first as? Symbol.FunctionSymbol
     let functionType = neg?.functionType
@@ -35,7 +38,8 @@ private func installedBuiltin() -> Symbol.PackageSymbol {
     #expect((functionType?.returnType as? TrussType.BuiltinType)?.name == "Float64")
 }
 
-@Test func builtinFunctionInfoParsesNames() {
+@Test
+func builtinFunctionInfoParsesNames() {
     #expect(Builtin.builtinFunctionInfo(named: "builtin_add_int32")?.opName == "add")
     #expect(Builtin.builtinFunctionInfo(named: "builtin_add_int32")?.typeName == "int32")
     #expect(Builtin.builtinFunctionInfo(named: "builtin_neg_float32")?.opName == "neg")
@@ -44,7 +48,8 @@ private func installedBuiltin() -> Symbol.PackageSymbol {
     #expect(Builtin.builtinFunctionInfo(named: "builtin_shift_int32") == nil)
 }
 
-@Test func builtinCompareFunctionsRegisterWithBoolReturn() {
+@Test
+func builtinCompareFunctionsRegisterWithBoolReturn() {
     let package = installedBuiltin()
     for name in ["builtin_eq_int32", "builtin_ne_float64", "builtin_lt_uint64", "builtin_ge_int8"] {
         let function = (package.scope.values[name] ?? []).first as? Symbol.FunctionSymbol
@@ -54,7 +59,8 @@ private func installedBuiltin() -> Symbol.PackageSymbol {
     }
 }
 
-@Test func builtinCompareTypeFiltering() {
+@Test
+func builtinCompareTypeFiltering() {
     let package = installedBuiltin()
     #expect((package.scope.values["builtin_eq_bool"] ?? []).first != nil)
     #expect((package.scope.values["builtin_ne_char"] ?? []).first != nil)
@@ -62,7 +68,8 @@ private func installedBuiltin() -> Symbol.PackageSymbol {
     #expect(package.scope.values["builtin_ge_char"] == nil)
 }
 
-@Test func builtinNotAndBitnotRegister() {
+@Test
+func builtinNotAndBitnotRegister() {
     let package = installedBuiltin()
     let not = (package.scope.values["builtin_not_bool"] ?? []).first as? Symbol.FunctionSymbol
     #expect(not?.isBuiltin == true)
@@ -76,7 +83,8 @@ private func installedBuiltin() -> Symbol.PackageSymbol {
     #expect(package.scope.values["builtin_bitnot_float32"] == nil)
 }
 
-@Test func builtinFunctionInfoParsesNewOps() {
+@Test
+func builtinFunctionInfoParsesNewOps() {
     #expect(Builtin.builtinFunctionInfo(named: "builtin_eq_int32")?.opName == "eq")
     #expect(Builtin.builtinFunctionInfo(named: "builtin_lt_float64")?.opName == "lt")
     #expect(Builtin.builtinFunctionInfo(named: "builtin_not_bool")?.opName == "not")

@@ -42,19 +42,19 @@ public final class TrussPackageEncoder {
                 }
                 collectTypes(in: n.scope)
             case let .TypeAlias(a): if let t = a.target {
-                indexType(t)
-            }
+                    indexType(t)
+                }
             case .AssociatedType, .Builtin, .GenericParam: break
             }
         }
         for value in scope.values {
             switch value {
             case let .Function(f): if let t = f.functionType {
-                indexType(t)
-            }
+                    indexType(t)
+                }
             case let .Variable(v): if let t = v.type {
-                indexType(t)
-            }
+                    indexType(t)
+                }
             }
         }
         for m in scope.modules {

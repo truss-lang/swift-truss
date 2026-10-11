@@ -1,8 +1,10 @@
 import Testing
 import TrussTIRGen
 
-@Suite struct ExistentialTests {
-    @Test func protocolTypeLowersToExistential() throws {
+@Suite
+struct ExistentialTests {
+    @Test
+    func protocolTypeLowersToExistential() throws {
         let tir = dumpTIR(
             """
             protocol Shape {
@@ -24,7 +26,8 @@ import TrussTIRGen
         try #require(tir.contains("witnessmethod"))
     }
 
-    @Test func existentialBoxesConcreteValue() throws {
+    @Test
+    func existentialBoxesConcreteValue() throws {
         let tir = dumpTIR(
             """
             protocol Shape {
@@ -43,7 +46,8 @@ import TrussTIRGen
         try #require(tir.contains("store %$tany"))
     }
 
-    @Test func multiProtocolDispatch() throws {
+    @Test
+    func multiProtocolDispatch() throws {
         let tir = dumpTIR(
             """
             protocol Drawable {
@@ -67,7 +71,8 @@ import TrussTIRGen
         try #require(tir.contains("witnessmethod"))
     }
 
-    @Test func structInitConstruction() throws {
+    @Test
+    func structInitConstruction() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -83,7 +88,8 @@ import TrussTIRGen
         try #require(tir.contains("load %$t4main_1S"))
     }
 
-    @Test func classInitConstruction() throws {
+    @Test
+    func classInitConstruction() throws {
         let tir = dumpTIR(
             """
             class C {
@@ -98,7 +104,8 @@ import TrussTIRGen
         try #require(tir.contains("call void @$t4main_1C_4init_1C"))
     }
 
-    @Test func associatedTypeWitnessDispatch() throws {
+    @Test
+    func associatedTypeWitnessDispatch() throws {
         let tir = dumpTIR(
             """
             protocol Container {
@@ -119,7 +126,8 @@ import TrussTIRGen
         try #require(tir.contains("witnessmethod"))
     }
 
-    @Test func existentialAssignmentCopies() throws {
+    @Test
+    func existentialAssignmentCopies() throws {
         let tir = dumpTIR(
             """
             protocol Shape {
@@ -138,7 +146,8 @@ import TrussTIRGen
         try #require(tir.contains("existentialcopy"))
     }
 
-    @Test func structInitWritesFieldsThroughPointer() throws {
+    @Test
+    func structInitWritesFieldsThroughPointer() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -159,7 +168,8 @@ import TrussTIRGen
     }
 }
 
-@Test func nestedCompositionDispatch() throws {
+@Test
+func nestedCompositionDispatch() throws {
     let tir = dumpTIR(
         """
         protocol A {
@@ -190,7 +200,8 @@ import TrussTIRGen
     #expect(witnessCount == 3, "expected 3 witnessmethod calls, got \(witnessCount)")
 }
 
-@Test func duplicateProtocolInCompositionFlattened() throws {
+@Test
+func duplicateProtocolInCompositionFlattened() throws {
     let tir = dumpTIR(
         """
         protocol P {
@@ -212,7 +223,8 @@ import TrussTIRGen
     try #require(!tir.contains("%$tany00"))
 }
 
-@Test func copyPreservesWitnessDispatch() throws {
+@Test
+func copyPreservesWitnessDispatch() throws {
     let tir = dumpTIR(
         """
         protocol P {
@@ -233,7 +245,8 @@ import TrussTIRGen
     try #require(tir.contains("witnessmethod"))
 }
 
-@Test func opaqueParamDispatch() throws {
+@Test
+func opaqueParamDispatch() throws {
     let tir = dumpTIR(
         """
         protocol Shape {
@@ -256,7 +269,8 @@ import TrussTIRGen
     try #require(tir.contains("%$tany0#0.0"))
 }
 
-@Test func opaqueCompositionParamDispatch() throws {
+@Test
+func opaqueCompositionParamDispatch() throws {
     let tir = dumpTIR(
         """
         protocol Drawable {
@@ -286,7 +300,8 @@ import TrussTIRGen
     try #require(tir.contains("%$tany01#1.0"))
 }
 
-@Test func opaqueReturnedExistentialDispatch() throws {
+@Test
+func opaqueReturnedExistentialDispatch() throws {
     let tir = dumpTIR(
         """
         protocol Shape {
@@ -309,7 +324,8 @@ import TrussTIRGen
     try #require(tir.contains("opaquewitnessmethod"))
 }
 
-@Test func opaqueParamDispatchLandsReturnValueIntoTypedLet() throws {
+@Test
+func opaqueParamDispatchLandsReturnValueIntoTypedLet() throws {
     let tir = dumpTIR(
         """
         protocol Shape {

@@ -1,8 +1,10 @@
 import Testing
 import TrussCore
 
-@Suite struct MethodLookupTests {
-    @Test func virtualMethodYieldsFunctionValue() {
+@Suite
+struct MethodLookupTests {
+    @Test
+    func virtualMethodYieldsFunctionValue() {
         let registry = TIR.Registry()
         let classType = registry.classType(name: "$tmain_1C")
         let metadata = registry.addMetadata(name: "$tmain_1C")
@@ -28,7 +30,8 @@ import TrussCore
         #expect(dump.contains("%m = virtualmethod %$tmain_1C#0.2(%self)"))
     }
 
-    @Test func witnessMethodYieldsFunctionValue() {
+    @Test
+    func witnessMethodYieldsFunctionValue() {
         let registry = TIR.Registry()
         let functionType = registry.functionType(
             parameters: [], returnType: registry.voidType().id, isVariadic: false
@@ -54,7 +57,8 @@ import TrussCore
         #expect(dump.contains("%m = witnessmethod %$tmain_1S:$tmain_1P#0.1"))
     }
 
-    @Test func opaqueWitnessMethodYieldsFunctionValue() {
+    @Test
+    func opaqueWitnessMethodYieldsFunctionValue() {
         let registry = TIR.Registry()
         let functionType = registry.functionType(
             parameters: [], returnType: registry.voidType().id, isVariadic: false
@@ -79,7 +83,8 @@ import TrussCore
         #expect(dump.contains("%m = opaquewitnessmethod %container %$tmain_1P#0.0"))
     }
 
-    @Test func vtableEntriesCarryMethodSignatures() throws {
+    @Test
+    func vtableEntriesCarryMethodSignatures() throws {
         let tir = dumpTIR(
             """
             class Animal {

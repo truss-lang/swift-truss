@@ -1,7 +1,8 @@
 import Testing
 import TrussCore
 
-@Test func printSimpleFunction() {
+@Test
+func printSimpleFunction() {
     #expect(
         printProgram(
             """
@@ -18,7 +19,8 @@ import TrussCore
     )
 }
 
-@Test func printIfElse() {
+@Test
+func printIfElse() {
     #expect(
         printProgram(
             """
@@ -43,7 +45,8 @@ import TrussCore
     )
 }
 
-@Test func printForWithWhereClause() {
+@Test
+func printForWithWhereClause() {
     #expect(
         printProgram(
             """
@@ -64,7 +67,8 @@ import TrussCore
     )
 }
 
-@Test func printForCaseWithWhereClause() {
+@Test
+func printForCaseWithWhereClause() {
     #expect(
         printProgram(
             """
@@ -93,7 +97,8 @@ import TrussCore
     )
 }
 
-@Test func printNestedStruct() {
+@Test
+func printNestedStruct() {
     #expect(
         printProgram(
             """
@@ -118,7 +123,8 @@ import TrussCore
     )
 }
 
-@Test func printAccessors() {
+@Test
+func printAccessors() {
     #expect(
         printProgram(
             """
@@ -142,11 +148,13 @@ import TrussCore
     )
 }
 
-@Test func printExpressionBody() {
+@Test
+func printExpressionBody() {
     #expect(printProgram("func f() = 1") == "func f() = 1")
 }
 
-@Test func printFunctionAttributeOnOwnLine() {
+@Test
+func printFunctionAttributeOnOwnLine() {
     #expect(
         printProgram(
             """
@@ -165,26 +173,31 @@ import TrussCore
     )
 }
 
-@Test func printVarargParameter() {
+@Test
+func printVarargParameter() {
     #expect(printProgram("func f(xs: Int...) {}") == "func f(xs: Int...) {}")
 }
 
-@Test func printUnderscoreParameter() {
+@Test
+func printUnderscoreParameter() {
     #expect(printProgram("func f(_ x: Int) {}") == "func f(_ x: Int) {}")
 }
 
-@Test func printLabeledParameter() {
+@Test
+func printLabeledParameter() {
     #expect(printProgram("func f(label x: Int) {}") == "func f(label x: Int) {}")
 }
 
-@Test func printEmptyDecls() {
+@Test
+func printEmptyDecls() {
     #expect(printProgram("func f() {}") == "func f() {}")
     #expect(printProgram("struct S {}") == "struct S {}")
     #expect(printProgram("protocol P {}") == "protocol P {}")
     #expect(printProgram("module M {}") == "module M {}")
 }
 
-@Test func printClosureExpression() {
+@Test
+func printClosureExpression() {
     #expect(
         printProgram(
             """
@@ -201,7 +214,8 @@ import TrussCore
     )
 }
 
-@Test func roundTripExpressions() {
+@Test
+func roundTripExpressions() {
     for source in [
         "let x = a + b * c",
         "let x = a + -b",
@@ -247,7 +261,8 @@ import TrussCore
     }
 }
 
-@Test func roundTripStatements() {
+@Test
+func roundTripStatements() {
     for source in [
         "func f() {}",
         "func f(x: Int) -> Int { return x + 1 }",
@@ -277,7 +292,8 @@ import TrussCore
     }
 }
 
-@Test func roundTripDecls() {
+@Test
+func roundTripDecls() {
     for source in [
         "module M {\n    func f() {\n    }\n}",
         "struct S: P2 {\n    public func m() {\n    }\n}",
@@ -302,7 +318,8 @@ import TrussCore
     }
 }
 
-@Test func roundTripMacroExpansion() {
+@Test
+func roundTripMacroExpansion() {
     assertRoundTrip(
         """
         #define A B + 2
@@ -317,7 +334,8 @@ import TrussCore
     )
 }
 
-@Test func roundTripTypes() {
+@Test
+func roundTripTypes() {
     for source in [
         "let x: Int? = 1",
         "let x: Int... = 1",
@@ -339,11 +357,13 @@ import TrussCore
     }
 }
 
-@Test func roundTripBitCast() {
+@Test
+func roundTripBitCast() {
     assertRoundTrip("let x = s as!! T")
 }
 
-@Test func roundTripOperatorImport() {
+@Test
+func roundTripOperatorImport() {
     for source in [
         "import operator Pkg.*",
         "import operator Pkg.+",
@@ -359,7 +379,8 @@ import TrussCore
     }
 }
 
-@Test func roundTripImport() {
+@Test
+func roundTripImport() {
     for source in [
         "import A",
         "import A.*",
@@ -379,7 +400,8 @@ import TrussCore
     }
 }
 
-@Test func printImport() {
+@Test
+func printImport() {
     #expect(printProgram("import A") == "import A")
     #expect(printProgram("import A.*") == "import A.*")
     #expect(printProgram("import A.B") == "import A.B")
@@ -391,7 +413,8 @@ import TrussCore
     #expect(printProgram("import A.B as X") == "import A.B as X")
 }
 
-@Test func printOperatorImport() {
+@Test
+func printOperatorImport() {
     #expect(printProgram("import operator Pkg.+") == "import operator Pkg.+")
     #expect(printProgram("import operator Pkg.*") == "import operator Pkg.*")
     #expect(printProgram("import operator Pkg.{+, -}") == "import operator Pkg.{+, -}")

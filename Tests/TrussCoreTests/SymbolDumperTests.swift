@@ -1,7 +1,8 @@
 import Testing
 import TrussCore
 
-@Test func dumpSymbolsTypeDeclarations() {
+@Test
+func dumpSymbolsTypeDeclarations() {
     #expect(
         dumpSymbols(
             """
@@ -26,7 +27,8 @@ import TrussCore
     )
 }
 
-@Test func dumpSymbolsFunctions() {
+@Test
+func dumpSymbolsFunctions() {
     #expect(
         dumpSymbols(
             """
@@ -53,7 +55,8 @@ import TrussCore
     )
 }
 
-@Test func dumpSymbolsTypeMembers() {
+@Test
+func dumpSymbolsTypeMembers() {
     #expect(
         dumpSymbols(
             """
@@ -96,7 +99,8 @@ import TrussCore
     )
 }
 
-@Test func dumpSymbolsSubscriptAccessors() {
+@Test
+func dumpSymbolsSubscriptAccessors() {
     #expect(
         dumpSymbols(
             """
@@ -129,7 +133,8 @@ import TrussCore
     )
 }
 
-@Test func dumpSymbolsVariableKinds() {
+@Test
+func dumpSymbolsVariableKinds() {
     #expect(
         dumpSymbols(
             """
@@ -157,7 +162,8 @@ import TrussCore
     )
 }
 
-@Test func dumpSymbolsSelfSymbol() {
+@Test
+func dumpSymbolsSelfSymbol() {
     #expect(
         dumpSymbols(
             """
@@ -195,7 +201,8 @@ import TrussCore
     )
 }
 
-@Test func dumpSymbolsNoSelfSymbol() {
+@Test
+func dumpSymbolsNoSelfSymbol() {
     #expect(
         dumpSymbols(
             """

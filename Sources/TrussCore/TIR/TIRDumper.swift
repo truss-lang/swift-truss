@@ -103,8 +103,10 @@ public extension TIR {
                 let cases = enumType.cases.map { caseInfo in
                     "." + caseInfo
                         .name +
-                        (caseInfo.associatedTypes.isEmpty ? "" : "(" + caseInfo.associatedTypes.map { typeText($0) }
-                            .joined(separator: ", ") + ")")
+                        (
+                            caseInfo.associatedTypes.isEmpty ? "" : "(" + caseInfo.associatedTypes.map { typeText($0) }
+                                .joined(separator: ", ") + ")"
+                        )
                 }
                 return "{ i32" + (cases.isEmpty ? "" : ", ") + cases.joined(separator: " | ") + " }"
             default:

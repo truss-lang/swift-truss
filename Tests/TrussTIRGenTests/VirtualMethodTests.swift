@@ -1,8 +1,10 @@
 import Testing
 import TrussTIRGen
 
-@Suite struct VirtualMethodTests {
-    @Test func classMethodCallDispatchesThroughVTable() throws {
+@Suite
+struct VirtualMethodTests {
+    @Test
+    func classMethodCallDispatchesThroughVTable() throws {
         let tir = dumpTIR(
             """
             class Animal {
@@ -27,7 +29,8 @@ import TrussTIRGen
         try #require(lines.contains { $0.contains("call void " + name + "(") })
     }
 
-    @Test func subclassInheritsSuperclassSlots() throws {
+    @Test
+    func subclassInheritsSuperclassSlots() throws {
         let tir = dumpTIR(
             """
             class Animal {
@@ -50,7 +53,8 @@ import TrussTIRGen
         #expect(slotIndex(of: "bark", in: dog) == 1)
     }
 
-    @Test func overrideReusesSuperclassSlot() throws {
+    @Test
+    func overrideReusesSuperclassSlot() throws {
         let tir = dumpTIR(
             """
             class Animal {
@@ -78,7 +82,8 @@ import TrussTIRGen
         try #require(slotIndex(of: "bark", in: dog) != nil)
     }
 
-    @Test func voidMethodCallHasNoResult() throws {
+    @Test
+    func voidMethodCallHasNoResult() throws {
         let tir = dumpTIR(
             """
             class Animal {
@@ -95,7 +100,8 @@ import TrussTIRGen
         try #require(!call.contains("= call"))
     }
 
-    @Test func finalMethodIsNotInVTable() throws {
+    @Test
+    func finalMethodIsNotInVTable() throws {
         let tir = dumpTIR(
             """
             class Animal {

@@ -11,14 +11,16 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     return url.path
 }
 
-@Test func driverCompilesSingleFile() throws {
+@Test
+func driverCompilesSingleFile() throws {
     let file = try writeTemp("main.truss", "func f() { 1 }\n")
     let result = Driver(config: DriverConfig()).run(files: [file])
     #expect(!result.hasErrors)
     #expect(result.stderr.isEmpty)
 }
 
-@Test func driverMultiFileMergesCrossFileExtension() throws {
+@Test
+func driverMultiFileMergesCrossFileExtension() throws {
     let a = try writeTemp(
         "a.truss",
         "struct Coord {}\nstruct Point {\n    var x: Coord\n    var y: Coord\n}\n"
@@ -35,7 +37,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.contains("sum"))
 }
 
-@Test func driverResolvesCrossFileFunctionCall() throws {
+@Test
+func driverResolvesCrossFileFunctionCall() throws {
     let a = try writeTemp(
         "a.truss",
         "func makeB() -> B {\n    b()\n}\n"
@@ -49,7 +52,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.contains("$t4main_1b_10$t4main_1B"))
 }
 
-@Test func driverResolvesCircularTypeReferencesAcrossFiles() throws {
+@Test
+func driverResolvesCircularTypeReferencesAcrossFiles() throws {
     let a = try writeTemp(
         "a.truss",
         "struct A {\n    var b: B\n}\n"
@@ -62,7 +66,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(!result.hasErrors)
 }
 
-@Test func driverReportsCrossFilePrivateAccess() throws {
+@Test
+func driverReportsCrossFilePrivateAccess() throws {
     let a = try writeTemp(
         "a.truss",
         "func f() {\n    helper()\n}\n"
@@ -75,7 +80,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.hasErrors)
 }
 
-@Test func driverResolvesCrossFileGlobalVariable() throws {
+@Test
+func driverResolvesCrossFileGlobalVariable() throws {
     let a = try writeTemp(
         "a.truss",
         "func getG() -> S {\n    g\n}\n"
@@ -89,7 +95,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.contains("@$t4main_1g"))
 }
 
-@Test func driverResolvesCrossFileGlobalInitializerDependency() throws {
+@Test
+func driverResolvesCrossFileGlobalInitializerDependency() throws {
     let a = try writeTemp(
         "a.truss",
         "var x: S = g\n"
@@ -103,7 +110,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.contains("@$t4main_1x"))
 }
 
-@Test func driverDefineActivatesConditional() throws {
+@Test
+func driverDefineActivatesConditional() throws {
     let file = try writeTemp("cond.truss", "#if FLAG\nfunc f() {}\n#endif\n")
     let on = Driver(config: DriverConfig(defines: ["FLAG": "1"], dumpAST: true))
         .run(files: [file])
@@ -114,7 +122,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(!off.stdout.contains("FunctionDecl"))
 }
 
-@Test func driverDefineWithValue() throws {
+@Test
+func driverDefineWithValue() throws {
     let file = try writeTemp("cond2.truss", "#if MODE == 2\nfunc f() {}\n#endif\n")
     let on = Driver(config: DriverConfig(defines: ["MODE": "2"], dumpAST: true))
         .run(files: [file])
@@ -126,7 +135,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(!off.stdout.contains("FunctionDecl"))
 }
 
-@Test func driverDumpFlags() throws {
+@Test
+func driverDumpFlags() throws {
     let file = try writeTemp("dump.truss", "func f() {}\n")
     let result = Driver(
         config: DriverConfig(dumpAST: true, dumpSymbols: true, dumpSource: true)
@@ -137,7 +147,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.contains("func f()"))
 }
 
-@Test func driverTypeCheckerStructuralAnnotations() throws {
+@Test
+func driverTypeCheckerStructuralAnnotations() throws {
     let file = try writeTemp(
         "types.truss",
         """
@@ -162,14 +173,16 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.contains("ty:Composition(ProtocolType(P)"))
 }
 
-@Test func driverMissingFileReportsError() {
+@Test
+func driverMissingFileReportsError() {
     let missing = "/nonexistent/truss-\(UUID().uuidString).truss"
     let result = Driver(config: DriverConfig()).run(files: [missing])
     #expect(result.hasErrors)
     #expect(result.stderr.contains("could not read file"))
 }
 
-@Test func driverTargetTriple() throws {
+@Test
+func driverTargetTriple() throws {
     let file = try writeTemp("os.truss", "#if os(Linux)\nfunc f() {}\n#endif\n")
     let linux = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
     #expect(!linux.hasErrors)
@@ -181,7 +194,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(!macos.stdout.contains("FunctionDecl"))
 }
 
-@Test func driverIncludeResolvesRelativeToSourceFile() throws {
+@Test
+func driverIncludeResolvesRelativeToSourceFile() throws {
     let header = try writeTemp("defs.truss", "#define MAX 42\n")
     let dir = (header as NSString).deletingLastPathComponent
     let main = dir + "/main.truss"
@@ -192,7 +206,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.contains("42"))
 }
 
-@Test func driverStopsAfterFrontendError() throws {
+@Test
+func driverStopsAfterFrontendError() throws {
     let a = try writeTemp("bad.truss", "struct S {\n")
     let b = try writeTemp("ext.truss", "extension Missing {}\n")
     let result = Driver(config: DriverConfig()).run(files: [a, b])
@@ -201,7 +216,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(!result.stderr.contains("has no matching declaration"))
 }
 
-@Test func driverStopsAfterCollectorError() throws {
+@Test
+func driverStopsAfterCollectorError() throws {
     let file = try writeTemp(
         "dup.truss", "struct S {}\nstruct S {}\nextension Missing {}\n"
     )
@@ -211,7 +227,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(!result.stderr.contains("has no matching declaration"))
 }
 
-@Test func driverSkipsDumpOnError() throws {
+@Test
+func driverSkipsDumpOnError() throws {
     let file = try writeTemp("bad2.truss", "struct S {\n")
     let result = Driver(
         config: DriverConfig(dumpAST: true, dumpSymbols: true, dumpSource: true)
@@ -220,7 +237,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.isEmpty)
 }
 
-@Test func driverDumpsOnErrorWhenEnabled() throws {
+@Test
+func driverDumpsOnErrorWhenEnabled() throws {
     let file = try writeTemp("bad3.truss", "struct S {\n")
     let on = Driver(config: DriverConfig(dumpAST: true, dumpOnError: true)).run(files: [file])
     #expect(on.hasErrors)
@@ -230,13 +248,15 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(off.stdout.isEmpty)
 }
 
-@Test func driverRunStringParsesInMemorySource() throws {
+@Test
+func driverRunStringParsesInMemorySource() throws {
     let result = Driver(config: DriverConfig(dumpAST: true)).runString("func f() {}\n")
     #expect(!result.hasErrors)
     #expect(result.stdout.contains("FunctionDecl"))
 }
 
-@Test func driverFoldsExpressionsByPrecedence() throws {
+@Test
+func driverFoldsExpressionsByPrecedence() throws {
     let file = try writeTemp(
         "fold.truss",
         "precedencegroup Additive {} precedencegroup Multiplicative { higherThan: Additive }\n"
@@ -253,7 +273,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(!result.stdout.contains("SequentialExpression"))
 }
 
-@Test func driverFoldsUnaryOperators() throws {
+@Test
+func driverFoldsUnaryOperators() throws {
     let file = try writeTemp(
         "unary.truss",
         "precedencegroup Multiplicative {}\nprefix operator - infix operator -: Multiplicative\n"
@@ -271,7 +292,8 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(result.stdout.contains("Binary"))
 }
 
-@Test func driverSupportsGenericApplication() throws {
+@Test
+func driverSupportsGenericApplication() throws {
     let file = try writeTemp(
         "generic.truss",
         "struct Box {}\nstruct S {}\nfunc main() { Box<S> }\n"
@@ -280,14 +302,16 @@ private func writeTemp(_ name: String, _ content: String) throws -> String {
     #expect(!result.hasErrors)
 }
 
-@Test func driverReportsUnknownOperator() throws {
+@Test
+func driverReportsUnknownOperator() throws {
     let file = try writeTemp("unknown-op.truss", "func main() { 1 + 2 }\n")
     let result = Driver(config: DriverConfig()).run(files: [file])
     #expect(result.hasErrors)
     #expect(result.stderr.contains("unknown operator '+'"))
 }
 
-@Test func driverOperatorFunctionResolution() throws {
+@Test
+func driverOperatorFunctionResolution() throws {
     let file = try writeTemp(
         "op-func.truss",
         "precedencegroup Additive {}\ninfix operator +: Additive\n"
@@ -311,7 +335,8 @@ func driverSupportsMemberOperatorCall() throws {
     #expect(result.stdout.contains("MemberAccess"))
 }
 
-@Test func driverOperatorWithoutFunctionReportsError() throws {
+@Test
+func driverOperatorWithoutFunctionReportsError() throws {
     let file = try writeTemp(
         "op-noimpl.truss",
         "precedencegroup Additive {}\ninfix operator +: Additive\n"
@@ -322,7 +347,8 @@ func driverSupportsMemberOperatorCall() throws {
     #expect(result.stderr.contains("operator '+' has no function declaration"))
 }
 
-@Test func driverFunctionCallEndToEnd() throws {
+@Test
+func driverFunctionCallEndToEnd() throws {
     let file = try writeTemp(
         "generic-fn.truss",
         "struct S {}\n"
@@ -334,7 +360,8 @@ func driverSupportsMemberOperatorCall() throws {
     #expect(result.stdout.contains("ty:StructType(S)"))
 }
 
-@Test func driverMismatchedTypeReportsError() throws {
+@Test
+func driverMismatchedTypeReportsError() throws {
     let file = try writeTemp(
         "mismatch.truss",
         "struct S {}\nstruct T {}\n"
@@ -346,7 +373,8 @@ func driverSupportsMemberOperatorCall() throws {
     #expect(result.stderr.contains("expected 'S', found 'T'"))
 }
 
-@Test func driverAssignmentToPropertyEndToEnd() throws {
+@Test
+func driverAssignmentToPropertyEndToEnd() throws {
     let file = try writeTemp(
         "assign.truss",
         """
@@ -370,7 +398,8 @@ func driverSupportsMemberOperatorCall() throws {
     #expect(result.stdout.contains("store"))
 }
 
-@Test func driverDumpLLVMIRShowsArithInstructions() throws {
+@Test
+func driverDumpLLVMIRShowsArithInstructions() throws {
     let sources = [
         (
             "add.truss",
@@ -411,7 +440,8 @@ func driverSupportsMemberOperatorCall() throws {
     }
 }
 
-@Test func driverDumpLLVMIRShowsCompareAndBitwiseInstructions() throws {
+@Test
+func driverDumpLLVMIRShowsCompareAndBitwiseInstructions() throws {
     let file = try writeTemp(
         "cmp.truss",
         """

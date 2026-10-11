@@ -1309,7 +1309,7 @@ public final class CodeGen: TIR.Visitor {
     public override func visitVoidLiteral(
         _ literal: TIR.VoidLiteral, additional: Any? = nil
     ) -> Any? {
-        return nil
+        nil
     }
 
     public override func visitStringLiteral(

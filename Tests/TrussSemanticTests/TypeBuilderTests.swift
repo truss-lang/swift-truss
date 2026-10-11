@@ -2,7 +2,8 @@ import Testing
 import TrussCore
 import TrussSemantics
 
-@Test func buildsStructType() throws {
+@Test
+func buildsStructType() throws {
     let (context, programs) = runTypeBuilder(["struct S {}"])
     let structDecl = programs[0].statements[0] as! AST.StructDecl
     let symbol = try #require(structDecl.symbol)
@@ -13,7 +14,8 @@ import TrussSemantics
     #expect((builtType as! TrussType.StructType).symbol === symbol)
 }
 
-@Test func buildsAllNominalKinds() throws {
+@Test
+func buildsAllNominalKinds() throws {
     let (context, programs) = runTypeBuilder(["""
     struct S {}
     class C {}
@@ -42,18 +44,21 @@ import TrussSemantics
     }
 }
 
-@Test func skipsTypeAlias() {
+@Test
+func skipsTypeAlias() {
     let (context, _) = runTypeBuilder(["typealias X = Int32"])
     #expect(context.typeTable.isEmpty)
 }
 
-@Test func skipsBuiltins() {
+@Test
+func skipsBuiltins() {
     let (context, _) = runTypeBuilder(["struct S {}\nlet v: Void = f()"])
     #expect(context.typeTable.count == 1)
     #expect(context.typeTable.values.allSatisfy { $0 is TrussType.StructType })
 }
 
-@Test func buildsNestedTypes() throws {
+@Test
+func buildsNestedTypes() throws {
     let (context, programs) = runTypeBuilder(["struct Outer { struct Inner {} }"])
     let outerDecl = programs[0].statements[0] as! AST.StructDecl
     let innerDecl = try #require(outerDecl.body.first as? AST.StructDecl)
@@ -64,14 +69,16 @@ import TrussSemantics
     #expect(context.typeTable[innerTypeId] is TrussType.StructType)
 }
 
-@Test func sharedAcrossPrograms() {
+@Test
+func sharedAcrossPrograms() {
     let (context, _) = runTypeBuilder(["struct A {}", "struct B {}"])
     #expect(context.typeTable.count == 2)
     #expect(context.typeTable.values.contains { ($0 as! TrussType.NominalType).name == "A" })
     #expect(context.typeTable.values.contains { ($0 as! TrussType.NominalType).name == "B" })
 }
 
-@Test func fieldsDefaultEmpty() throws {
+@Test
+func fieldsDefaultEmpty() throws {
     let (context, programs) = runTypeBuilder(["class C: P {}\nprotocol P {}"])
     let classDecl = programs[0].statements[0] as! AST.ClassDecl
     let typeId = try #require(classDecl.symbol?.typeId)

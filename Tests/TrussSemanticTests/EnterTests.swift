@@ -1,7 +1,8 @@
 import Testing
 import TrussCore
 
-@Test func enterNestedModuleSymbols() throws {
+@Test
+func enterNestedModuleSymbols() throws {
     let program = parseProgram("module A.B {}")
     let outer = program.statements[0] as! AST.ModuleDecl
     let a = outer.symbol
@@ -10,7 +11,8 @@ import TrussCore
     #expect(b != nil)
 }
 
-@Test func enterDottedAndNestedModuleMerge() throws {
+@Test
+func enterDottedAndNestedModuleMerge() throws {
     let program = parseProgram("module A.B { func f() {} } module A { func g() {} }")
     let first = program.statements[0] as! AST.ModuleDecl
     let second = program.statements[1] as! AST.ModuleDecl

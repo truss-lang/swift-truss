@@ -6,8 +6,10 @@ func codegenIR(_ source: String) -> String {
     return result.stdout
 }
 
-@Suite struct TrussCodeGenTests {
-    @Test func structFunctionReturnsStruct() throws {
+@Suite
+struct TrussCodeGenTests {
+    @Test
+    func structFunctionReturnsStruct() throws {
         let ir = codegenIR(
             """
             struct S {}
@@ -22,7 +24,8 @@ func codegenIR(_ source: String) -> String {
         try #require(ir.contains("alloca %\"$t4main_1S\""))
     }
 
-    @Test func enumMatchLowersToSwitch() throws {
+    @Test
+    func enumMatchLowersToSwitch() throws {
         let ir = codegenIR(
             """
             enum E {
@@ -43,7 +46,8 @@ func codegenIR(_ source: String) -> String {
         try #require(ir.contains("unreachable"))
     }
 
-    @Test func enumMatchMergeLowersToPhi() throws {
+    @Test
+    func enumMatchMergeLowersToPhi() throws {
         let ir = codegenIR(
             """
             enum E {
@@ -61,7 +65,8 @@ func codegenIR(_ source: String) -> String {
         try #require(ir.contains("phi i8"))
     }
 
-    @Test func functionCallLowersToCall() throws {
+    @Test
+    func functionCallLowersToCall() throws {
         let ir = codegenIR(
             """
             struct S {}
@@ -77,7 +82,8 @@ func codegenIR(_ source: String) -> String {
         try #require(ir.contains("ret %\"$t4main_1S\" %2"))
     }
 
-    @Test func voidFunctionReturnsVoid() throws {
+    @Test
+    func voidFunctionReturnsVoid() throws {
         let ir = codegenIR(
             """
             func f() {
@@ -88,7 +94,8 @@ func codegenIR(_ source: String) -> String {
         try #require(ir.contains("ret void"))
     }
 
-    @Test func setsTargetTriple() throws {
+    @Test
+    func setsTargetTriple() throws {
         let ir = codegenIR(
             """
             struct S {}

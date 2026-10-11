@@ -56,19 +56,22 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     }
 }
 
-@Test func parseProgramIdPropagation() {
+@Test
+func parseProgramIdPropagation() {
     let program = parse("let x")
     #expect(program.id.id == 0)
     #expect(program.statements.count == 1)
 }
 
-@Test func parseSingleEmptyStatement() throws {
+@Test
+func parseSingleEmptyStatement() throws {
     let statements = parseStatements(";")
     try #require(statements.count == 1)
     #expect(statements[0] is AST.EmptyStatement)
 }
 
-@Test func parseMultipleEmptyStatements() throws {
+@Test
+func parseMultipleEmptyStatements() throws {
     let statements = parseStatements(";;;")
     try #require(statements.count == 3)
     #expect(statements[0] is AST.EmptyStatement)
@@ -76,13 +79,15 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(statements[2] is AST.EmptyStatement)
 }
 
-@Test func parseEmptyStatementInBlock() throws {
+@Test
+func parseEmptyStatementInBlock() throws {
     let body = parseBlockStatements("func main() { ; }")
     try #require(body.count == 1)
     #expect(body[0] is AST.EmptyStatement)
 }
 
-@Test func parseLetWithoutInitializer() throws {
+@Test
+func parseLetWithoutInitializer() throws {
     let statements = parseStatements("let x")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.VariableDecl
@@ -94,7 +99,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(decl!.initializer == nil)
 }
 
-@Test func parseVarWithoutInitializer() throws {
+@Test
+func parseVarWithoutInitializer() throws {
     let statements = parseStatements("var y")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.VariableDecl
@@ -105,7 +111,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(decl!.initializer == nil)
 }
 
-@Test func parseLetWithInitializer() throws {
+@Test
+func parseLetWithInitializer() throws {
     let statements = parseStatements("let x = 42")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.VariableDecl
@@ -118,7 +125,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(intLit!.value == 42)
 }
 
-@Test func parseLetWithTypeAnnotation() throws {
+@Test
+func parseLetWithTypeAnnotation() throws {
     let statements = parseStatements("let x: Int")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.VariableDecl
@@ -131,7 +139,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(typeVar!.name.value == "Int")
 }
 
-@Test func parseVarWithInitializer() throws {
+@Test
+func parseVarWithInitializer() throws {
     let statements = parseStatements("var flag = true")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.VariableDecl
@@ -142,7 +151,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(boolLit!.value == true)
 }
 
-@Test func parseFunctionEmptyBlock() throws {
+@Test
+func parseFunctionEmptyBlock() throws {
     let statements = parseStatements("func main() {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.FunctionDecl
@@ -158,7 +168,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     }
 }
 
-@Test func parseFunctionExpressionBody() throws {
+@Test
+func parseFunctionExpressionBody() throws {
     let statements = parseStatements("func foo() = 42")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.FunctionDecl
@@ -173,7 +184,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     }
 }
 
-@Test func parseFunctionWithBlockStatements() throws {
+@Test
+func parseFunctionWithBlockStatements() throws {
     let body = parseBlockStatements("func main() { let x }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -181,7 +193,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(vd!.name.value == "x")
 }
 
-@Test func parseFunctionWithMultipleBlockStatements() throws {
+@Test
+func parseFunctionWithMultipleBlockStatements() throws {
     let body = parseBlockStatements("func main() { let x let y }")
     try #require(body.count == 2)
     let vd1 = body[0] as? AST.VariableDecl
@@ -192,7 +205,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(vd2!.name.value == "y")
 }
 
-@Test func parseNestedFunctionDecl() throws {
+@Test
+func parseNestedFunctionDecl() throws {
     let body = parseBlockStatements("func main() { func inner() {} }")
     try #require(body.count == 1)
     let inner = body[0] as? AST.FunctionDecl
@@ -205,62 +219,71 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     }
 }
 
-@Test func parseExpressionStatementWithIdentifier() throws {
+@Test
+func parseExpressionStatementWithIdentifier() throws {
     let expr = firstExpression("x")
     let varExpr = expr as? AST.Variable
     try #require(varExpr != nil)
     #expect(varExpr!.name.value == "x")
 }
 
-@Test func parseIntegerLiteralExpression() throws {
+@Test
+func parseIntegerLiteralExpression() throws {
     let expr = firstExpression("42")
     let lit = expr as? AST.IntegerLiteral
     try #require(lit != nil)
     #expect(lit!.value == 42)
 }
 
-@Test func parseFloatLiteralExpression() throws {
+@Test
+func parseFloatLiteralExpression() throws {
     let expr = firstExpression("3.14")
     let lit = expr as? AST.FloatLiteral
     try #require(lit != nil)
     #expect(lit!.value == 3.14)
 }
 
-@Test func parseStringLiteralExpression() throws {
+@Test
+func parseStringLiteralExpression() throws {
     let expr = firstExpression("\"hello\"")
     let lit = expr as? AST.StringLiteral
     try #require(lit != nil)
     #expect(lit!.token.value == "hello")
 }
 
-@Test func parseCharLiteralExpression() throws {
+@Test
+func parseCharLiteralExpression() throws {
     let expr = firstExpression("'a'")
     let lit = expr as? AST.CharLiteral
     try #require(lit != nil)
     #expect(lit!.value == "a")
 }
 
-@Test func parseBooleanTrueLiteralExpression() throws {
+@Test
+func parseBooleanTrueLiteralExpression() throws {
     let expr = firstExpression("true")
     let lit = expr as? AST.BoolLiteral
     try #require(lit != nil)
     #expect(lit!.value == true)
 }
 
-@Test func parseBooleanFalseLiteralExpression() throws {
+@Test
+func parseBooleanFalseLiteralExpression() throws {
     let expr = firstExpression("false")
     let lit = expr as? AST.BoolLiteral
     try #require(lit != nil)
     #expect(lit!.value == false)
 }
 
-@Test func parseNullLiteralExpression() {
+@Test
+func parseNullLiteralExpression() {
     let expr = firstExpression("null")
     let lit = expr as? AST.NullLiteral
     #expect(lit != nil)
 }
 
-@Test func parseFunctionCallNoArgs() throws {
+@Test
+func parseFunctionCallNoArgs() throws {
     let expr = firstExpression("foo()")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -270,7 +293,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(call!.arguments.isEmpty)
 }
 
-@Test func parseMemberAccess() throws {
+@Test
+func parseMemberAccess() throws {
     let expr = firstExpression("a.b")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -281,7 +305,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(member!.token.kind == .Operator(.Dot))
 }
 
-@Test func parseChainedMemberAccess() throws {
+@Test
+func parseChainedMemberAccess() throws {
     let expr = firstExpression("a.b.c")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -295,7 +320,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(member!.isOptional == false)
 }
 
-@Test func parseOptionalChaining() throws {
+@Test
+func parseOptionalChaining() throws {
     let expr = firstExpression("a?.b")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -304,7 +330,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(member!.member.value == "b")
 }
 
-@Test func parseChainedOptionalChaining() throws {
+@Test
+func parseChainedOptionalChaining() throws {
     let expr = firstExpression("a?.b?.c")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -316,7 +343,8 @@ func modifierKind(_ kind: AST.ModifierKind, equals expected: AST.ModifierKind) -
     #expect(inner!.member.value == "b")
 }
 
-@Test func parseMixedOptionalAndRegular() throws {
+@Test
+func parseMixedOptionalAndRegular() throws {
     let expr = firstExpression("a.b?.c")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -418,7 +446,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(sequence!.operands.count == 1)
 }
 
-@Test func parseCastAsExpression() {
+@Test
+func parseCastAsExpression() {
     let expr = firstExpression("x as Int32")
     let cast = expr as? AST.Cast
     #expect(cast != nil)
@@ -430,21 +459,24 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(right!.name.value == "Int32")
 }
 
-@Test func parseCastOptionalAsExpression() {
+@Test
+func parseCastOptionalAsExpression() {
     let expr = firstExpression("x as? Int32")
     let cast = expr as? AST.Cast
     #expect(cast != nil)
     #expect(cast!.kind == .OptionalAs)
 }
 
-@Test func parseCastAsExclamationExpression() {
+@Test
+func parseCastAsExclamationExpression() {
     let expr = firstExpression("x as! Int32")
     let cast = expr as? AST.Cast
     #expect(cast != nil)
     #expect(cast!.kind == .AsExclamation)
 }
 
-@Test func parseIsExpression() {
+@Test
+func parseIsExpression() {
     let expr = firstExpression("x is Int32")
     let cast = expr as? AST.Cast
     #expect(cast != nil)
@@ -452,7 +484,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(cast!.token.kind == .Keyword(.Is))
 }
 
-@Test func parseCastChain() throws {
+@Test
+func parseCastChain() throws {
     let expr = firstExpression("a as B as? C")
     let cast = expr as? AST.Cast
     #expect(cast != nil)
@@ -463,7 +496,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(cast!.right is AST.Variable)
 }
 
-@Test func parseCallOnMemberAccess() throws {
+@Test
+func parseCallOnMemberAccess() throws {
     let expr = firstExpression("a.b()")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -476,7 +510,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(obj!.name.value == "a")
 }
 
-@Test func parseInitMemberCall() throws {
+@Test
+func parseInitMemberCall() throws {
     let expr = firstExpression("Foo.init()")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -490,7 +525,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(obj!.name.value == "Foo")
 }
 
-@Test func parseInitMemberCallWithArguments() throws {
+@Test
+func parseInitMemberCallWithArguments() throws {
     let expr = firstExpression("Foo.init(x: 1, y: 2)")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -502,7 +538,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(callee!.member.value == "init")
 }
 
-@Test func parseSelfInitDelegation() throws {
+@Test
+func parseSelfInitDelegation() throws {
     let expr = firstExpression("self.init(capacity: count)")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -515,7 +552,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(obj != nil)
 }
 
-@Test func parseSuperInitCall() throws {
+@Test
+func parseSuperInitCall() throws {
     let expr = firstExpression("super.init()")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -526,7 +564,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(obj != nil)
 }
 
-@Test func parseDeinitMemberCallOnSubscript() throws {
+@Test
+func parseDeinitMemberCallOnSubscript() throws {
     let expr = firstExpression("data[i].deinit()")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -539,7 +578,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(sub!.arguments.count == 1)
 }
 
-@Test func parseDeinitMemberCallOnParens() throws {
+@Test
+func parseDeinitMemberCallOnParens() throws {
     let expr = firstExpression("(*value).deinit()")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -550,7 +590,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     try #require(paren != nil)
 }
 
-@Test func parseInitMemberCallAfterGeneric() throws {
+@Test
+func parseInitMemberCallAfterGeneric() throws {
     let expr = firstExpression("Foo<Int32>.init()")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -562,7 +603,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(seq!.ops.count == 2)
 }
 
-@Test func parseBareInitMemberReference() throws {
+@Test
+func parseBareInitMemberReference() throws {
     let expr = firstExpression("Foo.init")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -570,7 +612,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(member!.member.value == "init")
 }
 
-@Test func parseBareDeinitMemberReference() throws {
+@Test
+func parseBareDeinitMemberReference() throws {
     let expr = firstExpression("foo.deinit")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -578,7 +621,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(member!.member.value == "deinit")
 }
 
-@Test func parseKeywordMemberName() throws {
+@Test
+func parseKeywordMemberName() throws {
     let expr = firstExpression("foo.return")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -586,7 +630,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(member!.member.value == "return")
 }
 
-@Test func parseKeywordMemberNameIf() throws {
+@Test
+func parseKeywordMemberNameIf() throws {
     let expr = firstExpression("foo.if")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -594,7 +639,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(member!.member.value == "if")
 }
 
-@Test func parseDeinitCallWithArgumentsAllowed() throws {
+@Test
+func parseDeinitCallWithArgumentsAllowed() throws {
     let expr = firstExpression("foo.deinit(1)")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -604,7 +650,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(callee!.member.value == "deinit")
 }
 
-@Test func parseInitMemberOptionalChain() throws {
+@Test
+func parseInitMemberOptionalChain() throws {
     let expr = firstExpression("foo?.init()")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -615,7 +662,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(callee!.member.value == "init")
 }
 
-@Test func parseStringLiteralMemberReportsError() throws {
+@Test
+func parseStringLiteralMemberReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { foo.\"str\" }")
     try #require(errors.count >= 1)
     #expect(
@@ -625,13 +673,15 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     )
 }
 
-@Test func parseMemberAtEofReportsError() throws {
+@Test
+func parseMemberAtEofReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { foo.")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected member name after '.'") })
 }
 
-@Test func parseCallOnCall() throws {
+@Test
+func parseCallOnCall() throws {
     let expr = firstExpression("foo()()")
     let outer = expr as? AST.Call
     try #require(outer != nil)
@@ -642,7 +692,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(base!.name.value == "foo")
 }
 
-@Test func parseInfixExpression() throws {
+@Test
+func parseInfixExpression() throws {
     let expr = firstExpression("a + b")
     let sequentialExpression = expr as? AST.Sequential
     try #require(sequentialExpression != nil)
@@ -657,7 +708,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(right!.name.value == "b")
 }
 
-@Test func parseComplexInfixExpression() throws {
+@Test
+func parseComplexInfixExpression() throws {
     let expr = firstExpression("a + b * c - d")
     let sequentialExpression = expr as? AST.Sequential
     try #require(sequentialExpression != nil)
@@ -674,7 +726,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseAssignmentExpression() throws {
+@Test
+func parseAssignmentExpression() throws {
     let expr = firstExpression("x = 42")
     let sequentialExpression = expr as? AST.Sequential
     try #require(sequentialExpression != nil)
@@ -689,7 +742,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(value!.value == 42)
 }
 
-@Test func parseComparisonExpression() throws {
+@Test
+func parseComparisonExpression() throws {
     let expr = firstExpression("a == b")
     let sequentialExpression = expr as? AST.Sequential
     try #require(sequentialExpression != nil)
@@ -698,21 +752,24 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(sequentialExpression!.operands.count == 2)
 }
 
-@Test func parseLogicalAndExpression() throws {
+@Test
+func parseLogicalAndExpression() throws {
     let expr = firstExpression("a && b")
     let sequentialExpression = expr as? AST.Sequential
     try #require(sequentialExpression != nil)
     #expect(sequentialExpression!.ops[0].kind == .Operator(.And))
 }
 
-@Test func parseLogicalOrExpression() throws {
+@Test
+func parseLogicalOrExpression() throws {
     let expr = firstExpression("a || b")
     let sequentialExpression = expr as? AST.Sequential
     try #require(sequentialExpression != nil)
     #expect(sequentialExpression!.ops[0].kind == .Operator(.Or))
 }
 
-@Test func parseMixedDeclarations() throws {
+@Test
+func parseMixedDeclarations() throws {
     let statements = parseStatements("let x = 1 func foo() {}")
     try #require(statements.count == 2)
     let vd = statements[0] as? AST.VariableDecl
@@ -723,7 +780,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(fd!.name.value == "foo")
 }
 
-@Test func parseMultipleVariableDeclarations() throws {
+@Test
+func parseMultipleVariableDeclarations() throws {
     let statements = parseStatements("let a = 1 let b = 2 let c = 3")
     try #require(statements.count == 3)
     let names = ["a", "b", "c"]
@@ -734,7 +792,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseFunctionWithEmptyStatementInBody() throws {
+@Test
+func parseFunctionWithEmptyStatementInBody() throws {
     let body = parseBlockStatements("func main() { ; let x }")
     try #require(body.count == 2)
     #expect(body[0] is AST.EmptyStatement)
@@ -743,35 +802,40 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(vd!.name.value == "x")
 }
 
-@Test func parseHexStringLiteral() throws {
+@Test
+func parseHexStringLiteral() throws {
     let expr = firstExpression("0xFF")
     let lit = expr as? AST.IntegerLiteral
     try #require(lit != nil)
     #expect(lit!.value == 255)
 }
 
-@Test func parseBinaryStringLiteral() throws {
+@Test
+func parseBinaryStringLiteral() throws {
     let expr = firstExpression("0b1010")
     let lit = expr as? AST.IntegerLiteral
     try #require(lit != nil)
     #expect(lit!.value == 10)
 }
 
-@Test func parseUnderscoredIntegerLiteral() throws {
+@Test
+func parseUnderscoredIntegerLiteral() throws {
     let expr = firstExpression("1_000_000")
     let lit = expr as? AST.IntegerLiteral
     try #require(lit != nil)
     #expect(lit!.value == 1_000_000)
 }
 
-@Test func parseScientificFloatLiteral() throws {
+@Test
+func parseScientificFloatLiteral() throws {
     let expr = firstExpression("1.5e-3")
     let lit = expr as? AST.FloatLiteral
     try #require(lit != nil)
     #expect(lit!.value == 0.0015)
 }
 
-@Test func parseReturnWithIntegerLiteral() throws {
+@Test
+func parseReturnWithIntegerLiteral() throws {
     let body = parseBlockStatements("func main() { return 42 }")
     try #require(body.count == 1)
     let ret = body[0] as? AST.Return
@@ -782,7 +846,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(lit!.value == 42)
 }
 
-@Test func parseReturnWithComplexExpression() throws {
+@Test
+func parseReturnWithComplexExpression() throws {
     let body = parseBlockStatements("func main() { return a + b }")
     try #require(body.count == 1)
     let ret = body[0] as? AST.Return
@@ -801,7 +866,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(right!.name.value == "b")
 }
 
-@Test func parseReturnWithoutValueFollowedBySemicolon() throws {
+@Test
+func parseReturnWithoutValueFollowedBySemicolon() throws {
     let body = parseBlockStatements("func main() { return; }")
     try #require(body.count == 2)
     let ret = body[0] as? AST.Return
@@ -811,7 +877,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(body[1] is AST.EmptyStatement)
 }
 
-@Test func parseReturnWithoutValueOnOwnLine() throws {
+@Test
+func parseReturnWithoutValueOnOwnLine() throws {
     let body = parseBlockStatements("func main() {\nreturn\n}")
     try #require(body.count == 1)
     let ret = body[0] as? AST.Return
@@ -820,7 +887,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(ret!.value == nil)
 }
 
-@Test func parseReturnFollowedByAnotherStatement() throws {
+@Test
+func parseReturnFollowedByAnotherStatement() throws {
     let body = parseBlockStatements("func main() { return x; let y }")
     try #require(body.count == 3)
     let ret = body[0] as? AST.Return
@@ -834,7 +902,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(vd!.name.value == "y")
 }
 
-@Test func parseThrowWithMemberAccess() throws {
+@Test
+func parseThrowWithMemberAccess() throws {
     let body = parseBlockStatements("func main() { throw MyError.bad }")
     try #require(body.count == 1)
     let throwStmt = body[0] as? AST.Throw
@@ -845,7 +914,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(memberAccess!.member.value == "bad")
 }
 
-@Test func parseThrowWithVariable() throws {
+@Test
+func parseThrowWithVariable() throws {
     let body = parseBlockStatements("func main() { throw err }")
     try #require(body.count == 1)
     let throwStmt = body[0] as? AST.Throw
@@ -855,7 +925,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(varExpr!.name.value == "err")
 }
 
-@Test func parseThrowWithComplexExpression() throws {
+@Test
+func parseThrowWithComplexExpression() throws {
     let body = parseBlockStatements("func main() { throw a + b }")
     try #require(body.count == 1)
     let throwStmt = body[0] as? AST.Throw
@@ -866,7 +937,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(sequentialExpression!.ops[0].kind == .Operator(.Plus))
 }
 
-@Test func parseThrowInClosureBody() throws {
+@Test
+func parseThrowInClosureBody() throws {
     let body = parseBlockStatements("func main() { let f = { throw E.x } }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -878,13 +950,15 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(throwStmt!.token.kind == .Keyword(.Throw))
 }
 
-@Test func parseThrowMissingExpressionReportsError() throws {
+@Test
+func parseThrowMissingExpressionReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { throw }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected expression after 'throw'"))
 }
 
-@Test func parseTryExpression() throws {
+@Test
+func parseTryExpression() throws {
     let expr = firstExpression("try foo()")
     let tryExpr = expr as? AST.Try
     try #require(tryExpr != nil)
@@ -894,7 +968,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(call != nil)
 }
 
-@Test func parseTryQuestionExpression() throws {
+@Test
+func parseTryQuestionExpression() throws {
     let expr = firstExpression("try? foo()")
     let tryExpr = expr as? AST.Try
     try #require(tryExpr != nil)
@@ -903,7 +978,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(call != nil)
 }
 
-@Test func parseTryExclamationExpression() throws {
+@Test
+func parseTryExclamationExpression() throws {
     let expr = firstExpression("try! foo()")
     let tryExpr = expr as? AST.Try
     try #require(tryExpr != nil)
@@ -912,7 +988,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(call != nil)
 }
 
-@Test func parseTryWrapsWholeExpression() throws {
+@Test
+func parseTryWrapsWholeExpression() throws {
     let expr = firstExpression("try foo() + bar")
     let tryExpr = expr as? AST.Try
     try #require(tryExpr != nil)
@@ -923,7 +1000,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(sequentialExpression!.ops[0].kind == .Operator(.Plus))
 }
 
-@Test func parseTryInVariableInitializer() throws {
+@Test
+func parseTryInVariableInitializer() throws {
     let body = parseBlockStatements("func main() { let x = try? foo() }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -933,7 +1011,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(tryExpr!.kind == .OptionalTry)
 }
 
-@Test func parseTryInExpressionStatementWithOperator() throws {
+@Test
+func parseTryInExpressionStatementWithOperator() throws {
     let expr = firstExpression("a + try b")
     let sequentialExpression = expr as? AST.Sequential
     try #require(sequentialExpression != nil)
@@ -945,7 +1024,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(variable!.name.value == "b")
 }
 
-@Test func parseTryGreedyExclamationAfterTry() throws {
+@Test
+func parseTryGreedyExclamationAfterTry() throws {
     let expr = firstExpression("try !flag")
     let tryExpr = expr as? AST.Try
     try #require(tryExpr != nil)
@@ -955,7 +1035,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(variable!.name.value == "flag")
 }
 
-@Test func parseTryNested() throws {
+@Test
+func parseTryNested() throws {
     let expr = firstExpression("try try foo()")
     let outer = expr as? AST.Try
     try #require(outer != nil)
@@ -966,20 +1047,23 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(call != nil)
 }
 
-@Test func parseTryMissingExpressionReportsError() throws {
+@Test
+func parseTryMissingExpressionReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { try }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected expression after 'try'"))
 }
 
-@Test func parseFunctionWithoutThrows() throws {
+@Test
+func parseFunctionWithoutThrows() throws {
     let statements = parseStatements("func f() -> Int")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
     #expect(decl!.throwsClause == nil)
 }
 
-@Test func parseFunctionThrowsClause() throws {
+@Test
+func parseFunctionThrowsClause() throws {
     let statements = parseStatements("func f() throws {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -988,7 +1072,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(decl!.throwsClause!.types == nil)
 }
 
-@Test func parseFunctionThrowsWithReturnType() throws {
+@Test
+func parseFunctionThrowsWithReturnType() throws {
     let statements = parseStatements("func f() throws -> Int")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -999,7 +1084,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(returnType!.name.value == "Int")
 }
 
-@Test func parseFunctionTypedThrows() throws {
+@Test
+func parseFunctionTypedThrows() throws {
     let statements = parseStatements("func f() throws(E1) -> Int")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -1011,7 +1097,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(type0!.name.value == "E1")
 }
 
-@Test func parseFunctionMultipleTypedThrows() throws {
+@Test
+func parseFunctionMultipleTypedThrows() throws {
     let statements = parseStatements("func f() throws(E1, E2) -> Int")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -1024,7 +1111,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(type1!.name.value == "E2")
 }
 
-@Test func parseInitThrowsClause() throws {
+@Test
+func parseInitThrowsClause() throws {
     let statements = parseStatements("struct S { init() throws {} }")
     let structDecl = statements[0] as? AST.StructDecl
     try #require(structDecl != nil)
@@ -1034,7 +1122,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(initDecl!.throwsClause!.types == nil)
 }
 
-@Test func parseInitTypedThrows() throws {
+@Test
+func parseInitTypedThrows() throws {
     let statements = parseStatements("struct S { init() throws(E) {} }")
     let structDecl = statements[0] as? AST.StructDecl
     try #require(structDecl != nil)
@@ -1043,7 +1132,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     try #require(initDecl!.throwsClause?.types?.count == 1)
 }
 
-@Test func parseInitWithParameters() throws {
+@Test
+func parseInitWithParameters() throws {
     let statements = parseStatements("struct S { init(x: Int) {} }")
     let structDecl = statements[0] as? AST.StructDecl
     try #require(structDecl != nil)
@@ -1054,7 +1144,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(initDecl!.parameters[0].type != nil)
 }
 
-@Test func parseInitWithLabelAndDefaultValue() throws {
+@Test
+func parseInitWithLabelAndDefaultValue() throws {
     let statements = parseStatements("struct S { init(_ a: Int, b: Int = 42) {} }")
     let structDecl = statements[0] as? AST.StructDecl
     try #require(structDecl != nil)
@@ -1068,7 +1159,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(initDecl!.parameters[1].defaultValue != nil)
 }
 
-@Test func parseInitWithParametersAndThrows() throws {
+@Test
+func parseInitWithParametersAndThrows() throws {
     let statements = parseStatements("struct S { init(x: Int) throws(E) {} }")
     let structDecl = statements[0] as? AST.StructDecl
     try #require(structDecl != nil)
@@ -1079,7 +1171,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     try #require(initDecl!.throwsClause?.types?.count == 1)
 }
 
-@Test func parseInitWithTrailingComma() throws {
+@Test
+func parseInitWithTrailingComma() throws {
     let statements = parseStatements("struct S { init(x: Int,) {} }")
     let structDecl = statements[0] as? AST.StructDecl
     try #require(structDecl != nil)
@@ -1088,7 +1181,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(initDecl!.parameters.count == 1)
 }
 
-@Test func parseSubscriptThrowsClause() throws {
+@Test
+func parseSubscriptThrowsClause() throws {
     let statements = parseStatements("struct S { subscript(i: Int) throws -> Int { i } }")
     let structDecl = statements[0] as? AST.StructDecl
     try #require(structDecl != nil)
@@ -1098,7 +1192,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(subDecl!.throwsClause!.types == nil)
 }
 
-@Test func parseClosureTypeThrows() throws {
+@Test
+func parseClosureTypeThrows() throws {
     let body = parseBlockStatements("func main() { let f: (Int) throws -> Int = g }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -1110,7 +1205,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(closureType!.parameters.count == 1)
 }
 
-@Test func parseClosureTypeTypedThrows() throws {
+@Test
+func parseClosureTypeTypedThrows() throws {
     let body = parseBlockStatements("func main() { let f: (Int, String) throws(E1) -> Bool = g }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -1121,7 +1217,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(closureType!.parameters.count == 2)
 }
 
-@Test func parseClosureSignatureThrows() throws {
+@Test
+func parseClosureSignatureThrows() throws {
     let body = parseBlockStatements("func main() { { (x: Int) throws -> Int in x } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1132,7 +1229,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(closure!.signature!.throwsClause!.types == nil)
 }
 
-@Test func parseClosureSignatureTypedThrows() throws {
+@Test
+func parseClosureSignatureTypedThrows() throws {
     let body = parseBlockStatements("func main() { { (x: Int) throws(E1) -> Int in x } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1142,7 +1240,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     try #require(closure!.signature?.throwsClause?.types?.count == 1)
 }
 
-@Test func parseDoAlone() throws {
+@Test
+func parseDoAlone() throws {
     let body = parseBlockStatements("func main() { do { } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1154,7 +1253,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(doExpr!.catches.isEmpty)
 }
 
-@Test func parseDoWithBody() throws {
+@Test
+func parseDoWithBody() throws {
     let body = parseBlockStatements("func main() { do { foo() } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1165,7 +1265,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(doExpr!.catches.isEmpty)
 }
 
-@Test func parseDoCatchBare() throws {
+@Test
+func parseDoCatchBare() throws {
     let body = parseBlockStatements("func main() { do { } catch { } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1177,7 +1278,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(doExpr!.catches[0].whereCondition == nil)
 }
 
-@Test func parseDoCatchLetBinding() throws {
+@Test
+func parseDoCatchLetBinding() throws {
     let body = parseBlockStatements("func main() { do { } catch let e { } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1190,7 +1292,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(binding!.name.value == "e")
 }
 
-@Test func parseDoCatchQualifiedPattern() throws {
+@Test
+func parseDoCatchQualifiedPattern() throws {
     let body = parseBlockStatements("func main() { do { } catch E.bad { } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1203,7 +1306,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(memberAccess!.member.value == "bad")
 }
 
-@Test func parseDoCatchImplicitPattern() throws {
+@Test
+func parseDoCatchImplicitPattern() throws {
     let body = parseBlockStatements("func main() { do { } catch .bad { } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1216,7 +1320,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(implicit!.name.value == "bad")
 }
 
-@Test func parseDoCatchWildcard() throws {
+@Test
+func parseDoCatchWildcard() throws {
     let body = parseBlockStatements("func main() { do { } catch _ { } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1227,7 +1332,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(catchClause.pattern is AST.WildcardPattern)
 }
 
-@Test func parseDoCatchWhereOnly() throws {
+@Test
+func parseDoCatchWhereOnly() throws {
     let body = parseBlockStatements("func main() { do { } catch where cond { } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1240,7 +1346,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(catchClause.whereCondition != nil)
 }
 
-@Test func parseDoCatchPatternWithWhere() throws {
+@Test
+func parseDoCatchPatternWithWhere() throws {
     let body = parseBlockStatements("func main() { do { } catch let e where cond { } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1254,7 +1361,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(catchClause.whereCondition != nil)
 }
 
-@Test func parseDoMultipleCatches() throws {
+@Test
+func parseDoMultipleCatches() throws {
     let body = parseBlockStatements("func main() { do { } catch A { } catch B { } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1264,7 +1372,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(doExpr!.catches.count == 2)
 }
 
-@Test func parseDoAsExpressionValue() throws {
+@Test
+func parseDoAsExpressionValue() throws {
     let body = parseBlockStatements("func main() { let x = do { 1 } }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -1274,13 +1383,15 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(doExpr!.body.count == 1)
 }
 
-@Test func parseDoMissingOpenBraceReportsError() throws {
+@Test
+func parseDoMissingOpenBraceReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { do }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected '{' after 'do'"))
 }
 
-@Test func parseDoFinallyAlone() throws {
+@Test
+func parseDoFinallyAlone() throws {
     let body = parseBlockStatements("func main() { do { } finally { } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1292,7 +1403,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(doExpr!.finallyBody!.isEmpty)
 }
 
-@Test func parseDoCatchFinally() throws {
+@Test
+func parseDoCatchFinally() throws {
     let body = parseBlockStatements("func main() { do { } catch { } finally { cleanup() } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1303,7 +1415,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     try #require(doExpr!.finallyBody?.count == 1)
 }
 
-@Test func parseDoCatchLetFinally() throws {
+@Test
+func parseDoCatchLetFinally() throws {
     let body = parseBlockStatements("func main() { do { } catch let e { } finally { log(e) } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1317,7 +1430,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(doExpr!.finallyBody != nil)
 }
 
-@Test func parseDoWithoutFinally() throws {
+@Test
+func parseDoWithoutFinally() throws {
     let body = parseBlockStatements("func main() { do { } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -1327,7 +1441,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(doExpr!.finallyBody == nil)
 }
 
-@Test func parseEmptyModule() throws {
+@Test
+func parseEmptyModule() throws {
     let statements = parseStatements("module Foo {}")
     try #require(statements.count == 1)
     let module = statements[0] as? AST.ModuleDecl
@@ -1338,7 +1453,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(module!.body.isEmpty)
 }
 
-@Test func parseModuleWithVariableDecl() throws {
+@Test
+func parseModuleWithVariableDecl() throws {
     let statements = parseStatements("module Foo { let x }")
     try #require(statements.count == 1)
     let module = statements[0] as? AST.ModuleDecl
@@ -1350,7 +1466,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(vd!.name.value == "x")
 }
 
-@Test func parseModuleWithFunctionDecl() throws {
+@Test
+func parseModuleWithFunctionDecl() throws {
     let statements = parseStatements("module Foo { func bar() {} }")
     try #require(statements.count == 1)
     let module = statements[0] as? AST.ModuleDecl
@@ -1367,7 +1484,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseModuleWithMultipleDeclarations() throws {
+@Test
+func parseModuleWithMultipleDeclarations() throws {
     let statements = parseStatements("module Foo { let x func bar() {} var y }")
     try #require(statements.count == 1)
     let module = statements[0] as? AST.ModuleDecl
@@ -1384,7 +1502,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(vd2!.name.value == "y")
 }
 
-@Test func parseModuleWithEmptyStatement() throws {
+@Test
+func parseModuleWithEmptyStatement() throws {
     let statements = parseStatements("module Foo { ; }")
     try #require(statements.count == 1)
     let module = statements[0] as? AST.ModuleDecl
@@ -1393,7 +1512,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(module!.body[0] is AST.EmptyStatement)
 }
 
-@Test func parseNestedModule() throws {
+@Test
+func parseNestedModule() throws {
     let statements = parseStatements("module Outer { module Inner {} }")
     try #require(statements.count == 1)
     let outer = statements[0] as? AST.ModuleDecl
@@ -1406,7 +1526,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(inner!.body.isEmpty)
 }
 
-@Test func parseModuleWithDottedPath() throws {
+@Test
+func parseModuleWithDottedPath() throws {
     let statements = parseStatements("module A.B {}")
     try #require(statements.count == 1)
     let outer = statements[0] as? AST.ModuleDecl
@@ -1420,7 +1541,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(inner!.body.isEmpty)
 }
 
-@Test func parseModuleWithThreeLevelPath() throws {
+@Test
+func parseModuleWithThreeLevelPath() throws {
     let statements = parseStatements("module A.B.C { let x }")
     try #require(statements.count == 1)
     let outer = statements[0] as? AST.ModuleDecl
@@ -1440,7 +1562,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(vd!.name.value == "x")
 }
 
-@Test func parseModuleDottedPathWithModifiers() throws {
+@Test
+func parseModuleDottedPathWithModifiers() throws {
     let statements = parseStatements("public module A.B {}")
     try #require(statements.count == 1)
     let outer = statements[0] as? AST.ModuleDecl
@@ -1453,19 +1576,22 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(modifierKind(inner!.modifiers[0].kind, equals: .Public(setter: false)))
 }
 
-@Test func parseModuleDottedPathTrailingDotError() throws {
+@Test
+func parseModuleDottedPathTrailingDotError() throws {
     let errors = parseWithDiagnostics("module A.").1
     try #require(errors.count == 2)
     #expect(errors[0].message.contains("expected module name after '.'"))
 }
 
-@Test func parseModuleDottedPathInvalidComponentError() throws {
+@Test
+func parseModuleDottedPathInvalidComponentError() throws {
     let errors = parseWithDiagnostics("module A.3 {}").1
     try #require(errors.count == 5)
     #expect(errors[0].message.contains("expected module name after '.', but got '3'"))
 }
 
-@Test func parseModuleWithVariableInitializer() throws {
+@Test
+func parseModuleWithVariableInitializer() throws {
     let statements = parseStatements("module Foo { let x = 42 }")
     try #require(statements.count == 1)
     let module = statements[0] as? AST.ModuleDecl
@@ -1479,7 +1605,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(lit!.value == 42)
 }
 
-@Test func parseModuleFollowedByDeclaration() throws {
+@Test
+func parseModuleFollowedByDeclaration() throws {
     let statements = parseStatements("module Foo {} let x")
     try #require(statements.count == 2)
     let module = statements[0] as? AST.ModuleDecl
@@ -1490,7 +1617,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(vd!.name.value == "x")
 }
 
-@Test func parseOperatorInfix() throws {
+@Test
+func parseOperatorInfix() throws {
     let statements = parseStatements("infix operator +")
     try #require(statements.count == 1)
     let op = statements[0] as? AST.OperatorDecl
@@ -1503,7 +1631,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseOperatorPrefix() throws {
+@Test
+func parseOperatorPrefix() throws {
     let statements = parseStatements("prefix operator -")
     try #require(statements.count == 1)
     let op = statements[0] as? AST.OperatorDecl
@@ -1516,7 +1645,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseOperatorPostfix() throws {
+@Test
+func parseOperatorPostfix() throws {
     let statements = parseStatements("postfix operator ++")
     try #require(statements.count == 1)
     let op = statements[0] as? AST.OperatorDecl
@@ -1529,7 +1659,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseOperatorWithGroup() throws {
+@Test
+func parseOperatorWithGroup() throws {
     let statements = parseStatements("infix operator +: P")
     try #require(statements.count == 1)
     let op = statements[0] as? AST.OperatorDecl
@@ -1537,7 +1668,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect((op!.group as? AST.Variable)?.name.value == "P")
 }
 
-@Test func parseOperatorWithQualifiedGroup() throws {
+@Test
+func parseOperatorWithQualifiedGroup() throws {
     let statements = parseStatements("infix operator +: M.P")
     try #require(statements.count == 1)
     let op = statements[0] as? AST.OperatorDecl
@@ -1546,13 +1678,15 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(member?.member.value == "P")
 }
 
-@Test func parseOperatorWithoutGroup() {
+@Test
+func parseOperatorWithoutGroup() {
     let statements = parseStatements("infix operator +")
     let op = statements[0] as? AST.OperatorDecl
     #expect(op!.group == nil)
 }
 
-@Test func prefixOperatorWithGroupReportsError() throws {
+@Test
+func prefixOperatorWithGroupReportsError() throws {
     let statements = parseStatements("prefix operator -: P")
     let op = statements[0] as? AST.OperatorDecl
     try #require(op != nil)
@@ -1563,7 +1697,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     )
 }
 
-@Test func legacyOperatorKindSuffixReportsError() throws {
+@Test
+func legacyOperatorKindSuffixReportsError() throws {
     let (program, diagnostics) = parseWithDiagnostics("operator + infix\nfunc f() {}")
     #expect(
         diagnostics.map(\.message)
@@ -1573,7 +1708,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(program.statements[1] is AST.FunctionDecl)
 }
 
-@Test func parseUnknownTokenReportsErrorAndContinues() throws {
+@Test
+func parseUnknownTokenReportsErrorAndContinues() throws {
     let (program, diagnostics) = parseWithDiagnostics("foo\nfunc f() {}")
     try #require(diagnostics.count == 1)
     #expect(diagnostics[0].message == "expected statement, but got 'foo'")
@@ -1581,7 +1717,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(program.statements[1] is AST.FunctionDecl)
 }
 
-@Test func parseUnknownKeywordAndSeparatorReportErrors() throws {
+@Test
+func parseUnknownKeywordAndSeparatorReportErrors() throws {
     let (program, diagnostics) = parseWithDiagnostics("init\n}\nfunc f() {}")
     #expect(diagnostics.count == 2)
     #expect(diagnostics.map(\.message) == ["expected statement, but got 'init'", "expected statement, but got '}'"])
@@ -1589,7 +1726,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(program.statements[2] is AST.FunctionDecl)
 }
 
-@Test func parseEmptyPrecedenceGroup() throws {
+@Test
+func parseEmptyPrecedenceGroup() throws {
     let statements = parseStatements("precedencegroup Foo {}")
     try #require(statements.count == 1)
     let pg = statements[0] as? AST.PrecedenceGroupDecl
@@ -1601,7 +1739,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(pg!.lowerThan.isEmpty)
 }
 
-@Test func parsePrecedenceGroupAssociativityLeft() throws {
+@Test
+func parsePrecedenceGroupAssociativityLeft() throws {
     let statements = parseStatements("precedencegroup Foo { associativity: left }")
     try #require(statements.count == 1)
     let pg = statements[0] as? AST.PrecedenceGroupDecl
@@ -1610,7 +1749,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(pg!.associativityToken != nil)
 }
 
-@Test func parsePrecedenceGroupAssociativityRight() throws {
+@Test
+func parsePrecedenceGroupAssociativityRight() throws {
     let statements = parseStatements("precedencegroup Foo { associativity: right }")
     try #require(statements.count == 1)
     let pg = statements[0] as? AST.PrecedenceGroupDecl
@@ -1618,7 +1758,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(pg!.associativity == .Right)
 }
 
-@Test func parsePrecedenceGroupAssociativityNone() throws {
+@Test
+func parsePrecedenceGroupAssociativityNone() throws {
     let statements = parseStatements("precedencegroup Foo { associativity: none }")
     try #require(statements.count == 1)
     let pg = statements[0] as? AST.PrecedenceGroupDecl
@@ -1626,7 +1767,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(pg!.associativity == .None)
 }
 
-@Test func parsePrecedenceGroupAssignmentTrue() throws {
+@Test
+func parsePrecedenceGroupAssignmentTrue() throws {
     let statements = parseStatements("precedencegroup Foo { assignment: true }")
     try #require(statements.count == 1)
     let pg = statements[0] as? AST.PrecedenceGroupDecl
@@ -1635,7 +1777,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(pg!.assignmentToken != nil)
 }
 
-@Test func parsePrecedenceGroupAssignmentFalse() throws {
+@Test
+func parsePrecedenceGroupAssignmentFalse() throws {
     let statements = parseStatements("precedencegroup Foo { assignment: false }")
     try #require(statements.count == 1)
     let pg = statements[0] as? AST.PrecedenceGroupDecl
@@ -1643,7 +1786,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(pg!.assignment == false)
 }
 
-@Test func parsePrecedenceGroupHigherThanSingle() throws {
+@Test
+func parsePrecedenceGroupHigherThanSingle() throws {
     let statements = parseStatements("precedencegroup Foo { higherThan: Bar }")
     try #require(statements.count == 1)
     let pg = statements[0] as? AST.PrecedenceGroupDecl
@@ -1655,7 +1799,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(pg!.higherThanTokens.count == 1)
 }
 
-@Test func parsePrecedenceGroupHigherThanMultiple() throws {
+@Test
+func parsePrecedenceGroupHigherThanMultiple() throws {
     let statements = parseStatements("precedencegroup Foo { higherThan: Bar, Baz }")
     try #require(statements.count == 1)
     let pg = statements[0] as? AST.PrecedenceGroupDecl
@@ -1669,7 +1814,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(baz!.name.value == "Baz")
 }
 
-@Test func parsePrecedenceGroupLowerThanSingle() throws {
+@Test
+func parsePrecedenceGroupLowerThanSingle() throws {
     let statements = parseStatements("precedencegroup Foo { lowerThan: Bar }")
     try #require(statements.count == 1)
     let pg = statements[0] as? AST.PrecedenceGroupDecl
@@ -1681,7 +1827,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(pg!.lowerThanTokens.count == 1)
 }
 
-@Test func parsePrecedenceGroupLowerThanMultiple() throws {
+@Test
+func parsePrecedenceGroupLowerThanMultiple() throws {
     let statements = parseStatements("precedencegroup Foo { lowerThan: Bar, Baz }")
     try #require(statements.count == 1)
     let pg = statements[0] as? AST.PrecedenceGroupDecl
@@ -1691,7 +1838,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect((pg!.lowerThan[1] as! AST.Variable).name.value == "Baz")
 }
 
-@Test func parsePrecedenceGroupAllProperties() throws {
+@Test
+func parsePrecedenceGroupAllProperties() throws {
     let statements = parseStatements(
         "precedencegroup Foo { associativity: left assignment: true higherThan: Bar lowerThan: Baz }"
     )
@@ -1707,7 +1855,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect((pg!.lowerThan[0] as! AST.Variable).name.value == "Baz")
 }
 
-@Test func parsePrecedenceGroupFollowedByDeclaration() throws {
+@Test
+func parsePrecedenceGroupFollowedByDeclaration() throws {
     let statements = parseStatements("precedencegroup Foo {} let x")
     try #require(statements.count == 2)
     let pg = statements[0] as? AST.PrecedenceGroupDecl
@@ -1718,7 +1867,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(vd!.name.value == "x")
 }
 
-@Test func parsePrecedenceGroupMultipleHigherThanClauses() throws {
+@Test
+func parsePrecedenceGroupMultipleHigherThanClauses() throws {
     let (program, diagnostics) = parseWithDiagnostics(
         "precedencegroup Foo { higherThan: Bar higherThan: Baz }"
     )
@@ -1736,7 +1886,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(baz!.name.value == "Baz")
 }
 
-@Test func parsePrecedenceGroupDuplicateAssociativityReportsFirstDefinition() throws {
+@Test
+func parsePrecedenceGroupDuplicateAssociativityReportsFirstDefinition() throws {
     let (_, diagnostics) = parseWithDiagnostics(
         "precedencegroup Foo { associativity: left associativity: right }"
     )
@@ -1750,7 +1901,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(note.range.start.offset < errors[0].range.start.offset)
 }
 
-@Test func sourceRangeVariableDeclWithoutInitializer() {
+@Test
+func sourceRangeVariableDeclWithoutInitializer() {
     let statements = parseStatements("let x")
     let decl = statements[0] as! AST.VariableDecl
     let range = decl.sourceRange
@@ -1758,7 +1910,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range.end.offset == 5)
 }
 
-@Test func sourceRangeVariableDeclWithInitializer() {
+@Test
+func sourceRangeVariableDeclWithInitializer() {
     let statements = parseStatements("let x = 42")
     let decl = statements[0] as! AST.VariableDecl
     let range = decl.sourceRange
@@ -1766,7 +1919,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range.end.offset == 10)
 }
 
-@Test func sourceRangeIntegerLiteral() {
+@Test
+func sourceRangeIntegerLiteral() {
     let expr = firstExpression("42")
     let lit = expr as? AST.IntegerLiteral
     #expect(lit != nil)
@@ -1778,7 +1932,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range?.start.column == 15)
 }
 
-@Test func sourceRangeVariable() {
+@Test
+func sourceRangeVariable() {
     let expr = firstExpression("x")
     let varExpr = expr as! AST.Variable
     let range = varExpr.sourceRange
@@ -1786,7 +1941,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range.end.offset == 15)
 }
 
-@Test func sourceRangeFunctionDeclBlockBody() {
+@Test
+func sourceRangeFunctionDeclBlockBody() {
     let statements = parseStatements("func main() {}")
     let decl = statements[0] as! AST.FunctionDecl
     let range = decl.sourceRange
@@ -1794,7 +1950,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range.end.offset == 14)
 }
 
-@Test func sourceRangeFunctionDeclExpressionBody() {
+@Test
+func sourceRangeFunctionDeclExpressionBody() {
     let statements = parseStatements("func foo() = 42")
     let decl = statements[0] as! AST.FunctionDecl
     let range = decl.sourceRange
@@ -1802,7 +1959,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range.end.offset == 15)
 }
 
-@Test func sourceRangeModuleDecl() {
+@Test
+func sourceRangeModuleDecl() {
     let statements = parseStatements("module Foo {}")
     let module = statements[0] as! AST.ModuleDecl
     let range = module.sourceRange
@@ -1810,7 +1968,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range.end.offset == 13)
 }
 
-@Test func sourceRangeCall() {
+@Test
+func sourceRangeCall() {
     let expr = firstExpression("foo()")
     let call = expr as! AST.Call
     let range = call.sourceRange
@@ -1818,7 +1977,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range.end.offset == 19)
 }
 
-@Test func sourceRangeMemberAccess() {
+@Test
+func sourceRangeMemberAccess() {
     let expr = firstExpression("a.b")
     let member = expr as! AST.MemberAccess
     let range = member.sourceRange
@@ -1826,7 +1986,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range.end.offset == 17)
 }
 
-@Test func sourceRangeChainedMemberAccess() {
+@Test
+func sourceRangeChainedMemberAccess() {
     let expr = firstExpression("a.b.c")
     let member = expr as! AST.MemberAccess
     let range = member.sourceRange
@@ -1834,7 +1995,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range.end.offset == 19)
 }
 
-@Test func sourceRangeInfixExpression() {
+@Test
+func sourceRangeInfixExpression() {
     let expr = firstExpression("a + b")
     let sequentialExpression = expr as! AST.Sequential
     let range = sequentialExpression.sourceRange
@@ -1842,7 +2004,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range.end.offset == 19)
 }
 
-@Test func sourceRangeReturnWithValue() {
+@Test
+func sourceRangeReturnWithValue() {
     let body = parseBlockStatements("func main() { return 42 }")
     let ret = body[0] as! AST.Return
     let range = ret.sourceRange
@@ -1850,7 +2013,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range.end.offset == 23)
 }
 
-@Test func sourceRangeReturnWithoutValue() {
+@Test
+func sourceRangeReturnWithoutValue() {
     let body = parseBlockStatements("func main() {\nreturn\n}")
     let ret = body[0] as! AST.Return
     let range = ret.sourceRange
@@ -1858,20 +2022,23 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range.end.offset == 20)
 }
 
-@Test func sourceRangeProgram() {
+@Test
+func sourceRangeProgram() {
     let program = parse("let x let y")
     let range = program.sourceRange
     #expect(range.start.offset == 0)
     #expect(range.end.offset == 11)
 }
 
-@Test func sourceRangeEmptyProgram() {
+@Test
+func sourceRangeEmptyProgram() {
     let program = parse("")
     #expect(program.sourceRange.start.offset == 0)
     #expect(program.sourceRange.end.offset == 0)
 }
 
-@Test func sourceRangeEmptyStatement() {
+@Test
+func sourceRangeEmptyStatement() {
     let statements = parseStatements(";")
     let empty = statements[0] as! AST.EmptyStatement
     let range = empty.sourceRange
@@ -1879,7 +2046,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range.end.offset == 1)
 }
 
-@Test func sourceRangeExpressionStatement() {
+@Test
+func sourceRangeExpressionStatement() {
     let body = parseBlockStatements("func main() { 42 }")
     let exprStmt = body[0] as! AST.ExpressionStatement
     let range = exprStmt.sourceRange
@@ -1887,7 +2055,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range.end.offset == 16)
 }
 
-@Test func sourceRangeMultiLineStringLiteral() {
+@Test
+func sourceRangeMultiLineStringLiteral() {
     let expr = firstExpression("\"hello\nworld\"")
     let lit = expr as? AST.StringLiteral
     #expect(lit != nil)
@@ -1900,7 +2069,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range?.end.column == 6)
 }
 
-@Test func sourceRangeFromToWithMultiLineEndToken() {
+@Test
+func sourceRangeFromToWithMultiLineEndToken() {
     let body = parseBlockStatements("func main() {\nreturn \"a\nb\"\n}")
     let ret = body[0] as! AST.Return
     let range = ret.sourceRange
@@ -1909,7 +2079,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(range.end.column == 2)
 }
 
-@Test func parseStoredPropertyWithAccessorReportsError() throws {
+@Test
+func parseStoredPropertyWithAccessorReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("var a = 1 { get { 1 } set(v) {} }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
@@ -1920,40 +2091,46 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(note.message == "initializer makes this a stored property")
 }
 
-@Test func parseComputedPropertyWithObserverReportsError() throws {
+@Test
+func parseComputedPropertyWithObserverReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("var a: Int { get { 1 } willSet {} }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "computed property cannot have 'willSet' or 'didSet' observers")
 }
 
-@Test func parseSetterWithoutGetterReportsError() throws {
+@Test
+func parseSetterWithoutGetterReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("var a: Int { set(v) {} }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "setter requires a getter")
 }
 
-@Test func parseComputedPropertyWithoutTypeAnnotationReportsError() throws {
+@Test
+func parseComputedPropertyWithoutTypeAnnotationReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("var a { get { 1 } }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "computed property must have a type annotation")
 }
 
-@Test func parseStoredPropertyWithObserversIsValid() {
+@Test
+func parseStoredPropertyWithObserversIsValid() {
     let (_, diagnostics) = parseWithDiagnostics("var a: Int = 0 { willSet {} didSet {} }")
     let errors = diagnostics.filter { $0.severity == .error }
     #expect(errors.isEmpty)
 }
 
-@Test func parseComputedPropertyWithGetAndSetIsValid() {
+@Test
+func parseComputedPropertyWithGetAndSetIsValid() {
     let (_, diagnostics) = parseWithDiagnostics("var a: Int { get { 1 } set(v) {} }")
     let errors = diagnostics.filter { $0.severity == .error }
     #expect(errors.isEmpty)
 }
 
-@Test func parseDuplicateAccessorReportsError() throws {
+@Test
+func parseDuplicateAccessorReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("var a: Int { get { 1 } get { 2 } }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
@@ -1964,7 +2141,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(note.message == "first declared here")
 }
 
-@Test func parseObserverInFunctionContextReportsError() throws {
+@Test
+func parseObserverInFunctionContextReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics(
         "func main() { var a: Int = 0 { willSet {} didSet {} } }"
     )
@@ -1975,7 +2153,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Struct Declarations
 
-@Test func parseEmptyStruct() throws {
+@Test
+func parseEmptyStruct() throws {
     let statements = parseStatements("struct Foo {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.StructDecl
@@ -1987,7 +2166,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(decl!.body.isEmpty)
 }
 
-@Test func parseStructWithMembers() throws {
+@Test
+func parseStructWithMembers() throws {
     let statements = parseStatements("struct Foo { let x var y func bar() {} }")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.StructDecl
@@ -2004,7 +2184,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(fd!.name.value == "bar")
 }
 
-@Test func parseStructWithConformances() throws {
+@Test
+func parseStructWithConformances() throws {
     let statements = parseStatements("struct Foo: P, Q {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.StructDecl
@@ -2018,7 +2199,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(q!.name.value == "Q")
 }
 
-@Test func parseStructWithEmptyStatementInBody() throws {
+@Test
+func parseStructWithEmptyStatementInBody() throws {
     let statements = parseStatements("struct Foo { ; }")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.StructDecl
@@ -2027,7 +2209,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(decl!.body[0] is AST.EmptyStatement)
 }
 
-@Test func parseStructWithGenericPlainParameters() throws {
+@Test
+func parseStructWithGenericPlainParameters() throws {
     let statements = parseStatements("struct Foo<T, U> {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.StructDecl
@@ -2038,7 +2221,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(decl!.genericDecl!.generics[1].name.value == "U")
 }
 
-@Test func parseStructWithGenericEachParameter() throws {
+@Test
+func parseStructWithGenericEachParameter() throws {
     let statements = parseStatements("struct Foo<each T> {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.StructDecl
@@ -2051,7 +2235,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(param.constraint == nil)
 }
 
-@Test func parseStructWithGenericEachParameterWithConstraint() throws {
+@Test
+func parseStructWithGenericEachParameterWithConstraint() throws {
     let statements = parseStatements("struct Foo<each T: P> {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.StructDecl
@@ -2065,7 +2250,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(constraint!.name.value == "P")
 }
 
-@Test func parseStructWithMixedGenericParameters() throws {
+@Test
+func parseStructWithMixedGenericParameters() throws {
     let statements = parseStatements("struct Foo<T, each U: P> {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.StructDecl
@@ -2077,7 +2263,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Class Declarations
 
-@Test func parseEmptyClass() throws {
+@Test
+func parseEmptyClass() throws {
     let statements = parseStatements("class Foo {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ClassDecl
@@ -2089,7 +2276,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(decl!.body.isEmpty)
 }
 
-@Test func parseClassWithInheritance() throws {
+@Test
+func parseClassWithInheritance() throws {
     let statements = parseStatements("class Foo: Base, P {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ClassDecl
@@ -2103,7 +2291,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(p!.name.value == "P")
 }
 
-@Test func parseClassWithMembers() throws {
+@Test
+func parseClassWithMembers() throws {
     let statements = parseStatements("class Foo { var x func bar() {} }")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ClassDecl
@@ -2119,7 +2308,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Protocol Declarations
 
-@Test func parseEmptyProtocol() throws {
+@Test
+func parseEmptyProtocol() throws {
     let statements = parseStatements("protocol Foo {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ProtocolDecl
@@ -2130,7 +2320,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(decl!.body.isEmpty)
 }
 
-@Test func parseProtocolWithMembers() throws {
+@Test
+func parseProtocolWithMembers() throws {
     let statements = parseStatements("protocol Foo { func bar() {} var x: Int }")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ProtocolDecl
@@ -2144,7 +2335,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(vd!.name.value == "x")
 }
 
-@Test func parseProtocolWithConformances() throws {
+@Test
+func parseProtocolWithConformances() throws {
     let statements = parseStatements("protocol Foo: P {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ProtocolDecl
@@ -2157,7 +2349,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Extension Declarations
 
-@Test func parseEmptyExtension() throws {
+@Test
+func parseEmptyExtension() throws {
     let statements = parseStatements("extension Foo {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ExtensionDecl
@@ -2170,7 +2363,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(decl!.body.isEmpty)
 }
 
-@Test func parseExtensionWithConformances() throws {
+@Test
+func parseExtensionWithConformances() throws {
     let statements = parseStatements("extension Foo: P, Q {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ExtensionDecl
@@ -2184,7 +2378,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(q!.name.value == "Q")
 }
 
-@Test func parseExtensionWithMembers() throws {
+@Test
+func parseExtensionWithMembers() throws {
     let statements = parseStatements("extension Foo { func bar() {} }")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ExtensionDecl
@@ -2195,7 +2390,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(fd!.name.value == "bar")
 }
 
-@Test func parseExtensionGenericReportsError() throws {
+@Test
+func parseExtensionGenericReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("extension Foo<T> {}")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
@@ -2204,7 +2400,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - While Statements
 
-@Test func parseWhileWithEmptyBody() throws {
+@Test
+func parseWhileWithEmptyBody() throws {
     let body = parseBlockStatements("func main() { while true {} }")
     try #require(body.count == 1)
     let whileStmt = body[0] as? AST.While
@@ -2218,7 +2415,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(whileStmt!.endToken.kind == .Separator(.CloseBrace))
 }
 
-@Test func parseWhileWithBody() throws {
+@Test
+func parseWhileWithBody() throws {
     let body = parseBlockStatements("func main() { while x { let y } }")
     try #require(body.count == 1)
     let whileStmt = body[0] as? AST.While
@@ -2234,7 +2432,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Repeat-While Statements
 
-@Test func parseRepeatWhileEmptyBody() throws {
+@Test
+func parseRepeatWhileEmptyBody() throws {
     let body = parseBlockStatements("func main() { repeat {} while true }")
     try #require(body.count == 1)
     let repeatStmt = body[0] as? AST.RepeatWhile
@@ -2247,7 +2446,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(cond!.value == true)
 }
 
-@Test func parseRepeatWhileWithBody() throws {
+@Test
+func parseRepeatWhileWithBody() throws {
     let body = parseBlockStatements("func main() { repeat { let y } while x }")
     try #require(body.count == 1)
     let repeatStmt = body[0] as? AST.RepeatWhile
@@ -2263,7 +2463,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Guard Statements
 
-@Test func parseGuardWithEmptyBody() throws {
+@Test
+func parseGuardWithEmptyBody() throws {
     let body = parseBlockStatements("func main() { guard x else {} }")
     try #require(body.count == 1)
     let guardStmt = body[0] as? AST.Guard
@@ -2277,7 +2478,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(guardStmt!.endToken.kind == .Separator(.CloseBrace))
 }
 
-@Test func parseGuardWithBody() throws {
+@Test
+func parseGuardWithBody() throws {
     let body = parseBlockStatements("func main() { guard x else { return } }")
     try #require(body.count == 1)
     let guardStmt = body[0] as? AST.Guard
@@ -2288,7 +2490,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Defer Statements
 
-@Test func parseDeferWithEmptyBody() throws {
+@Test
+func parseDeferWithEmptyBody() throws {
     let body = parseBlockStatements("func main() { defer {} }")
     try #require(body.count == 1)
     let deferStmt = body[0] as? AST.Defer
@@ -2299,7 +2502,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(deferStmt!.endToken.kind == .Separator(.CloseBrace))
 }
 
-@Test func parseDeferWithBody() throws {
+@Test
+func parseDeferWithBody() throws {
     let body = parseBlockStatements("func main() { defer { let x } }")
     try #require(body.count == 1)
     let deferStmt = body[0] as? AST.Defer
@@ -2312,7 +2516,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Asm Statements
 
-@Test func parseAsmBasic() throws {
+@Test
+func parseAsmBasic() throws {
     let body = parseBlockStatements("func main() { asm { \"mov {dst}, 42\" : dst = out(reg) result } }")
     try #require(body.count == 1)
     let asm = body[0] as? AST.Asm
@@ -2331,7 +2536,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(asm!.options.isEmpty)
 }
 
-@Test func parseAsmInKindWithoutLocal() throws {
+@Test
+func parseAsmInKindWithoutLocal() throws {
     let body = parseBlockStatements("func main() { asm { \"mov {dst}, 42\" : dst = in(reg) } }")
     try #require(body.count == 1)
     let asm = body[0] as? AST.Asm
@@ -2341,7 +2547,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(asm!.bindings[0].local == nil)
 }
 
-@Test func parseAsmMultipleTemplates() throws {
+@Test
+func parseAsmMultipleTemplates() throws {
     let body = parseBlockStatements(
         "func main() { asm { \"mov {dst}, 42\" \"add {dst}, 1\" : dst = out(reg) result } }"
     )
@@ -2352,7 +2559,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(asm!.templates[1].token.value == "add {dst}, 1")
 }
 
-@Test func parseAsmMultipleBindings() throws {
+@Test
+func parseAsmMultipleBindings() throws {
     let body = parseBlockStatements(
         "func main() { asm { \"mov {dst}, {src}\" : dst = out(reg) result, src = in(reg) value } }"
     )
@@ -2366,7 +2574,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(asm!.bindings[1].local?.value == "value")
 }
 
-@Test func parseAsmInoutKindWithLocal() throws {
+@Test
+func parseAsmInoutKindWithLocal() throws {
     let body = parseBlockStatements(
         "func main() { asm { \"inc {x}\" : x = inout(reg) counter } }"
     )
@@ -2377,7 +2586,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(asm!.bindings[0].local?.value == "counter")
 }
 
-@Test func parseAsmEmptyBindings() {
+@Test
+func parseAsmEmptyBindings() {
     let body = parseBlockStatements("func main() { asm { \"nop\" : } }")
     let asm = body[0] as? AST.Asm
     #expect(asm != nil)
@@ -2386,7 +2596,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(asm!.options.isEmpty)
 }
 
-@Test func parseAsmOptions() throws {
+@Test
+func parseAsmOptions() throws {
     let body = parseBlockStatements(
         "func main() { asm { \"mov {dst}, 42\" : dst = out(reg) result : result preserves_flags } }"
     )
@@ -2398,14 +2609,16 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(asm!.options[1].value == "preserves_flags")
 }
 
-@Test func parseAsmMissingOpenBraceReportsError() throws {
+@Test
+func parseAsmMissingOpenBraceReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { asm x }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "expected '{' after 'asm', but got 'x'")
 }
 
-@Test func parseAsmWithoutColon() throws {
+@Test
+func parseAsmWithoutColon() throws {
     let body = parseBlockStatements("func main() { asm { \"mov {dst}, 42\" } }")
     try #require(body.count == 1)
     let asm = body[0] as? AST.Asm
@@ -2416,7 +2629,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(asm!.options.isEmpty)
 }
 
-@Test func parseAsmEmptyBlock() throws {
+@Test
+func parseAsmEmptyBlock() throws {
     let body = parseBlockStatements("func main() { asm { } }")
     try #require(body.count == 1)
     let asm = body[0] as? AST.Asm
@@ -2426,41 +2640,47 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(asm!.options.isEmpty)
 }
 
-@Test func parseAsmMissingEqualsReportsError() throws {
+@Test
+func parseAsmMissingEqualsReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { asm { \"mov\" : dst out(reg) result } }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "expected '=' after asm operand name, but got 'out'")
 }
 
-@Test func parseAsmMissingKindReportsError() throws {
+@Test
+func parseAsmMissingKindReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { asm { \"mov\" : dst = (reg) result } }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "expected operand kind after '=', but got '('")
 }
 
-@Test func parseAsmMissingConstraintReportsError() throws {
+@Test
+func parseAsmMissingConstraintReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { asm { \"mov\" : dst = out() result } }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "expected constraint after '(', but got ')'")
 }
 
-@Test func parseAsmMissingCloseParenReportsError() throws {
+@Test
+func parseAsmMissingCloseParenReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { asm { \"mov\" : dst = out(reg result } }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "expected ')' after asm constraint, but got 'result'")
 }
 
-@Test func parseAsmMissingCloseBraceReportsError() throws {
+@Test
+func parseAsmMissingCloseBraceReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { asm { \"mov\" : dst = out(reg) result")
     let errors = diagnostics.filter { $0.severity == .error }
     #expect(errors.contains { $0.message.contains("expected '}' after asm body") })
 }
 
-@Test func parseAsmInvalidOptionReportsError() throws {
+@Test
+func parseAsmInvalidOptionReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { asm { \"nop\" : : 42 } }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
@@ -2469,7 +2689,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Break / Continue / Goto
 
-@Test func parseBreakWithoutLabel() throws {
+@Test
+func parseBreakWithoutLabel() throws {
     let body = parseBlockStatements("func main() { break }")
     try #require(body.count == 1)
     let breakStmt = body[0] as? AST.Break
@@ -2478,7 +2699,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(breakStmt!.label == nil)
 }
 
-@Test func parseBreakWithLabel() throws {
+@Test
+func parseBreakWithLabel() throws {
     let body = parseBlockStatements("func main() { break label }")
     try #require(body.count == 1)
     let breakStmt = body[0] as? AST.Break
@@ -2487,14 +2709,16 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(breakStmt!.label!.value == "label")
 }
 
-@Test func parseBreakLabelOnDifferentLineHasNoLabel() throws {
+@Test
+func parseBreakLabelOnDifferentLineHasNoLabel() throws {
     let body = parseBlockStatements("func main() {\nbreak\nlabel\n}")
     let breakStmt = body[0] as? AST.Break
     try #require(breakStmt != nil)
     #expect(breakStmt!.label == nil)
 }
 
-@Test func parseContinueWithoutLabel() throws {
+@Test
+func parseContinueWithoutLabel() throws {
     let body = parseBlockStatements("func main() { continue }")
     try #require(body.count == 1)
     let continueStmt = body[0] as? AST.Continue
@@ -2503,7 +2727,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(continueStmt!.label == nil)
 }
 
-@Test func parseContinueWithLabel() throws {
+@Test
+func parseContinueWithLabel() throws {
     let body = parseBlockStatements("func main() { continue label }")
     try #require(body.count == 1)
     let continueStmt = body[0] as? AST.Continue
@@ -2512,14 +2737,16 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(continueStmt!.label!.value == "label")
 }
 
-@Test func parseContinueLabelOnDifferentLineHasNoLabel() throws {
+@Test
+func parseContinueLabelOnDifferentLineHasNoLabel() throws {
     let body = parseBlockStatements("func main() {\ncontinue\nlabel\n}")
     let continueStmt = body[0] as? AST.Continue
     try #require(continueStmt != nil)
     #expect(continueStmt!.label == nil)
 }
 
-@Test func parseGotoProducesGotoNode() throws {
+@Test
+func parseGotoProducesGotoNode() throws {
     let body = parseBlockStatements("func main() { goto label }")
     try #require(body.count == 1)
     let gotoStmt = body[0] as? AST.Goto
@@ -2530,7 +2757,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - For-In Statements
 
-@Test func parseForPlainIdentifier() throws {
+@Test
+func parseForPlainIdentifier() throws {
     let body = parseBlockStatements("func main() { for i in items {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -2551,7 +2779,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(forStmt!.caseToken == nil)
 }
 
-@Test func parseForLetBinding() throws {
+@Test
+func parseForLetBinding() throws {
     let body = parseBlockStatements("func main() { for let x in arr {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -2562,7 +2791,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(pattern!.name.value == "x")
 }
 
-@Test func parseForVarBinding() throws {
+@Test
+func parseForVarBinding() throws {
     let body = parseBlockStatements("func main() { for var x in arr {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -2573,7 +2803,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(pattern!.name.value == "x")
 }
 
-@Test func parseForWithBody() throws {
+@Test
+func parseForWithBody() throws {
     let body = parseBlockStatements("func main() { for i in items { let y } }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -2584,7 +2815,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(vd!.name.value == "y")
 }
 
-@Test func parseForWithWhereClause() throws {
+@Test
+func parseForWithWhereClause() throws {
     let body = parseBlockStatements("func main() { for i in items where i > 0 {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -2595,7 +2827,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(forStmt!.body.isEmpty)
 }
 
-@Test func parseForAwaitWithWhereClause() throws {
+@Test
+func parseForAwaitWithWhereClause() throws {
     let body = parseBlockStatements("func main() { for await x in items where x > 0 {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -2604,7 +2837,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(forStmt!.whereClause != nil)
 }
 
-@Test func parseForCaseWithWhereClause() throws {
+@Test
+func parseForCaseWithWhereClause() throws {
     let body = parseBlockStatements("func main() { for case .foo(let x) in arr where x > 0 {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -2618,7 +2852,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(forStmt!.whereClause != nil)
 }
 
-@Test func parseForWhereClauseComplexCondition() throws {
+@Test
+func parseForWhereClauseComplexCondition() throws {
     let body = parseBlockStatements("func main() { for i in items where i > 0 && i < 10 {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -2629,7 +2864,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(whereClause!.operands.count == 4)
 }
 
-@Test func parseForWhereClauseMissingExpressionReportsError() throws {
+@Test
+func parseForWhereClauseMissingExpressionReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { for i in items where }")
     try #require(!errors.isEmpty)
     #expect(errors.contains { $0.message.contains("expected '{' after for-in sequence") })
@@ -2637,7 +2873,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Accessor Success Paths
 
-@Test func parseGetterWithBlockBody() throws {
+@Test
+func parseGetterWithBlockBody() throws {
     let statements = parseStatements("var x: Int { get { 1 } }")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
@@ -2653,7 +2890,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseGetterWithExpressionBody() throws {
+@Test
+func parseGetterWithExpressionBody() throws {
     let statements = parseStatements("var x: Int { get = 1 }")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
@@ -2669,7 +2907,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseSetterWithoutParameterName() throws {
+@Test
+func parseSetterWithoutParameterName() throws {
     let statements = parseStatements("var x: Int { get { 1 } set {} }")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
@@ -2685,7 +2924,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseSetterWithParameterName() throws {
+@Test
+func parseSetterWithParameterName() throws {
     let statements = parseStatements("var x: Int { get { 1 } set(newValue) {} }")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
@@ -2695,7 +2935,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(setter.parameterName!.value == "newValue")
 }
 
-@Test func parseWillSetWithoutParameterName() throws {
+@Test
+func parseWillSetWithoutParameterName() throws {
     let statements = parseStatements("var x: Int = 0 { willSet {} }")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
@@ -2706,7 +2947,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(observer.parameterName == nil)
 }
 
-@Test func parseWillSetWithParameterName() throws {
+@Test
+func parseWillSetWithParameterName() throws {
     let statements = parseStatements("var x: Int = 0 { willSet(new) {} }")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
@@ -2716,7 +2958,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(observer.parameterName!.value == "new")
 }
 
-@Test func parseDidSetWithoutParameterName() throws {
+@Test
+func parseDidSetWithoutParameterName() throws {
     let statements = parseStatements("var x: Int = 0 { didSet {} }")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
@@ -2726,7 +2969,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(observer.parameterName == nil)
 }
 
-@Test func parseDidSetWithParameterName() throws {
+@Test
+func parseDidSetWithParameterName() throws {
     let statements = parseStatements("var x: Int = 0 { didSet(old) {} }")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
@@ -2736,7 +2980,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(observer.parameterName!.value == "old")
 }
 
-@Test func parseShorthandGetter() throws {
+@Test
+func parseShorthandGetter() throws {
     let statements = parseStatements("var x: Int { 1 }")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
@@ -2751,7 +2996,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseStoredPropertyWithWillSetAndDidSet() throws {
+@Test
+func parseStoredPropertyWithWillSetAndDidSet() throws {
     let statements = parseStatements("var x: Int = 0 { willSet {} didSet {} }")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
@@ -2762,7 +3008,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Modifiers
 
-@Test func parsePublicModifierOnStruct() throws {
+@Test
+func parsePublicModifierOnStruct() throws {
     let statements = parseStatements("public struct Foo {}")
     let decl = statements[0] as? AST.StructDecl
     try #require(decl != nil)
@@ -2770,7 +3017,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Public(setter: false)))
 }
 
-@Test func parsePublicSetModifierOnStruct() throws {
+@Test
+func parsePublicSetModifierOnStruct() throws {
     let statements = parseStatements("public(set) struct Foo {}")
     let decl = statements[0] as? AST.StructDecl
     try #require(decl != nil)
@@ -2778,7 +3026,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Public(setter: true)))
 }
 
-@Test func parsePrivateModifierOnVariable() throws {
+@Test
+func parsePrivateModifierOnVariable() throws {
     let statements = parseStatements("private var x")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
@@ -2786,63 +3035,72 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Private(setter: false)))
 }
 
-@Test func parsePrivateSetModifierOnVariable() throws {
+@Test
+func parsePrivateSetModifierOnVariable() throws {
     let statements = parseStatements("private(set) var x")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Private(setter: true)))
 }
 
-@Test func parseInternalModifierOnFunction() throws {
+@Test
+func parseInternalModifierOnFunction() throws {
     let statements = parseStatements("internal func foo() {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Internal(setter: false)))
 }
 
-@Test func parseFilePrivateModifierOnStruct() throws {
+@Test
+func parseFilePrivateModifierOnStruct() throws {
     let statements = parseStatements("fileprivate struct Foo {}")
     let decl = statements[0] as? AST.StructDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .FilePrivate(setter: false)))
 }
 
-@Test func parseProtectedSetModifierOnClass() throws {
+@Test
+func parseProtectedSetModifierOnClass() throws {
     let statements = parseStatements("protected(set) class Foo {}")
     let decl = statements[0] as? AST.ClassDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Protected(setter: true)))
 }
 
-@Test func parsePackagePrivateModifierOnStruct() throws {
+@Test
+func parsePackagePrivateModifierOnStruct() throws {
     let statements = parseStatements("packageprivate struct Foo {}")
     let decl = statements[0] as? AST.StructDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .PackagePrivate(setter: false)))
 }
 
-@Test func parseOpenModifierOnClass() throws {
+@Test
+func parseOpenModifierOnClass() throws {
     let statements = parseStatements("open class Foo {}")
     let decl = statements[0] as? AST.ClassDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Open(setter: false)))
 }
 
-@Test func parseFinalModifierOnClass() throws {
+@Test
+func parseFinalModifierOnClass() throws {
     let statements = parseStatements("final class Foo {}")
     let decl = statements[0] as? AST.ClassDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Final))
 }
 
-@Test func parseOverrideModifierOnFunction() throws {
+@Test
+func parseOverrideModifierOnFunction() throws {
     let statements = parseStatements("override func foo() {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Override))
 }
 
-@Test func parseMultipleModifiersOnStruct() throws {
+@Test
+func parseMultipleModifiersOnStruct() throws {
     let statements = parseStatements("public final struct Foo {}")
     let decl = statements[0] as? AST.StructDecl
     try #require(decl != nil)
@@ -2851,14 +3109,16 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(modifierKind(decl!.modifiers[1].kind, equals: .Final))
 }
 
-@Test func parseMutatingModifierOnFunction() throws {
+@Test
+func parseMutatingModifierOnFunction() throws {
     let statements = parseStatements("mutating func foo() {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Mutating))
 }
 
-@Test func parseLazyModifierOnVariable() throws {
+@Test
+func parseLazyModifierOnVariable() throws {
     let statements = parseStatements("lazy var x: Int")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
@@ -2867,7 +3127,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Attributes
 
-@Test func parseAttributeWithoutArguments() throws {
+@Test
+func parseAttributeWithoutArguments() throws {
     let statements = parseStatements("#[attr] struct Foo {}")
     let decl = statements[0] as? AST.StructDecl
     try #require(decl != nil)
@@ -2876,7 +3137,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(decl!.attributes[0].arguments.isEmpty)
 }
 
-@Test func parseAttributeWithModifiers() throws {
+@Test
+func parseAttributeWithModifiers() throws {
     let statements = parseStatements("#[attr] public struct Foo {}")
     let decl = statements[0] as? AST.StructDecl
     try #require(decl != nil)
@@ -2885,7 +3147,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Public(setter: false)))
 }
 
-@Test func parseAttributeWithArguments() throws {
+@Test
+func parseAttributeWithArguments() throws {
     let statements = parseStatements("#[attr(a b)] struct Foo {}")
     let decl = statements[0] as? AST.StructDecl
     try #require(decl != nil)
@@ -2896,7 +3159,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(decl!.attributes[0].arguments[0][1].value == "b")
 }
 
-@Test func parseAttributeWithLabeledArguments() throws {
+@Test
+func parseAttributeWithLabeledArguments() throws {
     let statements = parseStatements("#[attr(label: a b)] struct Foo {}")
     let decl = statements[0] as? AST.StructDecl
     try #require(decl != nil)
@@ -2910,7 +3174,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(labelToken!.value[1].value == "b")
 }
 
-@Test func parseModifierOnReturnStatementReportsError() throws {
+@Test
+func parseModifierOnReturnStatementReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func f() { public return }")
     #expect(
         diagnostics.map(\.message)
@@ -2918,7 +3183,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     )
 }
 
-@Test func parseModifierOnWhileStatementReportsError() throws {
+@Test
+func parseModifierOnWhileStatementReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func f() { public while true {} }")
     #expect(
         diagnostics.map(\.message)
@@ -2926,7 +3192,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     )
 }
 
-@Test func parseModifierOnExpressionStatementReportsError() throws {
+@Test
+func parseModifierOnExpressionStatementReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func f() { public x = 1 }")
     #expect(
         diagnostics.map(\.message)
@@ -2934,7 +3201,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     )
 }
 
-@Test func parseAttributeOnExpressionStatementReportsError() throws {
+@Test
+func parseAttributeOnExpressionStatementReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func f() { #[attr] x + 1 }")
     #expect(
         diagnostics.map(\.message)
@@ -2942,7 +3210,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     )
 }
 
-@Test func parseModifiersAndAttributesOnStatementReportsCombinedError() throws {
+@Test
+func parseModifiersAndAttributesOnStatementReportsCombinedError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func f() { public #[attr] return }")
     #expect(
         diagnostics.map(\.message)
@@ -2950,7 +3219,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     )
 }
 
-@Test func parseModifierOnNonDeclarationInModuleBodyReportsError() throws {
+@Test
+func parseModifierOnNonDeclarationInModuleBodyReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("module M { public foo }")
     #expect(
         diagnostics.map(\.message)
@@ -2958,7 +3228,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     )
 }
 
-@Test func parseModifierOnImportReportsError() throws {
+@Test
+func parseModifierOnImportReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("public import Foo")
     #expect(
         diagnostics.map(\.message)
@@ -2966,26 +3237,30 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     )
 }
 
-@Test func parseModifierOnVariableStatementIsAllowed() throws {
+@Test
+func parseModifierOnVariableStatementIsAllowed() throws {
     let (_, diagnostics) = parseWithDiagnostics("func f() { public static var x = 1 }")
     #expect(diagnostics.isEmpty)
 }
 
 // MARK: - Self / SelfType / Super Expressions
 
-@Test func parseSelfExpression() {
+@Test
+func parseSelfExpression() {
     let expr = firstExpression("self")
     let selfExpr = expr as? AST.SelfExpression
     #expect(selfExpr != nil)
 }
 
-@Test func parseSelfTypeExpression() {
+@Test
+func parseSelfTypeExpression() {
     let expr = firstExpression("Self")
     let selfExpr = expr as? AST.SelfType
     #expect(selfExpr != nil)
 }
 
-@Test func parseSuperExpression() {
+@Test
+func parseSuperExpression() {
     let expr = firstExpression("super")
     let superExpr = expr as? AST.SuperExpression
     #expect(superExpr != nil)
@@ -2993,7 +3268,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Implicit Member Access
 
-@Test func parseImplicitMemberAccess() throws {
+@Test
+func parseImplicitMemberAccess() throws {
     let expr = firstExpression(".foo")
     let implicit = expr as? AST.ImplicitMemberAccess
     try #require(implicit != nil)
@@ -3002,7 +3278,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Parenthesized Expression
 
-@Test func parseParenthesizedVariable() throws {
+@Test
+func parseParenthesizedVariable() throws {
     let expr = firstExpression("(x)")
     let paren = expr as? AST.Parenthetical
     try #require(paren != nil)
@@ -3011,7 +3288,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(varExpr!.name.value == "x")
 }
 
-@Test func parseParenthesizedSequentialExpression() throws {
+@Test
+func parseParenthesizedSequentialExpression() throws {
     let expr = firstExpression("(a + b)")
     let paren = expr as? AST.Parenthetical
     try #require(paren != nil)
@@ -3024,7 +3302,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Compound Assignment Operators
 
-@Test func parsePlusAssignExpression() throws {
+@Test
+func parsePlusAssignExpression() throws {
     let expr = firstExpression("x += 1")
     let seq = expr as? AST.Sequential
     try #require(seq != nil)
@@ -3039,14 +3318,16 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(value!.value == 1)
 }
 
-@Test func parseMultiplyAssignExpression() throws {
+@Test
+func parseMultiplyAssignExpression() throws {
     let expr = firstExpression("x *= 2")
     let seq = expr as? AST.Sequential
     try #require(seq != nil)
     #expect(seq!.ops[0].kind == .Operator(.MultiplyAssign))
 }
 
-@Test func parseMinusAssignExpression() throws {
+@Test
+func parseMinusAssignExpression() throws {
     let expr = firstExpression("x -= 3")
     let seq = expr as? AST.Sequential
     try #require(seq != nil)
@@ -3055,7 +3336,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Function Return Type
 
-@Test func parseFunctionWithReturnType() throws {
+@Test
+func parseFunctionWithReturnType() throws {
     let statements = parseStatements("func foo() -> Int {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -3065,7 +3347,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(returnType!.name.value == "Int")
 }
 
-@Test func parseFunctionWithReturnTypeAndBlockBody() throws {
+@Test
+func parseFunctionWithReturnTypeAndBlockBody() throws {
     let statements = parseStatements("func foo() -> Int { return 42 }")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -3080,56 +3363,64 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Error Recovery
 
-@Test func parseStructMissingNameReportsError() throws {
+@Test
+func parseStructMissingNameReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("struct")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "expected struct name after 'struct'")
 }
 
-@Test func parseStructNonIdentifierNameReportsError() throws {
+@Test
+func parseStructNonIdentifierNameReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("struct 42 {}")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 3)
     #expect(errors[0].message == "expected identifier after 'struct', but got '42'")
 }
 
-@Test func parseClassMissingNameReportsError() throws {
+@Test
+func parseClassMissingNameReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("class")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "expected class name after 'class'")
 }
 
-@Test func parseWhileMissingOpenBraceReportsError() throws {
+@Test
+func parseWhileMissingOpenBraceReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { while x let }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "expected '{' after while condition, but got 'let'")
 }
 
-@Test func parseGuardMissingOpenBraceAfterElseReportsError() throws {
+@Test
+func parseGuardMissingOpenBraceAfterElseReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { guard x else let }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "expected '{' after 'else', but got 'let'")
 }
 
-@Test func parseDeferMissingOpenBraceReportsError() throws {
+@Test
+func parseDeferMissingOpenBraceReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { defer x }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "expected '{' after 'defer', but got 'x'")
 }
 
-@Test func parseBreakWithNonIdentifierLabelReportsError() throws {
+@Test
+func parseBreakWithNonIdentifierLabelReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { break 42 }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "expected identifier after 'break', but got '42'")
 }
 
-@Test func parseContinueWithNonIdentifierLabelReportsError() throws {
+@Test
+func parseContinueWithNonIdentifierLabelReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { continue 42 }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
@@ -3138,13 +3429,15 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Fixed Bug Regressions
 
-@Test func parseGotoWithIdentifierLabelDoesNotReportError() {
+@Test
+func parseGotoWithIdentifierLabelDoesNotReportError() {
     let (_, diagnostics) = parseWithDiagnostics("func main() { goto label }")
     let errors = diagnostics.filter { $0.severity == .error }
     #expect(errors.isEmpty)
 }
 
-@Test func parseFunctionWithReturnTypeAndExpressionBody() throws {
+@Test
+func parseFunctionWithReturnTypeAndExpressionBody() throws {
     let statements = parseStatements("func foo() -> Int = 42")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -3163,7 +3456,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Actor Declarations (previously dead code)
 
-@Test func parseEmptyActor() throws {
+@Test
+func parseEmptyActor() throws {
     let statements = parseStatements("actor Foo {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ActorDecl
@@ -3175,7 +3469,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(decl!.body.isEmpty)
 }
 
-@Test func parseActorWithMembers() throws {
+@Test
+func parseActorWithMembers() throws {
     let statements = parseStatements("actor Foo { let x func bar() {} }")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ActorDecl
@@ -3191,7 +3486,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - If Statements (previously dead code)
 
-@Test func parseIfStatementWithEmptyThen() throws {
+@Test
+func parseIfStatementWithEmptyThen() throws {
     let body = parseBlockStatements("func main() { if true {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -3205,7 +3501,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(ifExpr!.elseKind == nil)
 }
 
-@Test func parseIfStatementWithThenBody() throws {
+@Test
+func parseIfStatementWithThenBody() throws {
     let body = parseBlockStatements("func main() { if x { return } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -3216,7 +3513,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(ifExpr!.then[0] is AST.Return)
 }
 
-@Test func parseIfElseStatement() throws {
+@Test
+func parseIfElseStatement() throws {
     let body = parseBlockStatements("func main() { if x { return 1 } else { return 2 } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -3231,7 +3529,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseIfElseIfChain() throws {
+@Test
+func parseIfElseIfChain() throws {
     let body = parseBlockStatements("func main() { if x {} else if y {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -3249,7 +3548,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - If as Expression (parsePrimary)
 
-@Test func parseIfExpressionWithoutElse() throws {
+@Test
+func parseIfExpressionWithoutElse() throws {
     let expr = firstExpression("if true {}")
     let ifExpr = expr as? AST.If
     try #require(ifExpr != nil)
@@ -3260,7 +3560,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(ifExpr!.elseKind == nil)
 }
 
-@Test func parseIfExpressionAsAssignmentValue() throws {
+@Test
+func parseIfExpressionAsAssignmentValue() throws {
     let expr = firstExpression("x = if true {} else {}")
     let seq = expr as? AST.Sequential
     try #require(seq != nil)
@@ -3279,7 +3580,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseIfExpressionAsReturnValue() throws {
+@Test
+func parseIfExpressionAsReturnValue() throws {
     let body = parseBlockStatements("func main() { return if true { 1 } else { 2 } }")
     try #require(body.count == 1)
     let ret = body[0] as? AST.Return
@@ -3294,7 +3596,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseIfExpressionWithMemberAccess() throws {
+@Test
+func parseIfExpressionWithMemberAccess() throws {
     let expr = firstExpression("(if true { 1 } else { 2 }).foo")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -3305,7 +3608,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(ifExpr != nil)
 }
 
-@Test func parseIfExpressionElseIfChainAsValue() throws {
+@Test
+func parseIfExpressionElseIfChainAsValue() throws {
     let expr = firstExpression("x = if a {} else if b {} else {}")
     let seq = expr as? AST.Sequential
     try #require(seq != nil)
@@ -3321,7 +3625,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseNestedIfExpressionInThenBody() throws {
+@Test
+func parseNestedIfExpressionInThenBody() throws {
     let body = parseBlockStatements("func main() { if x { if y {} } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -3338,7 +3643,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(cond!.name.value == "y")
 }
 
-@Test func parseIfExpressionWithComplexCondition() throws {
+@Test
+func parseIfExpressionWithComplexCondition() throws {
     let expr = firstExpression("if a + b == c {}")
     let ifExpr = expr as? AST.If
     try #require(ifExpr != nil)
@@ -3349,14 +3655,16 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - parseExpression: ops-only and nil return
 
-@Test func parseOperatorOnlyReportsError() throws {
+@Test
+func parseOperatorOnlyReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { + }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "expected expression after operator '+'")
 }
 
-@Test func parseOperatorOnlyPointsAfterOperator() throws {
+@Test
+func parseOperatorOnlyPointsAfterOperator() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { + }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
@@ -3369,7 +3677,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(op.start.offset == afterPlusOffset)
 }
 
-@Test func parseOperatorOnlyReturnsErrorExpression() throws {
+@Test
+func parseOperatorOnlyReturnsErrorExpression() throws {
     let body = parseBlockStatements("func main() { + }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -3377,13 +3686,15 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(exprStmt!.expression is AST.ErrorExpression)
 }
 
-@Test func parseEmptyParenthesesIsVoidLiteral() {
+@Test
+func parseEmptyParenthesesIsVoidLiteral() {
     let expr = firstExpression("()")
     let void = expr as? AST.VoidLiteral
     #expect(void != nil)
 }
 
-@Test func parseOperatorOnlyInConformanceReportsError() throws {
+@Test
+func parseOperatorOnlyInConformanceReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("struct Foo: + {}")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count >= 1)
@@ -3391,7 +3702,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     #expect(expr != nil)
 }
 
-@Test func parseOperatorOnlyInReturnTypeParsedAsSequential() throws {
+@Test
+func parseOperatorOnlyInReturnTypeParsedAsSequential() throws {
     let statements = parseStatements("func foo() -> + {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -3405,7 +3717,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
 
 // MARK: - Import
 
-@Test func parseImportSimple() throws {
+@Test
+func parseImportSimple() throws {
     let statements = parseStatements("import A")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
@@ -3416,7 +3729,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseImportWildcard() throws {
+@Test
+func parseImportWildcard() throws {
     let statements = parseStatements("import A.*")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
@@ -3431,7 +3745,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseImportNestedPath() throws {
+@Test
+func parseImportNestedPath() throws {
     let statements = parseStatements("import A.B")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
@@ -3447,7 +3762,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseImportNestedWildcard() throws {
+@Test
+func parseImportNestedWildcard() throws {
     let statements = parseStatements("import A.B.*")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
@@ -3467,7 +3783,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseImportExplicitSelector() throws {
+@Test
+func parseImportExplicitSelector() throws {
     let statements = parseStatements("import A.{self, B, C}")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
@@ -3497,7 +3814,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseImportSelfPrefix() throws {
+@Test
+func parseImportSelfPrefix() throws {
     let statements = parseStatements("import Self.A")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
@@ -3516,7 +3834,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseImportSelfPrefixExplicit() throws {
+@Test
+func parseImportSelfPrefixExplicit() throws {
     let statements = parseStatements("import Self.{A, B}")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
@@ -3545,7 +3864,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseImportAliasModule() throws {
+@Test
+func parseImportAliasModule() throws {
     let statements = parseStatements("import A as B")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
@@ -3557,7 +3877,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseImportAliasNestedModule() throws {
+@Test
+func parseImportAliasNestedModule() throws {
     let statements = parseStatements("import A.B as C")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
@@ -3574,7 +3895,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseImportAliasExplicitItems() throws {
+@Test
+func parseImportAliasExplicitItems() throws {
     let statements = parseStatements("import A.{B as b, C as c}")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
@@ -3597,7 +3919,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseImportAliasSelfItem() throws {
+@Test
+func parseImportAliasSelfItem() throws {
     let statements = parseStatements("import A.{self as a, B as b}")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
@@ -3623,7 +3946,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseImportAliasUnderscore() throws {
+@Test
+func parseImportAliasUnderscore() throws {
     let statements = parseStatements("import A as _")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
@@ -3634,7 +3958,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseImportNestedPathExplicitSelector() throws {
+@Test
+func parseImportNestedPathExplicitSelector() throws {
     let statements = parseStatements("import A.B.{self, C}")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
@@ -3664,7 +3989,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseImportNestedItemSelector() throws {
+@Test
+func parseImportNestedItemSelector() throws {
     let statements = parseStatements("import A.{B, C.{D, E}}")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
@@ -3700,7 +4026,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseImportNestedItemWildcard() throws {
+@Test
+func parseImportNestedItemWildcard() throws {
     let statements = parseStatements("import A.{B.*, C}")
     try #require(statements.count == 1)
     let decl = statements[0] as! AST.Import
@@ -3725,7 +4052,8 @@ func parseOperatorReferenceDoesNotSwallowPrefixUse() throws {
     }
 }
 
-@Test func parseImportSourceRange() {
+@Test
+func parseImportSourceRange() {
     let statements = parseStatements("import A.B")
     let decl = statements[0] as! AST.Import
     let range = decl.sourceRange
@@ -3740,42 +4068,48 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     return node
 }
 
-@Test func parseImportNoPathError() throws {
+@Test
+func parseImportNoPathError() throws {
     let (_, diagnostics) = parseWithDiagnostics("import")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count >= 1)
     #expect(errors[0].message == "expected module path after 'import'")
 }
 
-@Test func parseImportEmptySelectorError() throws {
+@Test
+func parseImportEmptySelectorError() throws {
     let (_, diagnostics) = parseWithDiagnostics("import A.{}")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count >= 1)
     #expect(errors[0].message == "expected import item after '{'")
 }
 
-@Test func parseImportWildcardAliasError() throws {
+@Test
+func parseImportWildcardAliasError() throws {
     let (_, diagnostics) = parseWithDiagnostics("import A.* as B")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count >= 1)
     #expect(errors[0].message == "cannot alias a wildcard import")
 }
 
-@Test func parseImportSelfInMiddleError() throws {
+@Test
+func parseImportSelfInMiddleError() throws {
     let (_, diagnostics) = parseWithDiagnostics("import A.Self.B")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count >= 1)
     #expect(errors[0].message == "'Self' can only appear at the beginning of an import path")
 }
 
-@Test func parseImportLowercaseSelfInPathError() throws {
+@Test
+func parseImportLowercaseSelfInPathError() throws {
     let (_, diagnostics) = parseWithDiagnostics("import self.A")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count >= 1)
     #expect(errors[0].message == "'self' is not allowed in import path, use 'Self' instead")
 }
 
-@Test func parseImportDoubleAliasError() throws {
+@Test
+func parseImportDoubleAliasError() throws {
     let (_, diagnostics) = parseWithDiagnostics("import A as B as C")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count >= 1)
@@ -3784,7 +4118,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Labeled Statements
 
-@Test func parseLabeledWhile() throws {
+@Test
+func parseLabeledWhile() throws {
     let body = parseBlockStatements("func main() { outer: while true { break outer } }")
     try #require(body.count == 1)
     let labeled = body[0] as? AST.LabeledStatement
@@ -3798,7 +4133,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(breakStmt!.label?.value == "outer")
 }
 
-@Test func parseLabeledRepeatWhile() throws {
+@Test
+func parseLabeledRepeatWhile() throws {
     let body = parseBlockStatements("func main() { end: repeat { } while false }")
     try #require(body.count == 1)
     let labeled = body[0] as? AST.LabeledStatement
@@ -3808,7 +4144,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(repeatStmt != nil)
 }
 
-@Test func parseNestedLabels() throws {
+@Test
+func parseNestedLabels() throws {
     let body = parseBlockStatements("func main() { outer: inner: while true { } }")
     try #require(body.count == 1)
     let outer = body[0] as? AST.LabeledStatement
@@ -3821,7 +4158,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(whileStmt != nil)
 }
 
-@Test func parseLabeledReturn() throws {
+@Test
+func parseLabeledReturn() throws {
     let body = parseBlockStatements("func main() { end: return 0 }")
     try #require(body.count == 1)
     let labeled = body[0] as? AST.LabeledStatement
@@ -3831,7 +4169,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(returnStmt != nil)
 }
 
-@Test func parseLabeledEmptyStatement() throws {
+@Test
+func parseLabeledEmptyStatement() throws {
     let body = parseBlockStatements("func main() { foo: ; }")
     try #require(body.count == 1)
     let labeled = body[0] as? AST.LabeledStatement
@@ -3841,7 +4180,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(empty != nil)
 }
 
-@Test func parseLabeledExpressionStatement() throws {
+@Test
+func parseLabeledExpressionStatement() throws {
     let body = parseBlockStatements("func main() { start: x }")
     try #require(body.count == 1)
     let labeled = body[0] as? AST.LabeledStatement
@@ -3851,7 +4191,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(exprStmt != nil)
 }
 
-@Test func parseLabelWithNewline() throws {
+@Test
+func parseLabelWithNewline() throws {
     let body = parseBlockStatements("func main() {\nouter:\n while true {}\n}")
     try #require(body.count == 1)
     let labeled = body[0] as? AST.LabeledStatement
@@ -3861,7 +4202,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(whileStmt != nil)
 }
 
-@Test func parseGotoWithLabeledStatement() throws {
+@Test
+func parseGotoWithLabeledStatement() throws {
     let body = parseBlockStatements("func main() { goto end\n end: return 0 }")
     try #require(body.count == 2)
     let gotoStmt = body[0] as? AST.Goto
@@ -3874,7 +4216,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(returnStmt != nil)
 }
 
-@Test func parseLabeledStatementSourceRangeCoversInnerOnly() throws {
+@Test
+func parseLabeledStatementSourceRangeCoversInnerOnly() throws {
     let body = parseBlockStatements("func main() { outer: while true {} }")
     let labeled = body[0] as? AST.LabeledStatement
     try #require(labeled != nil)
@@ -3883,13 +4226,15 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(labeled!.sourceRange == whileStmt!.sourceRange)
 }
 
-@Test func parseLabelFollowedByCloseBraceReportsError() throws {
+@Test
+func parseLabelFollowedByCloseBraceReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { foo: }")
     let errors = diagnostics.filter { $0.severity == .error }
     #expect(errors.count >= 1)
 }
 
-@Test func parseLabelAtEOFReportsError() throws {
+@Test
+func parseLabelAtEOFReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { foo:")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count >= 1)
@@ -3898,7 +4243,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Angle Bracket Generics vs Comparison
 
-@Test func parseBareGenericSingleArg() throws {
+@Test
+func parseBareGenericSingleArg() throws {
     let expr = firstExpression("Array<Int32>")
     let seq = expr as? AST.Sequential
     try #require(seq != nil)
@@ -3914,7 +4260,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(arg!.name.value == "Int32")
 }
 
-@Test func parseBareGenericMultipleArgs() throws {
+@Test
+func parseBareGenericMultipleArgs() throws {
     let expr = firstExpression("Array<Int32, String>")
     let seq = expr as? AST.Sequential
     try #require(seq != nil)
@@ -3934,7 +4281,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(arg2!.name.value == "String")
 }
 
-@Test func parseComparisonWithAngleBrackets() throws {
+@Test
+func parseComparisonWithAngleBrackets() throws {
     let expr = firstExpression("1<2>3")
     let seq = expr as? AST.Sequential
     try #require(seq != nil)
@@ -3953,7 +4301,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(third!.value == 3)
 }
 
-@Test func parseGenericApplicationWithCall() throws {
+@Test
+func parseGenericApplicationWithCall() throws {
     let expr = firstExpression("Array<Int32>()")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -3969,7 +4318,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(call!.arguments.isEmpty)
 }
 
-@Test func parseSimpleCall() throws {
+@Test
+func parseSimpleCall() throws {
     let expr = firstExpression("foo()")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -3979,7 +4329,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(call!.arguments.isEmpty)
 }
 
-@Test func parseParenthesizedAfterOperator() throws {
+@Test
+func parseParenthesizedAfterOperator() throws {
     let expr = firstExpression("a + (b)")
     let seq = expr as? AST.Sequential
     try #require(seq != nil)
@@ -3996,7 +4347,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(inner!.name.value == "b")
 }
 
-@Test func parseCallThenMemberAccess() throws {
+@Test
+func parseCallThenMemberAccess() throws {
     let expr = firstExpression("foo().bar")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -4008,7 +4360,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(member!.member.value == "bar")
 }
 
-@Test func parseGenericWithMemberAccess() throws {
+@Test
+func parseGenericWithMemberAccess() throws {
     let expr = firstExpression("Array<Int32>.f")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -4027,7 +4380,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(arg!.name.value == "Int32")
 }
 
-@Test func parseGenericWithMemberAccessAndCall() throws {
+@Test
+func parseGenericWithMemberAccessAndCall() throws {
     let expr = firstExpression("Array<Int32>.f()")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -4044,7 +4398,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect((baseSeq!.operands[1] as! AST.Variable).name.value == "Int32")
 }
 
-@Test func parseGenericWithMemberAccessAndCallArg() throws {
+@Test
+func parseGenericWithMemberAccessAndCallArg() throws {
     let expr = firstExpression("Array<Int32>.f(1)")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -4057,7 +4412,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(member!.member.value == "f")
 }
 
-@Test func parseGenericMultiArgWithMemberAccess() throws {
+@Test
+func parseGenericMultiArgWithMemberAccess() throws {
     let expr = firstExpression("Array<Int32, String>.foo")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -4070,7 +4426,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect((baseSeq!.operands[2] as? AST.Variable)?.name.value == "String")
 }
 
-@Test func parseCallOnGenericThenMemberAccess() throws {
+@Test
+func parseCallOnGenericThenMemberAccess() throws {
     let expr = firstExpression("Producer<Item>().result")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -4085,7 +4442,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(call!.arguments.isEmpty)
 }
 
-@Test func parseComparisonThenMemberAccess() throws {
+@Test
+func parseComparisonThenMemberAccess() throws {
     let expr = firstExpression("1 < 2 && 3 > x.foo")
     let seq = expr as? AST.Sequential
     try #require(seq != nil)
@@ -4098,7 +4456,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(obj!.name.value == "x")
 }
 
-@Test func parseNestedGenericRightShift() throws {
+@Test
+func parseNestedGenericRightShift() throws {
     let expr = firstExpression("Array<Array<Int32>>")
     let seq = expr as? AST.Sequential
     try #require(seq != nil)
@@ -4118,14 +4477,16 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(arg2!.name.value == "Int32")
 }
 
-@Test func parseEmptyArrayLiteral() throws {
+@Test
+func parseEmptyArrayLiteral() throws {
     let expr = firstExpression("[]")
     let arr = expr as? AST.ArrayLiteral
     try #require(arr != nil)
     #expect(arr!.elements.isEmpty)
 }
 
-@Test func parseSingleElementArrayLiteral() throws {
+@Test
+func parseSingleElementArrayLiteral() throws {
     let expr = firstExpression("[1]")
     let arr = expr as? AST.ArrayLiteral
     try #require(arr != nil)
@@ -4135,7 +4496,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(lit!.value == 1)
 }
 
-@Test func parseMultiElementArrayLiteral() throws {
+@Test
+func parseMultiElementArrayLiteral() throws {
     let expr = firstExpression("[1, 2, 3]")
     let arr = expr as? AST.ArrayLiteral
     try #require(arr != nil)
@@ -4147,14 +4509,16 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     }
 }
 
-@Test func parseArrayLiteralWithTrailingComma() throws {
+@Test
+func parseArrayLiteralWithTrailingComma() throws {
     let expr = firstExpression("[1, 2,]")
     let arr = expr as? AST.ArrayLiteral
     try #require(arr != nil)
     #expect(arr!.elements.count == 2)
 }
 
-@Test func parseArrayLiteralWithExpressions() throws {
+@Test
+func parseArrayLiteralWithExpressions() throws {
     let expr = firstExpression("[a + b, c]")
     let arr = expr as? AST.ArrayLiteral
     try #require(arr != nil)
@@ -4166,14 +4530,16 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(v!.name.value == "c")
 }
 
-@Test func parseEmptyDictionaryLiteral() throws {
+@Test
+func parseEmptyDictionaryLiteral() throws {
     let expr = firstExpression("[:]")
     let dict = expr as? AST.DictionaryLiteral
     try #require(dict != nil)
     #expect(dict!.entries.isEmpty)
 }
 
-@Test func parseSingleEntryDictionaryLiteral() throws {
+@Test
+func parseSingleEntryDictionaryLiteral() throws {
     let expr = firstExpression("[1: 2]")
     let dict = expr as? AST.DictionaryLiteral
     try #require(dict != nil)
@@ -4186,7 +4552,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(val!.value == 2)
 }
 
-@Test func parseMultiEntryDictionaryLiteral() throws {
+@Test
+func parseMultiEntryDictionaryLiteral() throws {
     let expr = firstExpression("[1: 2, 3: 4]")
     let dict = expr as? AST.DictionaryLiteral
     try #require(dict != nil)
@@ -4201,14 +4568,16 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(val1!.value == 4)
 }
 
-@Test func parseDictionaryLiteralWithTrailingComma() throws {
+@Test
+func parseDictionaryLiteralWithTrailingComma() throws {
     let expr = firstExpression("[1: 2,]")
     let dict = expr as? AST.DictionaryLiteral
     try #require(dict != nil)
     #expect(dict!.entries.count == 1)
 }
 
-@Test func parseSubscriptSingleIndex() throws {
+@Test
+func parseSubscriptSingleIndex() throws {
     let expr = firstExpression("arr[1]")
     let sub = expr as? AST.Subscript
     try #require(sub != nil)
@@ -4222,7 +4591,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(idx!.value == 1)
 }
 
-@Test func parseSubscriptMultiIndex() throws {
+@Test
+func parseSubscriptMultiIndex() throws {
     let expr = firstExpression("arr[1, 2]")
     let sub = expr as? AST.Subscript
     try #require(sub != nil)
@@ -4235,7 +4605,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(idx1!.value == 2)
 }
 
-@Test func parseSubscriptWithLabel() throws {
+@Test
+func parseSubscriptWithLabel() throws {
     let expr = firstExpression("arr[row: 1, col: 2]")
     let sub = expr as? AST.Subscript
     try #require(sub != nil)
@@ -4248,14 +4619,16 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(val1!.value == 2)
 }
 
-@Test func parseSubscriptWithTrailingComma() throws {
+@Test
+func parseSubscriptWithTrailingComma() throws {
     let expr = firstExpression("arr[1, 2,]")
     let sub = expr as? AST.Subscript
     try #require(sub != nil)
     #expect(sub!.arguments.count == 2)
 }
 
-@Test func parseChainedSubscript() throws {
+@Test
+func parseChainedSubscript() throws {
     let expr = firstExpression("arr[0][1]")
     let outer = expr as? AST.Subscript
     try #require(outer != nil)
@@ -4267,7 +4640,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(inner!.arguments.count == 1)
 }
 
-@Test func parseSubscriptThenMemberAccess() throws {
+@Test
+func parseSubscriptThenMemberAccess() throws {
     let expr = firstExpression("arr[0].field")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -4278,7 +4652,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(base!.name.value == "arr")
 }
 
-@Test func parseMemberAccessThenSubscript() throws {
+@Test
+func parseMemberAccessThenSubscript() throws {
     let expr = firstExpression("obj.field[0]")
     let sub = expr as? AST.Subscript
     try #require(sub != nil)
@@ -4289,7 +4664,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(obj!.name.value == "obj")
 }
 
-@Test func parseCallWithSingleArgument() throws {
+@Test
+func parseCallWithSingleArgument() throws {
     let expr = firstExpression("foo(1)")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -4300,7 +4676,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(arg!.value == 1)
 }
 
-@Test func parseCallWithMultipleArguments() throws {
+@Test
+func parseCallWithMultipleArguments() throws {
     let expr = firstExpression("foo(1, 2, 3)")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -4312,7 +4689,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     }
 }
 
-@Test func parseCallWithLabeledArguments() throws {
+@Test
+func parseCallWithLabeledArguments() throws {
     let expr = firstExpression("foo(a: 1, b: 2)")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -4325,7 +4703,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(val1!.value == 2)
 }
 
-@Test func parseCallWithMixedArguments() throws {
+@Test
+func parseCallWithMixedArguments() throws {
     let expr = firstExpression("foo(1, b: 2)")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -4334,14 +4713,16 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(call!.arguments[1].label?.value == "b")
 }
 
-@Test func parseCallWithTrailingComma() throws {
+@Test
+func parseCallWithTrailingComma() throws {
     let expr = firstExpression("foo(1, 2,)")
     let call = expr as? AST.Call
     try #require(call != nil)
     #expect(call!.arguments.count == 2)
 }
 
-@Test func parseCallWithExpressionArgument() throws {
+@Test
+func parseCallWithExpressionArgument() throws {
     let expr = firstExpression("foo(a + b)")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -4352,7 +4733,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(seq!.ops[0].kind == .Operator(.Plus))
 }
 
-@Test func parseFunctionDeclWithSingleParameter() throws {
+@Test
+func parseFunctionDeclWithSingleParameter() throws {
     let statements = parseStatements("func foo(a: Int) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -4365,7 +4747,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.parameters[0].defaultValue == nil)
 }
 
-@Test func parseFunctionDeclWithMultipleParameters() throws {
+@Test
+func parseFunctionDeclWithMultipleParameters() throws {
     let statements = parseStatements("func foo(a: Int, b: Int) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -4374,7 +4757,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.parameters[1].name.value == "b")
 }
 
-@Test func parseFunctionDeclWithWildcardLabel() throws {
+@Test
+func parseFunctionDeclWithWildcardLabel() throws {
     let statements = parseStatements("func foo(_ a: Int) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -4383,7 +4767,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.parameters[0].name.value == "a")
 }
 
-@Test func parseFunctionDeclWithExplicitLabel() throws {
+@Test
+func parseFunctionDeclWithExplicitLabel() throws {
     let statements = parseStatements("func foo(by a: Int) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -4392,7 +4777,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.parameters[0].name.value == "a")
 }
 
-@Test func parseFunctionDeclWithDefaultValue() throws {
+@Test
+func parseFunctionDeclWithDefaultValue() throws {
     let statements = parseStatements("func foo(a: Int = 42) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -4402,7 +4788,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(defVal!.value == 42)
 }
 
-@Test func parseFunctionDeclWithMixedParameters() throws {
+@Test
+func parseFunctionDeclWithMixedParameters() throws {
     let statements = parseStatements("func foo(_ a: Int, b: Int = 0, by c: Int) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -4418,7 +4805,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.parameters[2].name.value == "c")
 }
 
-@Test func parseFunctionDeclWithTrailingComma() throws {
+@Test
+func parseFunctionDeclWithTrailingComma() throws {
     let statements = parseStatements("func foo(a: Int,) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -4427,7 +4815,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Variadic Type
 
-@Test func parseFunctionDeclWithVariadicType() throws {
+@Test
+func parseFunctionDeclWithVariadicType() throws {
     let statements = parseStatements("func foo(_ xs: Int...) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -4440,7 +4829,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(variadic!.token.kind == .Operator(.DotDotDot))
 }
 
-@Test func parseFunctionDeclWithLabeledVariadicType() throws {
+@Test
+func parseFunctionDeclWithLabeledVariadicType() throws {
     let statements = parseStatements("func foo(items: Int32...) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -4450,7 +4840,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(base!.name.value == "Int32")
 }
 
-@Test func parseFunctionDeclWithTupleVariadicType() throws {
+@Test
+func parseFunctionDeclWithTupleVariadicType() throws {
     let statements = parseStatements("func foo(_ xs: (Int, String)...) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -4461,7 +4852,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(tuple!.elements.count == 2)
 }
 
-@Test func parseVariableDeclWithVariadicType() throws {
+@Test
+func parseVariableDeclWithVariadicType() throws {
     let statements = parseStatements("let x: Int...")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
@@ -4471,7 +4863,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(base!.name.value == "Int")
 }
 
-@Test func parseEnumCaseWithVariadicType() throws {
+@Test
+func parseEnumCaseWithVariadicType() throws {
     let statements = parseStatements("enum E { case a(Int...) }")
     let enumDecl = statements[0] as? AST.EnumDecl
     try #require(enumDecl != nil)
@@ -4483,7 +4876,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(base!.name.value == "Int")
 }
 
-@Test func parseRangeExpressionStillSequential() throws {
+@Test
+func parseRangeExpressionStillSequential() throws {
     let statements = parseStatements("let r = 1...5")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
@@ -4493,7 +4887,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(seq!.operands.count == 2)
 }
 
-@Test func parseFunctionDeclNonVariadicTypeUnaffected() throws {
+@Test
+func parseFunctionDeclNonVariadicTypeUnaffected() throws {
     let statements = parseStatements("func foo(_ xs: Int) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -4504,7 +4899,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - C-Style Vararg
 
-@Test func parseFunctionDeclWithCStyleVararg() throws {
+@Test
+func parseFunctionDeclWithCStyleVararg() throws {
     let statements = parseStatements("func f(i: Int32, ...) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -4514,7 +4910,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.varargToken!.kind == .Operator(.DotDotDot))
 }
 
-@Test func parseFunctionDeclBareVararg() throws {
+@Test
+func parseFunctionDeclBareVararg() throws {
     let statements = parseStatements("func f(...) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -4522,14 +4919,16 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.varargToken != nil)
 }
 
-@Test func parseFunctionDeclWithoutVararg() throws {
+@Test
+func parseFunctionDeclWithoutVararg() throws {
     let statements = parseStatements("func f(i: Int32) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
     #expect(decl!.varargToken == nil)
 }
 
-@Test func parseFunctionDeclCStyleVarargAfterSwiftVariadic() throws {
+@Test
+func parseFunctionDeclCStyleVarargAfterSwiftVariadic() throws {
     let statements = parseStatements("func f(_ xs: Int..., ...) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -4539,14 +4938,16 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.varargToken != nil)
 }
 
-@Test func parseSwiftVariadicDoesNotSetVarargToken() throws {
+@Test
+func parseSwiftVariadicDoesNotSetVarargToken() throws {
     let statements = parseStatements("func f(_ xs: Int...) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
     #expect(decl!.varargToken == nil)
 }
 
-@Test func parseMemberAccessInteger() throws {
+@Test
+func parseMemberAccessInteger() throws {
     let expr = firstExpression("tuple.0")
     let member = expr as? AST.MemberAccess
     try #require(member != nil)
@@ -4555,7 +4956,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(member!.member.kind == .IntegerLiteral(0))
 }
 
-@Test func parseArrayLiteralInExpression() throws {
+@Test
+func parseArrayLiteralInExpression() throws {
     let expr = firstExpression("a + [1, 2]")
     let seq = expr as? AST.Sequential
     try #require(seq != nil)
@@ -4571,7 +4973,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Optional Binding (if let / guard let / while let)
 
-@Test func parseIfLetBasic() throws {
+@Test
+func parseIfLetBasic() throws {
     let body = parseBlockStatements("func main() { if let x = a {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -4587,7 +4990,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(value!.name.value == "a")
 }
 
-@Test func parseIfLetWithTypeAnnotation() throws {
+@Test
+func parseIfLetWithTypeAnnotation() throws {
     let body = parseBlockStatements("func main() { if let x: Int32 = a {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -4598,7 +5002,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(binding!.typeExpression != nil)
 }
 
-@Test func parseIfVar() throws {
+@Test
+func parseIfVar() throws {
     let body = parseBlockStatements("func main() { if var x = a {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -4608,7 +5013,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(binding!.token.kind == .Keyword(.Var))
 }
 
-@Test func parseIfLetWithAndCombination() throws {
+@Test
+func parseIfLetWithAndCombination() throws {
     let body = parseBlockStatements("func main() { if (let x = a) && (let y = b) {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -4629,7 +5035,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(rhsBinding!.name.value == "y")
 }
 
-@Test func parseGuardLet() throws {
+@Test
+func parseGuardLet() throws {
     let body = parseBlockStatements("func main() { guard let x = a else {} }")
     try #require(body.count == 1)
     let guardStmt = body[0] as? AST.Guard
@@ -4639,7 +5046,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(binding!.name.value == "x")
 }
 
-@Test func parseWhileLet() throws {
+@Test
+func parseWhileLet() throws {
     let body = parseBlockStatements("func main() { while let x = a {} }")
     try #require(body.count == 1)
     let whileStmt = body[0] as? AST.While
@@ -4649,7 +5057,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(binding!.name.value == "x")
 }
 
-@Test func parseIfLetShorthand() throws {
+@Test
+func parseIfLetShorthand() throws {
     let body = parseBlockStatements("func main() { if let x {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -4666,7 +5075,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(value!.name.value == "x")
 }
 
-@Test func parseIfVarShorthand() throws {
+@Test
+func parseIfVarShorthand() throws {
     let body = parseBlockStatements("func main() { if var x {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -4677,7 +5087,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(binding!.name.value == "x")
 }
 
-@Test func parseIfLetShorthandWithTypeAnnotation() throws {
+@Test
+func parseIfLetShorthandWithTypeAnnotation() throws {
     let body = parseBlockStatements("func main() { if let x: Int32 {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -4691,7 +5102,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(value!.name.value == "x")
 }
 
-@Test func parseGuardLetShorthand() throws {
+@Test
+func parseGuardLetShorthand() throws {
     let body = parseBlockStatements("func main() { guard let x else {} }")
     try #require(body.count == 1)
     let guardStmt = body[0] as? AST.Guard
@@ -4704,7 +5116,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(value!.name.value == "x")
 }
 
-@Test func parseWhileLetShorthand() throws {
+@Test
+func parseWhileLetShorthand() throws {
     let body = parseBlockStatements("func main() { while let x {} }")
     try #require(body.count == 1)
     let whileStmt = body[0] as? AST.While
@@ -4719,7 +5132,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Case Match (if case)
 
-@Test func parseIfCaseDotName() throws {
+@Test
+func parseIfCaseDotName() throws {
     let body = parseBlockStatements("func main() { if case .foo = a {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -4733,7 +5147,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(subject!.name.value == "a")
 }
 
-@Test func parseIfCaseWithBinding() throws {
+@Test
+func parseIfCaseWithBinding() throws {
     let body = parseBlockStatements("func main() { if case .foo(let x) = a {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -4751,7 +5166,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(binding!.name.value == "x")
 }
 
-@Test func parseIfCaseNestedPattern() throws {
+@Test
+func parseIfCaseNestedPattern() throws {
     let body = parseBlockStatements("func main() { if case .some(.some(let x)) = a {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -4771,7 +5187,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(binding!.name.value == "x")
 }
 
-@Test func parseIfCaseQualified() throws {
+@Test
+func parseIfCaseQualified() throws {
     let body = parseBlockStatements("func main() { if case Color.red = a {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -4785,7 +5202,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(memberAccess!.member.value == "red")
 }
 
-@Test func parseIfCaseWildcard() throws {
+@Test
+func parseIfCaseWildcard() throws {
     let body = parseBlockStatements("func main() { if case _ = a {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -4798,7 +5216,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Enum Declarations
 
-@Test func parseBasicEnum() throws {
+@Test
+func parseBasicEnum() throws {
     let stmts = parseStatements("enum Color { case red\ncase green\ncase blue }")
     try #require(stmts.count == 1)
     let enumDecl = stmts[0] as? AST.EnumDecl
@@ -4815,7 +5234,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(case0!.elements[0].rawValue == nil)
 }
 
-@Test func parseEnumWithAssociatedValues() throws {
+@Test
+func parseEnumWithAssociatedValues() throws {
     let stmts = parseStatements("enum Result { case ok(Int32)\ncase err(String) }")
     try #require(stmts.count == 1)
     let enumDecl = stmts[0] as? AST.EnumDecl
@@ -4829,7 +5249,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(case1!.elements[0].associatedValues.count == 1)
 }
 
-@Test func parseEnumWithNamedAssociatedValues() throws {
+@Test
+func parseEnumWithNamedAssociatedValues() throws {
     let stmts = parseStatements("enum Point { case coord(x: Int32, y: Int32) }")
     try #require(stmts.count == 1)
     let enumDecl = stmts[0] as? AST.EnumDecl
@@ -4839,7 +5260,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(case0!.elements[0].associatedValues[1].label?.value == "y")
 }
 
-@Test func parseEnumGeneric() throws {
+@Test
+func parseEnumGeneric() throws {
     let stmts = parseStatements("enum Result<T> { case ok(T)\ncase err(String) }")
     try #require(stmts.count == 1)
     let enumDecl = stmts[0] as? AST.EnumDecl
@@ -4852,7 +5274,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(case1!.elements[0].name.value == "err")
 }
 
-@Test func parseEnumWithRawValue() throws {
+@Test
+func parseEnumWithRawValue() throws {
     let stmts = parseStatements("enum Color: Int32 { case red = 1\ncase green = 2 }")
     try #require(stmts.count == 1)
     let enumDecl = stmts[0] as? AST.EnumDecl
@@ -4863,7 +5286,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(rawVal != nil)
 }
 
-@Test func parseIndirectEnum() throws {
+@Test
+func parseIndirectEnum() throws {
     let stmts = parseStatements("indirect enum Tree { case node(Int32, Tree, Tree)\ncase leaf }")
     try #require(stmts.count == 1)
     let enumDecl = stmts[0] as? AST.EnumDecl
@@ -4874,7 +5298,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(case0!.elements[0].associatedValues.count == 3)
 }
 
-@Test func parseEnumWithConformance() throws {
+@Test
+func parseEnumWithConformance() throws {
     let stmts = parseStatements("enum Foo: Equatable { case a\ncase b }")
     try #require(stmts.count == 1)
     let enumDecl = stmts[0] as? AST.EnumDecl
@@ -4883,7 +5308,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(conf!.name.value == "Equatable")
 }
 
-@Test func parseEnumMultipleCasesOnOneLine() throws {
+@Test
+func parseEnumMultipleCasesOnOneLine() throws {
     let stmts = parseStatements("enum Color { case red, green, blue }")
     try #require(stmts.count == 1)
     let enumDecl = stmts[0] as? AST.EnumDecl
@@ -4897,7 +5323,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Match with Bindings
 
-@Test func parseMatchAtBindingPattern() throws {
+@Test
+func parseMatchAtBindingPattern() throws {
     let expr = firstExpression("match a { let x @ .some => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -4909,7 +5336,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(subpattern!.name.value == "some")
 }
 
-@Test func parseMatchAtBindingWithArguments() throws {
+@Test
+func parseMatchAtBindingWithArguments() throws {
     let expr = firstExpression("match a { let x @ .some(let y) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -4922,7 +5350,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(inner!.name.value == "y")
 }
 
-@Test func parseIfCaseAtBindingPattern() throws {
+@Test
+func parseIfCaseAtBindingPattern() throws {
     let body = parseBlockStatements("func main() { if case let x @ .some = a {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -4936,7 +5365,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(subpattern!.name.value == "some")
 }
 
-@Test func parseNestedAtBindingPattern() throws {
+@Test
+func parseNestedAtBindingPattern() throws {
     let expr = firstExpression("match a { .foo(let x @ .some) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -4950,7 +5380,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(subpattern!.name.value == "some")
 }
 
-@Test func parseWildcardAtBindingPattern() throws {
+@Test
+func parseWildcardAtBindingPattern() throws {
     let expr = firstExpression("match a { _ @ .some => 1 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -4959,7 +5390,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(subpattern!.name.value == "some")
 }
 
-@Test func parseBindingPatternWithoutSubpattern() throws {
+@Test
+func parseBindingPatternWithoutSubpattern() throws {
     let expr = firstExpression("match a { .some(let x) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -4971,7 +5403,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Typed Binding in Patterns
 
-@Test func parseNestedTypedBindingPattern() throws {
+@Test
+func parseNestedTypedBindingPattern() throws {
     let expr = firstExpression("match a { .foo(let x: Int) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -4985,7 +5418,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(type!.name.value == "Int")
 }
 
-@Test func parseMatchTypedBindingPattern() throws {
+@Test
+func parseMatchTypedBindingPattern() throws {
     let expr = firstExpression("match a { let x: Int => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -4997,7 +5431,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(binding!.subpattern == nil)
 }
 
-@Test func parseIfCaseTypedBindingPattern() throws {
+@Test
+func parseIfCaseTypedBindingPattern() throws {
     let body = parseBlockStatements("func main() { if case let x: Int = a {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5011,7 +5446,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(type!.name.value == "Int")
 }
 
-@Test func parseForTypedBindingPattern() throws {
+@Test
+func parseForTypedBindingPattern() throws {
     let body = parseBlockStatements("func main() { for let x: Int in arr {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -5023,7 +5459,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(type!.name.value == "Int")
 }
 
-@Test func parseCatchTypedBindingPattern() throws {
+@Test
+func parseCatchTypedBindingPattern() throws {
     let body = parseBlockStatements("func main() { do { } catch let e: Int32 { } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5036,7 +5473,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(type!.name.value == "Int32")
 }
 
-@Test func parseTypedBindingWithAtSubpattern() throws {
+@Test
+func parseTypedBindingWithAtSubpattern() throws {
     let expr = firstExpression("match a { let x: Int @ .some => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -5050,7 +5488,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(subpattern!.name.value == "some")
 }
 
-@Test func parseBindingPatternWithoutType() throws {
+@Test
+func parseBindingPatternWithoutType() throws {
     let expr = firstExpression("match a { .some(let x) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -5062,7 +5501,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - As Binding in Patterns
 
-@Test func parseMatchAsBindingPattern() throws {
+@Test
+func parseMatchAsBindingPattern() throws {
     let expr = firstExpression("match a { let x as Int32 => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -5076,7 +5516,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(type!.name.value == "Int32")
 }
 
-@Test func parseIfCaseAsBindingPattern() throws {
+@Test
+func parseIfCaseAsBindingPattern() throws {
     let body = parseBlockStatements("func main() { if case let x as String = a {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5090,7 +5531,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(type!.name.value == "String")
 }
 
-@Test func parseWildcardAsBindingPattern() throws {
+@Test
+func parseWildcardAsBindingPattern() throws {
     let expr = firstExpression("match a { _ as Int32 => 1 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -5099,7 +5541,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(asPattern!.pattern is AST.WildcardPattern)
 }
 
-@Test func parseAsExpressionStillCastExpression() {
+@Test
+func parseAsExpressionStillCastExpression() {
     let expr = firstExpression("x as Int32")
     let cast = expr as? AST.Cast
     #expect(cast != nil)
@@ -5107,7 +5550,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(!(expr is AST.AsPattern))
 }
 
-@Test func parseAsQuestionInPatternStaysCast() throws {
+@Test
+func parseAsQuestionInPatternStaysCast() throws {
     let expr = firstExpression("match a { let x as? Int32 => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -5116,7 +5560,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(cast!.kind == .OptionalAs)
 }
 
-@Test func parseMatchWithBinding() throws {
+@Test
+func parseMatchWithBinding() throws {
     let expr = firstExpression("match a { .some(let x) => x, .none => 0 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -5132,7 +5577,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(binding!.name.value == "x")
 }
 
-@Test func parseMatchWithPartialBinding() throws {
+@Test
+func parseMatchWithPartialBinding() throws {
     let expr = firstExpression("match a { .foo(let x, _) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -5147,7 +5593,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(wildcard != nil)
 }
 
-@Test func parseMatchWithNestedBinding() throws {
+@Test
+func parseMatchWithNestedBinding() throws {
     let expr = firstExpression("match a { .some(.some(let x)) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -5161,7 +5608,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(binding!.name.value == "x")
 }
 
-@Test func parseMatchWithMultiplePatterns() throws {
+@Test
+func parseMatchWithMultiplePatterns() throws {
     let expr = firstExpression("match a { .a, .b => 1, .c => 2 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -5170,7 +5618,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(matchExpr!.cases[1].patterns.count == 1)
 }
 
-@Test func parseMatchExpressionCaseRequiresComma() throws {
+@Test
+func parseMatchExpressionCaseRequiresComma() throws {
     let (_, diagnostics) = parseWithDiagnostics(
         "func f() { match a { .a => 1 .b => 2 } }"
     )
@@ -5179,7 +5628,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(errors[0].message == "expected ',' after match case expression")
 }
 
-@Test func parseMatchMixedLiteralAndBinding() throws {
+@Test
+func parseMatchMixedLiteralAndBinding() throws {
     let expr = firstExpression("match a { .foo(1, let x) => x }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -5194,7 +5644,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(binding!.name.value == "x")
 }
 
-@Test func parseMatchWithWildcardCatchAll() throws {
+@Test
+func parseMatchWithWildcardCatchAll() throws {
     let expr = firstExpression("match a { _ => 42 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -5204,7 +5655,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(case0.patterns[0] is AST.WildcardPattern)
 }
 
-@Test func parseIfCaseMixedLiteralAndBinding() throws {
+@Test
+func parseIfCaseMixedLiteralAndBinding() throws {
     let body = parseBlockStatements("func main() { if case .foo(1, let x) = a {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5223,7 +5675,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Range Operators in Patterns
 
-@Test func parseMatchRangePatternClosed() throws {
+@Test
+func parseMatchRangePatternClosed() throws {
     let expr = firstExpression("match x { 1...5 => 1 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -5241,7 +5694,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(upper!.value == 5)
 }
 
-@Test func parseMatchRangePatternHalfOpen() throws {
+@Test
+func parseMatchRangePatternHalfOpen() throws {
     let expr = firstExpression("match x { 1..<5 => 1 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -5250,7 +5704,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(seq!.ops[0].kind == .Operator(.DotDotLess))
 }
 
-@Test func parseMatchRangePatternDotDot() throws {
+@Test
+func parseMatchRangePatternDotDot() throws {
     let expr = firstExpression("match x { 1..5 => 1 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -5259,7 +5714,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(seq!.ops[0].kind == .Operator(.DotDot))
 }
 
-@Test func parseMatchMultipleRangePatterns() throws {
+@Test
+func parseMatchMultipleRangePatterns() throws {
     let expr = firstExpression("match x { 1...5, 10...20 => 1, 30...40 => 2 }")
     let matchExpr = expr as? AST.Match
     try #require(matchExpr != nil)
@@ -5273,7 +5729,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     }
 }
 
-@Test func parseIfCaseRangePattern() throws {
+@Test
+func parseIfCaseRangePattern() throws {
     let body = parseBlockStatements("func main() { if case 1...5 = x {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5288,7 +5745,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - ShorthandArgument
 
-@Test func parseShorthandArgumentDollar0() throws {
+@Test
+func parseShorthandArgumentDollar0() throws {
     let body = parseBlockStatements("func main() { $0 }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5297,7 +5755,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(arg!.index == 0)
 }
 
-@Test func parseShorthandArgumentDollar42() throws {
+@Test
+func parseShorthandArgumentDollar42() throws {
     let body = parseBlockStatements("func main() { $42 }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5306,7 +5765,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(arg!.index == 42)
 }
 
-@Test func parseShorthandArgumentInClosure() throws {
+@Test
+func parseShorthandArgumentInClosure() throws {
     let body = parseBlockStatements("func main() { { $0 } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5322,7 +5782,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Trailing Closure
 
-@Test func parseTrailingClosureWithoutParens() throws {
+@Test
+func parseTrailingClosureWithoutParens() throws {
     let body = parseBlockStatements("func main() { arr.filter { $0 } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5335,7 +5796,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(memberAccess != nil)
 }
 
-@Test func parseTrailingClosureWithParens() throws {
+@Test
+func parseTrailingClosureWithParens() throws {
     let body = parseBlockStatements("func main() { foo() { $0 } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5346,7 +5808,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(call!.trailingClosures[0].0 == nil)
 }
 
-@Test func parseMultipleTrailingClosures() throws {
+@Test
+func parseMultipleTrailingClosures() throws {
     let body = parseBlockStatements("func main() { foo { } bar: { } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5358,7 +5821,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(call!.trailingClosures[1].0?.value == "bar")
 }
 
-@Test func parseTrailingClosureWithArgs() throws {
+@Test
+func parseTrailingClosureWithArgs() throws {
     let body = parseBlockStatements("func main() { foo(1) { $0 } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5369,12 +5833,14 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(call!.trailingClosures[0].0 == nil)
 }
 
-@Test func parseMultipleTrailingClosuresWithUnlabeledFirstIsValid() {
+@Test
+func parseMultipleTrailingClosuresWithUnlabeledFirstIsValid() {
     let (_, errors) = parseWithDiagnostics("func main() { foo { } bar: { } }")
     #expect(errors.isEmpty)
 }
 
-@Test func parseUnlabeledTrailingClosureStopsAttachment() throws {
+@Test
+func parseUnlabeledTrailingClosureStopsAttachment() throws {
     let body = parseBlockStatements("func main() { foo { } { } }")
     try #require(body.count == 2)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5385,7 +5851,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(body[1] is AST.ExpressionStatement)
 }
 
-@Test func parseLabeledTrailingClosureThenUnlabeledStopsAttachment() throws {
+@Test
+func parseLabeledTrailingClosureThenUnlabeledStopsAttachment() throws {
     let body = parseBlockStatements("func main() { foo { } bar: { } { } }")
     try #require(body.count == 2)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5399,7 +5866,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - String Interpolation
 
-@Test func parseStringInterpolationSimple() throws {
+@Test
+func parseStringInterpolationSimple() throws {
     let expr = firstExpression("\"hello \\(name)\"")
     let interp = expr as? AST.StringInterpolation
     try #require(interp != nil)
@@ -5422,7 +5890,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(!last.isUnterminated)
 }
 
-@Test func parseStringInterpolationMultiSegment() throws {
+@Test
+func parseStringInterpolationMultiSegment() throws {
     let expr = firstExpression("\"\\(v1) \\(v2)\"")
     let interp = expr as? AST.StringInterpolation
     try #require(interp != nil)
@@ -5445,7 +5914,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(mid.isUnterminated)
 }
 
-@Test func parseRawStringLiteral() throws {
+@Test
+func parseRawStringLiteral() throws {
     let expr = firstExpression("#\"hello\\nworld\"#")
     let literal = expr as? AST.StringLiteral
     try #require(literal != nil)
@@ -5453,7 +5923,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(literal!.token.value == "hello\\nworld")
 }
 
-@Test func parseRawStringInterpolation() throws {
+@Test
+func parseRawStringInterpolation() throws {
     let expr = firstExpression("#\"a\\#(name)b\"#")
     let interp = expr as? AST.StringInterpolation
     try #require(interp != nil)
@@ -5477,7 +5948,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(last.isRaw)
 }
 
-@Test func parseRawMultilineStringLiteral() throws {
+@Test
+func parseRawMultilineStringLiteral() throws {
     let expr = firstExpression("#\"\"\"\nhello\nworld\n\"\"\"#")
     let literal = expr as? AST.StringLiteral
     try #require(literal != nil)
@@ -5485,7 +5957,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(literal!.token.value == "hello\nworld\n")
 }
 
-@Test func parseMultilineStringInterpolation() throws {
+@Test
+func parseMultilineStringInterpolation() throws {
     let expr = firstExpression("\"\"\"\nhello \\(name) world\n\"\"\"")
     let interp = expr as? AST.StringInterpolation
     try #require(interp != nil)
@@ -5504,7 +5977,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - KeyPath
 
-@Test func parseKeyPathSimple() throws {
+@Test
+func parseKeyPathSimple() throws {
     let expr = firstExpression("\\Person.name")
     let keyPath = expr as? AST.KeyPathExpression
     try #require(keyPath != nil)
@@ -5517,7 +5991,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(keyPath!.components[0].postfix == nil)
 }
 
-@Test func parseKeyPathNoRoot() throws {
+@Test
+func parseKeyPathNoRoot() throws {
     let expr = firstExpression("\\.name")
     let keyPath = expr as? AST.KeyPathExpression
     try #require(keyPath != nil)
@@ -5526,7 +6001,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(keyPath!.components[0].name!.value == "name")
 }
 
-@Test func parseKeyPathSelfComponent() throws {
+@Test
+func parseKeyPathSelfComponent() throws {
     let expr = firstExpression("\\.self")
     let keyPath = expr as? AST.KeyPathExpression
     try #require(keyPath != nil)
@@ -5535,7 +6011,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(keyPath!.components[0].name!.kind == .Keyword(.SelfKw))
 }
 
-@Test func parseKeyPathIntegerComponent() throws {
+@Test
+func parseKeyPathIntegerComponent() throws {
     let expr = firstExpression("\\Person.0")
     let keyPath = expr as? AST.KeyPathExpression
     try #require(keyPath != nil)
@@ -5543,7 +6020,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(keyPath!.components[0].name!.kind == .IntegerLiteral(0))
 }
 
-@Test func parseKeyPathPostfixComponents() throws {
+@Test
+func parseKeyPathPostfixComponents() throws {
     let expr = firstExpression("\\Person.name!.age")
     let keyPath = expr as? AST.KeyPathExpression
     try #require(keyPath != nil)
@@ -5554,7 +6032,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(keyPath!.components[1].postfix == nil)
 }
 
-@Test func parseKeyPathOptionalComponent() throws {
+@Test
+func parseKeyPathOptionalComponent() throws {
     let expr = firstExpression("\\Person.age?.city")
     let keyPath = expr as? AST.KeyPathExpression
     try #require(keyPath != nil)
@@ -5565,7 +6044,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(keyPath!.components[1].name!.value == "city")
 }
 
-@Test func parseKeyPathRootPostfix() throws {
+@Test
+func parseKeyPathRootPostfix() throws {
     let expr = firstExpression("\\A!.b")
     let keyPath = expr as? AST.KeyPathExpression
     try #require(keyPath != nil)
@@ -5575,7 +6055,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(keyPath!.components[0].name!.value == "b")
 }
 
-@Test func parseKeyPathDottedRoot() throws {
+@Test
+func parseKeyPathDottedRoot() throws {
     let expr = firstExpression("\\A.b.c")
     let keyPath = expr as? AST.KeyPathExpression
     try #require(keyPath != nil)
@@ -5585,14 +6066,16 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(keyPath!.components[1].name!.value == "c")
 }
 
-@Test func parseKeyPathMissingComponentReportsError() {
+@Test
+func parseKeyPathMissingComponentReportsError() {
     let (_, errors) = parseWithDiagnostics("func main() { let x = \\ }")
     #expect(!errors.isEmpty)
 }
 
 // MARK: - Closure Signature
 
-@Test func parseClosureWithParameters() throws {
+@Test
+func parseClosureWithParameters() throws {
     let body = parseBlockStatements("func main() { { (x: Int) in x } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5604,7 +6087,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(closure!.body.count == 1)
 }
 
-@Test func parseClosureWithReturnType() throws {
+@Test
+func parseClosureWithReturnType() throws {
     let body = parseBlockStatements("func main() { { () -> Int in 42 } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5613,7 +6097,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(closure!.signature?.returnType != nil)
 }
 
-@Test func parseClosureWithCaptureList() throws {
+@Test
+func parseClosureWithCaptureList() throws {
     let body = parseBlockStatements("func main() { { [weak self] in self.foo() } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5628,7 +6113,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - OptionalType
 
-@Test func parseOptionalTypeSimple() throws {
+@Test
+func parseOptionalTypeSimple() throws {
     let expr = firstExpression("Int?")
     let optional = expr as? AST.OptionalType
     try #require(optional != nil)
@@ -5637,7 +6123,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(inner!.name.value == "Int")
 }
 
-@Test func parseOptionalTypeNested() throws {
+@Test
+func parseOptionalTypeNested() throws {
     let expr = firstExpression("Int??")
     let outer = expr as? AST.OptionalType
     try #require(outer != nil)
@@ -5648,7 +6135,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(innermost!.name.value == "Int")
 }
 
-@Test func parseOptionalTypeInReturnType() throws {
+@Test
+func parseOptionalTypeInReturnType() throws {
     let stmts = parseStatements("func f() -> Int? {}")
     try #require(stmts.count == 1)
     let funcDecl = stmts[0] as? AST.FunctionDecl
@@ -5660,7 +6148,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(inner!.name.value == "Int")
 }
 
-@Test func parseOptionalTypeInVariableDeclaration() throws {
+@Test
+func parseOptionalTypeInVariableDeclaration() throws {
     let stmts = parseStatements("let x: Int?")
     try #require(stmts.count == 1)
     let varDecl = stmts[0] as? AST.VariableDecl
@@ -5674,7 +6163,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - SomeType / AnyType
 
-@Test func parseSomeTypeSimple() throws {
+@Test
+func parseSomeTypeSimple() throws {
     let expr = firstExpression("some Collection")
     let some = expr as? AST.SomeType
     try #require(some != nil)
@@ -5683,7 +6173,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(inner!.name.value == "Collection")
 }
 
-@Test func parseAnyTypeSimple() throws {
+@Test
+func parseAnyTypeSimple() throws {
     let expr = firstExpression("any Collection")
     let anyType = expr as? AST.AnyType
     try #require(anyType != nil)
@@ -5692,7 +6183,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(inner!.name.value == "Collection")
 }
 
-@Test func parseSomeTypeWithComposition() throws {
+@Test
+func parseSomeTypeWithComposition() throws {
     let expr = firstExpression("some A & B")
     let some = expr as? AST.SomeType
     try #require(some != nil)
@@ -5707,7 +6199,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(t1!.name.value == "B")
 }
 
-@Test func parseSomeTypeWithMultipleComposition() throws {
+@Test
+func parseSomeTypeWithMultipleComposition() throws {
     let expr = firstExpression("some A & B & C")
     let some = expr as? AST.SomeType
     try #require(some != nil)
@@ -5716,7 +6209,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(comp!.types.count == 3)
 }
 
-@Test func parseAnyTypeWithComposition() throws {
+@Test
+func parseAnyTypeWithComposition() throws {
     let expr = firstExpression("any A & B")
     let anyType = expr as? AST.AnyType
     try #require(anyType != nil)
@@ -5725,7 +6219,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(comp!.types.count == 2)
 }
 
-@Test func parseSomeTypeWithOptionalInner() throws {
+@Test
+func parseSomeTypeWithOptionalInner() throws {
     let expr = firstExpression("some Int?")
     let some = expr as? AST.SomeType
     try #require(some != nil)
@@ -5736,7 +6231,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(inner!.name.value == "Int")
 }
 
-@Test func parseSomeTypeInGenericConstraint() throws {
+@Test
+func parseSomeTypeInGenericConstraint() throws {
     let stmts = parseStatements("struct Foo<each T: some P> {}")
     try #require(stmts.count == 1)
     let structDecl = stmts[0] as? AST.StructDecl
@@ -5753,7 +6249,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Self type constraint
 
-@Test func parseSelfInGenericConstraint() throws {
+@Test
+func parseSelfInGenericConstraint() throws {
     let stmts = parseStatements("struct Foo<each T: Self> {}")
     try #require(stmts.count == 1)
     let structDecl = stmts[0] as? AST.StructDecl
@@ -5766,7 +6263,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - TupleExpression
 
-@Test func parseTupleExpression() throws {
+@Test
+func parseTupleExpression() throws {
     let expr = firstExpression("(1, 2)")
     let tuple = expr as? AST.Tuple
     try #require(tuple != nil)
@@ -5777,7 +6275,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(e1 != nil)
 }
 
-@Test func parseLabeledTupleExpression() throws {
+@Test
+func parseLabeledTupleExpression() throws {
     let expr = firstExpression("(name: String, age: Int)")
     let tuple = expr as? AST.Tuple
     try #require(tuple != nil)
@@ -5786,14 +6285,16 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(tuple!.elements[1].label?.value == "age")
 }
 
-@Test func parseTupleWithTrailingComma() throws {
+@Test
+func parseTupleWithTrailingComma() throws {
     let expr = firstExpression("(1, 2,)")
     let tuple = expr as? AST.Tuple
     try #require(tuple != nil)
     #expect(tuple!.elements.count == 2)
 }
 
-@Test func parseTuplePattern() throws {
+@Test
+func parseTuplePattern() throws {
     let body = parseBlockStatements("func main() { match x { (a, b) => a } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5813,7 +6314,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(e1!.name.value == "b")
 }
 
-@Test func parseTuplePatternWithBinding() throws {
+@Test
+func parseTuplePatternWithBinding() throws {
     let body = parseBlockStatements("func main() { match x { (a, let b) => b } }")
     let exprStmt = body[0] as? AST.ExpressionStatement
     let match = exprStmt!.expression as? AST.Match
@@ -5827,7 +6329,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - IsPattern
 
-@Test func parseIsPatternInMatch() throws {
+@Test
+func parseIsPatternInMatch() throws {
     let body = parseBlockStatements("func main() { match x { is Int => \"int\" } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5842,7 +6345,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(typeExpr!.name.value == "Int")
 }
 
-@Test func parseIsPatternInIfCase() throws {
+@Test
+func parseIsPatternInIfCase() throws {
     let body = parseBlockStatements("func main() { if case is Int = x {} }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -5858,7 +6362,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - TypeAlias Declarations
 
-@Test func parseTypeAliasSimple() throws {
+@Test
+func parseTypeAliasSimple() throws {
     let statements = parseStatements("typealias Foo = Int32")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.TypeAliasDecl
@@ -5871,7 +6376,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(typeVar!.name.value == "Int32")
 }
 
-@Test func parseTypeAliasWithGenericType() throws {
+@Test
+func parseTypeAliasWithGenericType() throws {
     let statements = parseStatements("typealias Pair = (Int32, Int32)")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.TypeAliasDecl
@@ -5881,7 +6387,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(tuple!.elements.count == 2)
 }
 
-@Test func parseTypeAliasInStructBody() throws {
+@Test
+func parseTypeAliasInStructBody() throws {
     let statements = parseStatements("struct Foo { typealias Inner = Int32 }")
     try #require(statements.count == 1)
     let structDecl = statements[0] as? AST.StructDecl
@@ -5892,25 +6399,29 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(alias!.name.value == "Inner")
 }
 
-@Test func parseTypeAliasMissingNameReportsError() throws {
+@Test
+func parseTypeAliasMissingNameReportsError() throws {
     let (_, errors) = parseWithDiagnostics("typealias")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected type name after 'typealias'"))
 }
 
-@Test func parseTypeAliasNonIdentifierNameReportsError() throws {
+@Test
+func parseTypeAliasNonIdentifierNameReportsError() throws {
     let (_, errors) = parseWithDiagnostics("typealias 123 = Int32")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected identifier after 'typealias'"))
 }
 
-@Test func parseTypeAliasMissingEqualReportsError() throws {
+@Test
+func parseTypeAliasMissingEqualReportsError() throws {
     let (_, errors) = parseWithDiagnostics("typealias Foo")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected '=' after type alias name"))
 }
 
-@Test func parseTypeAliasMissingTypeExpressionReportsError() throws {
+@Test
+func parseTypeAliasMissingTypeExpressionReportsError() throws {
     let (_, errors) = parseWithDiagnostics("typealias Foo =")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected type expression after '='"))
@@ -5918,7 +6429,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Extern Declarations
 
-@Test func parseExternDeclarationForm() throws {
+@Test
+func parseExternDeclarationForm() throws {
     let statements = parseStatements("extern \"C\" func foo() -> Int32")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ExternDecl
@@ -5934,7 +6446,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     }
 }
 
-@Test func parseExternVariableDeclaration() throws {
+@Test
+func parseExternVariableDeclaration() throws {
     let statements = parseStatements("extern \"C\" var errno: Int32")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ExternDecl
@@ -5948,7 +6461,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     }
 }
 
-@Test func parseExternBlockForm() throws {
+@Test
+func parseExternBlockForm() throws {
     let statements = parseStatements("extern \"C\" { func foo() func bar() }")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ExternDecl
@@ -5966,7 +6480,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     }
 }
 
-@Test func parseExternBlockWithMixedDeclarations() throws {
+@Test
+func parseExternBlockWithMixedDeclarations() throws {
     let statements = parseStatements("extern \"C\" { let x = 1 var y: Int32 func foo() }")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ExternDecl
@@ -5981,25 +6496,29 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     }
 }
 
-@Test func parseExternMissingConventionReportsError() throws {
+@Test
+func parseExternMissingConventionReportsError() throws {
     let (_, errors) = parseWithDiagnostics("extern")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected calling convention after 'extern'"))
 }
 
-@Test func parseExternNonStringConventionReportsError() throws {
+@Test
+func parseExternNonStringConventionReportsError() throws {
     let (_, errors) = parseWithDiagnostics("extern 123 func foo()")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected calling convention (string literal) after 'extern'"))
 }
 
-@Test func parseExternMissingBodyReportsError() throws {
+@Test
+func parseExternMissingBodyReportsError() throws {
     let (_, errors) = parseWithDiagnostics("extern \"C\"")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected '{' or declaration after extern calling convention"))
 }
 
-@Test func parseExternBlockUnterminatedReportsError() throws {
+@Test
+func parseExternBlockUnterminatedReportsError() throws {
     let (_, errors) = parseWithDiagnostics("extern \"C\" { func foo()")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected '}' after extern body"))
@@ -6007,7 +6526,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Deinit Declarations
 
-@Test func parseDeinitEmptyBody() throws {
+@Test
+func parseDeinitEmptyBody() throws {
     let statements = parseStatements("class Foo { deinit {} }")
     try #require(statements.count == 1)
     let classDecl = statements[0] as? AST.ClassDecl
@@ -6019,7 +6539,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(deinitDecl!.body.isEmpty)
 }
 
-@Test func parseDeinitWithBody() throws {
+@Test
+func parseDeinitWithBody() throws {
     let statements = parseStatements("class Foo { deinit { cleanup() } }")
     try #require(statements.count == 1)
     let classDecl = statements[0] as? AST.ClassDecl
@@ -6029,13 +6550,15 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(deinitDecl!.body.count == 1)
 }
 
-@Test func parseDeinitMissingOpenBraceReportsError() throws {
+@Test
+func parseDeinitMissingOpenBraceReportsError() throws {
     let (_, errors) = parseWithDiagnostics("class Foo { deinit }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected '{' after 'deinit'"))
 }
 
-@Test func parseDeinitNonBraceReportsError() throws {
+@Test
+func parseDeinitNonBraceReportsError() throws {
     let (_, errors) = parseWithDiagnostics("class Foo { deinit 123 }")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected '{' after 'deinit'") })
@@ -6043,7 +6566,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - AssociatedType Declarations
 
-@Test func parseAssociatedTypeBare() throws {
+@Test
+func parseAssociatedTypeBare() throws {
     let statements = parseStatements("protocol P { associatedtype T }")
     try #require(statements.count == 1)
     let protocolDecl = statements[0] as? AST.ProtocolDecl
@@ -6057,7 +6581,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(assoc!.whereClause == nil)
 }
 
-@Test func parseAssociatedTypeWithConstraint() throws {
+@Test
+func parseAssociatedTypeWithConstraint() throws {
     let statements = parseStatements("protocol P { associatedtype T: Equatable }")
     try #require(statements.count == 1)
     let protocolDecl = statements[0] as? AST.ProtocolDecl
@@ -6070,13 +6595,15 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(assoc!.whereClause == nil)
 }
 
-@Test func parseAssociatedTypeMissingNameReportsError() throws {
+@Test
+func parseAssociatedTypeMissingNameReportsError() throws {
     let (_, errors) = parseWithDiagnostics("protocol P { associatedtype }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected identifier after 'associatedtype'"))
 }
 
-@Test func parseAssociatedTypeNonIdentifierReportsError() throws {
+@Test
+func parseAssociatedTypeNonIdentifierReportsError() throws {
     let (_, errors) = parseWithDiagnostics("protocol P { associatedtype 123 }")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected identifier after 'associatedtype'") })
@@ -6084,7 +6611,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Where Clause
 
-@Test func parseWhereClauseConformance() throws {
+@Test
+func parseWhereClauseConformance() throws {
     let statements = parseStatements("protocol P { associatedtype T where T: Equatable }")
     try #require(statements.count == 1)
     let protocolDecl = statements[0] as? AST.ProtocolDecl
@@ -6106,7 +6634,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     }
 }
 
-@Test func parseWhereClauseEquality() throws {
+@Test
+func parseWhereClauseEquality() throws {
     let statements = parseStatements("protocol P { associatedtype T where T == Int32 }")
     try #require(statements.count == 1)
     let protocolDecl = statements[0] as? AST.ProtocolDecl
@@ -6128,7 +6657,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     }
 }
 
-@Test func parseWhereClauseEqualityWithGenericType() throws {
+@Test
+func parseWhereClauseEqualityWithGenericType() throws {
     let statements = parseStatements("protocol P { associatedtype T where T == Array<U> }")
     try #require(statements.count == 1)
     let protocolDecl = statements[0] as? AST.ProtocolDecl
@@ -6150,7 +6680,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     }
 }
 
-@Test func parseStructWhereClauseEquality() throws {
+@Test
+func parseStructWhereClauseEquality() throws {
     let statements = parseStatements("struct S<T> where T == Int32 {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.StructDecl
@@ -6164,7 +6695,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     }
 }
 
-@Test func parseWhereClauseMultipleRequirements() throws {
+@Test
+func parseWhereClauseMultipleRequirements() throws {
     let statements = parseStatements(
         "protocol P { associatedtype T where T: Equatable, T.Element: Hashable }"
     )
@@ -6178,13 +6710,15 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(whereClause!.count == 2)
 }
 
-@Test func parseWhereClauseMissingOperatorReportsError() throws {
+@Test
+func parseWhereClauseMissingOperatorReportsError() throws {
     let (_, errors) = parseWithDiagnostics("protocol P { associatedtype T where T }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected ':' or '==' in where clause"))
 }
 
-@Test func parseWhereClauseSingleEqualReportsError() throws {
+@Test
+func parseWhereClauseSingleEqualReportsError() throws {
     let (_, errors) = parseWithDiagnostics("protocol P { associatedtype T where T = Int32 }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected ':' or '==' in where clause"))
@@ -6192,7 +6726,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Where Clause on Type Declarations
 
-@Test func parseStructWhereClauseConformance() throws {
+@Test
+func parseStructWhereClauseConformance() throws {
     let statements = parseStatements("struct S<T> where T: Equatable {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.StructDecl
@@ -6214,7 +6749,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.body.isEmpty)
 }
 
-@Test func parseClassWhereClauseConformance() throws {
+@Test
+func parseClassWhereClauseConformance() throws {
     let statements = parseStatements("class C<T> where T: Equatable {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ClassDecl
@@ -6222,7 +6758,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     try #require(decl!.whereClause?.count == 1)
 }
 
-@Test func parseEnumWhereClauseConformance() throws {
+@Test
+func parseEnumWhereClauseConformance() throws {
     let statements = parseStatements("enum E<T> where T: Equatable {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.EnumDecl
@@ -6230,7 +6767,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     try #require(decl!.whereClause?.count == 1)
 }
 
-@Test func parseActorWhereClauseConformance() throws {
+@Test
+func parseActorWhereClauseConformance() throws {
     let statements = parseStatements("actor A<T> where T: Equatable {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ActorDecl
@@ -6238,7 +6776,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     try #require(decl!.whereClause?.count == 1)
 }
 
-@Test func parseProtocolWhereClauseConformance() throws {
+@Test
+func parseProtocolWhereClauseConformance() throws {
     let statements = parseStatements("protocol P where T: Equatable {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ProtocolDecl
@@ -6246,7 +6785,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     try #require(decl!.whereClause?.count == 1)
 }
 
-@Test func parseStructWhereClauseMultipleRequirements() throws {
+@Test
+func parseStructWhereClauseMultipleRequirements() throws {
     let statements = parseStatements("struct S<T, U> where T: Equatable, U: Hashable {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.StructDecl
@@ -6254,7 +6794,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     try #require(decl!.whereClause?.count == 2)
 }
 
-@Test func parseStructWithoutWhereClause() throws {
+@Test
+func parseStructWithoutWhereClause() throws {
     let statements = parseStatements("struct S<T> {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.StructDecl
@@ -6264,7 +6805,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Actor Declarations (extended)
 
-@Test func parseActorWithConformances() throws {
+@Test
+func parseActorWithConformances() throws {
     let statements = parseStatements("actor Foo: P, Q {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ActorDecl
@@ -6278,7 +6820,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(q!.name.value == "Q")
 }
 
-@Test func parseActorWithGenericParameters() throws {
+@Test
+func parseActorWithGenericParameters() throws {
     let statements = parseStatements("actor Foo<T> {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ActorDecl
@@ -6288,7 +6831,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.genericDecl!.generics[0].name.value == "T")
 }
 
-@Test func parseActorWithInitAndPropertyMembers() throws {
+@Test
+func parseActorWithInitAndPropertyMembers() throws {
     let statements = parseStatements("actor Foo { var x: Int init() {} func bar() {} }")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ActorDecl
@@ -6299,25 +6843,29 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.body[2] is AST.FunctionDecl)
 }
 
-@Test func parseActorMissingNameReportsError() throws {
+@Test
+func parseActorMissingNameReportsError() throws {
     let (_, errors) = parseWithDiagnostics("actor")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected actor name after 'actor'"))
 }
 
-@Test func parseActorNonIdentifierNameReportsError() throws {
+@Test
+func parseActorNonIdentifierNameReportsError() throws {
     let (_, errors) = parseWithDiagnostics("actor 123 {}")
     try #require(errors.count == 3)
     #expect(errors[0].message.contains("expected identifier after 'actor', but got '123'"))
 }
 
-@Test func parseActorMissingOpenBraceReportsError() throws {
+@Test
+func parseActorMissingOpenBraceReportsError() throws {
     let (_, errors) = parseWithDiagnostics("actor Foo")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected '{' in actor type"))
 }
 
-@Test func parseActorNonBraceReportsError() throws {
+@Test
+func parseActorNonBraceReportsError() throws {
     let (_, errors) = parseWithDiagnostics("actor Foo 123")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected '{' in actor type, but got '123'"))
@@ -6325,7 +6873,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Generic Function / Init / Subscript Declarations
 
-@Test func parseGenericFunctionDecl() throws {
+@Test
+func parseGenericFunctionDecl() throws {
     let statements = parseStatements("func foo<T>(x: T) -> T { x }")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.FunctionDecl
@@ -6339,7 +6888,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.returnTypeExpression != nil)
 }
 
-@Test func parseGenericFunctionDeclWithConstraint() throws {
+@Test
+func parseGenericFunctionDeclWithConstraint() throws {
     let statements = parseStatements("func foo<T: Equatable>(x: T) -> T { x }")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.FunctionDecl
@@ -6351,7 +6901,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(constraint != nil)
 }
 
-@Test func parseGenericFunctionDeclMultipleParams() throws {
+@Test
+func parseGenericFunctionDeclMultipleParams() throws {
     let statements = parseStatements("func swap<T, U>(_ a: T, _ b: U) {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.FunctionDecl
@@ -6360,7 +6911,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.genericDecl!.generics[1].name.value == "U")
 }
 
-@Test func parseNonGenericFunctionHasNoGenericDecl() throws {
+@Test
+func parseNonGenericFunctionHasNoGenericDecl() throws {
     let statements = parseStatements("func foo() {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.FunctionDecl
@@ -6368,7 +6920,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.genericDecl == nil)
 }
 
-@Test func parseGenericInitDecl() throws {
+@Test
+func parseGenericInitDecl() throws {
     let statements = parseStatements("struct S { init<T>(x: T) {} }")
     try #require(statements.count == 1)
     let structDecl = statements[0] as? AST.StructDecl
@@ -6380,7 +6933,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(initDecl!.genericDecl!.generics[0].name.value == "T")
 }
 
-@Test func parseGenericSubscriptDecl() throws {
+@Test
+func parseGenericSubscriptDecl() throws {
     let statements = parseStatements("struct S { subscript<T>(i: T) -> T { i } }")
     try #require(statements.count == 1)
     let structDecl = statements[0] as? AST.StructDecl
@@ -6395,7 +6949,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Subscript Declarations (extended)
 
-@Test func parseSubscriptDeclBasic() throws {
+@Test
+func parseSubscriptDeclBasic() throws {
     let statements = parseStatements("struct S { subscript(i: Int) -> Int { i } }")
     try #require(statements.count == 1)
     let structDecl = statements[0] as? AST.StructDecl
@@ -6417,7 +6972,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     }
 }
 
-@Test func parseSubscriptDeclNoParameters() throws {
+@Test
+func parseSubscriptDeclNoParameters() throws {
     let statements = parseStatements("struct S { subscript -> Int { 0 } }")
     try #require(statements.count == 1)
     let structDecl = statements[0] as? AST.StructDecl
@@ -6427,7 +6983,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(subDecl!.parameters.isEmpty)
 }
 
-@Test func parseSubscriptDeclWithGetSetBody() throws {
+@Test
+func parseSubscriptDeclWithGetSetBody() throws {
     let statements = parseStatements(
         "struct S { subscript(i: Int) -> Int { get { i } set { _ = newValue } } }"
     )
@@ -6441,7 +6998,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(subDecl!.accessors[1].kind == .Set)
 }
 
-@Test func parseSubscriptDeclMultipleParameters() throws {
+@Test
+func parseSubscriptDeclMultipleParameters() throws {
     let statements = parseStatements("struct S { subscript(row: Int, col: Int) -> Int { 0 } }")
     try #require(statements.count == 1)
     let structDecl = statements[0] as? AST.StructDecl
@@ -6453,13 +7011,15 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(subDecl!.parameters[1].label?.value == "col")
 }
 
-@Test func parseSubscriptDeclMissingArrowReportsError() throws {
+@Test
+func parseSubscriptDeclMissingArrowReportsError() throws {
     let (_, errors) = parseWithDiagnostics("struct S { subscript(i: Int) Int { 0 } }")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected '->' after subscript parameters") })
 }
 
-@Test func parseSubscriptDeclMissingCloseParenReportsError() throws {
+@Test
+func parseSubscriptDeclMissingCloseParenReportsError() throws {
     let (_, errors) = parseWithDiagnostics("struct S { subscript(i: Int -> Int { 0 } }")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected ')' after subscript parameters") })
@@ -6467,13 +7027,15 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Goto (extended)
 
-@Test func parseGotoNonIdentifierReportsError() throws {
+@Test
+func parseGotoNonIdentifierReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { goto 123 }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected identifier after 'goto', but got '123'"))
 }
 
-@Test func parseGotoMissingLabelReportsError() throws {
+@Test
+func parseGotoMissingLabelReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { goto }")
     try #require(errors.count >= 1)
     #expect(errors[0].message.contains("expected identifier after 'goto'"))
@@ -6481,7 +7043,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - For Case
 
-@Test func parseForCasePattern() throws {
+@Test
+func parseForCasePattern() throws {
     let body = parseBlockStatements("func main() { for case .foo(x) in arr {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -6500,7 +7063,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(sequence!.name.value == "arr")
 }
 
-@Test func parseForCasePatternWithLetBinding() throws {
+@Test
+func parseForCasePatternWithLetBinding() throws {
     let body = parseBlockStatements("func main() { for case .foo(let x) in arr {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -6513,7 +7077,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(binding!.name.value == "x")
 }
 
-@Test func parseForCaseWithLetBinding() throws {
+@Test
+func parseForCaseWithLetBinding() throws {
     let body = parseBlockStatements("func main() { for case let y in arr {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -6523,7 +7088,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(binding!.name.value == "y")
 }
 
-@Test func parseForCaseWildcard() throws {
+@Test
+func parseForCaseWildcard() throws {
     let body = parseBlockStatements("func main() { for case _ in arr {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -6532,7 +7098,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(wildcard != nil)
 }
 
-@Test func parseForCaseWithInitializer() throws {
+@Test
+func parseForCaseWithInitializer() throws {
     let body = parseBlockStatements("func main() { for case let y = a in arr {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -6550,7 +7117,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(sequence!.name.value == "arr")
 }
 
-@Test func parseForCaseWithInitializerExpression() throws {
+@Test
+func parseForCaseWithInitializerExpression() throws {
     let body = parseBlockStatements("func main() { for case let y = a + 1 in arr {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -6562,7 +7130,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(subject!.ops.count == 1)
 }
 
-@Test func parseForPatternWithoutInitializer() throws {
+@Test
+func parseForPatternWithoutInitializer() throws {
     let body = parseBlockStatements("func main() { for x in arr {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -6570,19 +7139,22 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(forStmt!.pattern as? AST.Variable != nil)
 }
 
-@Test func parseForMissingInReportsError() throws {
+@Test
+func parseForMissingInReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { for x {} }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected 'in' after for pattern"))
 }
 
-@Test func parseForMissingSequenceReportsError() throws {
+@Test
+func parseForMissingSequenceReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { for x in }")
     try #require(errors.count >= 1)
     #expect(errors[0].message.contains("expected '{' after for-in sequence"))
 }
 
-@Test func parseForMissingOpenBraceReportsError() throws {
+@Test
+func parseForMissingOpenBraceReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { for x in arr }")
     try #require(errors.count >= 1)
     #expect(errors[0].message.contains("expected '{' after for-in sequence"))
@@ -6590,7 +7162,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Failable Init
 
-@Test func parseFailableInit() throws {
+@Test
+func parseFailableInit() throws {
     let statements = parseStatements("struct S { init?() {} }")
     try #require(statements.count == 1)
     let structDecl = statements[0] as? AST.StructDecl
@@ -6601,7 +7174,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(initDecl!.optionalToken!.kind == .Operator(.QuestionMark))
 }
 
-@Test func parseFailableInitWithParameters() throws {
+@Test
+func parseFailableInitWithParameters() throws {
     let statements = parseStatements("struct S { init?(x: Int) {} }")
     try #require(statements.count == 1)
     let structDecl = statements[0] as? AST.StructDecl
@@ -6612,7 +7186,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(initDecl!.parameters.count == 1)
 }
 
-@Test func parseIUOInit() throws {
+@Test
+func parseIUOInit() throws {
     let statements = parseStatements("struct S { init!() {} }")
     try #require(statements.count == 1)
     let structDecl = statements[0] as? AST.StructDecl
@@ -6624,7 +7199,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(initDecl!.parameters.isEmpty)
 }
 
-@Test func parseIUOInitWithParameters() throws {
+@Test
+func parseIUOInitWithParameters() throws {
     let statements = parseStatements("struct S { init!(x: Int) {} }")
     try #require(statements.count == 1)
     let structDecl = statements[0] as? AST.StructDecl
@@ -6638,7 +7214,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Operator Function Declarations
 
-@Test func parseOperatorFunctionDeclaration() throws {
+@Test
+func parseOperatorFunctionDeclaration() throws {
     let statements = parseStatements("func +(lhs: Int32, rhs: Int32) -> Int32 { lhs }")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.FunctionDecl
@@ -6651,7 +7228,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.parameters.count == 2)
 }
 
-@Test func parsePrefixOperatorFunctionDeclaration() throws {
+@Test
+func parsePrefixOperatorFunctionDeclaration() throws {
     let statements = parseStatements("func -(prefixValue: Int32) -> Int32 { prefixValue }")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.FunctionDecl
@@ -6666,7 +7244,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Generic Declarations (extended)
 
-@Test func parseClassWithGenericParameters() throws {
+@Test
+func parseClassWithGenericParameters() throws {
     let statements = parseStatements("class Foo<T> {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ClassDecl
@@ -6676,7 +7255,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.genericDecl!.generics[0].name.value == "T")
 }
 
-@Test func parseProtocolWithGenericParameters() throws {
+@Test
+func parseProtocolWithGenericParameters() throws {
     let statements = parseStatements("protocol Foo<T> {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.ProtocolDecl
@@ -6685,19 +7265,22 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(decl!.genericDecl!.generics.count == 1)
 }
 
-@Test func parseGenericEachMissingNameReportsError() throws {
+@Test
+func parseGenericEachMissingNameReportsError() throws {
     let (_, errors) = parseWithDiagnostics("struct S<each> {}")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected identifier after 'each'") })
 }
 
-@Test func parseGenericMissingCloseAngleReportsError() throws {
+@Test
+func parseGenericMissingCloseAngleReportsError() throws {
     let (_, errors) = parseWithDiagnostics("struct S<T")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected '>' after generic parameters") })
 }
 
-@Test func parseGenericInvalidParameterReportsError() throws {
+@Test
+func parseGenericInvalidParameterReportsError() throws {
     let (_, errors) = parseWithDiagnostics("struct S<123> {}")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected generic parameter name"))
@@ -6705,7 +7288,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
 
 // MARK: - Closure Expressions (extended)
 
-@Test func parseEmptyClosure() throws {
+@Test
+func parseEmptyClosure() throws {
     let body = parseBlockStatements("func main() { let f = {} }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -6716,7 +7300,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(closure!.body.isEmpty)
 }
 
-@Test func parseClosureSingleUnannotatedParameter() throws {
+@Test
+func parseClosureSingleUnannotatedParameter() throws {
     let body = parseBlockStatements("func main() { { x in x } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -6732,7 +7317,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(closure!.body.count == 1)
 }
 
-@Test func parseClosureSingleUnannotatedParameterWildcard() throws {
+@Test
+func parseClosureSingleUnannotatedParameterWildcard() throws {
     let body = parseBlockStatements("func main() { { _ in 42 } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -6743,7 +7329,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(closure!.body.count == 1)
 }
 
-@Test func parseClosureSingleUnannotatedParameterEmptyBody() throws {
+@Test
+func parseClosureSingleUnannotatedParameterEmptyBody() throws {
     let body = parseBlockStatements("func main() { { x in } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -6753,7 +7340,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect(closure!.body.isEmpty)
 }
 
-@Test func parseClosureWithCaptureListCombined() throws {
+@Test
+func parseClosureWithCaptureListCombined() throws {
     let body = parseBlockStatements("func main() { { [weak a, unowned b] in a } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -6767,7 +7355,8 @@ private func importListNode(of node: AST.ImportNode) -> AST.ImportNode? {
     #expect((captureList[1].expr as? AST.Variable)?.name.value == "b")
 }
 
-@Test func parseClosureCaptureUnownedSelf() throws {
+@Test
+func parseClosureCaptureUnownedSelf() throws {
     let body = parseBlockStatements("func main() { { [unowned self] in self } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -6800,7 +7389,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     )
 }
 
-@Test func parseCaptureListSingleVariableExpression() throws {
+@Test
+func parseCaptureListSingleVariableExpression() throws {
     let (items, errors) = captureItems("{ [x] in x }")
     #expect(errors.isEmpty)
     try #require(items.count == 1)
@@ -6808,7 +7398,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect((items[0].expr as? AST.Variable)?.name.value == "x")
 }
 
-@Test func parseCaptureListSelfExpression() throws {
+@Test
+func parseCaptureListSelfExpression() throws {
     let (items, errors) = captureItems("{ [self] in 1 }")
     #expect(errors.isEmpty)
     try #require(items.count == 1)
@@ -6816,7 +7407,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(items[0].expr is AST.SelfExpression)
 }
 
-@Test func parseCaptureListWeakSelfExpression() throws {
+@Test
+func parseCaptureListWeakSelfExpression() throws {
     let (items, errors) = captureItems("{ [weak self] in 1 }")
     #expect(errors.isEmpty)
     try #require(items.count == 1)
@@ -6824,7 +7416,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(items[0].expr is AST.SelfExpression)
 }
 
-@Test func parseCaptureListWeakVariableExpression() throws {
+@Test
+func parseCaptureListWeakVariableExpression() throws {
     let (items, errors) = captureItems("{ [weak x] in x }")
     #expect(errors.isEmpty)
     try #require(items.count == 1)
@@ -6832,7 +7425,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect((items[0].expr as? AST.Variable)?.name.value == "x")
 }
 
-@Test func parseCaptureListMultipleExpressions() throws {
+@Test
+func parseCaptureListMultipleExpressions() throws {
     let (items, errors) = captureItems("{ [x, y] in x }")
     #expect(errors.isEmpty)
     try #require(items.count == 2)
@@ -6840,7 +7434,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect((items[1].expr as? AST.Variable)?.name.value == "y")
 }
 
-@Test func parseCaptureListAssignmentExpression() throws {
+@Test
+func parseCaptureListAssignmentExpression() throws {
     let (items, errors) = captureItems("{ [x = someExpr] in x }")
     #expect(errors.isEmpty)
     try #require(items.count == 1)
@@ -6851,7 +7446,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect((sequential.operands[1] as? AST.Variable)?.name.value == "someExpr")
 }
 
-@Test func parseCaptureListAssignmentKeepsNestedCommas() throws {
+@Test
+func parseCaptureListAssignmentKeepsNestedCommas() throws {
     let (items, errors) = captureItems("{ [x = f(a, b), y] in x }")
     #expect(errors.isEmpty)
     try #require(items.count == 2)
@@ -6864,7 +7460,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect((items[1].expr as? AST.Variable)?.name.value == "y")
 }
 
-@Test func parseCaptureListKeepsNestedBrackets() throws {
+@Test
+func parseCaptureListKeepsNestedBrackets() throws {
     let (items, errors) = captureItems("{ [x, [1, 2]] in x }")
     #expect(errors.isEmpty)
     try #require(items.count == 2)
@@ -6873,7 +7470,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(array.elements.count == 2)
 }
 
-@Test func parseCaptureListExpressionsRoundTrip() {
+@Test
+func parseCaptureListExpressionsRoundTrip() {
     assertSyntaxRoundTrip("func main() { let c = { [x] in x } }")
     assertSyntaxRoundTrip("func main() { let c = { [self] in 1 } }")
     assertSyntaxRoundTrip("func main() { let c = { [weak self] in 1 } }")
@@ -6884,14 +7482,16 @@ func assertSyntaxRoundTrip(_ source: String) {
     assertSyntaxRoundTrip("func main() { let c = { [x = f(a, b), y] in x } }")
 }
 
-@Test func captureListExpressionTextIsPrinted() {
+@Test
+func captureListExpressionTextIsPrinted() {
     let dump = AST.Dumper().dump(parse("func main() { let c = { [x = f(a, b), y] in x } }"))
     #expect(dump.contains("Signature [x = f(a, b), y]"))
     let printed = SourcePrinter().print(parse("func main() { let c = { [x = f(a, b), y] in x } }"))
     #expect(printed.contains("[x = f(a, b), y]"))
 }
 
-@Test func parseClosureFullSignature() throws {
+@Test
+func parseClosureFullSignature() throws {
     let body = parseBlockStatements(
         "func main() { { [weak self] (x: Int32) throws -> Int32 in x } }"
     )
@@ -6907,7 +7507,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(signature!.returnType != nil)
 }
 
-@Test func parseClosureAsRegularArgument() throws {
+@Test
+func parseClosureAsRegularArgument() throws {
     let expr = firstExpression("foo({ 42 })")
     let call = expr as? AST.Call
     try #require(call != nil)
@@ -6916,7 +7517,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(closure != nil)
 }
 
-@Test func parseNestedClosure() throws {
+@Test
+func parseNestedClosure() throws {
     let body = parseBlockStatements("func main() { { { 1 } } }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -6928,19 +7530,22 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(inner != nil)
 }
 
-@Test func parseClosureMissingInReportsError() throws {
+@Test
+func parseClosureMissingInReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { { (x: Int32) 42 } }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected 'in' after closure signature"))
 }
 
-@Test func parseCaptureListMissingIdentifierReportsError() throws {
+@Test
+func parseCaptureListMissingIdentifierReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { { [weak] in 1 } }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected identifier in capture list"))
 }
 
-@Test func parseCaptureListMissingCloseBracketReportsError() throws {
+@Test
+func parseCaptureListMissingCloseBracketReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { { [weak a in 1 } }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected ']' after capture list"))
@@ -6948,7 +7553,8 @@ func assertSyntaxRoundTrip(_ source: String) {
 
 // MARK: - Closure Types (extended)
 
-@Test func parseClosureTypeInVariableAnnotation() throws {
+@Test
+func parseClosureTypeInVariableAnnotation() throws {
     let body = parseBlockStatements("func main() { let f: (Int32) -> Int32 = g }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -6965,7 +7571,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(returnType!.name.value == "Int32")
 }
 
-@Test func parseClosureTypeInFunctionReturnType() throws {
+@Test
+func parseClosureTypeInFunctionReturnType() throws {
     let statements = parseStatements("func make() -> (Int32) -> Int32")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.FunctionDecl
@@ -6975,7 +7582,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(closureType!.parameters.count == 1)
 }
 
-@Test func parseClosureTypeInParameter() throws {
+@Test
+func parseClosureTypeInParameter() throws {
     let statements = parseStatements("func apply(f: (Int32) -> Int32) {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.FunctionDecl
@@ -6986,7 +7594,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(closureType!.parameters.count == 1)
 }
 
-@Test func parseClosureTypeEmptyParameters() throws {
+@Test
+func parseClosureTypeEmptyParameters() throws {
     let body = parseBlockStatements("func main() { let f: () -> Int32 = g }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -6996,7 +7605,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(closureType!.parameters.isEmpty)
 }
 
-@Test func parseClosureTypeSingleVoidParameter() throws {
+@Test
+func parseClosureTypeSingleVoidParameter() throws {
     let body = parseBlockStatements("func main() { let f: (Void) -> Int32 = g }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -7009,7 +7619,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(parameterType!.name.value == "Void")
 }
 
-@Test func parseClosureTypeParameterLabels() throws {
+@Test
+func parseClosureTypeParameterLabels() throws {
     let body = parseBlockStatements("func main() { let f: (a: Int32, b: String) -> Bool = g }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -7021,7 +7632,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(closureType!.parameters[1].label?.value == "b")
 }
 
-@Test func parseClosureTypeOptionalParameter() throws {
+@Test
+func parseClosureTypeOptionalParameter() throws {
     let body = parseBlockStatements("func main() { let f: (Int32?) -> Int32 = g }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -7032,7 +7644,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(closureType!.parameters[0].type is AST.OptionalType)
 }
 
-@Test func parseClosureTypeVariadicParameter() throws {
+@Test
+func parseClosureTypeVariadicParameter() throws {
     let body = parseBlockStatements("func main() { let f: (Int32...) -> Int32 = g }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -7043,7 +7656,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(closureType!.parameters[0].type is AST.VariadicType)
 }
 
-@Test func parseClosureTypeNestedReturn() throws {
+@Test
+func parseClosureTypeNestedReturn() throws {
     let body = parseBlockStatements("func main() { let f: (Int32) -> (String) -> Bool = g }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -7055,7 +7669,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(nested!.parameters.count == 1)
 }
 
-@Test func parseClosureTypeAsync() throws {
+@Test
+func parseClosureTypeAsync() throws {
     let body = parseBlockStatements("func main() { let f: (Int32) async -> Int32 = g }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -7066,7 +7681,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     try #require(closureType!.parameters.count == 1)
 }
 
-@Test func parseClosureTypeAsyncThrows() throws {
+@Test
+func parseClosureTypeAsyncThrows() throws {
     let body = parseBlockStatements("func main() { let f: (Int32) async throws -> Int32 = g }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -7077,7 +7693,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(closureType!.throwsClause != nil)
 }
 
-@Test func parseClosureTypeThrowsAsyncOrder() throws {
+@Test
+func parseClosureTypeThrowsAsyncOrder() throws {
     let body = parseBlockStatements("func main() { let f: (Int32) throws async -> Int32 = g }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -7088,7 +7705,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(closureType!.throwsClause != nil)
 }
 
-@Test func parseClosureTypeAsyncAsParameter() throws {
+@Test
+func parseClosureTypeAsyncAsParameter() throws {
     let statements = parseStatements("func apply(f: ((Int32) async -> Int32) -> Int32) {}")
     try #require(statements.count == 1)
     let decl = statements[0] as? AST.FunctionDecl
@@ -7102,7 +7720,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(parameterClosure!.asyncToken != nil)
 }
 
-@Test func parseClosureTypeEmptyParensThrows() throws {
+@Test
+func parseClosureTypeEmptyParensThrows() throws {
     let body = parseBlockStatements("func main() { let f: () throws -> Int32 = g }")
     try #require(body.count == 1)
     let vd = body[0] as? AST.VariableDecl
@@ -7113,29 +7732,34 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(closureType!.throwsClause != nil)
 }
 
-@Test func parseClosureTypeBareParameterReportsError() throws {
+@Test
+func parseClosureTypeBareParameterReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { let f: Int32 -> Int32 = g }")
     try #require(!errors.isEmpty)
 }
 
-@Test func parseClosureTypeAsyncWithoutArrowReportsError() throws {
+@Test
+func parseClosureTypeAsyncWithoutArrowReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { let f: (Int32) async = g }")
     try #require(errors.contains { $0.message.contains("expected '->' after 'async'") })
 }
 
-@Test func parseAsyncPrefixBeforeFuncReportsError() throws {
+@Test
+func parseAsyncPrefixBeforeFuncReportsError() throws {
     let (_, errors) = parseWithDiagnostics("async func foo() {}")
     try #require(errors.contains { $0.message.contains("expected 'let' or 'var' after 'async'") })
 }
 
-@Test func parseAsyncPrefixWithoutBindingReportsError() throws {
+@Test
+func parseAsyncPrefixWithoutBindingReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { async Int32 }")
     try #require(errors.contains { $0.message.contains("expected 'let' or 'var' after 'async'") })
 }
 
 // MARK: - String Interpolation (error paths)
 
-@Test func parseStringInterpolationComplexExpression() throws {
+@Test
+func parseStringInterpolationComplexExpression() throws {
     let expr = firstExpression("\"result: \\(1 + 2)\"")
     let interp = expr as? AST.StringInterpolation
     try #require(interp != nil)
@@ -7150,7 +7774,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(seq!.ops[0].kind == .Operator(.Plus))
 }
 
-@Test func parseStringInterpolationNested() throws {
+@Test
+func parseStringInterpolationNested() throws {
     let expr = firstExpression("\"\\(foo(\\(bar)))\"")
     let interp = expr as? AST.StringInterpolation
     try #require(interp != nil)
@@ -7176,7 +7801,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(innerVar!.name.value == "bar")
 }
 
-@Test func parseStringInterpolationNestedAsCallArgument() throws {
+@Test
+func parseStringInterpolationNestedAsCallArgument() throws {
     let expr = firstExpression("\"\\(f(g(\\(x))))\"")
     let interp = expr as? AST.StringInterpolation
     try #require(interp != nil)
@@ -7200,13 +7826,15 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(varExpr!.name.value == "x")
 }
 
-@Test func parseStringInterpolationMissingCloseParenReportsError() throws {
+@Test
+func parseStringInterpolationMissingCloseParenReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { let s = \"\\(x\" }")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected ')' after interpolation expression") })
 }
 
-@Test func parseStringEscapeWithoutInterpolationIsPlainLiteral() {
+@Test
+func parseStringEscapeWithoutInterpolationIsPlainLiteral() {
     let (_, errors) = parseWithDiagnostics("func main() { let s = \"\\x\" }")
     #expect(errors.isEmpty)
     let expr = firstExpression("\"\\x\"")
@@ -7216,7 +7844,8 @@ func assertSyntaxRoundTrip(_ source: String) {
 
 // MARK: - Modifiers (extended)
 
-@Test func parseIsolatedModifierOnFunction() throws {
+@Test
+func parseIsolatedModifierOnFunction() throws {
     let statements = parseStatements("isolated func foo() {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -7224,7 +7853,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Isolated))
 }
 
-@Test func parseIsolatedModifierCombined() throws {
+@Test
+func parseIsolatedModifierCombined() throws {
     let statements = parseStatements("isolated public func foo() {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -7233,21 +7863,24 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(modifierKind(decl!.modifiers[1].kind, equals: .Public(setter: false)))
 }
 
-@Test func parseIsolatedModifierOnVar() throws {
+@Test
+func parseIsolatedModifierOnVar() throws {
     let statements = parseStatements("isolated var x: Int32")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Isolated))
 }
 
-@Test func parseNonmutatingModifierOnFunction() throws {
+@Test
+func parseNonmutatingModifierOnFunction() throws {
     let statements = parseStatements("nonmutating func foo() {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Nonmutating))
 }
 
-@Test func parseConvenienceModifierOnInit() throws {
+@Test
+func parseConvenienceModifierOnInit() throws {
     let statements = parseStatements("struct S { convenience init() {} }")
     let structDecl = statements[0] as? AST.StructDecl
     try #require(structDecl != nil)
@@ -7256,56 +7889,64 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(modifierKind(initDecl!.modifiers[0].kind, equals: .Convenience))
 }
 
-@Test func parseWeakModifierOnVariable() throws {
+@Test
+func parseWeakModifierOnVariable() throws {
     let statements = parseStatements("weak var ref: AnyObject")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Weak))
 }
 
-@Test func parseUnownedModifierOnVariable() throws {
+@Test
+func parseUnownedModifierOnVariable() throws {
     let statements = parseStatements("unowned var ref: AnyObject")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Unowned))
 }
 
-@Test func parseAbstractModifierOnClass() throws {
+@Test
+func parseAbstractModifierOnClass() throws {
     let statements = parseStatements("abstract class Foo {}")
     let decl = statements[0] as? AST.ClassDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Abstract))
 }
 
-@Test func parseOpenSetModifierOnVariable() throws {
+@Test
+func parseOpenSetModifierOnVariable() throws {
     let statements = parseStatements("open(set) var x: Int")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Open(setter: true)))
 }
 
-@Test func parseInternalSetModifierOnVariable() throws {
+@Test
+func parseInternalSetModifierOnVariable() throws {
     let statements = parseStatements("internal(set) var x: Int")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .Internal(setter: true)))
 }
 
-@Test func parseFilePrivateSetModifierOnVariable() throws {
+@Test
+func parseFilePrivateSetModifierOnVariable() throws {
     let statements = parseStatements("fileprivate(set) var x: Int")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .FilePrivate(setter: true)))
 }
 
-@Test func parsePackagePrivateSetModifierOnVariable() throws {
+@Test
+func parsePackagePrivateSetModifierOnVariable() throws {
     let statements = parseStatements("packageprivate(set) var x: Int")
     let decl = statements[0] as? AST.VariableDecl
     try #require(decl != nil)
     #expect(modifierKind(decl!.modifiers[0].kind, equals: .PackagePrivate(setter: true)))
 }
 
-@Test func parseProtectedModifierOnClass() throws {
+@Test
+func parseProtectedModifierOnClass() throws {
     let statements = parseStatements("protected class Foo {}")
     let decl = statements[0] as? AST.ClassDecl
     try #require(decl != nil)
@@ -7314,7 +7955,8 @@ func assertSyntaxRoundTrip(_ source: String) {
 
 // MARK: - Attributes (error paths)
 
-@Test func parseAttributeMissingCloseBracketReportsError() throws {
+@Test
+func parseAttributeMissingCloseBracketReportsError() throws {
     let (_, errors) = parseWithDiagnostics("#[foo struct Foo {}")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected '(' or ']' after attribute name"))
@@ -7322,13 +7964,15 @@ func assertSyntaxRoundTrip(_ source: String) {
 
 // MARK: - Function Parameter (error paths)
 
-@Test func parseParameterMissingColonReportsError() throws {
+@Test
+func parseParameterMissingColonReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func foo(a Int) {}")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected ':' after parameter name"))
 }
 
-@Test func parseParameterNonIdentifierReportsError() throws {
+@Test
+func parseParameterNonIdentifierReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func foo(123: Int) {}")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected identifier in parameter") })
@@ -7336,19 +7980,22 @@ func assertSyntaxRoundTrip(_ source: String) {
 
 // MARK: - Repeat-While (error paths)
 
-@Test func parseRepeatWhileMissingWhileReportsError() throws {
+@Test
+func parseRepeatWhileMissingWhileReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { repeat {} 123 }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected 'while' after '}'"))
 }
 
-@Test func parseRepeatWhileMissingOpenBraceReportsError() throws {
+@Test
+func parseRepeatWhileMissingOpenBraceReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { repeat 123 }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected '{' after 'repeat'"))
 }
 
-@Test func parseRepeatWhileMissingCloseBraceReportsError() throws {
+@Test
+func parseRepeatWhileMissingCloseBraceReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { repeat { while true }")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected '}' after repeat body") })
@@ -7356,13 +8003,15 @@ func assertSyntaxRoundTrip(_ source: String) {
 
 // MARK: - Optional Binding (error paths)
 
-@Test func parseOptionalBindingMissingEqualReportsError() throws {
+@Test
+func parseOptionalBindingMissingEqualReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { if let x + 1 {} }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected '=' or '{' after variable name in optional binding"))
 }
 
-@Test func parseOptionalBindingMissingNameReportsError() throws {
+@Test
+func parseOptionalBindingMissingNameReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { if let {} }")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected identifier after 'let'") })
@@ -7370,7 +8019,8 @@ func assertSyntaxRoundTrip(_ source: String) {
 
 // MARK: - Case Match (error paths)
 
-@Test func parseCaseMatchMissingEqualReportsError() throws {
+@Test
+func parseCaseMatchMissingEqualReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { if case .foo {} }")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected '=' after case pattern") })
@@ -7378,13 +8028,15 @@ func assertSyntaxRoundTrip(_ source: String) {
 
 // MARK: - Match Case (error paths)
 
-@Test func parseMatchMissingOpenBraceReportsError() throws {
+@Test
+func parseMatchMissingOpenBraceReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { match x }")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected '{' after match subject") })
 }
 
-@Test func parseMatchCaseMissingArrowReportsError() throws {
+@Test
+func parseMatchCaseMissingArrowReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { match x { 1 } }")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected '=>' after match case pattern") })
@@ -7392,13 +8044,15 @@ func assertSyntaxRoundTrip(_ source: String) {
 
 // MARK: - Call / Subscript (error paths)
 
-@Test func parseCallMissingCloseParenReportsError() throws {
+@Test
+func parseCallMissingCloseParenReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { foo(1 }")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected ')' after call arguments") })
 }
 
-@Test func parseSubscriptMissingCloseBracketReportsError() throws {
+@Test
+func parseSubscriptMissingCloseBracketReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { arr[1 }")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected ']' after subscript arguments") })
@@ -7406,13 +8060,15 @@ func assertSyntaxRoundTrip(_ source: String) {
 
 // MARK: - Collection Literal (error paths)
 
-@Test func parseArrayLiteralMissingCloseBracketReportsError() throws {
+@Test
+func parseArrayLiteralMissingCloseBracketReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { [1, 2 }")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected ']' after array literal") })
 }
 
-@Test func parseDictionaryLiteralMissingColonReportsError() throws {
+@Test
+func parseDictionaryLiteralMissingColonReportsError() throws {
     let (_, errors) = parseWithDiagnostics("func main() { [1: 2, 3 4] }")
     try #require(errors.count >= 1)
     #expect(errors.contains { $0.message.contains("expected ':' in dictionary entry") })
@@ -7420,28 +8076,32 @@ func assertSyntaxRoundTrip(_ source: String) {
 
 // MARK: - SourceRange (extended)
 
-@Test func sourceRangeIfExpression() {
+@Test
+func sourceRangeIfExpression() {
     let expr = firstExpression("if x { y }")
     let range = expr.sourceRange
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 24)
 }
 
-@Test func sourceRangeDoCatchExpression() {
+@Test
+func sourceRangeDoCatchExpression() {
     let expr = firstExpression("do { x } catch { y }")
     let range = expr.sourceRange
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 34)
 }
 
-@Test func sourceRangeMatchExpression() {
+@Test
+func sourceRangeMatchExpression() {
     let expr = firstExpression("match x { 1 => 2 }")
     let range = expr.sourceRange
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 32)
 }
 
-@Test func sourceRangeClosure() {
+@Test
+func sourceRangeClosure() {
     let body = parseBlockStatements("func main() { let f = { 42 } }")
     let vd = body[0] as! AST.VariableDecl
     let range = vd.initializer!.sourceRange
@@ -7449,7 +8109,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(range.end.offset == 28)
 }
 
-@Test func sourceRangeStringInterpolation() {
+@Test
+func sourceRangeStringInterpolation() {
     let body = parseBlockStatements("func main() { let s = \"hi \\(x)\" }")
     let vd = body[0] as! AST.VariableDecl
     let range = vd.initializer!.sourceRange
@@ -7457,14 +8118,16 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(range.end.offset == 31)
 }
 
-@Test func sourceRangeSubscriptExpression() {
+@Test
+func sourceRangeSubscriptExpression() {
     let expr = firstExpression("arr[0]")
     let range = expr.sourceRange
     #expect(range.start.offset == 14)
     #expect(range.end.offset == 20)
 }
 
-@Test func sourceRangeGenericDecl() {
+@Test
+func sourceRangeGenericDecl() {
     let statements = parseStatements("struct S<T> {}")
     let structDecl = statements[0] as! AST.StructDecl
     let range = structDecl.genericDecl!.sourceRange
@@ -7472,7 +8135,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(range.end.offset == 11)
 }
 
-@Test func sourceRangeThrowsClause() {
+@Test
+func sourceRangeThrowsClause() {
     let statements = parseStatements("func f() throws -> Int32")
     let decl = statements[0] as! AST.FunctionDecl
     let range = decl.throwsClause!.sourceRange
@@ -7480,7 +8144,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(range.end.offset == 15)
 }
 
-@Test func sourceRangeEnumCaseDecl() {
+@Test
+func sourceRangeEnumCaseDecl() {
     let statements = parseStatements("enum E { case a, b(Int32) }")
     let enumDecl = statements[0] as! AST.EnumDecl
     let caseDecl = enumDecl.body[0] as! AST.EnumCaseDecl
@@ -7489,7 +8154,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(range.end.offset == 25)
 }
 
-@Test func sourceRangeAccessor() {
+@Test
+func sourceRangeAccessor() {
     let statements = parseStatements("struct S { var x: Int { get { x } set { _ = newValue } } }")
     let structDecl = statements[0] as! AST.StructDecl
     let vd = structDecl.body[0] as! AST.VariableDecl
@@ -7498,7 +8164,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(range.end.offset == 33)
 }
 
-@Test func sourceRangeSubscriptDecl() {
+@Test
+func sourceRangeSubscriptDecl() {
     let statements = parseStatements("struct S { subscript(i: Int) -> Int { 0 } }")
     let structDecl = statements[0] as! AST.StructDecl
     let subDecl = structDecl.body[0] as! AST.SubscriptDecl
@@ -7509,7 +8176,8 @@ func assertSyntaxRoundTrip(_ source: String) {
 
 // MARK: - Async / Await
 
-@Test func parseAwaitExpression() throws {
+@Test
+func parseAwaitExpression() throws {
     let expr = firstExpression("await foo()")
     let awaitExpr = expr as? AST.Await
     try #require(awaitExpr != nil)
@@ -7518,7 +8186,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(call != nil)
 }
 
-@Test func parseAwaitVariable() throws {
+@Test
+func parseAwaitVariable() throws {
     let expr = firstExpression("await x")
     let awaitExpr = expr as? AST.Await
     try #require(awaitExpr != nil)
@@ -7527,7 +8196,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(variable!.name.value == "x")
 }
 
-@Test func parseTryAwait() throws {
+@Test
+func parseTryAwait() throws {
     let expr = firstExpression("try await foo()")
     let tryExpr = expr as? AST.Try
     try #require(tryExpr != nil)
@@ -7536,7 +8206,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(awaitExpr != nil)
 }
 
-@Test func parseAwaitTry() throws {
+@Test
+func parseAwaitTry() throws {
     let expr = firstExpression("await try foo()")
     let awaitExpr = expr as? AST.Await
     try #require(awaitExpr != nil)
@@ -7545,7 +8216,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(tryExpr!.kind == .Try)
 }
 
-@Test func parseAwaitInStatementPosition() throws {
+@Test
+func parseAwaitInStatementPosition() throws {
     let body = parseBlockStatements("func main() { await foo() }")
     try #require(body.count == 1)
     let exprStmt = body[0] as? AST.ExpressionStatement
@@ -7553,21 +8225,24 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(awaitExpr != nil)
 }
 
-@Test func parseAwaitMissingExpressionReportsError() throws {
+@Test
+func parseAwaitMissingExpressionReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("func main() { await }")
     let errors = diagnostics.filter { $0.severity == .error }
     try #require(errors.count == 1)
     #expect(errors[0].message == "expected expression after 'await'")
 }
 
-@Test func parseAsyncFunction() throws {
+@Test
+func parseAsyncFunction() throws {
     let statements = parseStatements("func foo() async {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
     #expect(decl!.asyncToken != nil)
 }
 
-@Test func parseAsyncFunctionWithModifiers() throws {
+@Test
+func parseAsyncFunctionWithModifiers() throws {
     let statements = parseStatements("public func foo() async {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
@@ -7576,7 +8251,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(decl!.asyncToken != nil)
 }
 
-@Test func parseAsyncInit() throws {
+@Test
+func parseAsyncInit() throws {
     let statements = parseStatements("struct S { init() async {} }")
     let structDecl = statements[0] as? AST.StructDecl
     let initDecl = structDecl!.body[0] as? AST.InitDecl
@@ -7584,7 +8260,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(initDecl!.asyncToken != nil)
 }
 
-@Test func parseAsyncLetBinding() throws {
+@Test
+func parseAsyncLetBinding() throws {
     let body = parseBlockStatements("func main() { async let x = foo() }")
     try #require(body.count == 1)
     let decl = body[0] as? AST.VariableDecl
@@ -7593,7 +8270,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(decl!.asyncToken != nil)
 }
 
-@Test func parseAsyncClosure() throws {
+@Test
+func parseAsyncClosure() throws {
     let expr = firstExpression("{ () async in 1 }")
     let closure = expr as? AST.Closure
     try #require(closure != nil)
@@ -7603,7 +8281,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(closure!.signature!.parameters.isEmpty)
 }
 
-@Test func parseAsyncClosureWithParams() throws {
+@Test
+func parseAsyncClosureWithParams() throws {
     let expr = firstExpression("{ (x: Int) async in x }")
     let closure = expr as? AST.Closure
     try #require(closure != nil)
@@ -7614,7 +8293,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(signature!.parameters[0].name.value == "x")
 }
 
-@Test func parseAsyncClosureThrowsReturnType() throws {
+@Test
+func parseAsyncClosureThrowsReturnType() throws {
     let expr = firstExpression("{ () async throws -> Int in 1 }")
     let closure = expr as? AST.Closure
     try #require(closure != nil)
@@ -7625,7 +8305,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(signature!.returnType != nil)
 }
 
-@Test func parseAsyncClosureCaptureList() throws {
+@Test
+func parseAsyncClosureCaptureList() throws {
     let expr = firstExpression("{ [weak self] () async in 1 }")
     let closure = expr as? AST.Closure
     try #require(closure != nil)
@@ -7635,7 +8316,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(signature!.asyncToken != nil)
 }
 
-@Test func parseForAwait() throws {
+@Test
+func parseForAwait() throws {
     let body = parseBlockStatements("func main() { for await x in arr {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -7644,7 +8326,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(forStmt!.asyncToken!.kind == .Keyword(.Await))
 }
 
-@Test func parseForAwaitCase() throws {
+@Test
+func parseForAwaitCase() throws {
     let body = parseBlockStatements("func main() { for await case .foo(x) in arr {} }")
     try #require(body.count == 1)
     let forStmt = body[0] as? AST.For
@@ -7652,20 +8335,23 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(forStmt!.asyncToken != nil)
 }
 
-@Test func parseForWithoutAwaitHasNilAsyncToken() throws {
+@Test
+func parseForWithoutAwaitHasNilAsyncToken() throws {
     let body = parseBlockStatements("func main() { for x in arr {} }")
     let forStmt = body[0] as? AST.For
     try #require(forStmt != nil)
     #expect(forStmt!.asyncToken == nil)
 }
 
-@Test func parseRejectsLocalEnumInFunctionBody() throws {
+@Test
+func parseRejectsLocalEnumInFunctionBody() throws {
     let (_, errors) = parseWithDiagnostics("func f() { enum E {} }")
     try #require(errors.count == 1)
     #expect(errors[0].message.contains("expected a statement"))
 }
 
-@Test func parseAllowsEnumInTypeBody() throws {
+@Test
+func parseAllowsEnumInTypeBody() throws {
     let statements = parseStatements("struct S { enum E { case a } }")
     try #require(statements.count == 1)
     let structDecl = statements[0] as? AST.StructDecl
@@ -7674,7 +8360,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(structDecl!.body[0] is AST.EnumDecl)
 }
 
-@Test func parseAllowsExtensionInModuleBody() throws {
+@Test
+func parseAllowsExtensionInModuleBody() throws {
     let statements = parseStatements("module M { struct T {} extension T { func f() {} } }")
     try #require(statements.count == 1)
     let moduleDecl = statements[0] as? AST.ModuleDecl
@@ -7684,7 +8371,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     #expect(moduleDecl!.body[1] is AST.ExtensionDecl)
 }
 
-@Test func parseOperatorImportWildcard() throws {
+@Test
+func parseOperatorImportWildcard() throws {
     let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.*")
     #expect(diagnostics.isEmpty)
     let statements = program.statements
@@ -7702,7 +8390,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     }
 }
 
-@Test func parseOperatorImportSingleOperator() throws {
+@Test
+func parseOperatorImportSingleOperator() throws {
     let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.+")
     #expect(diagnostics.isEmpty)
     let statements = program.statements
@@ -7721,7 +8410,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     }
 }
 
-@Test func parseOperatorImportList() throws {
+@Test
+func parseOperatorImportList() throws {
     let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.{+, -}")
     #expect(diagnostics.isEmpty)
     let statements = program.statements
@@ -7745,7 +8435,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     }
 }
 
-@Test func parseOperatorImportSubmodule() throws {
+@Test
+func parseOperatorImportSubmodule() throws {
     let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.{+, module.-}")
     #expect(diagnostics.isEmpty)
     let statements = program.statements
@@ -7774,7 +8465,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     }
 }
 
-@Test func parseOperatorImportNestedList() throws {
+@Test
+func parseOperatorImportNestedList() throws {
     let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.{+, module.{-,*}}")
     #expect(diagnostics.isEmpty)
     let statements = program.statements
@@ -7808,7 +8500,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     }
 }
 
-@Test func parseOperatorImportMultilevelPath() throws {
+@Test
+func parseOperatorImportMultilevelPath() throws {
     let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.sub.+")
     #expect(diagnostics.isEmpty)
     let statements = program.statements
@@ -7831,7 +8524,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     }
 }
 
-@Test func parseOperatorImportStarInListIsOperator() throws {
+@Test
+func parseOperatorImportStarInListIsOperator() throws {
     let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.{*, +}")
     #expect(diagnostics.isEmpty)
     let statements = program.statements
@@ -7850,7 +8544,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     }
 }
 
-@Test func parseOperatorImportNestedWildcard() throws {
+@Test
+func parseOperatorImportNestedWildcard() throws {
     let (program, diagnostics) = parseWithDiagnostics("import operator Pkg.{+, module.*}")
     #expect(diagnostics.isEmpty)
     let statements = program.statements
@@ -7873,7 +8568,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     }
 }
 
-@Test func parseOperatorImportBarePathReportsError() throws {
+@Test
+func parseOperatorImportBarePathReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("import operator Pkg")
     #expect(
         diagnostics.contains {
@@ -7882,7 +8578,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     )
 }
 
-@Test func parseOperatorImportMissingPathReportsError() throws {
+@Test
+func parseOperatorImportMissingPathReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("import operator")
     #expect(
         diagnostics.contains {
@@ -7891,7 +8588,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     )
 }
 
-@Test func parseOperatorImportMissingSelectorReportsError() throws {
+@Test
+func parseOperatorImportMissingSelectorReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("import operator Pkg.")
     #expect(
         diagnostics.contains {
@@ -7900,7 +8598,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     )
 }
 
-@Test func parseOperatorImportBareSubmoduleReportsError() throws {
+@Test
+func parseOperatorImportBareSubmoduleReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("import operator Pkg.{module}")
     #expect(
         diagnostics.contains {
@@ -7909,7 +8608,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     )
 }
 
-@Test func parseOperatorImportEmptyListReportsError() throws {
+@Test
+func parseOperatorImportEmptyListReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("import operator Pkg.{}")
     #expect(
         diagnostics.contains {
@@ -7918,7 +8618,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     )
 }
 
-@Test func parseOperatorImportMissingBraceReportsError() throws {
+@Test
+func parseOperatorImportMissingBraceReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("import operator Pkg.{+")
     #expect(
         diagnostics.contains {
@@ -7927,7 +8628,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     )
 }
 
-@Test func parseOperatorImportAliasReportsError() throws {
+@Test
+func parseOperatorImportAliasReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("import operator Pkg.+ as x")
     #expect(
         diagnostics.contains {
@@ -7936,7 +8638,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     )
 }
 
-@Test func parseOperatorImportInvalidPathReportsError() throws {
+@Test
+func parseOperatorImportInvalidPathReportsError() throws {
     let (_, diagnostics) = parseWithDiagnostics("import operator 123")
     #expect(
         diagnostics.contains {
@@ -7945,7 +8648,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     )
 }
 
-@Test func parseOperatorImportOnlyAtTopLevel() throws {
+@Test
+func parseOperatorImportOnlyAtTopLevel() throws {
     let (_, diagnostics) = parseWithDiagnostics("module M { import operator Pkg.+ }")
     #expect(
         diagnostics.contains {
@@ -7954,7 +8658,8 @@ func assertSyntaxRoundTrip(_ source: String) {
     )
 }
 
-@Test func parseCastAsBitCastExpression() {
+@Test
+func parseCastAsBitCastExpression() {
     let expr = firstExpression("x as!! Int32")
     let cast = expr as? AST.Cast
     #expect(cast != nil)

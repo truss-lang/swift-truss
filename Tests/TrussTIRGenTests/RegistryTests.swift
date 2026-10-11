@@ -1,8 +1,10 @@
 import Testing
 import TrussCore
 
-@Suite struct RegistryTests {
-    @Test func sameStructureDedupedToSameId() {
+@Suite
+struct RegistryTests {
+    @Test
+    func sameStructureDedupedToSameId() {
         let registry = TIR.Registry()
         let intId = registry.integerType(isSigned: true, bitWidth: 64).id
         let ptr1 = registry.pointerType(pointee: intId).id
@@ -11,7 +13,8 @@ import TrussCore
         #expect(registry.types.count == 2)
     }
 
-    @Test func differentStructuresDifferentIds() {
+    @Test
+    func differentStructuresDifferentIds() {
         let registry = TIR.Registry()
         let i32 = registry.integerType(isSigned: true, bitWidth: 32).id
         let i64 = registry.integerType(isSigned: true, bitWidth: 64).id
@@ -20,7 +23,8 @@ import TrussCore
         #expect(ptr32 != ptr64)
     }
 
-    @Test func voidTypeReusesSingleId() {
+    @Test
+    func voidTypeReusesSingleId() {
         let registry = TIR.Registry()
         let id1 = registry.voidType().id
         let id2 = registry.voidType().id
@@ -28,7 +32,8 @@ import TrussCore
         #expect(registry.type(id1) is TIRType.VoidType)
     }
 
-    @Test func tupleLabelParticipatesInKey() {
+    @Test
+    func tupleLabelParticipatesInKey() {
         let registry = TIR.Registry()
         let intId = registry.integerType(isSigned: true, bitWidth: 32).id
         let labeled = registry.tupleType(
@@ -40,7 +45,8 @@ import TrussCore
         #expect(labeled != unlabeled)
     }
 
-    @Test func nominalTypeKeyedByName() {
+    @Test
+    func nominalTypeKeyedByName() {
         let registry = TIR.Registry()
         let a1 = registry.structType(name: "A").id
         let a2 = registry.structType(name: "A").id
@@ -49,7 +55,8 @@ import TrussCore
         #expect(a1 != b)
     }
 
-    @Test func fieldTypeIdsResolveInRegistry() {
+    @Test
+    func fieldTypeIdsResolveInRegistry() {
         let registry = TIR.Registry()
         let intId = registry.integerType(isSigned: true, bitWidth: 32).id
         let structType = registry.structType(name: "S")
@@ -57,7 +64,8 @@ import TrussCore
         #expect(registry.type(structType.fields[0].type) is TIRType.PrimitiveType)
     }
 
-    @Test func functionIdsAllocatedByRegistry() {
+    @Test
+    func functionIdsAllocatedByRegistry() {
         let registry = TIR.Registry()
         let voidId = registry.voidType().id
         let module = TIR.Module(registry: registry)
@@ -75,12 +83,14 @@ import TrussCore
         #expect(registry.functions.count == 2)
     }
 
-    @Test func unresolvedIdReturnsNil() {
+    @Test
+    func unresolvedIdReturnsNil() {
         let registry = TIR.Registry()
         #expect(registry.type(Id.TIRTypeId(99)) == nil)
     }
 
-    @Test func producingInstructionsCarryResultValue() {
+    @Test
+    func producingInstructionsCarryResultValue() {
         let registry = TIR.Registry()
         let i32 = registry.integerType(isSigned: true, bitWidth: 32).id
         let module = TIR.Module(registry: registry)
@@ -97,7 +107,8 @@ import TrussCore
         #expect(add.result.name == "add")
     }
 
-    @Test func voidInstructionsHaveNoResult() {
+    @Test
+    func voidInstructionsHaveNoResult() {
         let registry = TIR.Registry()
         let i32 = registry.integerType(isSigned: true, bitWidth: 32).id
         let module = TIR.Module(registry: registry)
@@ -116,7 +127,8 @@ import TrussCore
         #expect(branch is TIR.Branch)
     }
 
-    @Test func literalsAreValuesNotInstructions() {
+    @Test
+    func literalsAreValuesNotInstructions() {
         let registry = TIR.Registry()
         let i32 = registry.integerType(isSigned: true, bitWidth: 32).id
         let module = TIR.Module(registry: registry)
@@ -136,7 +148,8 @@ import TrussCore
         #expect(add.lhs === lit)
     }
 
-    @Test func functionRefAndGlobalAddrAreValues() {
+    @Test
+    func functionRefAndGlobalAddrAreValues() {
         let registry = TIR.Registry()
         let i32 = registry.integerType(isSigned: true, bitWidth: 32).id
         let module = TIR.Module(registry: registry)
@@ -157,7 +170,8 @@ import TrussCore
         #expect(block.instructions.isEmpty)
     }
 
-    @Test func parameterIsValue() {
+    @Test
+    func parameterIsValue() {
         let registry = TIR.Registry()
         let i32 = registry.integerType(isSigned: true, bitWidth: 32).id
         let module = TIR.Module(registry: registry)
