@@ -66,128 +66,143 @@ private func fooInterface() -> ModuleInterface {
     )
 }
 
-@Test func importsSubmoduleAsNamespace() {
+@Test
+func importsSubmoduleAsNamespace() {
     let (context, program) = runImports("import Foo.Bar", interfaces: [fooInterface()])
     let scope = program.packageSymbol!.scope
     #expect(scope.modules["Bar"] != nil)
     #expect(scope.modules["Bar"]!.scope.types["Point"] != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func importsPackageTopLevelType() {
+@Test
+func importsPackageTopLevelType() {
     let (context, program) = runImports("import Foo.FooType", interfaces: [fooInterface()])
     let scope = program.packageSymbol!.scope
     #expect(scope.types["FooType"] != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func importsSingleComponentPackage() {
+@Test
+func importsSingleComponentPackage() {
     let (context, program) = runImports("import Foo", interfaces: [fooInterface()])
     #expect(context.name2Package["Foo"] != nil)
     #expect(program.packageSymbol!.scope.modules["Foo"] == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func wildcardImportExposesMembers() {
+@Test
+func wildcardImportExposesMembers() {
     let (context, program) = runImports("import Foo.Bar.*", interfaces: [fooInterface()])
     let scope = program.packageSymbol!.scope
     #expect(scope.types["Point"] != nil)
     #expect(scope.values["makePoint"] != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func explicitImportWithAlias() {
+@Test
+func explicitImportWithAlias() {
     let (context, program) = runImports("import Foo.Bar.Point as P", interfaces: [fooInterface()])
     let scope = program.packageSymbol!.scope
     #expect(scope.types["P"] != nil)
     #expect(scope.types["Point"] == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func nestedExplicitImportResolvesSubmoduleMembers() {
+@Test
+func nestedExplicitImportResolvesSubmoduleMembers() {
     let (context, program) = runImports(
         "import Foo.{Bar.{Point, makePoint}}", interfaces: [fooInterface()]
     )
     let scope = program.packageSymbol!.scope
     #expect(scope.types["Point"] != nil)
     #expect(scope.values["makePoint"] != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func nestedExplicitImportMixedWithFlatItems() {
+@Test
+func nestedExplicitImportMixedWithFlatItems() {
     let (context, program) = runImports(
         "import Foo.{FooType, Bar.{Point}}", interfaces: [fooInterface()]
     )
     let scope = program.packageSymbol!.scope
     #expect(scope.types["FooType"] != nil)
     #expect(scope.types["Point"] != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func nestedWildcardImport() {
+@Test
+func nestedWildcardImport() {
     let (context, program) = runImports(
         "import Foo.{Bar.*}", interfaces: [fooInterface()]
     )
     let scope = program.packageSymbol!.scope
     #expect(scope.types["Point"] != nil)
     #expect(scope.values["makePoint"] != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func nestedUnresolvedTerminalReportsError() {
+@Test
+func nestedUnresolvedTerminalReportsError() {
     let (context, _) = runImports("import Foo.{Bar.{Missing}}", interfaces: [fooInterface()])
-    #expect(context.diagnositicEngine.hasErrors)
-    #expect(context.diagnositicEngine.diagnostics.contains {
+    #expect(context.diagnosticEngine.hasErrors)
+    #expect(context.diagnosticEngine.diagnostics.contains {
         $0.message.contains("unresolved import 'Foo.Bar.Missing'")
     })
 }
 
-@Test func nestedUnresolvedSubmoduleReportsError() {
+@Test
+func nestedUnresolvedSubmoduleReportsError() {
     let (context, _) = runImports("import Foo.{Nope.{Point}}", interfaces: [fooInterface()])
-    #expect(context.diagnositicEngine.hasErrors)
-    #expect(context.diagnositicEngine.diagnostics.contains {
+    #expect(context.diagnosticEngine.hasErrors)
+    #expect(context.diagnosticEngine.diagnostics.contains {
         $0.message.contains("unresolved import 'Foo.Nope.Point'")
     })
 }
 
-@Test func unresolvedRootReportsError() {
+@Test
+func unresolvedRootReportsError() {
     let (context, _) = runImports("import Baz.Quux", interfaces: [fooInterface()])
-    #expect(context.diagnositicEngine.hasErrors)
-    #expect(context.diagnositicEngine.diagnostics.contains {
+    #expect(context.diagnosticEngine.hasErrors)
+    #expect(context.diagnosticEngine.diagnostics.contains {
         $0.message.contains("unresolved import 'Baz.Quux'")
     })
 }
 
-@Test func unresolvedTerminalReportsError() {
+@Test
+func unresolvedTerminalReportsError() {
     let (context, _) = runImports("import Foo.Missing", interfaces: [fooInterface()])
-    #expect(context.diagnositicEngine.hasErrors)
-    #expect(context.diagnositicEngine.diagnostics.contains {
+    #expect(context.diagnosticEngine.hasErrors)
+    #expect(context.diagnosticEngine.diagnostics.contains {
         $0.message.contains("unresolved import 'Foo.Missing'")
     })
 }
 
-@Test func autoImportsTrussPackageWhenPresent() {
+@Test
+func autoImportsTrussPackageWhenPresent() {
     let (context, program) = runImports("", interfaces: [trussInterface()])
     let scope = program.packageSymbol!.scope
     #expect(scope.types["Int"] != nil)
     #expect(scope.modules["Core"] != nil)
     #expect(scope.values["print"] != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func autoImportSkipsWhenTrussPackageAbsent() {
+@Test
+func autoImportSkipsWhenTrussPackageAbsent() {
     let (context, program) = runImports("", interfaces: [fooInterface()])
     let scope = program.packageSymbol!.scope
     #expect(scope.types["FooType"] == nil)
     #expect(scope.modules["Bar"] == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func autoImportDoesNotShadowExplicitNames() {
+@Test
+func autoImportDoesNotShadowExplicitNames() {
     let (context, program) = runImports("import Foo.FooType", interfaces: [fooInterface(), trussInterface()])
     let scope = program.packageSymbol!.scope
     #expect(scope.types["FooType"] != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
 private func interfaceFunctionKinds(of scope: InterfaceScope) -> [String: InterfaceFunctionKind] {
@@ -227,7 +242,8 @@ private func interfaceVariableKinds(of scope: InterfaceScope) -> [String: Interf
     return result
 }
 
-@Test func interfaceExtractorPreservesVariableKind() throws {
+@Test
+func interfaceExtractorPreservesVariableKind() throws {
     let (context, programs) = runEnter([
         """
         public struct S { public var p: Int; public static var sp: Int }
@@ -240,7 +256,8 @@ private func interfaceVariableKinds(of scope: InterfaceScope) -> [String: Interf
     #expect(interfaceVariableKinds(of: scope) == ["p": .Property, "sp": .StaticProperty])
 }
 
-@Test func variableKindSurvivesEncodingAndLoading() throws {
+@Test
+func variableKindSurvivesEncodingAndLoading() throws {
     let interface = ModuleInterface(
         name: "V",
         root: InterfaceScope(values: [
@@ -260,7 +277,8 @@ private func interfaceVariableKinds(of scope: InterfaceScope) -> [String: Interf
     #expect(symbolVariableKind(of: package.scope, "sp") == .StaticProperty)
 }
 
-@Test func interfaceExtractorPreservesFunctionKind() throws {
+@Test
+func interfaceExtractorPreservesFunctionKind() throws {
     let (context, programs) = runEnter([
         """
         public class C {
@@ -279,7 +297,8 @@ private func interfaceVariableKinds(of scope: InterfaceScope) -> [String: Interf
     ])
 }
 
-@Test func functionKindSurvivesEncodingAndLoading() throws {
+@Test
+func functionKindSurvivesEncodingAndLoading() throws {
     let interface = ModuleInterface(
         name: "K",
         root: InterfaceScope(
@@ -326,7 +345,8 @@ private func interfaceVariableKinds(of scope: InterfaceScope) -> [String: Interf
     #expect(symbolFunctionKind(of: package.scope, "free") == .Function)
 }
 
-@Test func interfaceExtractorPreservesAccessors() throws {
+@Test
+func interfaceExtractorPreservesAccessors() throws {
     let (context, programs) = runEnter([
         """
         public struct S {
@@ -349,7 +369,8 @@ private func interfaceVariableKinds(of scope: InterfaceScope) -> [String: Interf
     #expect(accessors["sp"] == [.Get])
 }
 
-@Test func interfaceDumperPrintsAccessors() throws {
+@Test
+func interfaceDumperPrintsAccessors() throws {
     let interface = ModuleInterface(
         name: "D",
         root: InterfaceScope(
@@ -373,7 +394,8 @@ private func interfaceVariableKinds(of scope: InterfaceScope) -> [String: Interf
     #expect(text.contains("var g: Int"))
 }
 
-@Test func accessorsSurviveEncodingAndLoading() throws {
+@Test
+func accessorsSurviveEncodingAndLoading() throws {
     let interface = ModuleInterface(
         name: "A",
         root: InterfaceScope(

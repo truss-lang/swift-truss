@@ -4,20 +4,21 @@ import TrussSemantics
 
 func expectAccessError(_ sources: [String], _ message: String) {
     let (context, _) = runChecks(sources)
-    #expect(context.diagnositicEngine.hasErrors)
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(messages.contains(message), "missing: \(message) in \(messages)")
 }
 
 func expectAccessNoError(_ sources: [String]) {
     let (context, _) = runChecks(sources)
     #expect(
-        !context.diagnositicEngine.hasErrors,
-        "unexpected errors: \(context.diagnositicEngine.diagnostics.map(\.message))"
+        !context.diagnosticEngine.hasErrors,
+        "unexpected errors: \(context.diagnosticEngine.diagnostics.map(\.message))"
     )
 }
 
-@Test func privateMemberCrossType() {
+@Test
+func privateMemberCrossType() {
     expectAccessError(
         [
             "struct S {\n    init() {}\n    private func f() {}\n}\nstruct T {\n    func g() {\n        let s = S()\n        s.f()\n    }\n}",
@@ -26,23 +27,27 @@ func expectAccessNoError(_ sources: [String]) {
     )
 }
 
-@Test func privateMemberSameType() {
+@Test
+func privateMemberSameType() {
     expectAccessNoError(
         ["struct S {\n    private func f() {}\n    func g() {\n        f()\n    }\n}"]
     )
 }
 
-@Test func privateMemberSameFileExtension() {
+@Test
+func privateMemberSameFileExtension() {
     expectAccessNoError(
         ["struct S {\n    private func f() {}\n}\nextension S {\n    func g() {\n        f()\n    }\n}"]
     )
 }
 
-@Test func privateTopLevelSameFile() {
+@Test
+func privateTopLevelSameFile() {
     expectAccessNoError(["private struct S {\n    init() {}\n}\nfunc use() {\n    let s = S()\n}"])
 }
 
-@Test func filePrivateCrossFile() {
+@Test
+func filePrivateCrossFile() {
     expectAccessError(
         [
             "struct S {\n    init() {}\n    fileprivate func f() {}\n}",
@@ -52,7 +57,8 @@ func expectAccessNoError(_ sources: [String]) {
     )
 }
 
-@Test func internalCrossModule() {
+@Test
+func internalCrossModule() {
     expectAccessError(
         [
             "module A {\n    struct S {\n        init() {}\n        func f() {}\n    }\n}",
@@ -62,7 +68,8 @@ func expectAccessNoError(_ sources: [String]) {
     )
 }
 
-@Test func internalSameModule() {
+@Test
+func internalSameModule() {
     expectAccessNoError(
         [
             "module A {\n    struct S {\n        init() {}\n        func f() {}\n    }\n    func use() {\n        let s = S()\n        s.f()\n    }\n}",
@@ -70,20 +77,23 @@ func expectAccessNoError(_ sources: [String]) {
     )
 }
 
-@Test func protectedSubclassAccess() {
+@Test
+func protectedSubclassAccess() {
     expectAccessNoError(
         ["class A {\n    protected func f() {}\n}\nclass B: A {\n    func g() {\n        self.f()\n    }\n}"]
     )
 }
 
-@Test func protectedUnrelatedType() {
+@Test
+func protectedUnrelatedType() {
     expectAccessError(
         ["class A {\n    protected func f() {}\n}\nclass C {\n    func h(a: A) {\n        a.f()\n    }\n}"],
         "'f' is protected"
     )
 }
 
-@Test func protectedCrossModuleSubclass() {
+@Test
+func protectedCrossModuleSubclass() {
     expectAccessNoError(
         [
             "module M1 {\n    open class A {\n        protected func f() {}\n    }\n}",
@@ -92,20 +102,23 @@ func expectAccessNoError(_ sources: [String]) {
     )
 }
 
-@Test func publicAccessibleEverywhere() {
+@Test
+func publicAccessibleEverywhere() {
     expectAccessNoError(
         ["module A {\n    public struct S {\n        public func f() {}\n    }\n}"]
     )
 }
 
-@Test func typeLeakInParameter() {
+@Test
+func typeLeakInParameter() {
     expectAccessError(
         ["private struct T {}\npublic struct S {\n    public func f(p: T) {}\n}"],
         "method 'f' must be declared private because its parameter uses a private type 'T'"
     )
 }
 
-@Test func typeLeakInReturn() {
+@Test
+func typeLeakInReturn() {
     expectAccessError(
         [
             "private struct T {\n    init() {}\n}\npublic struct S {\n    public func f() -> T {\n        return T()\n    }\n}",
@@ -114,38 +127,43 @@ func expectAccessNoError(_ sources: [String]) {
     )
 }
 
-@Test func privateTypeCrossScope() {
+@Test
+func privateTypeCrossScope() {
     expectAccessError(
         ["struct S {\n    private struct T {}\n}\nstruct U {\n    var t: S.T\n}"],
         "'T' is private"
     )
 }
 
-@Test func superclassLeak() {
+@Test
+func superclassLeak() {
     expectAccessError(
         ["private class A {}\npublic class B: A {}"],
         "'B' must be declared private because its superclass 'A' is private"
     )
 }
 
-@Test func finalClassInheritance() {
+@Test
+func finalClassInheritance() {
     expectAccessError(
         ["final class A {}\nclass B: A {}"],
         "cannot inherit from final class 'A'"
     )
 }
 
-@Test func finalSuperclassNotFirstInInheritanceClauses() {
+@Test
+func finalSuperclassNotFirstInInheritanceClauses() {
     let (context, _) = runChecks(["final class Base {}\nprotocol P {}\nclass C: P, Base {}"])
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(messages.filter { $0 == "cannot inherit from final class 'Base'" }.count == 1)
 }
 
-@Test func superclassAccessNarrowedWhenNotFirst() {
+@Test
+func superclassAccessNarrowedWhenNotFirst() {
     let (context, _) = runChecks(
         ["private class Base {}\nprotocol P {}\npublic class C: P, Base {}"]
     )
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(
         messages.filter {
             $0 == "'C' must be declared private because its superclass 'Base' is private"
@@ -153,55 +171,63 @@ func expectAccessNoError(_ sources: [String]) {
     )
 }
 
-@Test func overrideWithoutTarget() {
+@Test
+func overrideWithoutTarget() {
     expectAccessError(
         ["class A {}\nclass B: A {\n    override func f() {}\n}"],
         "method 'f' does not override any method from its superclass"
     )
 }
 
-@Test func overrideMissingKeyword() {
+@Test
+func overrideMissingKeyword() {
     expectAccessError(
         ["open class A {\n    open func f() {}\n}\nclass B: A {\n    func f() {}\n}"],
         "overriding declaration requires an 'override' keyword"
     )
 }
 
-@Test func overrideNonOpenMember() {
+@Test
+func overrideNonOpenMember() {
     expectAccessError(
         ["class A {\n    func f() {}\n}\nclass B: A {\n    override func f() {}\n}"],
         "cannot override non-open member 'f'"
     )
 }
 
-@Test func overrideFinalMember() {
+@Test
+func overrideFinalMember() {
     expectAccessError(
         ["open class A {\n    protected final func f() {}\n}\nclass B: A {\n    override func f() {}\n}"],
         "cannot override final member 'f'"
     )
 }
 
-@Test func overrideValid() {
+@Test
+func overrideValid() {
     expectAccessNoError(
         ["open class A {\n    open func f() {}\n}\nclass B: A {\n    override func f() {}\n}"]
     )
 }
 
-@Test func abstractClassInstantiation() {
+@Test
+func abstractClassInstantiation() {
     expectAccessError(
         ["abstract class A {\n    abstract func f()\n}\nfunc use() {\n    let a = A()\n}"],
         "cannot instantiate abstract class 'A'"
     )
 }
 
-@Test func abstractMemberMissingImplementation() {
+@Test
+func abstractMemberMissingImplementation() {
     expectAccessError(
         ["abstract class A {\n    abstract func f()\n}\nclass B: A {}"],
         "missing implementation of abstract member 'f'"
     )
 }
 
-@Test func abstractImplementedByIntermediateClass() {
+@Test
+func abstractImplementedByIntermediateClass() {
     expectAccessNoError(
         [
             "abstract class A {\n    abstract func f()\n}\nclass B: A {\n    override func f() {}\n}\nclass C: B {}",
@@ -209,13 +235,15 @@ func expectAccessNoError(_ sources: [String]) {
     )
 }
 
-@Test func abstractValidChain() {
+@Test
+func abstractValidChain() {
     expectAccessNoError(
         ["abstract class A {\n    abstract func f()\n}\nclass B: A {\n    override func f() {}\n}"]
     )
 }
 
-@Test func privateVarReadCrossType() {
+@Test
+func privateVarReadCrossType() {
     expectAccessError(
         ["struct S {\n    private var x\n}\nstruct T {\n    func g(s: S) {\n        let y = s.x\n    }\n}"],
         "'x' is private"

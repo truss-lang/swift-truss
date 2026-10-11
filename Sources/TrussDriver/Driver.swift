@@ -74,7 +74,7 @@ public final class Driver {
             InterfaceLoader(context: context).load(interface)
         }
         let programs: [AST.Program] = files.compactMap {
-            guard !context.diagnositicEngine.hasErrors else {
+            guard !context.diagnosticEngine.hasErrors else {
                 return nil
             }
             guard let content = try? String(contentsOfFile: $0, encoding: .utf8) else {
@@ -123,56 +123,56 @@ public final class Driver {
 
     private func runPasses(programs: [AST.Program], context: TrussCore.Context) -> DriverResult {
         var programs = programs
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnosticEngine.hasErrors {
             runPass(DeclCollector(context: context), context: context, programs: programs)
         }
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnosticEngine.hasErrors {
             runPass(ImportProcessor(context: context), context: context, programs: programs)
         }
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnosticEngine.hasErrors {
             runRewriter(OptionalDesugarPass(), context: context, programs: &programs)
         }
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnosticEngine.hasErrors {
             runPass(Enter(context: context), context: context, programs: programs)
         }
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnosticEngine.hasErrors {
             let merger = MergePass(context: context)
             runPass(merger, context: context, programs: programs)
-            if !context.diagnositicEngine.hasErrors {
+            if !context.diagnosticEngine.hasErrors {
                 merger.resolvePending()
             }
         }
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnosticEngine.hasErrors {
             runPass(NameResolver(context: context), context: context, programs: programs)
         }
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnosticEngine.hasErrors {
             runOperatorPasses(&programs, context: context)
         }
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnosticEngine.hasErrors {
             runPass(TypeBuilder(context: context), context: context, programs: programs)
         }
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnosticEngine.hasErrors {
             let checker = TypeChecker(context: context)
             checker.checkAll(programs)
         }
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnosticEngine.hasErrors {
             runPass(AttributeChecker(context: context), context: context, programs: programs)
         }
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnosticEngine.hasErrors {
             runPass(ModifierChecker(context: context), context: context, programs: programs)
         }
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnosticEngine.hasErrors {
             runPass(AccessChecker(context: context), context: context, programs: programs)
         }
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnosticEngine.hasErrors {
             runPass(ControlFlowChecker(context: context), context: context, programs: programs)
         }
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnosticEngine.hasErrors {
             let unusedChecker = UnusedDeclarationChecker(context: context)
             unusedChecker.checkAll(programs)
         }
         let tirModules: [TIR.Module]
-        if !context.diagnositicEngine.hasErrors {
+        if !context.diagnosticEngine.hasErrors {
             let tirGen = TIRGen(context: context)
             tirModules = tirGen.generateAll(programs)
         } else {
@@ -180,7 +180,7 @@ public final class Driver {
         }
         let llvmContext: LLVMSwiftBinding.Context?
         let llvmModules: [LLVMSwiftBinding.Module]
-        if !context.diagnositicEngine.hasErrors && false {
+        if !context.diagnosticEngine.hasErrors && false {
             llvmContext = .init()
             let codeGen = CodeGen(
                 context: context, llvmContext: llvmContext!, target: config.target
@@ -193,7 +193,7 @@ public final class Driver {
             llvmModules = []
         }
         var stdout = ""
-        if !context.diagnositicEngine.hasErrors || config.dumpOnError {
+        if !context.diagnosticEngine.hasErrors || config.dumpOnError {
             if config.dumpAST, !programs.isEmpty {
                 let dumper = AST.Dumper()
                 stdout += programs.map { dumper.dump($0) }.joined(separator: "\n") + "\n"
@@ -213,11 +213,11 @@ public final class Driver {
                 stdout += programs.map { printer.print($0) }.joined(separator: "\n") + "\n"
             }
         }
-        let hasErrors = context.diagnositicEngine.hasErrors
+        let hasErrors = context.diagnosticEngine.hasErrors
         var stderr = ""
-        if !context.diagnositicEngine.diagnostics.isEmpty {
+        if !context.diagnosticEngine.diagnostics.isEmpty {
             stderr = TerminalRenderer(beforeLines: 1, afterLines: 1)
-                .render(context.diagnositicEngine.sortedDiagnostics())
+                .render(context.diagnosticEngine.sortedDiagnostics())
         }
         let packageInterface: ModuleInterface? = if !hasErrors, let first = programs.first {
             InterfaceExtractor(context: context).extract(from: first)
@@ -234,7 +234,7 @@ public final class Driver {
     ) {
         for program in programs {
             visitor.visitProgram(program)
-            if context.diagnositicEngine.hasErrors {
+            if context.diagnosticEngine.hasErrors {
                 return
             }
         }
@@ -254,18 +254,18 @@ public final class Driver {
             TrussOperator.DeclCollector(table: table, context: context),
             context: context, programs: programs
         )
-        if context.diagnositicEngine.hasErrors {
+        if context.diagnosticEngine.hasErrors {
             return
         }
         runPass(
             TrussOperator.OperatorImportProcessor(table: table, context: context),
             context: context, programs: programs
         )
-        if context.diagnositicEngine.hasErrors {
+        if context.diagnosticEngine.hasErrors {
             return
         }
         PrecedenceResolver(table: table, context: context).resolve()
-        if context.diagnositicEngine.hasErrors {
+        if context.diagnosticEngine.hasErrors {
             return
         }
         let folder = ExpressionFolder(context: context, table: table)
@@ -277,7 +277,7 @@ public final class Driver {
         context.register(source: src)
         let buffer = src.stringSourceBuffer
         let location = SourceLocation(buffer: buffer, offset: 0, line: 1, column: 1)
-        context.diagnositicEngine.emit(
+        context.diagnosticEngine.emit(
             Diagnostic(
                 severity: .error, message: "could not read file '\(file)'",
                 range: SourceRange(start: location, end: location)

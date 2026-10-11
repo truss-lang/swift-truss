@@ -108,7 +108,7 @@ public final class OperatorImportProcessor: AST.Visitor {
             severity: .note, message: "could not find '\(missing)' in \(parent)",
             range: range
         )
-        context.diagnositicEngine.emit(
+        context.diagnosticEngine.emit(
             Diagnostic(
                 severity: .error, message: "unresolved import '\(fullPath)'",
                 range: range, notes: [note] + token.expansionNotes(in: context)

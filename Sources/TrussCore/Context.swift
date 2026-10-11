@@ -1,7 +1,7 @@
 import SwiftBetterDiagnostic
 
 public final class Context {
-    public let diagnositicEngine = DiagnosticEngine(deduplicateOnEmit: true)
+    public let diagnosticEngine = DiagnosticEngine(deduplicateOnEmit: true)
     public private(set) var sourceTable: [Id.SourceId: Source] = [:]
     public private(set) var id2Symbol: [Id.SymbolId: Symbol.Symbol] = [:]
     public private(set) var name2Package: [String: Symbol.PackageSymbol] = [:]
@@ -48,7 +48,7 @@ public final class Context {
 
 public extension Context {
     func emitError(_ message: String, at range: SourceRange) {
-        diagnositicEngine.emit(Diagnostic(severity: .error, message: message, range: range))
+        diagnosticEngine.emit(Diagnostic(severity: .error, message: message, range: range))
     }
 
     func emitError(_ message: String, at token: Token) {
@@ -59,7 +59,7 @@ public extension Context {
         guard let source = sourceTable[token.id] else {
             return
         }
-        diagnositicEngine.emit(
+        diagnosticEngine.emit(
             Diagnostic(
                 severity: .error, message: message,
                 range: token.sourceRange(in: source.stringSourceBuffer),
@@ -69,7 +69,7 @@ public extension Context {
     }
 
     func emitWarning(_ message: String, at range: SourceRange) {
-        diagnositicEngine.emit(Diagnostic(severity: .warning, message: message, range: range))
+        diagnosticEngine.emit(Diagnostic(severity: .warning, message: message, range: range))
     }
 
     func emitWarning(_ message: String, at token: Token) {
@@ -80,7 +80,7 @@ public extension Context {
         guard let source = sourceTable[token.id] else {
             return
         }
-        diagnositicEngine.emit(
+        diagnosticEngine.emit(
             Diagnostic(
                 severity: .warning, message: message,
                 range: token.sourceRange(in: source.stringSourceBuffer),

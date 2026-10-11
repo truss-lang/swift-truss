@@ -74,12 +74,13 @@ func containerMethod(_ statement: AST.Statement) -> AST.FunctionDecl? {
 }
 
 func diagnosticMessages(_ context: Context) -> [String] {
-    context.diagnositicEngine.diagnostics.map(\.message)
+    context.diagnosticEngine.diagnostics.map(\.message)
 }
 
 let selfContextDiagnostic = "'self' is only available in an instance context"
 
-@Test func closureCapturesOuterLocal() throws {
+@Test
+func closureCapturesOuterLocal() throws {
     let (_, _, probe) = captureProbe(
         """
         func f() {
@@ -95,7 +96,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(closure.freeVariables.first === x)
 }
 
-@Test func outerBodyReferenceStaysLocal() throws {
+@Test
+func outerBodyReferenceStaysLocal() throws {
     let (_, _, probe) = captureProbe(
         """
         func f() {
@@ -108,7 +110,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(probe.closures.isEmpty)
 }
 
-@Test func globalReferenceStaysGlobalAndIsNotCaptured() throws {
+@Test
+func globalReferenceStaysGlobalAndIsNotCaptured() throws {
     let (_, _, probe) = captureProbe(
         """
         var g = 1
@@ -122,7 +125,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(closure.freeVariables.isEmpty)
 }
 
-@Test func memberReferenceStaysPropertyAndCapturesSelf() throws {
+@Test
+func memberReferenceStaysPropertyAndCapturesSelf() throws {
     let (_, program, probe) = captureProbe(
         """
         struct S {
@@ -142,7 +146,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(closure.freeVariables.first === selfSymbol)
 }
 
-@Test func implicitMemberAccessCapturesSelf() throws {
+@Test
+func implicitMemberAccessCapturesSelf() throws {
     let (_, program, probe) = captureProbe(
         """
         struct S {
@@ -160,7 +165,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(closure.freeVariables.contains { $0 === selfSymbol })
 }
 
-@Test func extensionMemberReferenceCapturesSelf() throws {
+@Test
+func extensionMemberReferenceCapturesSelf() throws {
     let (_, program, probe) = captureProbe(
         """
         struct S {
@@ -179,7 +185,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(closure.freeVariables.contains { $0 === selfSymbol })
 }
 
-@Test func nestedFunctionCapturesOuterLocal() throws {
+@Test
+func nestedFunctionCapturesOuterLocal() throws {
     let (_, _, probe) = captureProbe(
         """
         func f() {
@@ -191,7 +198,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(try variableSymbol("x", probe).kind == .Free)
 }
 
-@Test func nestedClosuresShareTransitiveCapture() throws {
+@Test
+func nestedClosuresShareTransitiveCapture() throws {
     let (_, _, probe) = captureProbe(
         """
         func f() {
@@ -206,7 +214,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(probe.closures[1].freeVariables.contains { $0 === x })
 }
 
-@Test func innerClosureLocalIsNotCapturedByOuterClosure() throws {
+@Test
+func innerClosureLocalIsNotCapturedByOuterClosure() throws {
     let (_, _, probe) = captureProbe(
         """
         func f() {
@@ -223,7 +232,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(probe.closures[1].freeVariables.contains { $0 === y })
 }
 
-@Test func repeatedCaptureIsDeduplicated() throws {
+@Test
+func repeatedCaptureIsDeduplicated() throws {
     let (_, _, probe) = captureProbe(
         """
         func f() {
@@ -241,7 +251,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(closure.freeVariables.first === x)
 }
 
-@Test func capturesAreSortedBySymbolId() throws {
+@Test
+func capturesAreSortedBySymbolId() throws {
     let (_, _, probe) = captureProbe(
         """
         func f() {
@@ -260,7 +271,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(closure.freeVariables.map(\.id.id) == [a.id.id, b.id.id])
 }
 
-@Test func closureCapturesSelf() throws {
+@Test
+func closureCapturesSelf() throws {
     let (_, _, probe) = captureProbe(
         """
         struct S {
@@ -278,7 +290,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(closure.freeVariables.first === selfSymbol)
 }
 
-@Test func selfExpressionStaysLocalWithoutClosure() throws {
+@Test
+func selfExpressionStaysLocalWithoutClosure() throws {
     let (_, _, probe) = captureProbe(
         """
         struct S {
@@ -292,7 +305,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(probe.closures.isEmpty)
 }
 
-@Test func captureListMarksVariableFree() throws {
+@Test
+func captureListMarksVariableFree() throws {
     let (_, _, probe) = captureProbe(
         """
         func f() {
@@ -307,7 +321,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(closure.freeVariables.contains { $0 === x })
 }
 
-@Test func captureListWeakSelfMarksSelfFree() throws {
+@Test
+func captureListWeakSelfMarksSelfFree() throws {
     let (_, _, probe) = captureProbe(
         """
         struct S {
@@ -324,7 +339,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(closure.freeVariables.contains { $0 === selfSymbol })
 }
 
-@Test func subscriptParameterReferenceStaysLocal() throws {
+@Test
+func subscriptParameterReferenceStaysLocal() throws {
     let (_, _, probe) = captureProbe(
         """
         struct S {
@@ -335,7 +351,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(try variableSymbol("i", probe).kind == .Local)
 }
 
-@Test func staticSelfIsDiagnosed() throws {
+@Test
+func staticSelfIsDiagnosed() throws {
     let (context, _, probe) = captureProbe(
         """
         struct S {
@@ -347,13 +364,15 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(diagnosticMessages(context) == [selfContextDiagnostic])
 }
 
-@Test func topLevelSelfIsDiagnosed() throws {
+@Test
+func topLevelSelfIsDiagnosed() throws {
     let (context, _, probe) = captureProbe("func f() { self }")
     #expect(probe.selfExpressions.first?.symbol == nil)
     #expect(diagnosticMessages(context) == [selfContextDiagnostic])
 }
 
-@Test func instanceContextsAreNotDiagnosed() throws {
+@Test
+func instanceContextsAreNotDiagnosed() throws {
     let (context, _, probe) = captureProbe(
         """
         struct S {
@@ -373,7 +392,8 @@ let selfContextDiagnostic = "'self' is only available in an instance context"
     #expect(diagnosticMessages(context).isEmpty)
 }
 
-@Test func superWithoutInstanceContextStaysSilent() throws {
+@Test
+func superWithoutInstanceContextStaysSilent() throws {
     let (context, _, probe) = captureProbe("func f() { super }")
     #expect(probe.superExpressions.first?.symbol == nil)
     #expect(diagnosticMessages(context).isEmpty)

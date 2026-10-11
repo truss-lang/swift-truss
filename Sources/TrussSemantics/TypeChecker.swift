@@ -55,7 +55,7 @@ public final class TypeChecker: AST.Visitor {
                     collectFunctionSignatures: phase.functionSignatures,
                     collectingSignatures: phase.signatures
                 )
-                if gatedPhases, context.diagnositicEngine.hasErrors {
+                if gatedPhases, context.diagnosticEngine.hasErrors {
                     return
                 }
             }

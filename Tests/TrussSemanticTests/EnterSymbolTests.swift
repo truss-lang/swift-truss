@@ -1,7 +1,8 @@
 import Testing
 import TrussCore
 
-@Test func crossFileExtensionCycle() {
+@Test
+func crossFileExtensionCycle() {
     let (context, programs) = runEnter([
         "struct A {} extension B { func useA() {} }",
         "struct B {} extension A { func useB() {} }",
@@ -11,10 +12,11 @@ import TrussCore
     let b = packageScope.types["B"] as! Symbol.NominalTypeSymbol
     #expect(a.scope.values["useB"] != nil)
     #expect(b.scope.values["useA"] != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func pendingNestedExtensionConvergence() throws {
+@Test
+func pendingNestedExtensionConvergence() throws {
     let (context, program) = runEnter([
         "struct A {} extension A.B { class C {} } extension A { class B {} }",
     ])
@@ -24,10 +26,11 @@ import TrussCore
     try #require(b != nil)
     let c = b!.scope.types["C"] as? Symbol.NominalTypeSymbol
     #expect(c != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func deepNestingAcrossFiles() throws {
+@Test
+func deepNestingAcrossFiles() throws {
     let (context, programs) = runEnter([
         "class A {}",
         "extension A { class B { let c: C } }",
@@ -40,19 +43,21 @@ import TrussCore
     #expect(b!.scope.values["c"] != nil)
     let c = b!.scope.types["C"] as? Symbol.NominalTypeSymbol
     #expect(c != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionMemberLandsInBaseScope() {
+@Test
+func extensionMemberLandsInBaseScope() {
     let (context, program) = runEnter(["struct S {} extension S { func f() {} }"])
     let packageScope = program[0].packageSymbol!.scope
     let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
     #expect(s.scope.values["f"] != nil)
     #expect(packageScope.values["f"] == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionFunctionBodyScopesEnterSymbolDump() throws {
+@Test
+func extensionFunctionBodyScopesEnterSymbolDump() throws {
     let dump = dumpSemanticSymbols(
         "struct S {}\nextension S {\n    func f() {\n        if true {\n            let x = 1\n        }\n    }\n}"
     )
@@ -66,7 +71,8 @@ import TrussCore
     #expect(lines[scopeIndex + 1].hasPrefix("        var x (Local)"))
 }
 
-@Test func memberFunctionAndLocals() throws {
+@Test
+func memberFunctionAndLocals() throws {
     let (context, program) = runEnter(["struct S { func m() { var x = 1 } }"])
     let packageScope = program[0].packageSymbol!.scope
     let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
@@ -74,65 +80,73 @@ import TrussCore
     try #require(m != nil)
     #expect(m!.scope.values["x"] != nil)
     #expect(packageScope.values["m"] == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func typeRedeclarationConflict() {
+@Test
+func typeRedeclarationConflict() {
     let (context, _) = runEnter(["struct A {} struct A {}"])
-    #expect(context.diagnositicEngine.hasErrors)
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(messages.contains("invalid redeclaration of type 'A'"))
 }
 
-@Test func typeRedeclarationAcrossFiles() {
+@Test
+func typeRedeclarationAcrossFiles() {
     let (context, _) = runEnter(["struct A {}", "class A {}"])
-    #expect(context.diagnositicEngine.hasErrors)
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(messages.contains("invalid redeclaration of type 'A'"))
 }
 
-@Test func extensionMemberKindConflictAtMerge() {
+@Test
+func extensionMemberKindConflictAtMerge() {
     let (context, _) = runEnter([
         "struct A {} extension A { var v: Int } extension A { var v: Int }",
     ])
-    #expect(context.diagnositicEngine.hasErrors)
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(messages.contains("invalid redeclaration of 'v'"))
 }
 
-@Test func functionVariableKindConflict() {
+@Test
+func functionVariableKindConflict() {
     let (context, _) = runEnter(["func f() {} var f: Int"])
-    #expect(context.diagnositicEngine.hasErrors)
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(messages.contains("invalid redeclaration of 'f'"))
 }
 
-@Test func overloadedFunctionsAllowed() {
+@Test
+func overloadedFunctionsAllowed() {
     let (context, program) = runEnter(["func f() {} func f(x: Int) {}"])
     let packageScope = program[0].packageSymbol!.scope
     let symbols = packageScope.values["f"]
     #expect(symbols?.count == 2)
     #expect(symbols?.allSatisfy { $0 is Symbol.FunctionSymbol } == true)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionBaseNotFound() {
+@Test
+func extensionBaseNotFound() {
     let (context, _) = runEnter(["extension NotFound { func f() {} }"])
-    #expect(context.diagnositicEngine.hasErrors)
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(messages.contains("extension of type 'NotFound' has no matching declaration"))
 }
 
-@Test func caseSymbols() {
+@Test
+func caseSymbols() {
     let (context, program) = runEnter(["enum E { case a, b(Int32) }"])
     let packageScope = program[0].packageSymbol!.scope
     let e = packageScope.types["E"] as! Symbol.NominalTypeSymbol
     #expect(e.scope.values["a"]?.first is Symbol.CaseSymbol)
     #expect(e.scope.values["b"]?.first is Symbol.CaseSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func genericParamsOnTypeAndFunction() {
+@Test
+func genericParamsOnTypeAndFunction() {
     let (context, program) = runEnter([
         "struct S3<E, each T> {} func f<G>() {}",
     ])
@@ -142,10 +156,11 @@ import TrussCore
     #expect(s3.scope.types["T"] is Symbol.GenericParamSymbol)
     let f = packageScope.values["f"]?.first as? Symbol.FunctionSymbol
     #expect(f?.scope.types["G"] is Symbol.GenericParamSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func initAndSubscriptSymbols() {
+@Test
+func initAndSubscriptSymbols() {
     let (context, program) = runEnter([
         "struct S { init() {} subscript(i: Int) -> Int { 0 } }",
     ])
@@ -153,25 +168,28 @@ import TrussCore
     let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
     #expect(s.scope.values["init"]?.first is Symbol.FunctionSymbol)
     #expect(s.scope.values["subscript"]?.first is Symbol.SubscriptSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func associatedTypeSymbol() {
+@Test
+func associatedTypeSymbol() {
     let (context, program) = runEnter(["protocol P { associatedtype T }"])
     let packageScope = program[0].packageSymbol!.scope
     let p = packageScope.types["P"] as! Symbol.NominalTypeSymbol
     #expect(p.scope.types["T"] is Symbol.AssociatedTypeSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func typealiasSymbol() {
+@Test
+func typealiasSymbol() {
     let (context, program) = runEnter(["typealias SS = (S) -> S struct S {}"])
     let packageScope = program[0].packageSymbol!.scope
     #expect(packageScope.types["SS"] is Symbol.TypeAliasSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func nestedTypeInExtension() throws {
+@Test
+func nestedTypeInExtension() throws {
     let (context, program) = runEnter([
         "struct A {} extension A { class B { class D {} } }",
     ])
@@ -180,10 +198,11 @@ import TrussCore
     let b = a.scope.types["B"] as? Symbol.NominalTypeSymbol
     try #require(b != nil)
     #expect(b!.scope.types["D"] is Symbol.NominalTypeSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionInsideModuleResolvesInModuleScope() throws {
+@Test
+func extensionInsideModuleResolvesInModuleScope() throws {
     let (context, program) = runEnter([
         "module M { struct T {} extension T { func f() {} } }",
     ])
@@ -193,10 +212,11 @@ import TrussCore
     try #require(t != nil)
     #expect(t!.scope.values["f"] != nil)
     #expect(packageScope.values["f"] == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func overloadedFunctionsAcrossExtensions() {
+@Test
+func overloadedFunctionsAcrossExtensions() {
     let (context, program) = runEnter([
         "struct A {} extension A { func f() {} } extension A { func f(x: Int) {} }",
     ])
@@ -205,10 +225,11 @@ import TrussCore
     let symbols = a.scope.values["f"]
     #expect(symbols?.count == 2)
     #expect(symbols?.allSatisfy { $0 is Symbol.FunctionSymbol } == true)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func deinitLocalsIsolatedFromTypeScope() {
+@Test
+func deinitLocalsIsolatedFromTypeScope() {
     let (context, program) = runEnter(["class C { deinit { let x = 1 } }"])
     let packageScope = program[0].packageSymbol!.scope
     let c = packageScope.types["C"] as! Symbol.NominalTypeSymbol
@@ -216,15 +237,17 @@ import TrussCore
     let classDecl = program[0].statements[0] as! AST.ClassDecl
     let deinitDecl = classDecl.body[0] as! AST.DeinitDecl
     #expect(deinitDecl.symbol?.scope.values["x"] != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func deinitLocalDoesNotConflictWithMember() {
+@Test
+func deinitLocalDoesNotConflictWithMember() {
     let (context, _) = runEnter(["class C { var x: Int deinit { let x = 1 } }"])
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func accessorLocalsAndImplicitParameterScoped() {
+@Test
+func accessorLocalsAndImplicitParameterScoped() {
     let (context, program) = runEnter([
         "struct S { var x: Int { get { let t = 1; return t } set { x = newValue } } }",
     ])
@@ -238,10 +261,11 @@ import TrussCore
     #expect(setter.scope?.values["newValue"] != nil)
     let getter = varDecl.accessors[0]
     #expect(getter.scope?.values["t"] != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionWithModulePrefixBaseMerged() throws {
+@Test
+func extensionWithModulePrefixBaseMerged() throws {
     let (context, program) = runEnter([
         "module M { struct T {} } extension M.T { func f() {} }",
     ])
@@ -250,43 +274,48 @@ import TrussCore
     try #require(t != nil)
     #expect(t!.scope.values["f"] != nil)
     #expect(packageScope.values["f"] == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func deinitInTypeBodyIsAllowed() {
+@Test
+func deinitInTypeBodyIsAllowed() {
     let (context, program) = runEnter(["class C { deinit {} }"])
     let packageScope = program[0].packageSymbol!.scope
     let c = packageScope.types["C"] as! Symbol.ClassSymbol
     #expect(c.deinitializer != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func deinitInExtensionIsError() {
+@Test
+func deinitInExtensionIsError() {
     let (context, _) = runEnter(["class C {} extension C { deinit {} }"])
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(messages.contains("deinitializer is not allowed in an extension"))
 }
 
-@Test func extensionInitLandsInBaseInitializers() {
+@Test
+func extensionInitLandsInBaseInitializers() {
     let (context, program) = runEnter(["struct S {} extension S { init() {} }"])
     let packageScope = program[0].packageSymbol!.scope
     let s = packageScope.types["S"] as! Symbol.StructSymbol
     #expect(s.initializers.count == 1)
     #expect(s.scope.values["init"] != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func closureParameterGetsSymbol() throws {
+@Test
+func closureParameterGetsSymbol() throws {
     let (context, program) = runEnter(["struct S {}\nlet cl = { (x: S) -> S in x }"])
     let variableDecl = program[0].statements[1] as! AST.VariableDecl
     let closure = variableDecl.initializer as! AST.Closure
     let signature = try #require(closure.signature)
     let symbol = try #require(signature.parameters[0].symbol)
     #expect(symbol === closure.scope?.values["x"]?.first as? Symbol.VariableSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func instanceMethodSelfSymbol() throws {
+@Test
+func instanceMethodSelfSymbol() throws {
     let (context, program) = runEnter(["struct S { func m() {} }"])
     let packageScope = program[0].packageSymbol!.scope
     let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
@@ -297,10 +326,11 @@ import TrussCore
     #expect(selfSymbol.type == nil)
     #expect(selfSymbol.memberOf == s.id)
     #expect(selfSymbol.sourceToken != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func initDeinitSubscriptAndAccessorSelfSymbols() throws {
+@Test
+func initDeinitSubscriptAndAccessorSelfSymbols() throws {
     let (context, program) = runEnter([
         """
         struct S {
@@ -340,10 +370,11 @@ import TrussCore
     #expect(accessorSelfs.count == 2)
     #expect(accessorSelfs[0].id != accessorSelfs[1].id)
     #expect(accessorSelfs.allSatisfy { $0.memberOf == s.id })
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionMethodSelfSymbolGetsMemberOf() throws {
+@Test
+func extensionMethodSelfSymbolGetsMemberOf() throws {
     let (context, program) = runEnter(["struct S {} extension S { func f() {} }"])
     let packageScope = program[0].packageSymbol!.scope
     let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
@@ -352,39 +383,43 @@ import TrussCore
     #expect(f.kind == .Method)
     #expect(f.memberOf == s.id)
     #expect(selfSymbol.memberOf == s.id)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionStoredPropertyKind() throws {
+@Test
+func extensionStoredPropertyKind() throws {
     let (context, program) = runEnter(["struct S {} extension S { var v: Int }"])
     let packageScope = program[0].packageSymbol!.scope
     let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
     let v = try #require(s.scope.values["v"]?.first as? Symbol.VariableSymbol)
     #expect(v.kind == .Property)
     #expect(v.memberOf == s.id)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionStaticPropertyKind() throws {
+@Test
+func extensionStaticPropertyKind() throws {
     let (context, program) = runEnter(["struct S {} extension S { static var s: Int }"])
     let packageScope = program[0].packageSymbol!.scope
     let s = packageScope.types["S"] as! Symbol.NominalTypeSymbol
     let v = try #require(s.scope.values["s"]?.first as? Symbol.VariableSymbol)
     #expect(v.kind == .StaticProperty)
     #expect(v.memberOf == s.id)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func topLevelVariableStaysGlobal() throws {
+@Test
+func topLevelVariableStaysGlobal() throws {
     let (context, program) = runEnter(["var g: Int"])
     let packageScope = program[0].packageSymbol!.scope
     let g = try #require(packageScope.values["g"]?.first as? Symbol.VariableSymbol)
     #expect(g.kind == .Global)
     #expect(g.memberOf == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionStaticFunctionAndInitializerKindsPreserved() throws {
+@Test
+func extensionStaticFunctionAndInitializerKindsPreserved() throws {
     let (context, program) = runEnter([
         "struct S {} extension S { static func sf() {} init() {} }",
     ])
@@ -397,10 +432,11 @@ import TrussCore
     #expect(initSymbol.kind == .Initializer)
     let initSelf = try #require(initSymbol.scope.values["self"]?.first as? Symbol.SelfSymbol)
     #expect(initSelf.memberOf == s.id)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionSubscriptAndAccessorSelfSymbolsGetMemberOf() throws {
+@Test
+func extensionSubscriptAndAccessorSelfSymbolsGetMemberOf() throws {
     let (context, program) = runEnter([
         """
         struct S {}
@@ -434,20 +470,22 @@ import TrussCore
     #expect(accessorSelfs.count == 2)
     #expect(accessorSelfs.allSatisfy { $0.memberOf == s.id })
     #expect(variableDecl.accessors.allSatisfy { $0.symbol?.memberOf == s.id })
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionMemberOfNotBackfilledWhenBaseUnresolved() throws {
+@Test
+func extensionMemberOfNotBackfilledWhenBaseUnresolved() throws {
     let (context, program) = runEnter(["extension NotFound { func f() {} }"])
     let virtualScope = (program[0].statements[0] as! AST.ExtensionDecl).virtualScope
     let f = try #require(virtualScope?.values["f"]?.first as? Symbol.FunctionSymbol)
     #expect(f.memberOf == nil)
     #expect(f.kind == .Function)
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(messages.contains("extension of type 'NotFound' has no matching declaration"))
 }
 
-@Test func noSelfSymbolForNonInstanceCallables() throws {
+@Test
+func noSelfSymbolForNonInstanceCallables() throws {
     let (context, program) = runEnter([
         """
         protocol P { func f(); var v: Int }
@@ -485,7 +523,8 @@ import TrussCore
     #expect(nested.scope.values["self"] == nil)
 }
 
-@Test func closureBodyHasNoSelfAndLocalKinds() throws {
+@Test
+func closureBodyHasNoSelfAndLocalKinds() throws {
     let (context, program) = runEnter(["let cl = { var y = 1 }"])
     let variableDecl = program[0].statements[0] as! AST.VariableDecl
     let closure = variableDecl.initializer as! AST.Closure
@@ -493,10 +532,11 @@ import TrussCore
     let y = try #require(scope.values["y"]?.first as? Symbol.VariableSymbol)
     #expect(y.kind == .Local)
     #expect(scope.values["self"] == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func accessorBodyLocalKinds() throws {
+@Test
+func accessorBodyLocalKinds() throws {
     let (context, program) = runEnter([
         "struct S { var x: Int { get { let t = 1; return t } set { let u = 2 } } }",
     ])
@@ -514,10 +554,11 @@ import TrussCore
     #expect(getterLocal.kind == .Local)
     #expect(setterLocal.kind == .Local)
     #expect(implicitParameter.kind == .Local)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func variableSymbolStoresAccessorSymbols() throws {
+@Test
+func variableSymbolStoresAccessorSymbols() throws {
     let (context, program) = runEnter([
         """
         struct S {
@@ -537,10 +578,11 @@ import TrussCore
         let symbol = try #require(variableDecl.symbol)
         #expect(variableDecl.accessors.allSatisfy { symbol.accessors[$0.kind] === $0.symbol })
     }
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionPropertyAccessorSymbolsAdoptedByBaseType() throws {
+@Test
+func extensionPropertyAccessorSymbolsAdoptedByBaseType() throws {
     let (context, program) = runEnter([
         """
         struct S {}
@@ -555,22 +597,25 @@ import TrussCore
     #expect(setter.memberOf == s.id)
     #expect(getter.scope.values["self"]?.first?.memberOf == s.id)
     #expect(setter.scope.values["self"]?.first?.memberOf == s.id)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func repeatedLocalNamesInSameFunctionScope() {
+@Test
+func repeatedLocalNamesInSameFunctionScope() {
     let (context, _) = runEnter(["func f() { var x = 1; var x = 2 }"])
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func repeatedGlobalNamesConflict() {
+@Test
+func repeatedGlobalNamesConflict() {
     let (context, _) = runEnter(["var g = 1; var g = 2"])
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(messages.contains("invalid redeclaration of 'g'"))
 }
 
-@Test func repeatedPropertyNamesConflict() {
+@Test
+func repeatedPropertyNamesConflict() {
     let (context, _) = runEnter(["struct S { var p: Int; var p: Int }"])
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(messages.contains("invalid redeclaration of 'p'"))
 }

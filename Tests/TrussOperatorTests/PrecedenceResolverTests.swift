@@ -3,10 +3,11 @@ import TrussCore
 import TrussOperator
 
 func resolvedMessages(_ context: Context) -> [String] {
-    context.diagnositicEngine.diagnostics.map(\.message)
+    context.diagnosticEngine.diagnostics.map(\.message)
 }
 
-@Test func resolveHigherThan() throws {
+@Test
+func resolveHigherThan() throws {
     let (_, table, _) = runResolved([
         "precedencegroup A {} precedencegroup B {} precedencegroup C { higherThan: B }",
     ])
@@ -16,7 +17,8 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(c.resolvedHigherThan[0] === b)
 }
 
-@Test func resolveLowerThan() throws {
+@Test
+func resolveLowerThan() throws {
     let (_, table, _) = runResolved([
         "precedencegroup A {} precedencegroup B {} precedencegroup C { lowerThan: A }",
     ])
@@ -26,7 +28,8 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(c.resolvedLowerThan[0] === a)
 }
 
-@Test func resolveOperatorGroup() {
+@Test
+func resolveOperatorGroup() {
     let (_, table, _) = runResolved([
         "infix operator +: P precedencegroup P {}",
     ])
@@ -34,7 +37,8 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(table.root.operators["+"]?.resolvedGroup === p)
 }
 
-@Test func resolveQualifiedOperatorGroup() {
+@Test
+func resolveQualifiedOperatorGroup() {
     let (_, table, _) = runResolved([
         "module M { precedencegroup P {} } infix operator +: M.P",
     ])
@@ -42,14 +46,16 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(table.root.operators["+"]?.resolvedGroup === mP)
 }
 
-@Test func unknownOperatorGroupReportsError() {
+@Test
+func unknownOperatorGroupReportsError() {
     let (context, table, _) = runResolved(["infix operator +: Nope"])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     #expect(resolvedMessages(context).contains("unknown precedence group 'Nope'"))
     #expect(table.root.operators["+"]?.resolvedGroup == nil)
 }
 
-@Test func operatorGroupFallsBackAlongLexicalChain() {
+@Test
+func operatorGroupFallsBackAlongLexicalChain() {
     let (_, table, _) = runResolved([
         "precedencegroup P {} module M { infix operator +: P }",
     ])
@@ -57,22 +63,25 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(table.modules["M"]!.operators["+"]?.resolvedGroup === rootP)
 }
 
-@Test func defaultPrecedenceHookFindsUserGroup() {
+@Test
+func defaultPrecedenceHookFindsUserGroup() {
     let (context, table, _) = runResolved([
         "precedencegroup DefaultPrecedence {} infix operator +",
     ])
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
     let def = table.root.precedenceGroups["DefaultPrecedence"]!
     #expect(table.root.operators["+"]?.defaultGroup === def)
 }
 
-@Test func defaultPrecedenceHookMissesSilently() {
+@Test
+func defaultPrecedenceHookMissesSilently() {
     let (context, table, _) = runResolved(["infix operator +"])
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
     #expect(table.root.operators["+"]?.defaultGroup == nil)
 }
 
-@Test func defaultPrecedenceHookSearchesLexicalChain() {
+@Test
+func defaultPrecedenceHookSearchesLexicalChain() {
     let (_, table, _) = runResolved([
         "precedencegroup DefaultPrecedence {} module M { infix operator + }",
     ])
@@ -80,14 +89,16 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(table.modules["M"]!.operators["+"]?.defaultGroup === def)
 }
 
-@Test func defaultPrecedenceHookSkipsNonInfix() {
+@Test
+func defaultPrecedenceHookSkipsNonInfix() {
     let (_, table, _) = runResolved([
         "precedencegroup DefaultPrecedence {} prefix operator -",
     ])
     #expect(table.root.operators["-"]?.defaultGroup == nil)
 }
 
-@Test func explicitGroupBeatsDefaultHook() {
+@Test
+func explicitGroupBeatsDefaultHook() {
     let (_, table, _) = runResolved([
         "precedencegroup P {} precedencegroup DefaultPrecedence {} infix operator +: P",
     ])
@@ -97,16 +108,18 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(info.defaultGroup == nil)
 }
 
-@Test func unknownReferenceReportsError() throws {
+@Test
+func unknownReferenceReportsError() throws {
     let (context, table, _) = runResolved(["precedencegroup A { higherThan: Nope }"])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     #expect(resolvedMessages(context).contains("unknown precedence group 'Nope'"))
     let a = table.root.precedenceGroups["A"]!
     try #require(a.resolvedHigherThan.count == 1)
     #expect(a.resolvedHigherThan[0] == nil)
 }
 
-@Test func moduleReferenceResolvesWithinModule() {
+@Test
+func moduleReferenceResolvesWithinModule() {
     let (_, table, _) = runResolved([
         "module M { precedencegroup A {} precedencegroup B { higherThan: A } }",
     ])
@@ -116,7 +129,8 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(b.resolvedHigherThan[0] === a)
 }
 
-@Test func moduleReferenceFallsBackToRoot() {
+@Test
+func moduleReferenceFallsBackToRoot() {
     let (_, table, _) = runResolved([
         "precedencegroup A {} module M { precedencegroup B { higherThan: A } }",
     ])
@@ -125,7 +139,8 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(mB.resolvedHigherThan[0] === rootA)
 }
 
-@Test func moduleQualifiedReference() {
+@Test
+func moduleQualifiedReference() {
     let (_, table, _) = runResolved([
         "precedencegroup A {} module M { precedencegroup B {} } precedencegroup C { higherThan: M.B }",
     ])
@@ -134,7 +149,8 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(c.resolvedHigherThan[0] === mB)
 }
 
-@Test func nestedModuleQualifiedReference() {
+@Test
+func nestedModuleQualifiedReference() {
     let (_, table, _) = runResolved([
         "module M { module N { precedencegroup P {} } } precedencegroup Q { higherThan: M.N.P }",
     ])
@@ -143,7 +159,8 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(q.resolvedHigherThan[0] === p)
 }
 
-@Test func nestedModuleLexicalChain() {
+@Test
+func nestedModuleLexicalChain() {
     let (_, table, _) = runResolved([
         "module A { precedencegroup X {} module B { precedencegroup Y { higherThan: X } } }",
     ])
@@ -152,7 +169,8 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(y.resolvedHigherThan[0] === x)
 }
 
-@Test func nestedModuleRelativeReference() {
+@Test
+func nestedModuleRelativeReference() {
     let (_, table, _) = runResolved([
         "module A { module B { precedencegroup C {} } precedencegroup D { higherThan: B.C } }",
     ])
@@ -161,7 +179,8 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(d.resolvedHigherThan[0] === c)
 }
 
-@Test func nestedModuleAbsoluteReference() {
+@Test
+func nestedModuleAbsoluteReference() {
     let (_, table, _) = runResolved([
         "module A { module B { precedencegroup C {} } precedencegroup D { higherThan: A.B.C } }",
     ])
@@ -170,7 +189,8 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(d.resolvedHigherThan[0] === c)
 }
 
-@Test func nestedModuleFallsBackToOuterModule() {
+@Test
+func nestedModuleFallsBackToOuterModule() {
     let (_, table, _) = runResolved([
         "module A { precedencegroup D { higherThan: B.X } } module B { precedencegroup X {} }",
     ])
@@ -179,15 +199,17 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(d.resolvedHigherThan[0] === x)
 }
 
-@Test func nestedModuleUnknownGroupMessage() {
+@Test
+func nestedModuleUnknownGroupMessage() {
     let (context, _, _) = runResolved([
         "module A { module B {} precedencegroup D { higherThan: B.Nope } }",
     ])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     #expect(resolvedMessages(context).contains("unknown precedence group 'B.Nope'"))
 }
 
-@Test func deepNestedLexicalChain() {
+@Test
+func deepNestedLexicalChain() {
     let (_, table, _) = runResolved([
         "module A { precedencegroup X {} module B { module C { precedencegroup Y { higherThan: X } } } }",
     ])
@@ -196,7 +218,8 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(y.resolvedHigherThan[0] === x)
 }
 
-@Test func nestedModuleInnerShadowedByRoot() {
+@Test
+func nestedModuleInnerShadowedByRoot() {
     let (_, table, _) = runResolved([
         "precedencegroup X {} module A { precedencegroup X {} module B { precedencegroup Y { higherThan: X } } }",
     ])
@@ -205,47 +228,52 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(y.resolvedHigherThan[0] === innerX)
 }
 
-@Test func unknownModuleReportsError() {
+@Test
+func unknownModuleReportsError() {
     let (context, table, _) = runResolved([
         "precedencegroup B { higherThan: Nope.P }",
     ])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     #expect(resolvedMessages(context).contains("unknown module 'Nope'"))
     let b = table.root.precedenceGroups["B"]!
     #expect(b.resolvedHigherThan[0] == nil)
 }
 
-@Test func unknownGroupInModuleReportsError() {
+@Test
+func unknownGroupInModuleReportsError() {
     let (context, table, _) = runResolved([
         "module M {} precedencegroup B { higherThan: M.Nope }",
     ])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     #expect(resolvedMessages(context).contains("unknown precedence group 'M.Nope'"))
     let b = table.root.precedenceGroups["B"]!
     #expect(b.resolvedHigherThan[0] == nil)
 }
 
-@Test func selfReferenceReportsError() {
+@Test
+func selfReferenceReportsError() {
     let (context, table, _) = runResolved(["precedencegroup A { higherThan: A }"])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     #expect(resolvedMessages(context).contains("precedence group 'A' cannot be higher than itself"))
     let a = table.root.precedenceGroups["A"]!
     #expect(a.resolvedHigherThan[0] === a)
 }
 
-@Test func selfReferenceViaModuleReportsError() {
+@Test
+func selfReferenceViaModuleReportsError() {
     let (context, _, _) = runResolved([
         "module M { precedencegroup A { higherThan: M.A } }",
     ])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     #expect(resolvedMessages(context).contains("precedence group 'A' cannot be higher than itself"))
 }
 
-@Test func contradictionReportsError() {
+@Test
+func contradictionReportsError() {
     let (context, table, _) = runResolved([
         "precedencegroup A {} precedencegroup B { higherThan: A lowerThan: A }",
     ])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     #expect(resolvedMessages(context).contains("precedence group 'B' is both higher than and lower than 'A'"))
     let a = table.root.precedenceGroups["A"]!
     let b = table.root.precedenceGroups["B"]!
@@ -253,16 +281,18 @@ func resolvedMessages(_ context: Context) -> [String] {
     #expect(b.resolvedLowerThan[0] === a)
 }
 
-@Test func nonReferenceFormReportsError() throws {
+@Test
+func nonReferenceFormReportsError() throws {
     let (context, table, _) = runResolved(["precedencegroup A { higherThan: 42 }"])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     #expect(resolvedMessages(context).contains("expected a precedence group reference"))
     let a = table.root.precedenceGroups["A"]!
     try #require(a.resolvedHigherThan.count == 1)
     #expect(a.resolvedHigherThan[0] == nil)
 }
 
-@Test func crossFileReference() {
+@Test
+func crossFileReference() {
     let (_, table, _) = runResolved([
         "precedencegroup A { higherThan: B }",
         "precedencegroup B {}",

@@ -1063,6 +1063,21 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitCast(_ castExpression: AST.Cast, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let value = visitExpression(castExpression.left)
+        switch castExpression.kind {
+        case .Is:
+            return nil
+        default:
+            // TODO:
+            return nil
+        }
+    }
+
+    @discardableResult
     private func visitBlock(_ statements: [AST.Statement]) -> TIR.Value? {
         for (index, statement) in statements.enumerated() {
             if index == statements.count - 1,

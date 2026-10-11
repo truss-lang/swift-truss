@@ -888,7 +888,7 @@ public final class Preprocessor {
         guard let source = context.sourceTable[token.id] else {
             return
         }
-        context.diagnositicEngine.emit(
+        context.diagnosticEngine.emit(
             Diagnostic(
                 severity: severity, message: message,
                 range: token.sourceRange(in: source.stringSourceBuffer),

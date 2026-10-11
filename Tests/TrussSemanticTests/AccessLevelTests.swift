@@ -2,20 +2,23 @@ import Testing
 import TrussCore
 import TrussSemantics
 
-@Test func defaultAccessIsInternal() {
+@Test
+func defaultAccessIsInternal() {
     let (_, programs) = runEnter(["let x"])
     let variableDecl = programs[0].statements[0] as! AST.VariableDecl
     #expect(variableDecl.symbol?.access == .Internal)
     #expect(variableDecl.symbol?.setterAccess == nil)
 }
 
-@Test func publicStructAccess() {
+@Test
+func publicStructAccess() {
     let (_, programs) = runEnter(["public struct S {}"])
     let structDecl = programs[0].statements[0] as! AST.StructDecl
     #expect(structDecl.symbol?.access == .Public)
 }
 
-@Test func privateSetterOnly() {
+@Test
+func privateSetterOnly() {
     let (_, programs) = runEnter(["struct S {\n    private(set) var x\n}"])
     let structDecl = programs[0].statements[0] as! AST.StructDecl
     let body = structDecl.body[0] as! AST.VariableDecl
@@ -23,7 +26,8 @@ import TrussSemantics
     #expect(body.symbol?.setterAccess == .Private)
 }
 
-@Test func publicPrivateSetter() {
+@Test
+func publicPrivateSetter() {
     let (_, programs) = runEnter(["public struct S {\n    public private(set) var x\n}"])
     let structDecl = programs[0].statements[0] as! AST.StructDecl
     let body = structDecl.body[0] as! AST.VariableDecl
@@ -31,17 +35,19 @@ import TrussSemantics
     #expect(body.symbol?.setterAccess == .Private)
 }
 
-@Test func duplicateAccessModifier() {
+@Test
+func duplicateAccessModifier() {
     let (context, _) = runEnter(["public private struct S {}"])
-    #expect(context.diagnositicEngine.hasErrors)
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(messages.contains("duplicate access modifier 'private'"))
 }
 
-@Test func setterBroaderThanGetter() {
+@Test
+func setterBroaderThanGetter() {
     let (context, _) = runEnter(["struct S {\n    private public(set) var x\n}"])
-    #expect(context.diagnositicEngine.hasErrors)
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(
         messages.contains(
             "setter access level 'public' cannot be broader than getter access level 'private'"
@@ -49,7 +55,8 @@ import TrussSemantics
     )
 }
 
-@Test func memberSymbolsRecordOwnerType() {
+@Test
+func memberSymbolsRecordOwnerType() {
     let (_, programs) = runEnter(["struct S {\n    func f() {}\n    let v\n}"])
     let structDecl = programs[0].statements[0] as! AST.StructDecl
     let structId = structDecl.symbol?.id
@@ -60,7 +67,8 @@ import TrussSemantics
     #expect(functionDecl.symbol?.packageId == programs[0].packageSymbol?.id)
 }
 
-@Test func moduleSymbolRecorded() {
+@Test
+func moduleSymbolRecorded() {
     let (_, programs) = runEnter(["module M {\n    struct A {}\n}\nstruct B {}"])
     let moduleDecl = programs[0].statements[0] as! AST.ModuleDecl
     let aDecl = moduleDecl.body[0] as! AST.StructDecl
@@ -69,7 +77,8 @@ import TrussSemantics
     #expect(bDecl.symbol?.moduleSymbol == nil)
 }
 
-@Test func extensionMemberGetsOwnerType() {
+@Test
+func extensionMemberGetsOwnerType() {
     let (_, programs) = runEnter(["struct S {}\nextension S {\n    func f() {}\n}"])
     let extensionDecl = programs[0].statements[1] as! AST.ExtensionDecl
     let functionDecl = extensionDecl.body[0] as! AST.FunctionDecl
@@ -77,7 +86,8 @@ import TrussSemantics
     #expect(functionDecl.symbol?.memberOf == structDecl.symbol?.id)
 }
 
-@Test func caseSymbolAccess() {
+@Test
+func caseSymbolAccess() {
     let (_, programs) = runEnter(["enum E {\n    case A\n}"])
     let enumDecl = programs[0].statements[0] as! AST.EnumDecl
     let caseDecl = enumDecl.body[0] as! AST.EnumCaseDecl

@@ -2,8 +2,10 @@ import Testing
 import TrussCore
 @testable import TrussTIRGen
 
-@Suite struct TIRGenTests {
-    @Test func basicFunction() throws {
+@Suite
+struct TIRGenTests {
+    @Test
+    func basicFunction() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -19,7 +21,8 @@ import TrussCore
         try #require(tir.contains("ret "))
     }
 
-    @Test func matchStatement() throws {
+    @Test
+    func matchStatement() throws {
         let tir = dumpTIR(
             """
             enum E {
@@ -39,7 +42,8 @@ import TrussCore
         try #require(tir.contains("case B"))
     }
 
-    @Test func matchCaseMemberSubjectLowersToSwitchEnum() throws {
+    @Test
+    func matchCaseMemberSubjectLowersToSwitchEnum() throws {
         let tir = dumpTIR(
             """
             enum En {
@@ -61,7 +65,8 @@ import TrussCore
         try #require(tir.contains("case OtherCase"))
     }
 
-    @Test func matchImplicitReturnInFunction() throws {
+    @Test
+    func matchImplicitReturnInFunction() throws {
         let tir = dumpTIR(
             """
             enum E {
@@ -79,7 +84,8 @@ import TrussCore
         try #require(tir.contains("phi "))
     }
 
-    @Test func matchImplicitReturnInGetter() throws {
+    @Test
+    func matchImplicitReturnInGetter() throws {
         let tir = dumpTIR(
             """
             enum E {
@@ -102,7 +108,8 @@ import TrussCore
         try #require(tir.contains("phi "))
     }
 
-    @Test func matchImplicitReturnInClosure() throws {
+    @Test
+    func matchImplicitReturnInClosure() throws {
         let tir = dumpTIR(
             """
             enum E {
@@ -122,7 +129,8 @@ import TrussCore
         try #require(tir.contains("phi "))
     }
 
-    @Test func matchExpressionLowersToPhi() throws {
+    @Test
+    func matchExpressionLowersToPhi() throws {
         let tir = dumpTIR(
             """
             enum E {
@@ -146,7 +154,8 @@ import TrussCore
         ) != nil)
     }
 
-    @Test func ifExpressionLowersToPhi() throws {
+    @Test
+    func ifExpressionLowersToPhi() throws {
         let tir = dumpTIR(
             """
             func f(c: Builtin.Bool, a: Builtin.Int32, b: Builtin.Int32) -> Builtin.Int32 {
@@ -167,7 +176,8 @@ import TrussCore
         ) != nil)
     }
 
-    @Test func implicitReturnIfLowersToPhiReturn() throws {
+    @Test
+    func implicitReturnIfLowersToPhiReturn() throws {
         let tir = dumpTIR(
             """
             func f(c: Builtin.Bool, a: Builtin.Int32, b: Builtin.Int32) -> Builtin.Int32 {
@@ -188,7 +198,8 @@ import TrussCore
         try #require(fBlock.range(of: #"ret i32 %[0-9]+"#, options: .regularExpression) != nil)
     }
 
-    @Test func doExpressionLowersToPhi() throws {
+    @Test
+    func doExpressionLowersToPhi() throws {
         let tir = dumpTIR(
             """
             struct E {}
@@ -211,7 +222,8 @@ import TrussCore
         ) != nil)
     }
 
-    @Test func implicitReturnDoLowersToPhiReturn() throws {
+    @Test
+    func implicitReturnDoLowersToPhiReturn() throws {
         let tir = dumpTIR(
             """
             struct E {}
@@ -235,7 +247,8 @@ import TrussCore
         try #require(fBlock.range(of: #"Return %[0-9]+"#, options: .regularExpression) != nil)
     }
 
-    @Test func closureCapture() throws {
+    @Test
+    func closureCapture() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -254,7 +267,8 @@ import TrussCore
         try #require(tir.contains("Closure"))
     }
 
-    @Test func errorHandling() throws {
+    @Test
+    func errorHandling() throws {
         let tir = dumpTIR(
             """
             struct E {}
@@ -272,7 +286,8 @@ import TrussCore
         try #require(tir.contains("error:"))
     }
 
-    @Test func throwingFunctionReturnsOkErrTuple() throws {
+    @Test
+    func throwingFunctionReturnsOkErrTuple() throws {
         let tir = dumpTIR(
             """
             class E {
@@ -286,7 +301,8 @@ import TrussCore
         try #require(tir.contains("null"))
     }
 
-    @Test func tryLowersToTryCall() throws {
+    @Test
+    func tryLowersToTryCall() throws {
         let tir = dumpTIR(
             """
             class E {
@@ -306,7 +322,8 @@ import TrussCore
         try #require(tir.contains("errorcell"))
     }
 
-    @Test func tryQuestionLowersToOptionalPhi() throws {
+    @Test
+    func tryQuestionLowersToOptionalPhi() throws {
         let tir = dumpTIR(
             """
             class E {
@@ -323,7 +340,8 @@ import TrussCore
         try #require(tir.contains("phi "))
     }
 
-    @Test func tryExclamationTrapsOnError() throws {
+    @Test
+    func tryExclamationTrapsOnError() throws {
         let tir = dumpTIR(
             """
             class E {
@@ -339,7 +357,8 @@ import TrussCore
         try #require(tir.contains("unreachable"))
     }
 
-    @Test func catchTypePatternLowersToIsInstance() throws {
+    @Test
+    func catchTypePatternLowersToIsInstance() throws {
         let tir = dumpTIR(
             """
             class E {
@@ -358,7 +377,8 @@ import TrussCore
         try #require(tir.contains("trap \"uncaught error\""))
     }
 
-    @Test func catchBindingBindsErrorVariable() throws {
+    @Test
+    func catchBindingBindsErrorVariable() throws {
         let tir = dumpTIR(
             """
             class E {
@@ -378,7 +398,8 @@ import TrussCore
         try #require(tir.contains("alloca %"))
     }
 
-    @Test func doFinallyLowersOnExit() throws {
+    @Test
+    func doFinallyLowersOnExit() throws {
         let tir = dumpTIR(
             """
             class E {
@@ -399,7 +420,8 @@ import TrussCore
         try #require(tir.contains("store void 1"))
     }
 
-    @Test func closureLowersToFunctionAndClosureInstruction() throws {
+    @Test
+    func closureLowersToFunctionAndClosureInstruction() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -418,7 +440,8 @@ import TrussCore
         try #require(tir.contains("ret %"))
     }
 
-    @Test func closureCapturesMutableVariableByCell() throws {
+    @Test
+    func closureCapturesMutableVariableByCell() throws {
         let tir = dumpTIR(
             """
             precedencegroup Assignment { assignment: true }
@@ -439,7 +462,8 @@ import TrussCore
         try #require(tir.contains("closure @$t4main_1f_4Void_closure_0"))
     }
 
-    @Test func shorthandArgumentBindsClosureParameter() throws {
+    @Test
+    func shorthandArgumentBindsClosureParameter() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -457,7 +481,8 @@ import TrussCore
         try #require(tir.contains("load %"))
     }
 
-    @Test func voidLiteralLowersToVoidValue() throws {
+    @Test
+    func voidLiteralLowersToVoidValue() throws {
         let tir = dumpTIR(
             """
             func f() {
@@ -470,8 +495,10 @@ import TrussCore
     }
 }
 
-@Suite struct GlobalVarTests {
-    @Test func globalVariableLowered() throws {
+@Suite
+struct GlobalVarTests {
+    @Test
+    func globalVariableLowered() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -486,7 +513,8 @@ import TrussCore
         try #require(tir.contains("Load"))
     }
 
-    @Test func propertyInitializerInInit() throws {
+    @Test
+    func propertyInitializerInInit() throws {
         let tir = dumpTIR(
             """
             struct T {}
@@ -500,7 +528,8 @@ import TrussCore
         try #require(tir.contains("Store"))
     }
 
-    @Test func memberFunctionDoesNotReinitializeProperties() throws {
+    @Test
+    func memberFunctionDoesNotReinitializeProperties() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -520,7 +549,8 @@ import TrussCore
         try #require(fBlock.contains("Return"))
     }
 
-    @Test func accessorGetterCalled() throws {
+    @Test
+    func accessorGetterCalled() throws {
         let tir = dumpTIR(
             """
             struct T {}
@@ -539,7 +569,8 @@ import TrussCore
         try #require(tir.contains("Apply"))
     }
 
-    @Test func nestedModuleFunctionMangled() throws {
+    @Test
+    func nestedModuleFunctionMangled() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -554,7 +585,8 @@ import TrussCore
         try #require(!tir.contains("@$t4main_1f_1a10$t4main_1S_10$t4main_1S"))
     }
 
-    @Test func nestedModuleGlobalMangled() throws {
+    @Test
+    func nestedModuleGlobalMangled() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -569,7 +601,8 @@ import TrussCore
         try #require(tir.contains("GlobalAddr $t4main1A1B_1g"))
     }
 
-    @Test func nestedModuleAccessorMangled() throws {
+    @Test
+    func nestedModuleAccessorMangled() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -587,7 +620,8 @@ import TrussCore
         try #require(tir.contains("@$t4main1A1B_1T_1xGetter_10$t4main_1S"))
     }
 
-    @Test func nestedModuleDoesNotCollideWithTopLevel() throws {
+    @Test
+    func nestedModuleDoesNotCollideWithTopLevel() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -605,7 +639,8 @@ import TrussCore
         try #require(tir.contains("@$t4main1A1B_1f_1a10$t4main_1S_10$t4main_1S"))
     }
 
-    @Test func cnameOverridesMangledName() throws {
+    @Test
+    func cnameOverridesMangledName() throws {
         let tir = dumpTIR(
             """
             #[cname("my_name")]
@@ -615,7 +650,8 @@ import TrussCore
         try #require(tir.contains("@my_name"))
     }
 
-    @Test func cnameWithWrongArgumentCountReportsError() {
+    @Test
+    func cnameWithWrongArgumentCountReportsError() {
         let (context, program) = runPipeline(
             """
             #[cname("a", "b")]
@@ -624,13 +660,14 @@ import TrussCore
         )
         _ = TIRGen(context: context).generate(program)
         #expect(
-            context.diagnositicEngine.diagnostics.contains {
+            context.diagnosticEngine.diagnostics.contains {
                 $0.message.contains("cname attribute expects exactly one argument")
             }
         )
     }
 
-    @Test func globalVarCnameOverridesMangledName() throws {
+    @Test
+    func globalVarCnameOverridesMangledName() throws {
         let tir = dumpTIR(
             """
             struct T {
@@ -647,7 +684,8 @@ import TrussCore
         try #require(tir.contains("@g_name"))
     }
 
-    @Test func staticVarLoweredWithMangledName() throws {
+    @Test
+    func staticVarLoweredWithMangledName() throws {
         let tir = dumpTIR(
             """
             struct T {
@@ -665,7 +703,8 @@ import TrussCore
         try #require(tir.contains("@$t4main_1S_1s"))
     }
 
-    @Test func staticVarCnameOverridesMangledName() throws {
+    @Test
+    func staticVarCnameOverridesMangledName() throws {
         let tir = dumpTIR(
             """
             precedencegroup Assignment { assignment: true }
@@ -689,7 +728,8 @@ import TrussCore
         try #require(tir.contains("Load "))
     }
 
-    @Test func variableCnameWithWrongArgumentCountReportsError() {
+    @Test
+    func variableCnameWithWrongArgumentCountReportsError() {
         let (context, program) = runPipeline(
             """
             struct T {
@@ -701,13 +741,14 @@ import TrussCore
         )
         _ = TIRGen(context: context).generate(program)
         #expect(
-            context.diagnositicEngine.diagnostics.contains {
+            context.diagnosticEngine.diagnostics.contains {
                 $0.message.contains("cname attribute expects exactly one argument")
             }
         )
     }
 
-    @Test func externFunctionUsesPlainName() throws {
+    @Test
+    func externFunctionUsesPlainName() throws {
         let tir = dumpTIR(
             """
             extern "C" {
@@ -718,7 +759,8 @@ import TrussCore
         try #require(tir.contains("@foo"))
     }
 
-    @Test func externFunctionUsesCnameWhenPresent() throws {
+    @Test
+    func externFunctionUsesCnameWhenPresent() throws {
         let tir = dumpTIR(
             """
             extern "C" {
@@ -731,7 +773,8 @@ import TrussCore
         try #require(!tir.contains("@foo"))
     }
 
-    @Test func externFunctionWithBodyIsLowered() throws {
+    @Test
+    func externFunctionWithBodyIsLowered() throws {
         let tir = dumpTIR(
             """
             extern "C" {
@@ -745,7 +788,8 @@ import TrussCore
         try #require(tir.contains("ret "))
     }
 
-    @Test func externFunctionCallUsesExternName() throws {
+    @Test
+    func externFunctionCallUsesExternName() throws {
         let tir = dumpTIR(
             """
             extern "C" {
@@ -761,7 +805,8 @@ import TrussCore
         try #require(tir.contains("Apply "))
     }
 
-    @Test func externVariableUsesPlainName() throws {
+    @Test
+    func externVariableUsesPlainName() throws {
         let tir = dumpTIR(
             """
             extern "C" {
@@ -773,7 +818,8 @@ import TrussCore
         try #require(!tir.contains("global $t4main_1g"))
     }
 
-    @Test func externDeclarationIsExternWithConvention() throws {
+    @Test
+    func externDeclarationIsExternWithConvention() throws {
         let tir = dumpTIR(
             """
             extern "C" {
@@ -785,7 +831,8 @@ import TrussCore
         try #require(tir.contains("function foo extern \"C\""))
     }
 
-    @Test func externFunctionWithBodyKeepsConventionWithoutExtern() throws {
+    @Test
+    func externFunctionWithBodyKeepsConventionWithoutExtern() throws {
         let tir = dumpTIR(
             """
             extern "C" {
@@ -801,7 +848,8 @@ import TrussCore
         try #require(tir.contains("Return "))
     }
 
-    @Test func ordinaryFunctionHasNoExternOrConvention() throws {
+    @Test
+    func ordinaryFunctionHasNoExternOrConvention() throws {
         let tir = dumpTIR(
             """
             func foo(a: Builtin.Int32) -> Builtin.Int32 {
@@ -814,7 +862,8 @@ import TrussCore
         try #require(!tir.contains(" \"C\""))
     }
 
-    @Test func externVariableWithInitializerIsDefinition() throws {
+    @Test
+    func externVariableWithInitializerIsDefinition() throws {
         let tir = dumpTIR(
             """
             extern "C" {
@@ -827,7 +876,8 @@ import TrussCore
         try #require(!tir.contains("global extern g"))
     }
 
-    @Test func structDeinitCalledOnScopeExit() throws {
+    @Test
+    func structDeinitCalledOnScopeExit() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -847,7 +897,8 @@ import TrussCore
         try #require(fBody.contains("Apply "))
     }
 
-    @Test func structWithoutDeinitIsNotCalled() throws {
+    @Test
+    func structWithoutDeinitIsNotCalled() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -861,7 +912,8 @@ import TrussCore
         try #require(!tir.contains("$t4main_1S_6deinit"))
     }
 
-    @Test func classVariableReleasedOnScopeExit() throws {
+    @Test
+    func classVariableReleasedOnScopeExit() throws {
         let tir = dumpTIR(
             """
             class C {
@@ -876,7 +928,8 @@ import TrussCore
         try #require(fBody.contains("ReleaseValue"))
     }
 
-    @Test func refCopyRetainsAndReleasesBoth() throws {
+    @Test
+    func refCopyRetainsAndReleasesBoth() throws {
         let tir = dumpTIR(
             """
             class C {
@@ -901,7 +954,8 @@ import TrussCore
         try #require(releases == 2)
     }
 
-    @Test func refArgumentRetainedOnCall() throws {
+    @Test
+    func refArgumentRetainedOnCall() throws {
         let tir = dumpTIR(
             """
             class C {
@@ -920,7 +974,8 @@ import TrussCore
         try #require(fBody.contains("Apply "))
     }
 
-    @Test func breakReleasesLoopScopeVariables() throws {
+    @Test
+    func breakReleasesLoopScopeVariables() throws {
         let tir = dumpTIR(
             """
             class C {
@@ -939,7 +994,8 @@ import TrussCore
         try #require(fBody.contains("Branch "))
     }
 
-    @Test func guardFailureReleasesVariables() throws {
+    @Test
+    func guardFailureReleasesVariables() throws {
         let tir = dumpTIR(
             """
             class C {
@@ -957,7 +1013,8 @@ import TrussCore
         try #require(tir.contains("ReleaseValue"))
     }
 
-    @Test func closureCaptureRetainsRef() throws {
+    @Test
+    func closureCaptureRetainsRef() throws {
         let tir = dumpTIR(
             """
             class C {
@@ -975,7 +1032,8 @@ import TrussCore
         try #require(tir.contains("AllocCell"))
     }
 
-    @Test func optionalOverloadMangled() throws {
+    @Test
+    func optionalOverloadMangled() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -988,7 +1046,8 @@ import TrussCore
         try #require(tir.contains("@$t4main_1f_1a11O$t4main_1T_4Void"))
     }
 
-    @Test func genericInstantiationOverloadMangled() throws {
+    @Test
+    func genericInstantiationOverloadMangled() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1002,7 +1061,8 @@ import TrussCore
         try #require(tir.contains("@$t4main_1f_1a23G$t4main_3Box$t4main_1T_4Void"))
     }
 
-    @Test func functionTypeParameterOverloadMangled() throws {
+    @Test
+    func functionTypeParameterOverloadMangled() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1015,7 +1075,8 @@ import TrussCore
         try #require(tir.contains("@$t4main_1f_2cb16F$t4main_1TRVoid_4Void"))
     }
 
-    @Test func tupleParameterOverloadMangled() throws {
+    @Test
+    func tupleParameterOverloadMangled() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1028,7 +1089,8 @@ import TrussCore
         try #require(tir.contains("@$t4main_1f_1t21T$t4main_1T$t4main_1S_4Void"))
     }
 
-    @Test func crossModuleSameNameTypeMangled() throws {
+    @Test
+    func crossModuleSameNameTypeMangled() throws {
         let tir = dumpTIR(
             """
             module A { struct S {} }
@@ -1041,7 +1103,8 @@ import TrussCore
         try #require(tir.contains("@$t4main_1f_1a12$t4main1B_1S_4Void"))
     }
 
-    @Test func nestedTypeMangled() throws {
+    @Test
+    func nestedTypeMangled() throws {
         let tir = dumpTIR(
             """
             struct Outer { struct Inner {} }
@@ -1054,7 +1117,8 @@ import TrussCore
         try #require(tir.contains("@$t4main_1f_1a14$t4main_5Inner_4Void"))
     }
 
-    @Test func asyncThrowsFunctionTypeOverloadMangled() throws {
+    @Test
+    func asyncThrowsFunctionTypeOverloadMangled() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1069,8 +1133,10 @@ import TrussCore
     }
 }
 
-@Suite struct AccessorTests {
-    @Test func accessorFunctionsRegisteredByAccessorSymbol() throws {
+@Suite
+struct AccessorTests {
+    @Test
+    func accessorFunctionsRegisteredByAccessorSymbol() throws {
         let (_, gen, program) = collectTIR(
             """
             struct S {}
@@ -1099,7 +1165,8 @@ import TrussCore
         #expect(setter.name.contains("xSetter"))
     }
 
-    @Test func accessorFunctionsMangled() throws {
+    @Test
+    func accessorFunctionsMangled() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1117,7 +1184,8 @@ import TrussCore
         try #require(tir.contains("@$t4main_1T_1xSetter_4Void"))
     }
 
-    @Test func observerFunctionsMangled() throws {
+    @Test
+    func observerFunctionsMangled() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1134,7 +1202,8 @@ import TrussCore
         try #require(tir.contains("@$t4main_1T_1xDidSet_4Void"))
     }
 
-    @Test func assignmentCallsSetter() throws {
+    @Test
+    func assignmentCallsSetter() throws {
         let tir = dumpTIR(
             """
             precedencegroup Assignment { assignment: true }
@@ -1160,7 +1229,8 @@ import TrussCore
         try #require(tir.contains("Apply "))
     }
 
-    @Test func assignmentCallsObserversAroundStore() throws {
+    @Test
+    func assignmentCallsObserversAroundStore() throws {
         let tir = dumpTIR(
             """
             precedencegroup Assignment { assignment: true }
@@ -1190,7 +1260,8 @@ import TrussCore
         try #require(store.lowerBound < didSet.lowerBound)
     }
 
-    @Test func assignmentStoresToStoredProperty() throws {
+    @Test
+    func assignmentStoresToStoredProperty() throws {
         let tir = dumpTIR(
             """
             precedencegroup Assignment { assignment: true }
@@ -1213,7 +1284,8 @@ import TrussCore
         try #require(!tir.contains("xSetter_"))
     }
 
-    @Test func assignmentStoresToLocalVariable() throws {
+    @Test
+    func assignmentStoresToLocalVariable() throws {
         let tir = dumpTIR(
             """
             precedencegroup Assignment { assignment: true }
@@ -1234,7 +1306,8 @@ import TrussCore
     }
 }
 
-@Test func implicitSelfPropertyReadInGetter() throws {
+@Test
+func implicitSelfPropertyReadInGetter() throws {
     let tir = dumpTIR(
         """
         struct TT {
@@ -1255,7 +1328,8 @@ import TrussCore
     try #require(getterBlock.contains("Load "))
 }
 
-@Test func implicitSelfPropertyWriteInSetter() throws {
+@Test
+func implicitSelfPropertyWriteInSetter() throws {
     let tir = dumpTIR(
         """
         precedencegroup Assignment { assignment: true }
@@ -1279,7 +1353,8 @@ import TrussCore
     try #require(setterBlock.contains("Store "))
 }
 
-@Test func dumpShowsFunctionSignature() throws {
+@Test
+func dumpShowsFunctionSignature() throws {
     let tir = dumpTIR(
         """
         struct S {}
@@ -1291,8 +1366,10 @@ import TrussCore
     try #require(tir.contains("@$t4main_1f_1a10$t4main_1S_10$t4main_1S (%0 t4main_1S) -> t4main_1S"))
 }
 
-@Suite struct ControlFlowTests {
-    @Test func whileLoopBranchesOnCondition() throws {
+@Suite
+struct ControlFlowTests {
+    @Test
+    func whileLoopBranchesOnCondition() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1308,7 +1385,8 @@ import TrussCore
         try #require(tir.contains("br label"))
     }
 
-    @Test func continueBranchesBackToCondition() throws {
+    @Test
+    func continueBranchesBackToCondition() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1328,7 +1406,8 @@ import TrussCore
         try #require(lines.contains("  br label %\(condBlock)"))
     }
 
-    @Test func ifElseBranchesOnCondition() throws {
+    @Test
+    func ifElseBranchesOnCondition() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1343,7 +1422,8 @@ import TrussCore
         try #require(tir.contains("br i1"))
     }
 
-    @Test func guardReturnsOnFailure() throws {
+    @Test
+    func guardReturnsOnFailure() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1364,7 +1444,8 @@ import TrussCore
         try #require(tir.contains("\(falseTarget):\n  ret void"))
     }
 
-    @Test func repeatWhileReevaluatesCondition() throws {
+    @Test
+    func repeatWhileReevaluatesCondition() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1378,7 +1459,8 @@ import TrussCore
         try #require(tir.contains("br i1"))
     }
 
-    @Test func deferRunsBeforeReturn() throws {
+    @Test
+    func deferRunsBeforeReturn() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1395,7 +1477,8 @@ import TrussCore
         try #require(storeIndex.lowerBound < returnIndex.lowerBound)
     }
 
-    @Test func doFinallyRunsBeforeJoin() throws {
+    @Test
+    func doFinallyRunsBeforeJoin() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1412,7 +1495,8 @@ import TrussCore
         try #require(tir.contains("Store "))
     }
 
-    @Test func gotoBranchesToLabel() throws {
+    @Test
+    func gotoBranchesToLabel() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1426,7 +1510,8 @@ import TrussCore
         try #require(tir.contains("br label %label_label"))
     }
 
-    @Test func asmLowersToInlineAsm() throws {
+    @Test
+    func asmLowersToInlineAsm() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -1443,7 +1528,8 @@ import TrussCore
         try #require(!tir.contains("Trap"))
     }
 
-    @Test func forLoopLowersToTrap() throws {
+    @Test
+    func forLoopLowersToTrap() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1457,7 +1543,8 @@ import TrussCore
         try #require(tir.contains("Trap"))
     }
 
-    @Test func labeledBreakTargetsOuterLoop() throws {
+    @Test
+    func labeledBreakTargetsOuterLoop() throws {
         let labeled = dumpTIR(
             """
             func f(c: Builtin.Bool) {
@@ -1481,7 +1568,8 @@ import TrussCore
         try #require(labeled != plain)
     }
 
-    @Test func labeledContinueTargetsOuterLoop() throws {
+    @Test
+    func labeledContinueTargetsOuterLoop() throws {
         let tir = dumpTIR(
             """
             func f(c: Builtin.Bool) {
@@ -1495,7 +1583,8 @@ import TrussCore
         try #require(tir.contains("br label %bb0"))
     }
 
-    @Test func gotoCannotCrossDeferScopeEmitsDiagnostic() {
+    @Test
+    func gotoCannotCrossDeferScopeEmitsDiagnostic() {
         let (context, program) = runPipeline(
             """
             struct S {}
@@ -1509,13 +1598,14 @@ import TrussCore
         )
         _ = TIRGen(context: context).generate(program)
         #expect(
-            context.diagnositicEngine.diagnostics.contains {
+            context.diagnosticEngine.diagnostics.contains {
                 $0.message.contains("cannot use 'goto' to jump out of a scope containing 'defer'")
             }
         )
     }
 
-    @Test func matchNonExhaustiveEmitsDiagnostic() {
+    @Test
+    func matchNonExhaustiveEmitsDiagnostic() {
         let (context, program) = runPipeline(
             """
             enum E { case A; case B }
@@ -1528,11 +1618,12 @@ import TrussCore
         )
         _ = TIRGen(context: context).generate(program)
         #expect(
-            context.diagnositicEngine.diagnostics.contains { $0.message.contains("non-exhaustive match") }
+            context.diagnosticEngine.diagnostics.contains { $0.message.contains("non-exhaustive match") }
         )
     }
 
-    @Test func matchPayloadBindingBindsVariable() throws {
+    @Test
+    func matchPayloadBindingBindsVariable() throws {
         let tir = dumpTIR(
             """
             struct S { init() {} }
@@ -1550,7 +1641,8 @@ import TrussCore
         try #require(tir.contains("switch "))
     }
 
-    @Test func deferInIfBodyRunsOnBlockExit() throws {
+    @Test
+    func deferInIfBodyRunsOnBlockExit() throws {
         let tir = dumpTIR(
             """
             struct S {}
@@ -1564,7 +1656,8 @@ import TrussCore
         try #require(tir.contains("br i1"))
     }
 
-    @Test func valueIfWithoutElseEmitsDiagnostic() {
+    @Test
+    func valueIfWithoutElseEmitsDiagnostic() {
         let (context, program) = runPipeline(
             """
             func f(c: Builtin.Bool) -> Builtin.Int32 {
@@ -1575,10 +1668,11 @@ import TrussCore
             installBuiltin: true
         )
         _ = TIRGen(context: context).generate(program)
-        #expect(context.diagnositicEngine.hasErrors)
+        #expect(context.diagnosticEngine.hasErrors)
     }
 
-    @Test func breakOutsideLoopEmitsDiagnostic() {
+    @Test
+    func breakOutsideLoopEmitsDiagnostic() {
         let (context, program) = runPipeline(
             """
             func f() {
@@ -1588,15 +1682,17 @@ import TrussCore
         )
         _ = TIRGen(context: context).generate(program)
         #expect(
-            context.diagnositicEngine.diagnostics.contains {
+            context.diagnosticEngine.diagnostics.contains {
                 $0.message.contains("'break' outside of a loop")
             }
         )
     }
 }
 
-@Suite struct MissingLoweringTests {
-    @Test func ifLetBindingBindsVariable() throws {
+@Suite
+struct MissingLoweringTests {
+    @Test
+    func ifLetBindingBindsVariable() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -1613,7 +1709,8 @@ import TrussCore
         try #require(tir.contains("Load "))
     }
 
-    @Test func matchCaseBindingBindsVariable() throws {
+    @Test
+    func matchCaseBindingBindsVariable() throws {
         let tir = dumpTIR(
             """
             enum E {
@@ -1635,7 +1732,8 @@ import TrussCore
         try #require(tir.contains("Load "))
     }
 
-    @Test func guardLetBindingBindsVariable() throws {
+    @Test
+    func guardLetBindingBindsVariable() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -1652,7 +1750,8 @@ import TrussCore
         try #require(tir.contains("Return"))
     }
 
-    @Test func addressOfLowersToAddressToPointer() throws {
+    @Test
+    func addressOfLowersToAddressToPointer() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -1668,7 +1767,8 @@ import TrussCore
         try #require(tir.contains("Load "))
     }
 
-    @Test func nullPointerLiteralLowersToNullLiteral() throws {
+    @Test
+    func nullPointerLiteralLowersToNullLiteral() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -1682,7 +1782,8 @@ import TrussCore
         try #require(tir.contains("NullptrLiteral"))
     }
 
-    @Test func labeledBreakTargetsOuterLoop() throws {
+    @Test
+    func labeledBreakTargetsOuterLoop() throws {
         let plain = dumpTIR(
             """
             struct S {
@@ -1715,7 +1816,8 @@ import TrussCore
         try #require(labeled.contains("Branch "))
     }
 
-    @Test func closureBindingUsesClosureScope() throws {
+    @Test
+    func closureBindingUsesClosureScope() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -1735,7 +1837,8 @@ import TrussCore
     }
 }
 
-@Test func caseMatchLowersToBoolPhi() throws {
+@Test
+func caseMatchLowersToBoolPhi() throws {
     let tir = dumpTIR(
         """
         enum E {
@@ -1752,7 +1855,8 @@ import TrussCore
     try #require(tir.contains("Phi"))
 }
 
-@Test func optionalBindingExpressionLowersToBoolPhi() throws {
+@Test
+func optionalBindingExpressionLowersToBoolPhi() throws {
     let tir = dumpTIR(
         """
         struct S {
@@ -1770,7 +1874,8 @@ import TrussCore
     try #require(tir.contains("Phi"))
 }
 
-@Test func logicalAndShortCircuits() throws {
+@Test
+func logicalAndShortCircuits() throws {
     let tir = dumpTIR(
         """
         precedencegroup LogicalAnd { associativity: left }
@@ -1790,8 +1895,10 @@ import TrussCore
     try #require(!tir.contains("Apply "))
 }
 
-@Suite struct TypeLoweringTests {
-    @Test func enumMatchWithPayload() throws {
+@Suite
+struct TypeLoweringTests {
+    @Test
+    func enumMatchWithPayload() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -1814,7 +1921,8 @@ import TrussCore
         try #require(tir.contains("TupleElementAddr"))
     }
 
-    @Test func enumCaseValue() throws {
+    @Test
+    func enumCaseValue() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -1832,7 +1940,8 @@ import TrussCore
         try #require(tir.contains("case A"))
     }
 
-    @Test func forceUnwrapUncheckedEnumData() throws {
+    @Test
+    func forceUnwrapUncheckedEnumData() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -1847,7 +1956,8 @@ import TrussCore
         try #require(tir.contains("case some"))
     }
 
-    @Test func ifLetSwitchOnOptional() throws {
+    @Test
+    func ifLetSwitchOnOptional() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -1865,7 +1975,8 @@ import TrussCore
         try #require(tir.contains("case none"))
     }
 
-    @Test func upcastToProtocol() throws {
+    @Test
+    func upcastToProtocol() throws {
         let tir = dumpTIR(
             """
             protocol P {}
@@ -1880,7 +1991,8 @@ import TrussCore
         try #require(tir.contains("Upcast"))
     }
 
-    @Test func classStoredPropertyUsesRefElementAddr() throws {
+    @Test
+    func classStoredPropertyUsesRefElementAddr() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -1900,7 +2012,8 @@ import TrussCore
         try #require(tir.contains("Store "))
     }
 
-    @Test func classInheritedFieldsAppearInReferenceType() throws {
+    @Test
+    func classInheritedFieldsAppearInReferenceType() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -1927,7 +2040,8 @@ import TrussCore
         try #require(tir.contains("RefElementAddr %2, #0 a"))
     }
 
-    @Test func deinitFunctionLowered() throws {
+    @Test
+    func deinitFunctionLowered() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -1944,7 +2058,8 @@ import TrussCore
         try #require(tir.contains("@$t4main_1C_6deinit_4Void"))
     }
 
-    @Test func deinitBindsSelfAndAccessesMembers() throws {
+    @Test
+    func deinitBindsSelfAndAccessesMembers() throws {
         let tir = dumpTIR(
             """
             precedencegroup Assignment { assignment: true }
@@ -1966,7 +2081,8 @@ import TrussCore
         try #require(tir.contains("Store "))
     }
 
-    @Test func deinitPerClassMangledSeparately() throws {
+    @Test
+    func deinitPerClassMangledSeparately() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -1988,7 +2104,8 @@ import TrussCore
         try #require(tir.contains("@$t4main_1D_6deinit_4Void"))
     }
 
-    @Test func subscriptDeclLoweredToFunction() throws {
+    @Test
+    func subscriptDeclLoweredToFunction() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -2005,7 +2122,8 @@ import TrussCore
         try #require(tir.contains("@$t4main_1T_9subscript_1i10$t4main_1S_10$t4main_1S"))
     }
 
-    @Test func initCallLowered() throws {
+    @Test
+    func initCallLowered() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -2021,7 +2139,8 @@ import TrussCore
     }
 }
 
-@Test func initCallPassesSelfArgument() throws {
+@Test
+func initCallPassesSelfArgument() throws {
     let tir = dumpTIR(
         """
         struct S {
@@ -2038,7 +2157,8 @@ import TrussCore
     try #require(fBlock.contains("call "))
 }
 
-@Test func implicitReturnInFunctionBody() throws {
+@Test
+func implicitReturnInFunctionBody() throws {
     let tir = dumpTIR(
         """
         struct S {
@@ -2054,7 +2174,8 @@ import TrussCore
     try #require(fBlock.range(of: #"ret ".*"%\d+"#, options: .regularExpression) != nil)
 }
 
-@Test func implicitReturnInGetter() throws {
+@Test
+func implicitReturnInGetter() throws {
     let tir = dumpTIR(
         """
         struct S {
@@ -2073,7 +2194,8 @@ import TrussCore
     try #require(getterBlock.range(of: #"ret %\d+"#, options: .regularExpression) != nil)
 }
 
-@Test func implicitReturnInClosure() throws {
+@Test
+func implicitReturnInClosure() throws {
     let tir = dumpTIR(
         """
         struct S {}
@@ -2089,7 +2211,8 @@ import TrussCore
     try #require(closureBlock.range(of: #"ret %\d+"#, options: .regularExpression) != nil)
 }
 
-@Test func builtinTypeLowersToPrimitive() throws {
+@Test
+func builtinTypeLowersToPrimitive() throws {
     let tir = dumpTIR(
         """
         func f() {
@@ -2101,7 +2224,8 @@ import TrussCore
     try #require(tir.contains("i64"))
 }
 
-@Test func builtinBoolLowersToPrimitive() throws {
+@Test
+func builtinBoolLowersToPrimitive() throws {
     let tir = dumpTIR(
         """
         func f() {
@@ -2113,8 +2237,10 @@ import TrussCore
     try #require(tir.contains("b1"))
 }
 
-@Suite struct ValueLoweringTests {
-    @Test func binaryOperatorAppliesFunction() throws {
+@Suite
+struct ValueLoweringTests {
+    @Test
+    func binaryOperatorAppliesFunction() throws {
         let tir = dumpTIR(
             """
             precedencegroup P {}
@@ -2133,7 +2259,8 @@ import TrussCore
         try #require(tir.contains("Apply "))
     }
 
-    @Test func prefixOperatorAppliesFunction() throws {
+    @Test
+    func prefixOperatorAppliesFunction() throws {
         let tir = dumpTIR(
             """
             precedencegroup P {}
@@ -2151,7 +2278,8 @@ import TrussCore
         try #require(tir.contains("Apply "))
     }
 
-    @Test func tupleValueLowered() throws {
+    @Test
+    func tupleValueLowered() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -2166,7 +2294,8 @@ import TrussCore
         try #require(tir.contains("TupleValue"))
     }
 
-    @Test func arrayAndDictionaryLiterals() throws {
+    @Test
+    func arrayAndDictionaryLiterals() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -2183,7 +2312,8 @@ import TrussCore
         try #require(tir.contains("StringLiteral \"k\""))
     }
 
-    @Test func stringInterpolationLowered() throws {
+    @Test
+    func stringInterpolationLowered() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -2198,7 +2328,8 @@ import TrussCore
         try #require(tir.contains("Load "))
     }
 
-    @Test func closureShorthandArgument() throws {
+    @Test
+    func closureShorthandArgument() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -2216,7 +2347,8 @@ import TrussCore
         try #require(tir.contains("ret %"))
     }
 
-    @Test func globalInitializerLowered() throws {
+    @Test
+    func globalInitializerLowered() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -2234,7 +2366,8 @@ import TrussCore
         try #require(tir.contains("Store "))
     }
 
-    @Test func staticMethodCallLowered() throws {
+    @Test
+    func staticMethodCallLowered() throws {
         let tir = dumpTIR(
             """
             struct S {
@@ -2254,8 +2387,10 @@ import TrussCore
     }
 }
 
-@Suite struct TypeRegistryTests {
-    @Test func storedPropertyFieldIndexFollowsDeclarationOrder() throws {
+@Suite
+struct TypeRegistryTests {
+    @Test
+    func storedPropertyFieldIndexFollowsDeclarationOrder() throws {
         let tir = dumpTIR(
             """
             struct T {}
@@ -2276,7 +2411,8 @@ import TrussCore
         ) != nil)
     }
 
-    @Test func mutuallyRecursiveStructsLowerWithoutCycle() throws {
+    @Test
+    func mutuallyRecursiveStructsLowerWithoutCycle() throws {
         let tir = dumpTIR(
             """
             struct A {
@@ -2298,7 +2434,8 @@ import TrussCore
         try #require(tir.contains("a: "))
     }
 
-    @Test func recursiveClassFieldLowered() throws {
+    @Test
+    func recursiveClassFieldLowered() throws {
         let tir = dumpTIR(
             """
             class C {
@@ -2312,7 +2449,8 @@ import TrussCore
         try #require(tir.contains("next: "))
     }
 
-    @Test func computedAndStaticPropertiesExcludedFromFields() throws {
+    @Test
+    func computedAndStaticPropertiesExcludedFromFields() throws {
         let tir = dumpTIR(
             """
             struct T {}
@@ -2333,7 +2471,8 @@ import TrussCore
         try #require(!typeLine.contains("computed"))
     }
 
-    @Test func enumCasesDumpedWithAssociatedTypes() throws {
+    @Test
+    func enumCasesDumpedWithAssociatedTypes() throws {
         let tir = dumpTIR(
             """
             struct T {}
@@ -2353,7 +2492,8 @@ import TrussCore
     }
 }
 
-@Test func builtinArithCallLowersToArithInstruction() throws {
+@Test
+func builtinArithCallLowersToArithInstruction() throws {
     let tir = dumpTIR(
         """
         func f(a: Builtin.Int32, b: Builtin.Int32) -> Builtin.Int32 {
@@ -2367,7 +2507,8 @@ import TrussCore
     try #require(!tir.contains("Apply "))
 }
 
-@Test func builtinNegCallLowersToUnaryArith() throws {
+@Test
+func builtinNegCallLowersToUnaryArith() throws {
     let tir = dumpTIR(
         """
         func f(a: Builtin.Float64) -> Builtin.Float64 {
@@ -2380,7 +2521,8 @@ import TrussCore
     try #require(!tir.contains("Apply "))
 }
 
-@Test func builtinDivCoversIntAndUint() throws {
+@Test
+func builtinDivCoversIntAndUint() throws {
     let tir = dumpTIR(
         """
         func f(a: Builtin.Int32, b: Builtin.Int32) -> Builtin.Int32 {
@@ -2397,7 +2539,8 @@ import TrussCore
     try #require(!tir.contains("Apply "))
 }
 
-@Test func operatorFunctionBodyCallsBuiltin() throws {
+@Test
+func operatorFunctionBodyCallsBuiltin() throws {
     let tir = dumpTIR(
         """
         precedencegroup Additive { associativity: left }
@@ -2415,7 +2558,8 @@ import TrussCore
     try #require(tir.contains("Apply "))
 }
 
-@Test func logicalOrShortCircuitsBool() throws {
+@Test
+func logicalOrShortCircuitsBool() throws {
     let tir = dumpTIR(
         """
         precedencegroup LogicalOr { associativity: left }
@@ -2435,7 +2579,8 @@ import TrussCore
     try #require(!tir.contains("Apply "))
 }
 
-@Test func nonBoolAndOperatorApplies() throws {
+@Test
+func nonBoolAndOperatorApplies() throws {
     let tir = dumpTIR(
         """
         struct S {}
@@ -2451,7 +2596,8 @@ import TrussCore
     try #require(!tir.contains("CondBranch"))
 }
 
-@Test func nonBoolOrOperatorApplies() throws {
+@Test
+func nonBoolOrOperatorApplies() throws {
     let tir = dumpTIR(
         """
         struct S {}
@@ -2467,7 +2613,8 @@ import TrussCore
     try #require(!tir.contains("CondBranch"))
 }
 
-@Test func builtinCompareLowersToArith() throws {
+@Test
+func builtinCompareLowersToArith() throws {
     let tir = dumpTIR(
         """
         func f(a: Builtin.Int32, b: Builtin.Int32) -> Builtin.Bool {
@@ -2490,7 +2637,8 @@ import TrussCore
     try #require(!tir.contains("Apply "))
 }
 
-@Test func builtinNotAndBitnotLowerToUnaryArith() throws {
+@Test
+func builtinNotAndBitnotLowerToUnaryArith() throws {
     let tir = dumpTIR(
         """
         func f(a: Builtin.Bool) -> Builtin.Bool {
@@ -2507,7 +2655,8 @@ import TrussCore
     try #require(!tir.contains("Apply "))
 }
 
-@Test func memberAccessOnSelfUsesAddressDirectly() throws {
+@Test
+func memberAccessOnSelfUsesAddressDirectly() throws {
     let tir = dumpTIR(
         """
         struct S {
@@ -2523,7 +2672,8 @@ import TrussCore
     try #require(!tir.contains("Load %1 "))
 }
 
-@Test func memberAccessOnLocalUsesAddressDirectly() throws {
+@Test
+func memberAccessOnLocalUsesAddressDirectly() throws {
     let tir = dumpTIR(
         """
         struct S {
@@ -2539,7 +2689,8 @@ import TrussCore
     try #require(!tir.contains("Load %1 "))
 }
 
-@Suite struct CastPatternTests {
+@Suite
+struct CastPatternTests {
     private let source = """
     precedencegroup Assignment { assignment: true }
     precedencegroup Casting { }
@@ -2570,7 +2721,8 @@ import TrussCore
     }
     """
 
-    @Test func isCastEmitsMetadataAndIsInstance() throws {
+    @Test
+    func isCastEmitsMetadataAndIsInstance() throws {
         let tir = dumpTIR(source, installBuiltin: true)
         let f = tir.components(separatedBy: "@$t4main_8isAnimal").last ?? ""
         #expect(f.contains("typemetadata "))
@@ -2579,27 +2731,31 @@ import TrussCore
         #expect(f.contains("ret i1 "))
     }
 
-    @Test func staticUpcastEmitsUpcast() throws {
+    @Test
+    func staticUpcastEmitsUpcast() throws {
         let tir = dumpTIR(source, installBuiltin: true)
         let f = tir.components(separatedBy: "@$t4main_6upcast").last ?? ""
         #expect(f.contains("upcast %0 to %$t4main_6Animal"))
         #expect(!f.contains("isinstance"))
     }
 
-    @Test func forceCastEmitsUncheckedRefCast() throws {
+    @Test
+    func forceCastEmitsUncheckedRefCast() throws {
         let tir = dumpTIR(source, installBuiltin: true)
         let f = tir.components(separatedBy: "@$t4main_6forceUp").last ?? ""
         #expect(f.contains("uncheckedrefcast %0 to %$t4main_6Animal"))
     }
 
-    @Test func optionalAsEmitsSomeEnumValue() throws {
+    @Test
+    func optionalAsEmitsSomeEnumValue() throws {
         let tir = dumpTIR(source, installBuiltin: true)
         let f = tir.components(separatedBy: "@$t4main_5optUp").last ?? ""
         #expect(f.contains("enumvalue %Optional<$t4main_6Animal> case Some"))
         #expect(f.contains("uncheckedrefcast "))
     }
 
-    @Test func isPatternInMatchEmitsIsInstance() throws {
+    @Test
+    func isPatternInMatchEmitsIsInstance() throws {
         let tir = dumpTIR(source + """
         func matchAnimal(a: Animal) -> Builtin.Int32 {
             let result = match a {
@@ -2615,7 +2771,8 @@ import TrussCore
         #expect(f.contains("isinstance "))
     }
 
-    @Test func downcastAsEmitsCheckedDowncast() {
+    @Test
+    func downcastAsEmitsCheckedDowncast() {
         let tir = dumpTIR(source + """
         func downcast(a: Animal) -> Dog {
             return a as Dog
@@ -2627,7 +2784,8 @@ import TrussCore
         #expect(f.contains("uncheckedrefcast "))
     }
 
-    @Test func optionalAsDowncastEmitsOptionalDowncast() {
+    @Test
+    func optionalAsDowncastEmitsOptionalDowncast() {
         let tir = dumpTIR(source + """
         func optDown(a: Animal) -> Dog? {
             return a as? Dog
@@ -2639,7 +2797,8 @@ import TrussCore
         #expect(f.contains("enumvalue %Optional<$t4main_3Dog> case None"))
     }
 
-    @Test func asPatternBindsVariableInMatch() {
+    @Test
+    func asPatternBindsVariableInMatch() {
         let tir = dumpTIR(source + """
         func matchBind(a: Animal) -> Builtin.Int32 {
             let result = match a {

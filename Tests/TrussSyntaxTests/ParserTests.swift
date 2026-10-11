@@ -12,7 +12,7 @@ func parseWithDiagnostics(_ source: String) -> (AST.Program, [Diagnostic]) {
     let tokens = lexer.parse().tokens
     let result = LexerResult(id: Id.SourceId(0), tokens: tokens)
     let parser = Parser(context: context, packageName: "main", result)
-    return (parser.parse(), context.diagnositicEngine.diagnostics)
+    return (parser.parse(), context.diagnosticEngine.diagnostics)
 }
 
 func parse(_ source: String) -> AST.Program {

@@ -1,7 +1,8 @@
 import Testing
 import TrussCore
 
-@Test func downcastWithAsIsAllowed() {
+@Test
+func downcastWithAsIsAllowed() {
     let (context, _) = runFullChecks(
         ["""
         class Animal {}
@@ -13,11 +14,12 @@ import TrussCore
         """],
         installBuiltin: true
     )
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(!messages.contains(where: { $0.contains("expected 'Dog'") }))
 }
 
-@Test func isTestAllowsDowncast() {
+@Test
+func isTestAllowsDowncast() {
     let (context, _) = runFullChecks(
         ["""
         class Animal {}
@@ -28,11 +30,12 @@ import TrussCore
         """],
         installBuiltin: true
     )
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(!messages.contains(where: { $0.contains("expected 'Dog'") }))
 }
 
-@Test func asPatternBindsVariable() {
+@Test
+func asPatternBindsVariable() {
     let (context, _) = runFullChecks(
         ["""
         class Animal {}
@@ -47,7 +50,7 @@ import TrussCore
         """],
         installBuiltin: true
     )
-    let messages = context.diagnositicEngine.diagnostics.map(\.message)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(!messages.contains(where: { $0.contains("cannot find 'd'") }))
     #expect(!messages.contains(where: { $0.contains("expected 'Dog'") }))
 }

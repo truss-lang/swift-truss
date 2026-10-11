@@ -4,32 +4,35 @@ import TrussCore
 import TrussOperator
 
 func builtMessages(_ context: Context) -> [String] {
-    context.diagnositicEngine.diagnostics.map(\.message)
+    context.diagnosticEngine.diagnostics.map(\.message)
 }
 
-@Test func acyclicGraphBuildsWithoutDiagnostics() {
+@Test
+func acyclicGraphBuildsWithoutDiagnostics() {
     let (context, graph) = runBuilt([
         "precedencegroup A {} precedencegroup B {} precedencegroup C { higherThan: B }",
     ])
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
     #expect(graph.vertexCount == 3)
     #expect(graph.edgeCount == 1)
 }
 
-@Test func moduleGroupsAddedOnce() {
+@Test
+func moduleGroupsAddedOnce() {
     let (context, graph) = runBuilt([
         "module M { precedencegroup B { higherThan: A } } precedencegroup A {}",
     ])
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
     #expect(graph.vertexCount == 2)
     #expect(graph.edgeCount == 1)
 }
 
-@Test func twoGroupCycleReportsError() {
+@Test
+func twoGroupCycleReportsError() {
     let (context, _) = runBuilt([
         "precedencegroup A { higherThan: B } precedencegroup B { higherThan: A }",
     ])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     #expect(
         builtMessages(context).contains(
             "cyclic dependency between precedence groups: 'A' -> 'B' -> 'A'"
@@ -37,18 +40,19 @@ func builtMessages(_ context: Context) -> [String] {
     )
 }
 
-@Test func threeGroupCycleExpandsNotes() {
+@Test
+func threeGroupCycleExpandsNotes() {
     let (context, _) = runBuilt([
         "precedencegroup A { higherThan: B } precedencegroup B { higherThan: C } "
             + "precedencegroup C { higherThan: A }",
     ])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     #expect(
         builtMessages(context).contains(
             "cyclic dependency between precedence groups: 'A' -> 'B' -> 'C' -> 'A'"
         )
     )
-    let notes = context.diagnositicEngine.diagnostics.flatMap(\.notes).map(\.message)
+    let notes = context.diagnosticEngine.diagnostics.flatMap(\.notes).map(\.message)
     #expect(notes.count == 2)
     #expect(
         notes.contains("precedence group 'B' participates in this cycle")
@@ -58,11 +62,12 @@ func builtMessages(_ context: Context) -> [String] {
     )
 }
 
-@Test func crossModuleCycleUsesQualifiedNames() {
+@Test
+func crossModuleCycleUsesQualifiedNames() {
     let (context, _) = runBuilt([
         "precedencegroup A { higherThan: M.B } module M { precedencegroup B { higherThan: A } }",
     ])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     #expect(
         builtMessages(context).contains(
             "cyclic dependency between precedence groups: 'A' -> 'M.B' -> 'A'"
@@ -70,20 +75,22 @@ func builtMessages(_ context: Context) -> [String] {
     )
 }
 
-@Test func nestedModuleGroupBuildsIntoGraph() {
+@Test
+func nestedModuleGroupBuildsIntoGraph() {
     let (context, graph) = runBuilt([
         "module M { module N { precedencegroup P {} } } precedencegroup Q { higherThan: M.N.P }",
     ])
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
     #expect(graph.vertexCount == 2)
     #expect(graph.edgeCount == 1)
 }
 
-@Test func lowerThanCycleReportsError() {
+@Test
+func lowerThanCycleReportsError() {
     let (context, _) = runBuilt([
         "precedencegroup A { lowerThan: B } precedencegroup B { lowerThan: A }",
     ])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     #expect(
         builtMessages(context).contains(
             "cyclic dependency between precedence groups: 'A' -> 'B' -> 'A'"
@@ -91,9 +98,10 @@ func builtMessages(_ context: Context) -> [String] {
     )
 }
 
-@Test func selfReferenceNotRepeatedByBuilder() {
+@Test
+func selfReferenceNotRepeatedByBuilder() {
     let (context, _) = runBuilt(["precedencegroup A { higherThan: A }"])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     let messages = builtMessages(context)
     #expect(messages.filter { $0.hasPrefix("cyclic dependency") }.isEmpty)
     #expect(
@@ -102,11 +110,12 @@ func builtMessages(_ context: Context) -> [String] {
     )
 }
 
-@Test func contradictionNotRepeatedByBuilder() {
+@Test
+func contradictionNotRepeatedByBuilder() {
     let (context, _) = runBuilt([
         "precedencegroup A {} precedencegroup B { higherThan: A lowerThan: A }",
     ])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     let messages = builtMessages(context)
     #expect(messages.filter { $0.hasPrefix("cyclic dependency") }.isEmpty)
     #expect(
@@ -116,22 +125,24 @@ func builtMessages(_ context: Context) -> [String] {
     )
 }
 
-@Test func multipleCyclesReportSeparately() {
+@Test
+func multipleCyclesReportSeparately() {
     let (context, _) = runBuilt([
         "precedencegroup A { higherThan: B } precedencegroup B { higherThan: A } "
             + "precedencegroup C { higherThan: D } precedencegroup D { higherThan: C }",
     ])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     let cycles = builtMessages(context).filter { $0.hasPrefix("cyclic dependency") }
     #expect(cycles.count == 2)
 }
 
-@Test func cycleMixedWithNormalEdges() {
+@Test
+func cycleMixedWithNormalEdges() {
     let (context, graph) = runBuilt([
         "precedencegroup A { higherThan: B } precedencegroup B { higherThan: A } "
             + "precedencegroup C { higherThan: B }",
     ])
-    #expect(context.diagnositicEngine.hasErrors)
+    #expect(context.diagnosticEngine.hasErrors)
     #expect(builtMessages(context).filter { $0.hasPrefix("cyclic dependency") }.count == 1)
     #expect(graph.vertexCount == 3)
     #expect(graph.edgeCount == 3)

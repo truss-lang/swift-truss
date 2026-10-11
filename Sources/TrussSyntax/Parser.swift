@@ -83,7 +83,7 @@ public final class Parser {
     }
 
     private func emitError(_ message: String, at range: SourceRange) {
-        context.diagnositicEngine.emit(Diagnostic(severity: .error, message: message, range: range))
+        context.diagnosticEngine.emit(Diagnostic(severity: .error, message: message, range: range))
     }
 
     private func emitError(_ message: String, at location: SourceLocation) {
@@ -99,7 +99,7 @@ public final class Parser {
     }
 
     private func emitError(_ message: String, at token: Token, notes: [Diagnostic]) {
-        context.diagnositicEngine.emit(
+        context.diagnosticEngine.emit(
             Diagnostic(
                 severity: .error, message: message,
                 range: token.sourceRange(in: buffer),
@@ -2754,7 +2754,7 @@ public final class Parser {
                 let accessor = accessors.first {
                     $0.kind == .Get || $0.kind == .Set
                 }!
-                context.diagnositicEngine.emit(
+                context.diagnosticEngine.emit(
                     Diagnostic(
                         severity: .error,
                         message: "stored property cannot have a getter or setter",
@@ -6193,11 +6193,9 @@ public final class Parser {
             let kind: AST.Contract.Kind =
                 if token.kind == .Identifier(.Requires) {
                     .Requires
-                }
-                else if token.kind == .Identifier(.Ensures) {
+                } else if token.kind == .Identifier(.Ensures) {
                     .Ensures
-                }
-                else {
+                } else {
                     .Invariant
                 }
             index += 1

@@ -13,27 +13,30 @@ func runOperatorImports(
     return (context, table, programs)
 }
 
-@Test func operatorWildcardImportCopiesModuleOperators() {
+@Test
+func operatorWildcardImportCopiesModuleOperators() {
     let (context, table, _) = runOperatorImports([
         "module Ops { infix operator + prefix operator - }",
         "import operator Ops.*",
     ])
     #expect(table.root.operators["+"] != nil)
     #expect(table.root.operators["-"] != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func operatorSingleImportCopiesOneOperator() {
+@Test
+func operatorSingleImportCopiesOneOperator() {
     let (context, table, _) = runOperatorImports([
         "module Ops { infix operator + prefix operator - }",
         "import operator Ops.+",
     ])
     #expect(table.root.operators["+"] != nil)
     #expect(table.root.operators["-"] == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func operatorListImportCopiesSelectedOperators() {
+@Test
+func operatorListImportCopiesSelectedOperators() {
     let (context, table, _) = runOperatorImports([
         "module Ops { infix operator + infix operator * infix operator - }",
         "import operator Ops.{ +, - }",
@@ -41,34 +44,37 @@ func runOperatorImports(
     #expect(table.root.operators["+"] != nil)
     #expect(table.root.operators["-"] != nil)
     #expect(table.root.operators["*"] == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func operatorImportIntoNestedModuleSubmodule() {
+@Test
+func operatorImportIntoNestedModuleSubmodule() {
     let (context, table, _) = runOperatorImports([
         "module Ops { module Inner { infix operator + } }",
         "import operator Ops.Inner.*",
     ])
     #expect(table.root.operators["+"] != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func unresolvedOperatorModuleReportsError() {
+@Test
+func unresolvedOperatorModuleReportsError() {
     let (context, table, _) = runOperatorImports(["import operator Missing.*"])
-    #expect(context.diagnositicEngine.hasErrors)
-    #expect(context.diagnositicEngine.diagnostics.contains {
+    #expect(context.diagnosticEngine.hasErrors)
+    #expect(context.diagnosticEngine.diagnostics.contains {
         $0.message.contains("unresolved import 'Missing.*'")
     })
     #expect(table.root.operators.isEmpty)
 }
 
-@Test func unresolvedOperatorInModuleReportsError() {
+@Test
+func unresolvedOperatorInModuleReportsError() {
     let (context, _, _) = runOperatorImports([
         "module Ops { infix operator + }",
         "import operator Ops.-",
     ])
-    #expect(context.diagnositicEngine.hasErrors)
-    #expect(context.diagnositicEngine.diagnostics.contains {
+    #expect(context.diagnosticEngine.hasErrors)
+    #expect(context.diagnosticEngine.diagnostics.contains {
         $0.message.contains("unresolved import 'Ops.-'")
     })
 }

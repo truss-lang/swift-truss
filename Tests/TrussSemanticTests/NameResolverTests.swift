@@ -65,26 +65,29 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     return (context, programs[0])
 }
 
-@Test func valueReferenceOverloadsCollected() {
+@Test
+func valueReferenceOverloadsCollected() {
     let (context, program) = resolve("func f() {} func f(x: Int) {} let g = f")
     let decl = program.statements[2] as! AST.VariableDecl
     let initializer = decl.initializer as! AST.Variable
     #expect(initializer.overloads?.count == 2)
     #expect(initializer.overloads?.allSatisfy { $0.name == "f" } == true)
     #expect(initializer.symbol == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func singleCandidateAlsoCollected() {
+@Test
+func singleCandidateAlsoCollected() {
     let (context, program) = resolve("func g() {} let h = g")
     let decl = program.statements[1] as! AST.VariableDecl
     let initializer = decl.initializer as! AST.Variable
     #expect(initializer.overloads?.count == 1)
     #expect(initializer.symbol == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func nonFunctionBindingUntouched() {
+@Test
+func nonFunctionBindingUntouched() {
     let (context, program) = resolve("var x: Int = 0 let y = x")
     let x = program.statements[0] as! AST.VariableDecl
     #expect(x.symbol != nil)
@@ -92,10 +95,11 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     let initializer = decl.initializer as! AST.Variable
     #expect(initializer.symbol is Symbol.VariableSymbol)
     #expect(initializer.overloads == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func localVariableShadowsOverloads() {
+@Test
+func localVariableShadowsOverloads() {
     let (context, program) = resolve(
         "func f() {} func f(x: Int) {} func caller() { var f: Int = 0 let x = f }"
     )
@@ -107,28 +111,31 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     let initializer = decl.initializer as! AST.Variable
     #expect(initializer.symbol is Symbol.VariableSymbol)
     #expect(initializer.overloads == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func nestedTypeMemberResolved() {
+@Test
+func nestedTypeMemberResolved() {
     let (context, program) = resolve("struct A { struct B {} } let x = A.B")
     let decl = program.statements[1] as! AST.VariableDecl
     let member = decl.initializer as! AST.MemberAccess
     #expect(member.symbol?.name == "B")
     #expect(member.symbol is Symbol.NominalTypeSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func moduleMemberFunctionCollected() {
+@Test
+func moduleMemberFunctionCollected() {
     let (context, program) = resolve("module M { func f() {} } let x = M.f")
     let decl = program.statements[1] as! AST.VariableDecl
     let member = decl.initializer as! AST.MemberAccess
     #expect(member.overloads?.count == 1)
     #expect(member.symbol == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func moduleFunctionOverloadsCollected() {
+@Test
+func moduleFunctionOverloadsCollected() {
     let (context, program) = resolve(
         "module M { func f() {} func f(x: Int) {} } let x = M.f"
     )
@@ -136,18 +143,20 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     let member = decl.initializer as! AST.MemberAccess
     #expect(member.overloads?.count == 2)
     #expect(member.symbol == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func enumCaseMemberResolved() {
+@Test
+func enumCaseMemberResolved() {
     let (context, program) = resolve("enum E { case c } let x = E.c")
     let decl = program.statements[1] as! AST.VariableDecl
     let member = decl.initializer as! AST.MemberAccess
     #expect(member.symbol is Symbol.CaseSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func chainedTypeMemberResolved() {
+@Test
+func chainedTypeMemberResolved() {
     let (context, program) = resolve("module M { struct A { struct B {} } } let x = M.A.B")
     let decl = program.statements[1] as! AST.VariableDecl
     let outer = decl.initializer as! AST.MemberAccess
@@ -155,10 +164,11 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(outer.symbol?.name == "B")
     #expect(outer.symbol is Symbol.NominalTypeSymbol)
     #expect(inner.symbol?.name == "A")
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func instanceMemberSkipped() {
+@Test
+func instanceMemberSkipped() {
     let (context, program) = resolve(
         "struct S { var x: Int } func caller() { let s: S = S() s.x }"
     )
@@ -169,19 +179,21 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     let member = (statements[1] as! AST.ExpressionStatement).expression as! AST.MemberAccess
     #expect(member.symbol == nil)
     #expect(member.overloads == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func memberNotFoundLeavesNil() {
+@Test
+func memberNotFoundLeavesNil() {
     let (context, program) = resolve("struct A {} let x = A.zzz")
     let decl = program.statements[1] as! AST.VariableDecl
     let member = decl.initializer as! AST.MemberAccess
     #expect(member.symbol == nil)
     #expect(member.overloads == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func functionSignatureCached() {
+@Test
+func functionSignatureCached() {
     let (context, programs) = runEnter([
         "func f(_ a: Int, b: Int = 0, xs: Int...) {} func g(i: Int32, ...) {} "
             + "struct S { init(x: Int) {} subscript(i: Int) -> Int { 0 } }",
@@ -201,25 +213,28 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     let subSig =
         (s.scope.values["subscript"]![0] as! Symbol.SubscriptSymbol).getter.signature
     #expect(subSig.labels == ["i"])
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func functionParameterResolved() {
+@Test
+func functionParameterResolved() {
     let (context, probe) = probe("func f(x: Int) -> Int { return x }")
     let variable = probe.variables.first { $0.name.value == "x" }
     #expect(variable?.symbol?.name == "x")
     #expect(variable?.symbol is Symbol.VariableSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func closureParameterResolved() {
+@Test
+func closureParameterResolved() {
     let (context, probe) = probe("func g() { let c = { (y: Int) in y } }")
     let variable = probe.variables.first { $0.name.value == "y" }
     #expect(variable?.symbol?.name == "y")
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func closureLocalsIsolated() throws {
+@Test
+func closureLocalsIsolated() throws {
     let (context, probe) = probe(
         "func makeClosures() { let c1 = { var x = 1 x } let c2 = { var x = 2 x } }"
     )
@@ -227,59 +242,66 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     try #require(xs.count == 2)
     #expect(xs.allSatisfy { $0.symbol is Symbol.VariableSymbol })
     #expect(xs[0].symbol !== xs[1].symbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func forInVariableResolved() {
+@Test
+func forInVariableResolved() {
     let (context, probe) = probe("func h(xs: [Int]) { for i in xs { i } }")
     let variable = probe.variables.first { $0.name.value == "i" }
     #expect(variable?.symbol is Symbol.VariableSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func optionalBindingResolved() {
+@Test
+func optionalBindingResolved() {
     let (context, probe) = probe("func h(a: Int?) { if let x = a { x } }")
     let variable = probe.variables.first { $0.name.value == "x" }
     #expect(variable?.symbol is Symbol.VariableSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func casePatternBindingResolved() {
+@Test
+func casePatternBindingResolved() {
     let (context, probe) = probe(
         "enum E { case foo(Int) } func h(e: E) { if case .foo(let y) = e { y } }"
     )
     let variable = probe.variables.first { $0.name.value == "y" }
     #expect(variable?.symbol is Symbol.VariableSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func forInVariableResolvedWithWhereClause() {
+@Test
+func forInVariableResolvedWithWhereClause() {
     let (context, probe) = probe("func h(xs: [Int]) { for i in xs where i > 0 { i } }")
     let iVariables = probe.variables.filter { $0.name.value == "i" }
     #expect(iVariables.count == 3)
     #expect(iVariables.allSatisfy { $0.symbol is Symbol.VariableSymbol })
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func forCasePatternBindingResolvedWithWhereClause() {
+@Test
+func forCasePatternBindingResolvedWithWhereClause() {
     let (context, probe) = probe(
         "enum E { case foo(Int) } func h(xs: [E]) { for case .foo(let x) in xs where x > 0 { x } }"
     )
     let xs = probe.variables.filter { $0.name.value == "x" }
     #expect(xs.count == 2)
     #expect(xs.allSatisfy { $0.symbol is Symbol.VariableSymbol })
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func typeMemberResolvedFromTypeBody() {
+@Test
+func typeMemberResolvedFromTypeBody() {
     let (context, probe) = probe("struct S { func f() {} func g() { f() } }")
     let variable = probe.variables.first { $0.name.value == "f" }
     #expect(variable?.overloads?.count == 1)
     #expect(variable?.symbol == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func selfResolvedToCurrentType() throws {
+@Test
+func selfResolvedToCurrentType() throws {
     let (context, probe) = probe("struct S { var x: Int func m() { self } }")
     try #require(probe.selfExpressions.count == 1)
     let symbol = try #require(probe.selfExpressions[0].symbol)
@@ -289,18 +311,20 @@ func resolve(_ source: String) -> (Context, AST.Program) {
         symbol.memberOf.flatMap { context.id2Symbol[$0] } as? Symbol.StructSymbol
     )
     #expect(owner.name == "S")
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func selfMemberAccessResolved() {
+@Test
+func selfMemberAccessResolved() {
     let (context, probe) = probe("struct S { var x: Int func m() { self.x } }")
     let member = probe.memberAccesses.first { $0.member.value == "x" }
     #expect(member?.symbol is Symbol.VariableSymbol)
     #expect(member?.symbol?.name == "x")
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func superResolvedToSuperclass() throws {
+@Test
+func superResolvedToSuperclass() throws {
     let (context, probe) = probe(
         "class A { func f() {} } class B: A { func g() { super } }"
     )
@@ -312,10 +336,11 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     )
     #expect(owner.name == "B")
     #expect(owner.superclass?.name == "A")
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func superclassResolvedFromFirstInheritanceClause() {
+@Test
+func superclassResolvedFromFirstInheritanceClause() {
     let (context, programs) = runEnter(["class A {} class B: A {} class C: A, B {}"])
     NameResolver(context: context).visitProgram(programs[0])
     let packageScope = programs[0].packageSymbol!.scope
@@ -324,70 +349,78 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     let c = packageScope.types["C"] as! Symbol.ClassSymbol
     #expect(b.superclass === a)
     #expect(c.superclass === a)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func genericSuperclassResolved() {
+@Test
+func genericSuperclassResolved() {
     let (context, programs) = runEnter(["class A {} class B: A<Int32> {}"])
     NameResolver(context: context).visitProgram(programs[0])
     let packageScope = programs[0].packageSymbol!.scope
     let a = packageScope.types["A"] as! Symbol.NominalTypeSymbol
     let b = packageScope.types["B"] as! Symbol.ClassSymbol
     #expect(b.superclass === a)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func protocolConformanceIsNotSuperclass() {
+@Test
+func protocolConformanceIsNotSuperclass() {
     let (context, programs) = runEnter(["protocol P {} class D: P {}"])
     NameResolver(context: context).visitProgram(programs[0])
     let packageScope = programs[0].packageSymbol!.scope
     let d = packageScope.types["D"] as! Symbol.ClassSymbol
     #expect(d.superclass == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func implicitMemberAccessResolvedInTypeBody() throws {
+@Test
+func implicitMemberAccessResolvedInTypeBody() throws {
     let (context, probe) = probe("struct S { var f: Int func m() { .f } }")
     try #require(probe.implicitMembers.count == 1)
     #expect(probe.implicitMembers[0].symbol is Symbol.VariableSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func staticModifierParsedInTypeBody() throws {
+@Test
+func staticModifierParsedInTypeBody() throws {
     let (context, probe) = probe("struct S { static func f() {} func m() { .f } }")
     try #require(probe.implicitMembers.count == 1)
     #expect(probe.implicitMembers[0].overloads?.count == 1)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func inheritedMemberResolvedThroughSelf() {
+@Test
+func inheritedMemberResolvedThroughSelf() {
     let (context, probe) = probe(
         "class A { func base() {} } class B: A { func m() { self.base() } }"
     )
     let member = probe.memberAccesses.first { $0.member.value == "base" }
     #expect(member?.overloads?.count == 1)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func inheritedMemberResolvedThroughMultiLevelChain() {
+@Test
+func inheritedMemberResolvedThroughMultiLevelChain() {
     let (context, probe) = probe(
         "class A { func x() {} } class B: A {} class C: B { func m() { self.x() } }"
     )
     let member = probe.memberAccesses.first { $0.member.value == "x" }
     #expect(member?.overloads?.count == 1)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func inheritedMemberResolvedThroughImplicitMember() throws {
+@Test
+func inheritedMemberResolvedThroughImplicitMember() throws {
     let (context, probe) = probe(
         "class A { func base() {} } class B: A { func m() { .base } }"
     )
     try #require(probe.implicitMembers.count == 1)
     #expect(probe.implicitMembers[0].overloads?.count == 1)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func keyPathRootResolvedToType() throws {
+@Test
+func keyPathRootResolvedToType() throws {
     let (context, probe) = probe("struct Person { var name: Int } func f() { let k = \\Person.name }")
     let keyPath = probe.keyPaths[0]
     let root = keyPath.root as? AST.Variable
@@ -395,20 +428,22 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect((root?.symbol as? Symbol.NominalTypeSymbol)?.name == "Person")
     try #require(keyPath.components.count == 1)
     #expect(keyPath.components[0].symbol is Symbol.VariableSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func keyPathFunctionMemberOverloadsCollected() {
+@Test
+func keyPathFunctionMemberOverloadsCollected() {
     let (context, probe) = probe(
         "struct S { func g() {} func g(x: Int) {} } func f() { let k = \\S.g }"
     )
     let keyPath = probe.keyPaths[0]
     #expect(keyPath.components[0].symbol == nil)
     #expect(keyPath.components[0].overloads?.count == 2)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func keyPathNestedTypePrefixContinued() {
+@Test
+func keyPathNestedTypePrefixContinued() {
     let (context, probe) = probe(
         "struct A { struct B { var c: Int } } func f() { let k = \\A.B.c }"
     )
@@ -418,10 +453,11 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect((keyPath.components[0].symbol as? Symbol.NominalTypeSymbol)?.name == "B")
     #expect(keyPath.components[1].symbol is Symbol.VariableSymbol)
     #expect((keyPath.components[1].symbol as? Symbol.VariableSymbol)?.name == "c")
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func keyPathModulePrefixContinued() {
+@Test
+func keyPathModulePrefixContinued() {
     let (context, probe) = probe(
         "module M { struct T { var v: Int } } func f() { let k = \\M.T.v }"
     )
@@ -430,49 +466,55 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     #expect(keyPath.components[0].symbol is Symbol.NominalTypeSymbol)
     #expect((keyPath.components[0].symbol as? Symbol.NominalTypeSymbol)?.name == "T")
     #expect(keyPath.components[1].symbol is Symbol.VariableSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func keyPathNoRootComponentsUnresolved() {
+@Test
+func keyPathNoRootComponentsUnresolved() {
     let (context, probe) = probe("func f() { let k = \\.name }")
     let keyPath = probe.keyPaths[0]
     #expect(keyPath.root == nil)
     #expect(keyPath.components[0].symbol == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func keyPathInstanceMemberStopsResolution() {
+@Test
+func keyPathInstanceMemberStopsResolution() {
     let (context, probe) = probe("struct P { var a: Int } func f() { let k = \\P.a.b }")
     let keyPath = probe.keyPaths[0]
     #expect(keyPath.components[0].symbol is Symbol.VariableSymbol)
     #expect(keyPath.components[1].symbol == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func keyPathSelfComponentResolvedToBase() {
+@Test
+func keyPathSelfComponentResolvedToBase() {
     let (context, probe) = probe("struct P {} func f() { let k = \\P.self }")
     let keyPath = probe.keyPaths[0]
     #expect(keyPath.components[0].symbol is Symbol.NominalTypeSymbol)
     #expect((keyPath.components[0].symbol as? Symbol.NominalTypeSymbol)?.name == "P")
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func keyPathValueRootStopsResolution() {
+@Test
+func keyPathValueRootStopsResolution() {
     let (context, probe) = probe("var p = 1 func f() { let k = \\p.name }")
     let keyPath = probe.keyPaths[0]
     #expect((keyPath.root as? AST.Variable)?.symbol is Symbol.VariableSymbol)
     #expect(keyPath.components[0].symbol == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func keyPathUnknownMemberStaysNil() {
+@Test
+func keyPathUnknownMemberStaysNil() {
     let (context, probe) = probe("struct P { var a: Int } func f() { let k = \\P.missing }")
     let keyPath = probe.keyPaths[0]
     #expect(keyPath.components[0].symbol == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionSelfResolved() throws {
+@Test
+func extensionSelfResolved() throws {
     let (context, probe) = probe("struct S { var x: Int } extension S { func m() { self } }")
     try #require(probe.selfExpressions.count == 1)
     let symbol = try #require(probe.selfExpressions[0].symbol)
@@ -482,35 +524,39 @@ func resolve(_ source: String) -> (Context, AST.Program) {
         symbol.memberOf.flatMap { context.id2Symbol[$0] } as? Symbol.StructSymbol
     )
     #expect(owner.name == "S")
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionSelfMemberAccessResolved() {
+@Test
+func extensionSelfMemberAccessResolved() {
     let (context, probe) = probe("struct S { var x: Int } extension S { func m() { self.x } }")
     let member = probe.memberAccesses.first { $0.member.value == "x" }
     #expect(member?.symbol is Symbol.VariableSymbol)
     #expect(member?.symbol?.name == "x")
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionImplicitMemberResolved() throws {
+@Test
+func extensionImplicitMemberResolved() throws {
     let (context, probe) = probe("struct S { var f: Int } extension S { func m() { .f } }")
     try #require(probe.implicitMembers.count == 1)
     #expect(probe.implicitMembers[0].symbol is Symbol.VariableSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionMemberFunctionReferenceResolved() {
+@Test
+func extensionMemberFunctionReferenceResolved() {
     let (context, probe) = probe(
         "struct S {} extension S { func a() {} func b() { a() } }"
     )
     let variable = probe.variables.first { $0.name.value == "a" }
     #expect(variable?.overloads?.count == 1)
     #expect(variable?.symbol == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionSuperResolved() throws {
+@Test
+func extensionSuperResolved() throws {
     let (context, probe) = probe(
         "class A {} class B: A {} extension B { func m() { super } }"
     )
@@ -522,31 +568,34 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     )
     #expect(owner.name == "B")
     #expect(owner.superclass?.name == "A")
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionOfModuleTypeSelfResolved() {
+@Test
+func extensionOfModuleTypeSelfResolved() {
     let (context, probe) = probe(
         "module M { struct T { var v: Int } } extension M.T { func m() { self.v } }"
     )
     let member = probe.memberAccesses.first { $0.member.value == "v" }
     #expect(member?.symbol is Symbol.VariableSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func extensionUnresolvedBaseFallsBackSilently() throws {
+@Test
+func extensionUnresolvedBaseFallsBackSilently() throws {
     let (context, probe) = probe("extension NotFound { func m() { self } }")
     let symbol = try #require(probe.selfExpressions[0].symbol)
     #expect(symbol.name == "self")
     #expect(symbol.memberOf == nil)
     #expect(
-        !context.diagnositicEngine.diagnostics.contains {
+        !context.diagnosticEngine.diagnostics.contains {
             $0.message == "'self' is only available in an instance context"
         }
     )
 }
 
-@Test func initParameterResolvedInBody() {
+@Test
+func initParameterResolvedInBody() {
     let (context, probe) = probe(
         "struct S { var x: Int init(x: Int) { self.x = x } }"
     )
@@ -554,45 +603,50 @@ func resolve(_ source: String) -> (Context, AST.Program) {
         $0.name.value == "x" && $0.symbol is Symbol.VariableSymbol
     }
     #expect(variable != nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func subscriptParameterResolvedInBody() {
+@Test
+func subscriptParameterResolvedInBody() {
     let (context, probe) = probe("struct S { subscript(i: Int) -> Int { i } }")
     let variable = probe.variables.first { $0.name.value == "i" }
     #expect(variable?.symbol is Symbol.VariableSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func setterImplicitParameterResolved() {
+@Test
+func setterImplicitParameterResolved() {
     let (context, probe) = probe(
         "struct S { var x: Int { get { return 0 } set { x = newValue } } }"
     )
     let variable = probe.variables.first { $0.name.value == "newValue" }
     #expect(variable?.symbol is Symbol.VariableSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func setterNamedParameterResolved() {
+@Test
+func setterNamedParameterResolved() {
     let (context, probe) = probe(
         "struct S { var x: Int { get { return 0 } set(value) { x = value } } }"
     )
     let variable = probe.variables.first { $0.name.value == "value" }
     #expect(variable?.symbol is Symbol.VariableSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func modulePrefixSuperclassResolved() {
+@Test
+func modulePrefixSuperclassResolved() {
     let (context, programs) = runEnter(["module M { class C {} } class D: M.C {}"])
     NameResolver(context: context).visitProgram(programs[0])
     let packageScope = programs[0].packageSymbol!.scope
     let d = packageScope.types["D"] as! Symbol.ClassSymbol
     let c = packageScope.modules["M"]!.scope.types["C"] as! Symbol.ClassSymbol
     #expect(d.superclass === c)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func ifLetShorthandShadowResolved() {
+@Test
+func ifLetShorthandShadowResolved() {
     let (context, program) = resolve("func f(x: Int?) { if let x { g(x) } }")
     let functionDecl = program.statements[0] as! AST.FunctionDecl
     guard case let .Block(statements) = functionDecl.body else {
@@ -607,10 +661,11 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     let arg = call.arguments[0].value as! AST.Variable
     #expect(arg.symbol is Symbol.VariableSymbol)
     #expect(arg.symbol !== paramSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func ifLetExplicitShadowResolved() {
+@Test
+func ifLetExplicitShadowResolved() {
     let (context, program) = resolve("func f(x: Int?) { if let x = x { g(x) } }")
     let functionDecl = program.statements[0] as! AST.FunctionDecl
     guard case let .Block(statements) = functionDecl.body else {
@@ -625,13 +680,14 @@ func resolve(_ source: String) -> (Context, AST.Program) {
     let arg = call.arguments[0].value as! AST.Variable
     #expect(arg.symbol is Symbol.VariableSymbol)
     #expect(arg.symbol !== paramSymbol)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
 
-@Test func ifBodyLocalsIsolatedFromOuterScope() {
+@Test
+func ifBodyLocalsIsolatedFromOuterScope() {
     let (context, program) = resolve("func f(c: Bool) { if c { let x = 1 } }")
     let functionDecl = program.statements[0] as! AST.FunctionDecl
     let functionScope = functionDecl.symbol!.scope
     #expect(functionScope.values["x"] == nil)
-    #expect(!context.diagnositicEngine.hasErrors)
+    #expect(!context.diagnosticEngine.hasErrors)
 }
