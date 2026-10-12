@@ -13,11 +13,18 @@ public final class ControlFlowChecker: AST.Visitor {
         }
     }
 
+    private struct DeferBoundary {
+        let loopDepth: Int
+        let labelCount: Int
+        let labels: Set<String>
+    }
+
     private let context: Context
     private var loopDepth = 0
     private var functionReturnType: TrussType.TrussType?
     private var functionLabels: Set<String> = []
     private var enclosingLabels: [String] = []
+    private var deferBoundaries: [DeferBoundary] = []
 
     public init(context: Context) {
         self.context = context
@@ -26,8 +33,10 @@ public final class ControlFlowChecker: AST.Visitor {
     public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional: Any? = nil) -> Any? {
         let savedReturn = functionReturnType
         let savedLabels = functionLabels
+        let savedDeferBoundaries = deferBoundaries
         functionReturnType = functionDecl.symbol?.functionType?.returnType
         functionLabels = collectLabels(functionDecl.body)
+        deferBoundaries = []
         if case let .Block(statements) = functionDecl.body {
             checkUnreachable(statements)
         }
@@ -42,15 +51,19 @@ public final class ControlFlowChecker: AST.Visitor {
         }
         functionReturnType = savedReturn
         functionLabels = savedLabels
+        deferBoundaries = savedDeferBoundaries
         return nil
     }
 
     public override func visitClosure(_ closure: AST.Closure, additional: Any? = nil) -> Any? {
         let savedLoopDepth = loopDepth
+        let savedDeferBoundaries = deferBoundaries
         loopDepth = 0
+        deferBoundaries = []
         checkUnreachable(closure.body)
         super.visitClosure(closure, additional: additional)
         loopDepth = savedLoopDepth
+        deferBoundaries = savedDeferBoundaries
         return nil
     }
 
@@ -132,7 +145,16 @@ public final class ControlFlowChecker: AST.Visitor {
 
     public override func visitDefer(_ deferStatement: AST.Defer, additional: Any? = nil) -> Any? {
         checkUnreachable(deferStatement.body)
-        return super.visitDefer(deferStatement, additional: additional)
+        deferBoundaries.append(
+            DeferBoundary(
+                loopDepth: loopDepth,
+                labelCount: enclosingLabels.count,
+                labels: collectLabels(deferStatement.body)
+            )
+        )
+        super.visitDefer(deferStatement, additional: additional)
+        deferBoundaries.removeLast()
+        return nil
     }
 
     public override func visitLabeledStatement(
@@ -154,6 +176,17 @@ public final class ControlFlowChecker: AST.Visitor {
                 "cannot find label '\(label.value)' for 'break'", at: label
             )
         }
+        if let label = breakStatement.label {
+            if escapesDeferLabel(label) {
+                context.emitError(
+                    "'break' cannot transfer control out of a defer statement", at: breakStatement.token
+                )
+            }
+        } else if loopDepth > 0, escapesDeferLoop() {
+            context.emitError(
+                "'break' cannot transfer control out of a defer statement", at: breakStatement.token
+            )
+        }
         return nil
     }
 
@@ -168,6 +201,17 @@ public final class ControlFlowChecker: AST.Visitor {
                 "cannot find label '\(label.value)' for 'continue'", at: label
             )
         }
+        if let label = continueStatement.label {
+            if escapesDeferLabel(label) {
+                context.emitError(
+                    "'continue' cannot transfer control out of a defer statement", at: continueStatement.token
+                )
+            }
+        } else if loopDepth > 0, escapesDeferLoop() {
+            context.emitError(
+                "'continue' cannot transfer control out of a defer statement", at: continueStatement.token
+            )
+        }
         return nil
     }
 
@@ -177,8 +221,28 @@ public final class ControlFlowChecker: AST.Visitor {
                 "cannot find label '\(gotoStatement.label.value)' for 'goto'",
                 at: gotoStatement.label
             )
+        } else if escapesDeferGoto(gotoStatement.label) {
+            context.emitError(
+                "'goto' cannot transfer control out of a defer statement", at: gotoStatement.token
+            )
         }
         return nil
+    }
+
+    public override func visitReturn(_ returnStatement: AST.Return, additional: Any? = nil) -> Any? {
+        if !deferBoundaries.isEmpty {
+            context.emitError(
+                "'return' cannot transfer control out of a defer statement", at: returnStatement.token
+            )
+        }
+        return super.visitReturn(returnStatement, additional: additional)
+    }
+
+    public override func visitThrow(_ throwStatement: AST.Throw, additional: Any? = nil) -> Any? {
+        if !deferBoundaries.isEmpty {
+            context.emitError("errors cannot be thrown out of a defer body", at: throwStatement.token)
+        }
+        return super.visitThrow(throwStatement, additional: additional)
     }
 
     private func hasReturnPath(_ statements: [AST.Statement]) -> Bool {
@@ -213,6 +277,38 @@ public final class ControlFlowChecker: AST.Visitor {
             return hasReturnPath(doExpression.body)
         }
         return true
+    }
+
+    private func escapesDeferLoop() -> Bool {
+        guard let boundary = deferBoundaries.last else {
+            return false
+        }
+        return loopDepth <= boundary.loopDepth
+    }
+
+    private func escapesDeferLabel(_ label: Token) -> Bool {
+        guard let boundary = deferBoundaries.last else {
+            return false
+        }
+        guard let index = enclosingLabels.lastIndex(of: label.value) else {
+            return false
+        }
+        return index < boundary.labelCount
+    }
+
+    private func escapesDeferGoto(_ label: Token) -> Bool {
+        guard let boundary = deferBoundaries.last else {
+            return false
+        }
+        return !boundary.labels.contains(label.value)
+    }
+
+    private func collectLabels(_ statements: [AST.Statement]) -> Set<String> {
+        let collector = LabelCollector()
+        for statement in statements {
+            collector.visit(statement)
+        }
+        return collector.labels
     }
 
     private func collectLabels(_ body: AST.FunctionDecl.Body?) -> Set<String> {
