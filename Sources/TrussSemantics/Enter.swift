@@ -9,6 +9,7 @@ public final class Enter: AST.Visitor {
     private var moduleScope: Scope? = nil
     private var inFunctionBody = 0
     private var inExtension = 0
+    private var nestedLocalsStack: [[Symbol.VariableSymbol]] = []
 
     public init(context: Context) {
         self.context = context
@@ -86,6 +87,7 @@ public final class Enter: AST.Visitor {
         let hasSelf = isMemberImplementation && functionDecl.body != nil
             && !containsStatic(functionDecl.modifiers)
             && !containsAbstract(functionDecl.modifiers)
+        nestedLocalsStack.append([])
         let scope = withFunctionBody {
             withScope { scope in
                 if hasSelf {
@@ -98,6 +100,7 @@ public final class Enter: AST.Visitor {
                 super.visitFunctionDecl(functionDecl, additional: additional)
             }
         }
+        let nestedLocals = nestedLocalsStack.removeLast()
         let isStatic = containsStatic(functionDecl.modifiers)
         let kind: Symbol.FunctionSymbol.Kind = if isStatic {
             .StaticMethod
@@ -109,7 +112,7 @@ public final class Enter: AST.Visitor {
         let symbol = Symbol.FunctionSymbol(
             id: context.nextSymbolId,
             name: functionDecl.name.value,
-            locals: locals(of: scope),
+            locals: locals(of: scope) + nestedLocals,
             scope: scope,
             signature: signature(
                 of: functionDecl.parameters,
@@ -125,6 +128,7 @@ public final class Enter: AST.Visitor {
     @discardableResult
     public override func visitInitDecl(_ initDecl: AST.InitDecl, additional: Any? = nil) -> Any? {
         let hasSelf = isMemberImplementation && !containsAbstract(initDecl.modifiers)
+        nestedLocalsStack.append([])
         let scope = withFunctionBody {
             withScope { scope in
                 if hasSelf {
@@ -137,10 +141,11 @@ public final class Enter: AST.Visitor {
                 super.visitInitDecl(initDecl, additional: additional)
             }
         }
+        let nestedLocals = nestedLocalsStack.removeLast()
         let symbol = Symbol.FunctionSymbol(
             id: context.nextSymbolId,
             name: "init",
-            locals: locals(of: scope),
+            locals: locals(of: scope) + nestedLocals,
             scope: scope,
             signature: signature(of: initDecl.parameters, isVariadic: false),
             kind: .Initializer
@@ -413,6 +418,39 @@ public final class Enter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitGuard(_ guardStatement: AST.Guard, additional: Any? = nil) -> Any? {
+        visit(guardStatement.condition, additional: additional)
+        let scope = withScope { scope in
+            guardStatement.scope = scope
+            for statement in guardStatement.body {
+                visit(statement, additional: additional)
+            }
+        }
+        collectNestedLocals(of: scope)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitDo(_ doExpression: AST.Do, additional: Any? = nil) -> Any? {
+        let scope = withScope { scope in
+            doExpression.scope = scope
+            super.visitDo(doExpression, additional: additional)
+        }
+        collectNestedLocals(of: scope)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitMatch(_ matchExpression: AST.Match, additional: Any? = nil) -> Any? {
+        let scope = withScope { scope in
+            matchExpression.scope = scope
+            super.visitMatch(matchExpression, additional: additional)
+        }
+        collectNestedLocals(of: scope)
+        return nil
+    }
+
+    @discardableResult
     public override func visitOptionalBinding(
         _ optionalBinding: AST.OptionalBinding, additional: Any? = nil
     ) -> Any? {
@@ -553,6 +591,13 @@ public final class Enter: AST.Visitor {
 
     private func locals(of scope: Scope) -> [Symbol.VariableSymbol] {
         scope.values.values.flatMap { $0 }.compactMap { $0 as? Symbol.VariableSymbol }
+    }
+
+    private func collectNestedLocals(of scope: Scope) {
+        guard !nestedLocalsStack.isEmpty else {
+            return
+        }
+        nestedLocalsStack[nestedLocalsStack.count - 1].append(contentsOf: locals(of: scope))
     }
 
     private func signature(

@@ -2305,91 +2305,97 @@ public final class TypeChecker: AST.Visitor {
             }
 
         case let matchExpression as AST.Match:
-            let subjectType = infer(matchExpression.subject, at: token)
-            var caseTypes: [TrussType.TrussType] = []
-            for caseItem in matchExpression.cases {
-                for pattern in caseItem.patterns {
-                    checkPattern(pattern, against: subjectType, at: matchExpression.token)
+            withScope(matchExpression.scope) {
+                let subjectType = infer(matchExpression.subject, at: token)
+                var caseTypes: [TrussType.TrussType] = []
+                for caseItem in matchExpression.cases {
+                    for pattern in caseItem.patterns {
+                        checkPattern(pattern, against: subjectType, at: matchExpression.token)
+                    }
+                    if let whereCondition = caseItem.whereCondition {
+                        _ = infer(whereCondition, at: matchExpression.token)
+                    }
+                    for statement in caseItem.body {
+                        visit(statement)
+                    }
+                    if let expressionStatement = caseItem.body.last as? AST.ExpressionStatement,
+                       let caseType = infer(
+                           expressionStatement.expression,
+                           at: token
+                       )
+                    {
+                        caseTypes.append(caseType)
+                    } else {
+                        caseTypes.append(TrussType.VoidType.INSTANCE)
+                    }
                 }
-                if let whereCondition = caseItem.whereCondition {
-                    _ = infer(whereCondition, at: matchExpression.token)
-                }
-                for statement in caseItem.body {
-                    visit(statement)
-                }
-                if let expressionStatement = caseItem.body.last as? AST.ExpressionStatement, let caseType = infer(
-                    expressionStatement.expression,
-                    at: token
-                ) {
-                    caseTypes.append(caseType)
-                } else {
-                    caseTypes.append(TrussType.VoidType.INSTANCE)
-                }
+                expression.ty = join(caseTypes, at: token)
+                checkMatchExhaustive(
+                    subjectType: subjectType, cases: matchExpression.cases,
+                    at: matchExpression.token
+                )
             }
-            expression.ty = join(caseTypes, at: token)
-            checkMatchExhaustive(
-                subjectType: subjectType, cases: matchExpression.cases,
-                at: matchExpression.token
-            )
 
         case let doExpression as AST.Do:
-            doThrownTypeStack.append([])
-            for statement in doExpression.body {
-                visit(statement)
-            }
-            let bodyType = if let last = doExpression.body.last as? AST.ExpressionStatement, let ty = infer(
-                last.expression,
-                at: token
-            ) {
-                ty
-            } else {
-                TrussType.VoidType.INSTANCE
-            }
-            var catchTypes: [TrussType.TrussType] = []
-            let thrownTypes = doThrownTypeStack.last ?? []
-            for catchClause in doExpression.catches {
-                if let pattern = catchClause.pattern {
-                    var matched = false
-                    for thrownType in thrownTypes {
-                        if checkPattern(pattern, against: thrownType, at: token, reportErrors: false) {
-                            matched = true
-                            break
-                        }
-                    }
-                    if !matched, let first = thrownTypes.first {
-                        _ = checkPattern(pattern, against: first, at: token)
-                    }
-                }
-                if let whereCondition = catchClause.whereCondition {
-                    _ = infer(whereCondition, at: catchClause.whereToken ?? token)
-                }
-                for statement in catchClause.body {
+            withScope(doExpression.scope) {
+                doThrownTypeStack.append([])
+                for statement in doExpression.body {
                     visit(statement)
                 }
-                if let last = catchClause.body.last as? AST.ExpressionStatement, let ty = infer(
+                let bodyType = if let last = doExpression.body.last as? AST.ExpressionStatement, let ty = infer(
                     last.expression,
                     at: token
                 ) {
-                    catchTypes.append(ty)
+                    ty
                 } else {
-                    catchTypes.append(TrussType.VoidType.INSTANCE)
+                    TrussType.VoidType.INSTANCE
                 }
-            }
-            if let finallyClauseBody = doExpression.finallyBody {
-                for statement in finallyClauseBody {
-                    visit(statement)
-                }
-                expression.ty =
-                    if let last = finallyClauseBody.last as? AST.ExpressionStatement,
-                    let ty = infer(last.expression, at: token) {
-                        ty
-                    } else {
-                        TrussType.VoidType.INSTANCE
+                var catchTypes: [TrussType.TrussType] = []
+                let thrownTypes = doThrownTypeStack.last ?? []
+                for catchClause in doExpression.catches {
+                    if let pattern = catchClause.pattern {
+                        var matched = false
+                        for thrownType in thrownTypes {
+                            if checkPattern(pattern, against: thrownType, at: token, reportErrors: false) {
+                                matched = true
+                                break
+                            }
+                        }
+                        if !matched, let first = thrownTypes.first {
+                            _ = checkPattern(pattern, against: first, at: token)
+                        }
                     }
-            } else {
-                expression.ty = join([bodyType] + catchTypes, at: token)
+                    if let whereCondition = catchClause.whereCondition {
+                        _ = infer(whereCondition, at: catchClause.whereToken ?? token)
+                    }
+                    for statement in catchClause.body {
+                        visit(statement)
+                    }
+                    if let last = catchClause.body.last as? AST.ExpressionStatement, let ty = infer(
+                        last.expression,
+                        at: token
+                    ) {
+                        catchTypes.append(ty)
+                    } else {
+                        catchTypes.append(TrussType.VoidType.INSTANCE)
+                    }
+                }
+                if let finallyClauseBody = doExpression.finallyBody {
+                    for statement in finallyClauseBody {
+                        visit(statement)
+                    }
+                    expression.ty =
+                        if let last = finallyClauseBody.last as? AST.ExpressionStatement,
+                        let ty = infer(last.expression, at: token) {
+                            ty
+                        } else {
+                            TrussType.VoidType.INSTANCE
+                        }
+                } else {
+                    expression.ty = join([bodyType] + catchTypes, at: token)
+                }
+                doThrownTypeStack.removeLast()
             }
-            doThrownTypeStack.removeLast()
 
         case let call as AST.Call:
             call.callee.willBeCalled = true

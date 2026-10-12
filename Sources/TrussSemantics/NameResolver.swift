@@ -206,6 +206,33 @@ public final class NameResolver: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitGuard(_ guardStatement: AST.Guard, additional: Any? = nil) -> Any? {
+        visit(guardStatement.condition, additional: additional)
+        scopeStack.append(guardStatement.scope!)
+        for statement in guardStatement.body {
+            visit(statement, additional: additional)
+        }
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
+    public override func visitDo(_ doExpression: AST.Do, additional: Any? = nil) -> Any? {
+        scopeStack.append(doExpression.scope!)
+        super.visitDo(doExpression, additional: additional)
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
+    public override func visitMatch(_ matchExpression: AST.Match, additional: Any? = nil) -> Any? {
+        scopeStack.append(matchExpression.scope!)
+        super.visitMatch(matchExpression, additional: additional)
+        scopeStack.removeLast()
+        return nil
+    }
+
+    @discardableResult
     public override func visitVariable(_ variable: AST.Variable, additional: Any? = nil) -> Any? {
         guard let (index, entries) = lookupScopeEntry(variable.name.value) else {
             return nil

@@ -236,6 +236,7 @@ public extension AST {
         public let token: Token
         public let subject: Expression
         public let cases: [Case]
+        public var scope: Scope? = nil
         public init(
             _ token: Token, _ subject: Expression, _ cases: [Case], sourceRange: SourceRange
         ) {
@@ -247,6 +248,14 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitMatch(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            super.copySemantics(from: other)
+            guard let otherMatch = other as? AST.Match else {
+                return
+            }
+            scope = otherMatch.scope
         }
 
         public struct Case {
@@ -271,6 +280,7 @@ public extension AST {
         public let body: [Statement]
         public let catches: [CatchClause]
         public let finallyBody: [Statement]?
+        public var scope: Scope? = nil
         public init(
             _ token: Token, _ body: [Statement], _ catches: [CatchClause],
             _ finallyBody: [Statement]?, sourceRange: SourceRange
@@ -284,6 +294,14 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitDo(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            super.copySemantics(from: other)
+            guard let otherDo = other as? AST.Do else {
+                return
+            }
+            scope = otherDo.scope
         }
 
         public struct CatchClause {
