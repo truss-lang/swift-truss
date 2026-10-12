@@ -20,6 +20,11 @@ public final class TIREmitter: AST.Visitor {
         init() {}
     }
 
+    private class DeferDomain {
+        var defers: [AST.Defer] = []
+        init() {}
+    }
+
     private let context: Context
     private let gen: GenerationContext
     private var currentFunction: TIR.Function?
@@ -30,6 +35,7 @@ public final class TIREmitter: AST.Visitor {
     private var loopTargetMap: [String: LoopTarget] = [:]
     private var loopTargetCache: [ObjectIdentifier: LoopTarget] = [:]
     private var loopStack: [LoopTarget] = []
+    private var deferDomainStack: [DeferDomain] = []
 
     private var currentModule: TIR.Module? {
         get {
@@ -111,6 +117,8 @@ public final class TIREmitter: AST.Visitor {
                 let v = visitBlock(statements)
                 if let v {
                     emitReturn(v)
+                } else {
+                    emitFunctionNormalExit()
                 }
             case let .Expression(expression):
                 emitReturn(visitExpression(expression))
@@ -138,6 +146,7 @@ public final class TIREmitter: AST.Visitor {
             for statement in initDecl.body {
                 visit(statement)
             }
+            emitFunctionNormalExit()
         } prologue: { [self] in
             bindLocal("<self>", fn.parameters[0])
         }
@@ -159,6 +168,7 @@ public final class TIREmitter: AST.Visitor {
             for statement in deinitDecl.body {
                 visit(statement)
             }
+            emitFunctionNormalExit()
         } prologue: { [self] in
             bindLocal("<self>", fn.parameters[0])
         }
@@ -190,6 +200,7 @@ public final class TIREmitter: AST.Visitor {
                 for statement in statements {
                     visit(statement)
                 }
+                emitFunctionNormalExit()
             case let .Expression(expression):
                 emitReturn(visitExpression(expression))
             }
@@ -212,15 +223,18 @@ public final class TIREmitter: AST.Visitor {
         let lastLoopTargetMap = loopTargetMap
         let lastLoopTargetCache = loopTargetCache
         let lastLoopStack = loopStack
+        let lastDeferDomainStack = deferDomainStack
         labelMap = [:]
         loopLabelMap = [:]
         loopTargetMap = [:]
         loopTargetCache = [:]
         loopStack = []
+        deferDomainStack = []
 
         currentFunction = fn
         variableMap[ObjectIdentifier(fn)] = [:]
         pushScope()
+        deferDomainStack.append(DeferDomain())
 
         newBlock("entry")
 
@@ -246,6 +260,7 @@ public final class TIREmitter: AST.Visitor {
         loopTargetMap = lastLoopTargetMap
         loopTargetCache = lastLoopTargetCache
         loopStack = lastLoopStack
+        deferDomainStack = lastDeferDomainStack
         variableMap.removeValue(forKey: ObjectIdentifier(fn))
         popScope()
     }
@@ -257,6 +272,12 @@ public final class TIREmitter: AST.Visitor {
         } else {
             emitReturn()
         }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitDefer(_ deferStatement: AST.Defer, additional _: Any? = nil) -> Any? {
+        deferDomainStack.last?.defers.append(deferStatement)
         return nil
     }
 
@@ -340,10 +361,15 @@ public final class TIREmitter: AST.Visitor {
         builder.buildBranch(to: block)
 
         builder.insertPoint = block
+        let domain = DeferDomain()
+        deferDomainStack.append(domain)
         for statement in loopStatement.body {
             visit(statement)
         }
-        builder.buildBranch(to: block)
+        emitDomainExit(domain) {
+            builder.buildBranch(to: block)
+        }
+        deferDomainStack.removeLast()
 
         builder.insertPoint = nextBlock
         popScope()
@@ -379,10 +405,15 @@ public final class TIREmitter: AST.Visitor {
         builder.buildConditionalBranch(condition: cond, trueBranch: thenBlock, falseBranch: nextBlock)
 
         builder.insertPoint = thenBlock
+        let domain = DeferDomain()
+        deferDomainStack.append(domain)
         for statement in whileStatement.body {
             visit(statement)
         }
-        builder.buildBranch(to: condBlock)
+        emitDomainExit(domain) {
+            builder.buildBranch(to: condBlock)
+        }
+        deferDomainStack.removeLast()
 
         builder.insertPoint = nextBlock
         popScope()
@@ -414,10 +445,15 @@ public final class TIREmitter: AST.Visitor {
         builder.buildBranch(to: bodyBlock)
 
         builder.insertPoint = bodyBlock
+        let domain = DeferDomain()
+        deferDomainStack.append(domain)
         for statement in repeatWhile.body {
             visit(statement)
         }
-        builder.buildBranch(to: condBlock)
+        emitDomainExit(domain) {
+            builder.buildBranch(to: condBlock)
+        }
+        deferDomainStack.removeLast()
         builder.insertPoint = condBlock
         let cond = visitExpression(repeatWhile.condition)
         builder.buildConditionalBranch(condition: cond, trueBranch: bodyBlock, falseBranch: nextBlock)
@@ -475,9 +511,19 @@ public final class TIREmitter: AST.Visitor {
         let cond = visitExpression(guardStatement.condition)
         builder.buildConditionalBranch(condition: cond, trueBranch: trueBlock, falseBranch: falseBlock)
         builder.insertPoint = falseBlock
+        pushScope()
+        let domain = DeferDomain()
+        deferDomainStack.append(domain)
         for statement in guardStatement.body {
             visit(statement, additional: additional)
         }
+        if !domain.defers.isEmpty {
+            emitDomainExit(domain) {
+                builder.buildBranch(to: trueBlock)
+            }
+        }
+        deferDomainStack.removeLast()
+        popScope()
         builder.insertPoint = trueBlock
         return nil
     }
@@ -1162,32 +1208,47 @@ public final class TIREmitter: AST.Visitor {
             falseBranch: elseBlock ?? resultBlock
         )
         builder.insertPoint = thenBlock
+        pushScope()
+        let thenDomain = DeferDomain()
+        deferDomainStack.append(thenDomain)
         let v = visitBlock(ifExpression.then)
-        if let v, isVoid {
-            builder.buildBranch(to: resultBlock, arguments: [v])
-        } else {
-            builder.buildBranch(to: resultBlock)
-        }
-
-        if let elseKind = ifExpression.elseKind {
-            builder.insertPoint = elseBlock
-            let v2 = switch elseKind {
-            case let .Block(statements):
-                visitBlock(statements)
-            case let .If(ifExpr):
-                visitIf(ifExpr, additional: additional) as? TIR.Value
-            }
-            if let v2, isVoid {
-                builder.buildBranch(to: resultBlock, arguments: [v2])
+        emitDomainExit(thenDomain) {
+            if let v, !isVoid {
+                builder.buildBranch(to: resultBlock, arguments: [builder.buildLoad(ptr: v).result])
             } else {
                 builder.buildBranch(to: resultBlock)
             }
         }
+        deferDomainStack.removeLast()
+        popScope()
+
+        if let elseKind = ifExpression.elseKind {
+            builder.insertPoint = elseBlock
+            pushScope()
+            let elseDomain = DeferDomain()
+            deferDomainStack.append(elseDomain)
+            let v2: TIR.Value? = switch elseKind {
+            case let .Block(statements):
+                if let slot = visitBlock(statements), !isVoid {
+                    builder.buildLoad(ptr: slot).result
+                } else {
+                    nil
+                }
+            case let .If(ifExpr):
+                visitIf(ifExpr, additional: additional) as? TIR.Value
+            }
+            emitDomainExit(elseDomain) {
+                if let v2, !isVoid {
+                    builder.buildBranch(to: resultBlock, arguments: [v2])
+                } else {
+                    builder.buildBranch(to: resultBlock)
+                }
+            }
+            deferDomainStack.removeLast()
+            popScope()
+        }
 
         builder.insertPoint = resultBlock
-        for statement in ifExpression.then {
-            visit(statement, additional: additional)
-        }
         return if isVoid {
             nil
         } else {
@@ -1367,7 +1428,72 @@ public final class TIREmitter: AST.Visitor {
         guard let builder else {
             fatalError("unreachable")
         }
-        builder.buildReturn(value)
+        let defers = deferDomainStack.reversed().flatMap { $0.defers.reversed() }
+        guard !defers.isEmpty else {
+            builder.buildReturn(value)
+            return
+        }
+        emitDeferChain(defers) {
+            builder.buildReturn(value)
+        }
+    }
+
+    private func emitFunctionNormalExit() {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        guard let domain = deferDomainStack.last, !domain.defers.isEmpty else {
+            return
+        }
+        guard let insertPoint = builder.insertPoint, !insertPoint.isTerminated else {
+            return
+        }
+        emitDeferChain(Array(domain.defers.reversed())) {
+            builder.buildReturn()
+        }
+    }
+
+    private func emitDomainExit(_ domain: DeferDomain, finish: () -> Void) {
+        guard !domain.defers.isEmpty else {
+            finish()
+            return
+        }
+        guard let insertPoint = builder?.insertPoint, !insertPoint.isTerminated else {
+            return
+        }
+        emitDeferChain(Array(domain.defers.reversed()), finish: finish)
+    }
+
+    private func emitDeferChain(_ defers: [AST.Defer], finish: () -> Void) {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let blocks = defers.map { _ in buildBlock() }
+        builder.buildBranch(to: blocks[0])
+        for (index, deferStatement) in defers.enumerated() {
+            builder.insertPoint = blocks[index]
+            let nextBlock = index + 1 < blocks.count ? blocks[index + 1] : nil
+            emitDeferBody(deferStatement, nextBlock: nextBlock, finish: finish)
+        }
+    }
+
+    private func emitDeferBody(_ deferStatement: AST.Defer, nextBlock: TIR.BasicBlock?, finish: () -> Void) {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let domain = DeferDomain()
+        deferDomainStack.append(domain)
+        for statement in deferStatement.body {
+            visit(statement)
+        }
+        if let nextBlock {
+            emitDomainExit(domain) {
+                builder.buildBranch(to: nextBlock)
+            }
+        } else {
+            emitDomainExit(domain, finish: finish)
+        }
+        deferDomainStack.removeLast()
     }
 
     private func wrapLeftValue(_ value: TIR.Value) -> TIR.LeftValueWrapper {

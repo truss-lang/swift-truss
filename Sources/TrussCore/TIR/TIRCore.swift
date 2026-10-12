@@ -207,6 +207,14 @@ public enum TIR {
             self.name = name
             self.parameters = parameters
         }
+
+        public var isTerminated: Bool {
+            guard let last = instructions.last else {
+                return false
+            }
+            return last is Return || last is Branch || last is ConditionalBranch
+                || last is SwitchEnum || last is Unreachable || last is Trap
+        }
     }
 
     @abstractClass
