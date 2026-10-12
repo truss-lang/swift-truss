@@ -678,53 +678,5 @@ public extension TIR {
         public func buildVoidLiteral(ty: Id.TIRTypeId, name: String? = nil) -> VoidLiteral {
             VoidLiteral(ty: ty, name: name ?? "")
         }
-
-        @discardableResult
-        public func buildObjectConstruction(
-            initializer: FunctionRef, objectTy: Id.TIRTypeId, functionTy: Id.TIRTypeId
-        ) -> ObjectConstruction {
-            ObjectConstruction(initializer: initializer, objectTy: objectTy, functionTy: functionTy)
-        }
-
-        @discardableResult
-        public func buildObjectBinding(object: Value, method: Value, ty: Id.TIRTypeId) -> ObjectBinding {
-            ObjectBinding(object: object, method: method, ty: ty)
-        }
-
-        @discardableResult
-        public func buildPropertyBinding(
-            object: Value,
-            value: Value?,
-            getter: Value?,
-            setter: Value?,
-            willSetAccessor: Value?,
-            didSetAccessor: Value?
-        ) -> PropertyBinding {
-            PropertyBinding(
-                object: object,
-                value: value,
-                getter: getter,
-                setter: setter,
-                willSetAccessor: willSetAccessor,
-                didSetAccessor: didSetAccessor,
-                ty: registry.voidType().id
-            )
-        }
-
-        @discardableResult
-        public func buildSubscriptBinding(
-            object: Value,
-            arguments: [Value],
-            getter: Value,
-            setter: Value,
-        ) -> SubscriptBinding {
-            SubscriptBinding(
-                object: object,
-                arguments: arguments,
-                getter: getter,
-                setter: setter,
-                ty: registry.voidType().id
-            )
-        }
     }
 }

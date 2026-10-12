@@ -51,7 +51,21 @@ public final class TIREmitter: AST.Visitor {
     }
 
     private func visitExpression(_ expression: AST.Expression) -> TIR.Value {
-        visit(expression) as! TIR.Value
+        guard let v = visit(expression) as? TIR.Value else {
+            fatalError()
+        }
+        if expression.isLeftValue {
+            return v
+        } else if let wrapper = v as? TIR.LeftValueWrapper {
+            return wrapper.innerValue
+        } else {
+            guard let builder else {
+                fatalError("unreachable")
+            }
+            let tmp = builder.buildAllocStack(allocatedType: v.ty).result
+            builder.buildStore(value: v, to: tmp)
+            return tmp
+        }
     }
 
     @discardableResult
@@ -166,7 +180,6 @@ public final class TIREmitter: AST.Visitor {
         else {
             fatalError("unreachable")
         }
-        // TODO: bind newValue/oldValue
         emitFunctionBody(
             fn: fn,
             parameters: [],
@@ -671,7 +684,7 @@ public final class TIREmitter: AST.Visitor {
         case is Symbol.SelfSymbol:
             let v = getSelf()
             if variable.isLeftValue {
-                return v
+                return wrapLeftValue(v)
             } else {
                 let inst = builder.buildLoad(ptr: v)
                 return inst.result
@@ -681,49 +694,92 @@ public final class TIREmitter: AST.Visitor {
             case .Global, .StaticProperty:
                 let addr = builder.buildGlobalAddr(global: gen.globalsBySymbol[variableSymbol.id]!)
                 if variable.isLeftValue {
-                    return addr
+                    return wrapLeftValue(addr)
                 }
                 return builder.buildLoad(ptr: addr).result
             case .Local:
                 let addr = lookupLocal(variable.name.value)!
                 if variable.isLeftValue {
-                    return addr
+                    return wrapLeftValue(addr)
                 }
                 return builder.buildLoad(ptr: addr).result
             case .Property:
                 let selfValue = getSelf()
-                if let getter = variableSymbol.accessors[.Get] {
-                    let getterValue = functionValue(
-                        of: getter,
-                        obj: selfValue,
-                        sourceRange: variable.sourceRange
-                    )
-                    if variable.isLeftValue {
-                        let setter = functionValue(
-                            of: variableSymbol.accessors[.Set]!,
+                if variable.isLeftValue {
+                    let getter: TIR.Value? = if let getterSymbol = variableSymbol.accessors[.Get] {
+                        functionValue(
+                            of: getterSymbol,
                             obj: selfValue,
                             sourceRange: variable.sourceRange
                         )
-                        return builder.buildPropertyBinding(
-                            object: selfValue,
-                            value: nil,
-                            getter: getterValue,
-                            setter: setter,
-                            willSetAccessor: nil,
-                            didSetAccessor: nil
+                    } else {
+                        nil
+                    }
+                    let setter: TIR.Value? = if let setterSymbol = variableSymbol.accessors[.Set] {
+                        functionValue(
+                            of: setterSymbol,
+                            obj: selfValue,
+                            sourceRange: variable.sourceRange
                         )
                     } else {
+                        nil
+                    }
+                    let willSetter: TIR.Value? = if let willSetterSymbol = variableSymbol.accessors[.WillSet] {
+                        functionValue(
+                            of: willSetterSymbol,
+                            obj: selfValue,
+                            sourceRange: variable.sourceRange
+                        )
+                    } else {
+                        nil
+                    }
+                    let didSetter: TIR.Value? = if let didSetterSymbol = variableSymbol.accessors[.DidSet] {
+                        functionValue(
+                            of: didSetterSymbol,
+                            obj: selfValue,
+                            sourceRange: variable.sourceRange
+                        )
+                    } else {
+                        nil
+                    }
+                    let slot: TIR.Value? = if setter == nil {
+                        propertyValue(
+                            of: variableSymbol,
+                            obj: selfValue,
+                            sourceRange: variable.sourceRange
+                        )
+                    } else {
+                        nil
+                    }
+                    return wrapLeftValue(
+                        builder.buildPropertyBinding(
+                            object: selfValue,
+                            slot: slot,
+                            getter: getter,
+                            setter: setter,
+                            willSetter: willSetter,
+                            didSetter: didSetter
+                        )
+                    )
+                } else {
+                    if let getterSymbol = variableSymbol.accessors[.Get] {
+                        let getter = functionValue(
+                            of: getterSymbol,
+                            obj: selfValue,
+                            sourceRange: variable.sourceRange
+                        )
                         return builder.buildCall(
-                            callee: getterValue,
+                            callee: getter,
                             arguments: [selfValue]
                         ).result
+                    } else {
+                        let slot = propertyValue(
+                            of: variableSymbol,
+                            obj: selfValue,
+                            sourceRange: variable.sourceRange
+                        )
+                        return builder.buildLoad(ptr: slot).result
                     }
-                } else {
-                    let slot = propertyValue(of: variableSymbol, obj: selfValue, sourceRange: variable.sourceRange)
-                    if variable.isLeftValue {
-                        return slot
-                    }
-                    return builder.buildLoad(ptr: slot).result
                 }
             case .Free:
                 fatalError()
@@ -783,49 +839,147 @@ public final class TIREmitter: AST.Visitor {
                 let v = visitExpression(memberAccess.object)
                 let obj = builder.buildAllocStack(allocatedType: lowerType(memberAccess.object.ty!).id).result
                 builder.buildStore(value: v, to: obj)
-                if let getter = variableSymbol.accessors[.Get] {
-                    let getterValue = functionValue(
-                        of: getter,
-                        obj: obj,
-                        sourceRange: memberAccess.sourceRange
-                    )
-                    if memberAccess.isLeftValue {
-                        let setter = functionValue(
-                            of: variableSymbol.accessors[.Set]!,
+                if memberAccess.isLeftValue {
+                    let getter: TIR.Value? = if let getterSymbol = variableSymbol.accessors[.Get] {
+                        functionValue(
+                            of: getterSymbol,
                             obj: obj,
                             sourceRange: memberAccess.sourceRange
                         )
-                        return builder.buildPropertyBinding(
-                            object: obj,
-                            value: nil,
-                            getter: getterValue,
-                            setter: setter,
-                            willSetAccessor: nil,
-                            didSetAccessor: nil
+                    } else {
+                        nil
+                    }
+                    let setter: TIR.Value? = if let setterSymbol = variableSymbol.accessors[.Set] {
+                        functionValue(
+                            of: setterSymbol,
+                            obj: obj,
+                            sourceRange: memberAccess.sourceRange
                         )
                     } else {
+                        nil
+                    }
+                    let willSetter: TIR.Value? = if let willSetterSymbol = variableSymbol.accessors[.WillSet] {
+                        functionValue(
+                            of: willSetterSymbol,
+                            obj: obj,
+                            sourceRange: memberAccess.sourceRange
+                        )
+                    } else {
+                        nil
+                    }
+                    let didSetter: TIR.Value? = if let didSetterSymbol = variableSymbol.accessors[.DidSet] {
+                        functionValue(
+                            of: didSetterSymbol,
+                            obj: obj,
+                            sourceRange: memberAccess.sourceRange
+                        )
+                    } else {
+                        nil
+                    }
+                    let slot: TIR.Value? = if setter == nil {
+                        propertyValue(
+                            of: variableSymbol,
+                            obj: obj,
+                            sourceRange: memberAccess.sourceRange
+                        )
+                    } else {
+                        nil
+                    }
+                    return wrapLeftValue(
+                        builder.buildPropertyBinding(
+                            object: obj,
+                            slot: slot,
+                            getter: getter,
+                            setter: setter,
+                            willSetter: willSetter,
+                            didSetter: didSetter
+                        )
+                    )
+                } else {
+                    if let getterSymbol = variableSymbol.accessors[.Get] {
+                        let getter = functionValue(
+                            of: getterSymbol,
+                            obj: obj,
+                            sourceRange: memberAccess.sourceRange
+                        )
                         return builder.buildCall(
-                            callee: getterValue,
+                            callee: getter,
                             arguments: [obj]
                         ).result
+                    } else {
+                        let slot = propertyValue(
+                            of: variableSymbol,
+                            obj: obj,
+                            sourceRange: memberAccess.sourceRange
+                        )
+                        return builder.buildLoad(ptr: slot).result
                     }
-
-                } else {
-                    let slot = propertyValue(
-                        of: variableSymbol,
-                        obj: obj,
-                        sourceRange: memberAccess.sourceRange
-                    )
-                    if memberAccess.isLeftValue {
-                        return slot
-                    }
-                    return builder.buildLoad(ptr: slot).result
                 }
             case .Local, .Free:
                 fatalError("unreachable")
             }
             if memberAccess.isLeftValue {
-                return addr
+                return wrapLeftValue(addr)
+            }
+            let load = builder.buildLoad(ptr: addr)
+            return load.result
+        default:
+            guard let memberOf = symbol.memberOf,
+                  let nominalTypeSymbol = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol
+            else {
+                fatalError()
+            }
+            switch nominalTypeSymbol {
+            case is Symbol.StructSymbol:
+                break
+            default:
+                break
+            }
+        }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitImplicitMemberAccess(
+        _ implicitMemberAccess: AST.ImplicitMemberAccess,
+        additional: Any? = nil
+    ) -> Any? {
+        guard let builder, let symbol = implicitMemberAccess.symbol else {
+            fatalError("unreachable")
+        }
+        switch symbol {
+        case let functionSymbol as Symbol.FunctionSymbol:
+            if implicitMemberAccess.willBeCalled {
+                switch functionSymbol.kind {
+                case .Initializer:
+                    guard let memberOf = functionSymbol.memberOf,
+                          let nominalTypeSymbol = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol,
+                          let typeId = nominalTypeSymbol.typeId,
+                          let type = context.typeTable[typeId]
+                    else {
+                        fatalError()
+                    }
+                    let ref = functionRefValue(functionSymbol, at: implicitMemberAccess.sourceRange)
+                    return builder.buildObjectConstruction(
+                        initializer: ref,
+                        objectTy: lowerType(type).id,
+                        functionTy: lowerType(functionSymbol.functionType).id
+                    )
+                default:
+                    let ref = functionRefValue(functionSymbol, at: implicitMemberAccess.sourceRange)
+                    return ref
+                }
+            } else {
+                let ref = functionRefValue(functionSymbol, at: implicitMemberAccess.sourceRange)
+                return builder.buildClosure(function: ref, captures: []).result
+            }
+        case let variableSymbol as Symbol.VariableSymbol:
+            guard variableSymbol.kind == .Global || variableSymbol.kind == .StaticProperty else {
+                fatalError("unreachable")
+            }
+            let addr = builder.buildGlobalAddr(global: gen.globalsBySymbol[variableSymbol.id]!)
+            if implicitMemberAccess.isLeftValue {
+                return wrapLeftValue(addr)
             }
             let load = builder.buildLoad(ptr: addr)
             return load.result
@@ -901,7 +1055,29 @@ public final class TIREmitter: AST.Visitor {
         if binary.operatorToken.kind == .Operator(.Assign) {
             switch left {
             case let propertyBinding as TIR.PropertyBinding:
-                builder.buildCall(callee: propertyBinding.setter!, arguments: [propertyBinding.object, right])
+                if let setter = propertyBinding.setter {
+                    builder.buildCall(callee: setter, arguments: [propertyBinding.object, right])
+                } else {
+                    let slot = propertyBinding.slot!
+                    let oldValue: TIR.Value? = if propertyBinding.didSetter != nil {
+                        builder.buildLoad(ptr: slot).result
+                    } else {
+                        nil
+                    }
+                    if let willSetter = propertyBinding.willSetter {
+                        builder.buildCall(callee: willSetter, arguments: [propertyBinding.object, right])
+                    }
+                    builder.buildStore(value: right, to: slot)
+                    if let oldValue {
+                        builder.buildCall(
+                            callee: propertyBinding.didSetter!,
+                            arguments: [
+                                propertyBinding.object,
+                                oldValue,
+                            ]
+                        )
+                    }
+                }
             case let subscriptBinding as TIR.SubscriptBinding:
                 builder.buildCall(callee: subscriptBinding.setter, arguments: subscriptBinding.arguments + [right])
             default:
@@ -956,7 +1132,14 @@ public final class TIREmitter: AST.Visitor {
         if subscriptExpr.isLeftValue {
             let getter = functionValue(of: symbol.getter, obj: obj, sourceRange: subscriptExpr.sourceRange)
             let setter = functionValue(of: symbol.setter!, obj: obj, sourceRange: subscriptExpr.sourceRange)
-            return builder.buildSubscriptBinding(object: obj, arguments: args, getter: getter, setter: setter)
+            return wrapLeftValue(
+                builder.buildSubscriptBinding(
+                    object: obj,
+                    arguments: args,
+                    getter: getter,
+                    setter: setter
+                )
+            )
         } else {
             let getter = functionValue(of: symbol.getter, obj: obj, sourceRange: subscriptExpr.sourceRange)
             return builder.buildCall(callee: getter, arguments: args)
@@ -1019,7 +1202,7 @@ public final class TIREmitter: AST.Visitor {
         }
         let v = visitExpression(dereference.expression)
         if dereference.isLeftValue {
-            return v
+            return wrapLeftValue(v)
         } else {
             let load = builder.buildLoad(ptr: v)
             return load.result
@@ -1038,7 +1221,7 @@ public final class TIREmitter: AST.Visitor {
         }
         let v = getSelf()
         if selfExpression.isLeftValue {
-            return v
+            return wrapLeftValue(v)
         } else {
             let inst = builder.buildLoad(ptr: v)
             return inst.result
@@ -1055,11 +1238,27 @@ public final class TIREmitter: AST.Visitor {
         }
         let v = getSelf()
         if superExpression.isLeftValue {
-            return v
+            return wrapLeftValue(v)
         } else {
             let inst = builder.buildLoad(ptr: v)
             return inst.result
         }
+    }
+
+    @discardableResult
+    public override func visitSelfType(_ selfTypeExpression: AST.SelfType, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        guard let ty = selfTypeExpression.ty,
+              let nominal = ty as? TrussType.NominalType,
+              let metadataId = gen.typeLower.metadataId(for: nominal)
+        else {
+            fatalError()
+        }
+        return builder.buildTypeMetadataConstant(
+            type: gen.typeLower.lower(ty).id, metadata: metadataId
+        ).result
     }
 
     @discardableResult
@@ -1100,6 +1299,14 @@ public final class TIREmitter: AST.Visitor {
             // TODO:
             return nil
         }
+    }
+
+    /*
+     * This method needn't do anything because a sequential expression will be lowered in TrussOperator.
+     */
+    @discardableResult
+    public override func visitSequential(_ sequentialExpression: AST.Sequential, additional: Any? = nil) -> Any? {
+        nil
     }
 
     @discardableResult
@@ -1161,6 +1368,13 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         builder.buildReturn(value)
+    }
+
+    private func wrapLeftValue(_ value: TIR.Value) -> TIR.LeftValueWrapper {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        return builder.buildLeftValueWrapper(value: value)
     }
 
     private func functionRefValue(_ symbol: Symbol.FunctionSymbol, at _: SourceRange) -> TIR.FunctionRef {
@@ -1366,5 +1580,144 @@ public final class TIREmitter: AST.Visitor {
 
     private func lowerType(_ type: TrussType.TrussType?) -> TIRType.TIRType {
         type.map { gen.typeLower.lower($0) } ?? gen.registry.voidType()
+    }
+}
+
+public extension TIR {
+    class LeftValueWrapper: Value {
+        public let value: Value
+        public init(value: Value) {
+            self.value = value
+            super.init(ty: value.ty, name: "")
+        }
+
+        public var innerValue: Value {
+            if let wrapper = value as? LeftValueWrapper {
+                wrapper.innerValue
+            } else {
+                value
+            }
+        }
+    }
+
+    class ObjectConstruction: Value {
+        public let initializer: FunctionRef
+        public let objectTy: Id.TIRTypeId
+        public init(initializer: FunctionRef, objectTy: Id.TIRTypeId, functionTy: Id.TIRTypeId) {
+            self.initializer = initializer
+            self.objectTy = objectTy
+            super.init(ty: functionTy, name: "")
+        }
+    }
+
+    class ObjectBinding: Value {
+        public let object: Value
+        public let method: Value
+        public init(object: Value, method: Value, ty: Id.TIRTypeId) {
+            self.object = object
+            self.method = method
+            super.init(ty: ty, name: "")
+        }
+    }
+
+    class PropertyBinding: Value {
+        public let object: Value
+        public let slot: Value?
+        public let getter: Value?
+        public let setter: Value?
+        public let willSetter: Value?
+        public let didSetter: Value?
+        public init(
+            object: Value,
+            slot: Value?,
+            getter: Value?,
+            setter: Value?,
+            willSetter: Value?,
+            didSetter: Value?,
+            ty: Id.TIRTypeId
+        ) {
+            self.object = object
+            self.slot = slot
+            self.getter = getter
+            self.setter = setter
+            self.willSetter = willSetter
+            self.didSetter = didSetter
+            super.init(ty: ty, name: "")
+        }
+    }
+
+    class SubscriptBinding: Value {
+        public let object: Value
+        public let arguments: [Value]
+        public let getter: Value
+        public let setter: Value
+        public init(
+            object: Value,
+            arguments: [Value],
+            getter: Value,
+            setter: Value,
+            ty: Id.TIRTypeId
+        ) {
+            self.object = object
+            self.arguments = arguments
+            self.getter = getter
+            self.setter = setter
+            super.init(ty: ty, name: "")
+        }
+    }
+}
+
+public extension TIR.Builder {
+    @discardableResult
+    func buildLeftValueWrapper(value: TIR.Value) -> TIR.LeftValueWrapper {
+        TIR.LeftValueWrapper(value: value)
+    }
+
+    @discardableResult
+    func buildObjectConstruction(
+        initializer: TIR.FunctionRef, objectTy: Id.TIRTypeId, functionTy: Id.TIRTypeId
+    ) -> TIR.ObjectConstruction {
+        TIR.ObjectConstruction(initializer: initializer, objectTy: objectTy, functionTy: functionTy)
+    }
+
+    @discardableResult
+    func buildObjectBinding(object: TIR.Value, method: TIR.Value, ty: Id.TIRTypeId) -> TIR.ObjectBinding {
+        TIR.ObjectBinding(object: object, method: method, ty: ty)
+    }
+
+    @discardableResult
+    func buildPropertyBinding(
+        object: TIR.Value,
+        slot: TIR.Value?,
+        getter: TIR.Value?,
+        setter: TIR.Value?,
+        willSetter: TIR.Value?,
+        didSetter: TIR.Value?
+    ) -> TIR.PropertyBinding {
+        TIR.PropertyBinding(
+            object: object,
+            slot: slot,
+            getter: getter,
+            setter: setter,
+            willSetter: willSetter,
+            didSetter: didSetter,
+            ty: registry.voidType().id
+        )
+    }
+
+    @discardableResult
+    func buildSubscriptBinding(
+        object: TIR.Value,
+        arguments: [TIR.Value],
+        getter: TIR.Value,
+        setter: TIR.Value,
+    ) -> TIR.SubscriptBinding {
+        TIR.SubscriptBinding(
+            object: object,
+            arguments: arguments,
+            getter: getter,
+            setter: setter,
+            ty: registry.voidType().id
+        )
     }
 }

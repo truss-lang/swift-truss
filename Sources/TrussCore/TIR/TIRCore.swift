@@ -99,7 +99,7 @@ public enum TIR {
     }
 
     @abstractClass
-    public class Value {
+    open class Value {
         public let ty: Id.TIRTypeId
         public let name: String
         public var sourceRange: SourceRange = TIR.unknownSourceRange
@@ -217,71 +217,5 @@ public enum TIR {
 
         @abstract
         public func accept(_ visitor: Visitor, additional: Any? = nil) -> Any?
-    }
-
-    public class ObjectConstruction: Value {
-        public let initializer: FunctionRef
-        public let objectTy: Id.TIRTypeId
-        public init(initializer: FunctionRef, objectTy: Id.TIRTypeId, functionTy: Id.TIRTypeId) {
-            self.initializer = initializer
-            self.objectTy = objectTy
-            super.init(ty: functionTy, name: "")
-        }
-    }
-
-    public class ObjectBinding: Value {
-        public let object: Value
-        public let method: Value
-        public init(object: Value, method: Value, ty: Id.TIRTypeId) {
-            self.object = object
-            self.method = method
-            super.init(ty: ty, name: "")
-        }
-    }
-
-    public class PropertyBinding: Value {
-        public let object: Value
-        public let value: Value?
-        public let getter: Value?
-        public let setter: Value?
-        public let willSetAccessor: Value?
-        public let didSetAccessor: Value?
-        public init(
-            object: Value,
-            value: Value?,
-            getter: Value?,
-            setter: Value?,
-            willSetAccessor: Value?,
-            didSetAccessor: Value?,
-            ty: Id.TIRTypeId
-        ) {
-            self.object = object
-            self.value = value
-            self.getter = getter
-            self.setter = setter
-            self.willSetAccessor = willSetAccessor
-            self.didSetAccessor = didSetAccessor
-            super.init(ty: ty, name: "")
-        }
-    }
-
-    public class SubscriptBinding: Value {
-        public let object: Value
-        public let arguments: [Value]
-        public let getter: Value
-        public let setter: Value
-        public init(
-            object: Value,
-            arguments: [Value],
-            getter: Value,
-            setter: Value,
-            ty: Id.TIRTypeId
-        ) {
-            self.object = object
-            self.arguments = arguments
-            self.getter = getter
-            self.setter = setter
-            super.init(ty: ty, name: "")
-        }
     }
 }
