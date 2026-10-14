@@ -2075,6 +2075,12 @@ public final class TypeChecker: AST.Visitor {
         return false
     }
 
+    private func canConvertNumeric(
+        _ actual: TrussType.TrussType, to target: TrussType.TrussType
+    ) -> Bool {
+        builtinPrimitiveKind(of: actual) != nil && builtinPrimitiveKind(of: target) != nil
+    }
+
     private func satisfiesConformance(
         _ genericParam: TrussType.GenericParamType, to required: TrussType.ProtocolType
     ) -> Bool {
@@ -2813,8 +2819,24 @@ public final class TypeChecker: AST.Visitor {
                 }
                 castExpression.staticIsResult = staticIsResult
             case .As:
-                if let leftType, !canCast(leftType, to: target, at: token) {
-                    emitMismatch(at: token, expected: target, found: leftType)
+                if let leftType, !canCoerce(leftType, to: target, at: token) {
+                    if canDowncast(leftType, to: target, at: token) {
+                        var notes: [Diagnostic] = []
+                        if let source = context.sourceTable[token.id] {
+                            notes.append(
+                                Diagnostic(
+                                    severity: .note, message: "use 'as!' or 'as?'",
+                                    range: token.sourceRange(in: source.stringSourceBuffer)
+                                )
+                            )
+                        }
+                        context.emitError(
+                            "cannot downcast from '\(typeText(leftType))' to '\(typeText(target))' with 'as'",
+                            at: token, notes: notes
+                        )
+                    } else if !canConvertNumeric(leftType, to: target) {
+                        emitMismatch(at: token, expected: target, found: leftType)
+                    }
                 }
                 expression.ty = target
             case .AsExclamation:
