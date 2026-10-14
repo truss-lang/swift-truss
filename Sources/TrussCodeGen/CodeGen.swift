@@ -1182,6 +1182,18 @@ public final class CodeGen: TIR.Visitor {
         return nil
     }
 
+    public override func visitNumericCast(
+        _ instruction: TIR.NumericCast, additional: Any? = nil
+    ) -> Any? {
+        unsupported("NumericCast", at: instruction.sourceRange)
+        return nil
+    }
+
+    public override func visitBitCast(_ instruction: TIR.BitCast, additional: Any? = nil) -> Any? {
+        unsupported("BitCast", at: instruction.sourceRange)
+        return nil
+    }
+
     public override func visitTypeMetadata(
         _ instruction: TIR.TypeMetadata, additional: Any? = nil
     ) -> Any? {

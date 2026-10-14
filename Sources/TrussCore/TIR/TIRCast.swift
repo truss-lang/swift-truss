@@ -1,4 +1,16 @@
 public extension TIR {
+    enum NumericCastOp: String {
+        case Trunc = "trunc"
+        case SExt = "sext"
+        case ZExt = "zext"
+        case FPToSI = "fptosi"
+        case FPToUI = "fptoui"
+        case SIToFP = "sitofp"
+        case UIToFP = "uitofp"
+        case FPExt = "fpext"
+        case FPTrunc = "fptrunc"
+    }
+
     final class Upcast: Instruction {
         public let value: Value
         public let targetType: Id.TIRTypeId
@@ -26,6 +38,38 @@ public extension TIR {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitUncheckedRefCast(self, additional: additional)
+        }
+    }
+
+    final class NumericCast: Instruction {
+        public let value: Value
+        public let op: NumericCastOp
+        public let targetType: Id.TIRTypeId
+        public var result: Value
+        public init(value: Value, op: NumericCastOp, targetType: Id.TIRTypeId, name: String) {
+            self.value = value
+            self.op = op
+            self.targetType = targetType
+            result = InstructionResult(ty: targetType, name: name)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitNumericCast(self, additional: additional)
+        }
+    }
+
+    final class BitCast: Instruction {
+        public let value: Value
+        public let targetType: Id.TIRTypeId
+        public var result: Value
+        public init(value: Value, targetType: Id.TIRTypeId, name: String) {
+            self.value = value
+            self.targetType = targetType
+            result = InstructionResult(ty: targetType, name: name)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitBitCast(self, additional: additional)
         }
     }
 

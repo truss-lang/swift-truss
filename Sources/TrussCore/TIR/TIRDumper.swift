@@ -335,6 +335,11 @@ public extension TIR {
                 return "%\(upcast.result.name) = upcast \(valueText(upcast.value)) to \(typeText(upcast.targetType))"
             case let cast as UncheckedRefCast:
                 return "%\(cast.result.name) = uncheckedrefcast \(valueText(cast.value)) to \(typeText(cast.targetType))"
+            case let numericCast as NumericCast:
+                return "%\(numericCast.result.name) = numericcast \(numericCast.op.rawValue) "
+                    + "\(valueText(numericCast.value)) to \(typeText(numericCast.targetType))"
+            case let bitCast as BitCast:
+                return "%\(bitCast.result.name) = bitcast \(valueText(bitCast.value)) to \(typeText(bitCast.targetType))"
             case let typeMetadata as TypeMetadata:
                 return "%\(typeMetadata.result.name) = typemetadata \(valueText(typeMetadata.value))"
             case let typeMetadataConstant as TypeMetadataConstant:

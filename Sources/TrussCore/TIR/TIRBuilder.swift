@@ -423,6 +423,34 @@ public extension TIR {
         }
 
         @discardableResult
+        public func buildNumericCast(
+            value: Value, op: NumericCastOp, to targetType: Id.TIRTypeId, name: String? = nil
+        ) -> NumericCast {
+            guard let insertPoint else {
+                fatalError("no insert point")
+            }
+            let instruction = NumericCast(
+                value: value, op: op, targetType: targetType, name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildBitCast(
+            value: Value, to targetType: Id.TIRTypeId, name: String? = nil
+        ) -> BitCast {
+            guard let insertPoint else {
+                fatalError("no insert point")
+            }
+            let instruction = BitCast(
+                value: value, targetType: targetType, name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
         public func buildTypeMetadata(value: Value, name: String? = nil) -> TypeMetadata {
             guard let insertPoint else {
                 fatalError("no insert point")

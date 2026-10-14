@@ -200,6 +200,12 @@ extension TIR {
         }
 
         @discardableResult
+        open func visitNumericCast(_ instruction: NumericCast, additional: Any? = nil) -> Any? { nil }
+
+        @discardableResult
+        open func visitBitCast(_ instruction: BitCast, additional: Any? = nil) -> Any? { nil }
+
+        @discardableResult
         open func visitTypeMetadata(
             _ instruction: TypeMetadata, additional: Any? = nil
         ) -> Any? {
