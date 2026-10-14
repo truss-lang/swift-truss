@@ -93,6 +93,19 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitNominalTypeDecl(
+        _ nominalTypeDecl: AST.NominalTypeDecl, additional: Any? = nil
+    ) -> Any? {
+        if let genericDecl = nominalTypeDecl.genericDecl {
+            visitGenericDecl(genericDecl, additional: additional)
+        }
+        for statement in nominalTypeDecl.body {
+            visit(statement, additional: additional)
+        }
+        return nil
+    }
+
+    @discardableResult
     public override func visitFunctionDecl(_ functionDecl: AST.FunctionDecl, additional _: Any? = nil) -> Any? {
         guard let symbol = functionDecl.symbol,
               let fn = gen.functionsBySymbol[symbol.id]
@@ -1343,23 +1356,69 @@ public final class TIREmitter: AST.Visitor {
                 )
             case nil:
                 guard let target = castExpression.right.ty,
-                      let nominal = target as? TrussType.NominalType,
-                      let metadataId = gen.typeLower.metadataId(for: nominal)
+                      let check = emitIsInstanceCheck(value: value, target: target)
                 else {
                     fatalError("type lowering: a dynamic 'is' check requires a class target with registered metadata")
                 }
-                let instanceMetadata = builder.buildTypeMetadata(value: value)
-                let targetMetadata = builder.buildTypeMetadataConstant(
-                    type: gen.typeLower.lower(target).id, metadata: metadataId
-                )
-                return builder.buildIsInstance(
-                    metadata: instanceMetadata.result, target: targetMetadata.result
+                return check.result
+            }
+        case .As:
+            guard let target = castExpression.right.ty else {
+                fatalError("type lowering: an 'as' cast requires a resolved target type")
+            }
+            if isStaticUpcast(castExpression.left.ty, to: target) {
+                return builder.buildUpcast(value: value, to: lowerType(target).id).result
+            }
+            guard let source = primitiveType(of: castExpression.left.ty),
+                  let targetPrimitive = primitiveType(of: target)
+            else {
+                fatalError(
+                    "type lowering: cannot cast '\(typeText(of: castExpression.left.ty))'"
+                        + " to '\(typeText(of: target))' with 'as'"
                 )
             }
-        default:
-            // TODO:
-            return nil
+            guard let op = numericCastOp(from: source, to: targetPrimitive) else {
+                return value
+            }
+            return builder.buildNumericCast(value: value, op: op, to: lowerType(target).id).result
+        case .AsExclamation:
+            guard let target = castExpression.right.ty else {
+                fatalError("type lowering: an 'as!' cast requires a resolved target type")
+            }
+            if isStaticUpcast(castExpression.left.ty, to: target) {
+                return builder.buildUpcast(value: value, to: lowerType(target).id).result
+            }
+            guard let check = emitIsInstanceCheck(value: value, target: target) else {
+                fatalError("type lowering: an 'as!' downcast requires a class target with registered metadata")
+            }
+            return emitCheckedDowncast(value: value, check: check, target: target)
+        case .AsBitCast:
+            guard let target = castExpression.right.ty else {
+                fatalError("type lowering: an 'as!!' cast requires a resolved target type")
+            }
+            return builder.buildBitCast(value: value, to: lowerType(target).id).result
+        case .OptionalAs:
+            fatalError("type lowering: 'as?' is not implemented yet")
         }
+    }
+
+    @discardableResult
+    public override func visitSizeofExpression(
+        _ sizeofExpression: AST.SizeofExpression,
+        additional: Any? = nil
+    ) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        guard let ty = sizeofExpression.typeType,
+              let nominal = ty as? TrussType.NominalType,
+              let metadataId = gen.typeLower.metadataId(for: nominal)
+        else {
+            fatalError()
+        }
+        return builder.buildTypeMetadataConstant(
+            type: gen.typeLower.lower(ty).id, metadata: metadataId
+        ).result
     }
 
     /*
@@ -1670,6 +1729,135 @@ public final class TIREmitter: AST.Visitor {
 
     private func metadata(of symbol: Symbol.NominalTypeSymbol) -> Id.TIRMetadataId {
         gen.typeLower.metadataId(for: gen.context.typeTable[symbol.typeId!]! as! TrussType.NominalType)!
+    }
+
+    private func emitIsInstanceCheck(value: TIR.Value, target: TrussType.TrussType) -> TIR.IsInstance? {
+        guard let builder,
+              let nominal = target as? TrussType.NominalType,
+              let metadataId = gen.typeLower.metadataId(for: nominal)
+        else {
+            return nil
+        }
+        let instanceMetadata = builder.buildTypeMetadata(value: value)
+        let targetMetadata = builder.buildTypeMetadataConstant(
+            type: gen.typeLower.lower(target).id, metadata: metadataId
+        )
+        return builder.buildIsInstance(
+            metadata: instanceMetadata.result, target: targetMetadata.result
+        )
+    }
+
+    private func emitCheckedDowncast(
+        value: TIR.Value, check: TIR.IsInstance, target: TrussType.TrussType
+    ) -> TIR.Value {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let targetId = lowerType(target).id
+        let successBlock = buildBlock()
+        let failureBlock = buildBlock()
+        builder.buildConditionalBranch(
+            condition: check.result, trueBranch: successBlock, falseBranch: failureBlock
+        )
+        builder.insertPoint = successBlock
+        let casted = builder.buildUncheckedRefCast(value: value, to: targetId)
+        builder.insertPoint = failureBlock
+        builder.buildTrap(message: "cast to \(typeText(of: target)) failed")
+        builder.insertPoint = successBlock
+        return casted.result
+    }
+
+    private func primitiveType(of type: TrussType.TrussType?) -> TIRType.PrimitiveType? {
+        guard let type else {
+            return nil
+        }
+        return gen.registry.type(gen.typeLower.lower(type).id) as? TIRType.PrimitiveType
+    }
+
+    private func numericCastOp(
+        from source: TIRType.PrimitiveType, to target: TIRType.PrimitiveType
+    ) -> TIR.NumericCastOp? {
+        switch (source.kind, target.kind) {
+        case (.Float, .Float):
+            guard source.bitWidth != target.bitWidth else {
+                return nil
+            }
+            return source.bitWidth < target.bitWidth ? .FPExt : .FPTrunc
+        case (.Float, .Signed):
+            return .FPToSI
+        case (.Float, .Unsigned), (.Float, .Char), (.Float, .Bool):
+            return .FPToUI
+        case (.Signed, .Float):
+            return .SIToFP
+        case (.Unsigned, .Float), (.Char, .Float), (.Bool, .Float):
+            return .UIToFP
+        default:
+            if source.bitWidth == target.bitWidth, source.kind == target.kind {
+                return nil
+            }
+            guard source.bitWidth <= target.bitWidth else {
+                return .Trunc
+            }
+            return source.kind == .Signed ? .SExt : .ZExt
+        }
+    }
+
+    private func isStaticUpcast(
+        _ sourceType: TrussType.TrussType?, to target: TrussType.TrussType
+    ) -> Bool {
+        guard let sourceClass = nominalClassType(of: sourceType),
+              let targetClass = nominalClassType(of: target)
+        else {
+            return false
+        }
+        var current: TrussType.ClassType? = sourceClass
+        while let classType = current {
+            guard classType.id != targetClass.id else {
+                return true
+            }
+            current = superclassClassType(of: classType)
+        }
+        return false
+    }
+
+    private func nominalClassType(of type: TrussType.TrussType?) -> TrussType.ClassType? {
+        guard let type else {
+            return nil
+        }
+        switch type {
+        case let classType as TrussType.ClassType:
+            return classType
+        case let generic as TrussType.GenericInstantiation:
+            return generic.base as? TrussType.ClassType
+        default:
+            return nil
+        }
+    }
+
+    private func superclassClassType(of type: TrussType.ClassType) -> TrussType.ClassType? {
+        guard let symbol = type.symbol as? Symbol.ClassSymbol,
+              let superclass = symbol.superclass,
+              let typeId = superclass.typeId
+        else {
+            return nil
+        }
+        return gen.context.typeTable[typeId] as? TrussType.ClassType
+    }
+
+    private func typeText(of type: TrussType.TrussType?) -> String {
+        if let nominal = type as? TrussType.NominalType {
+            return nominal.name
+        }
+        if let builtin = type as? TrussType.BuiltinType {
+            return builtin.name
+        }
+        if let optional = type as? TrussType.GenericInstantiation,
+           optional.base.name == "Optional",
+           let wrapped = optional.arguments.first
+        {
+            return typeText(of: wrapped) + "?"
+        }
+        return "value"
     }
 
     private func getLabelTarget(_ name: String) -> LabelTarget {
