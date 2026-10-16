@@ -151,7 +151,7 @@ final class TypeLower {
         guard let classType = lowered as? TIRType.ClassType else {
             return nil
         }
-        let record = registry.addMetadata(name: classType.name)
+        let record = registry.addMetadata(name: classType.displayText)
         metadataByType[lowered.id] = record.id
         if let superclass = superclassType(of: type), let superId = metadataId(for: superclass) {
             record.superclass = superId
@@ -165,7 +165,7 @@ final class TypeLower {
         if metadataByType[classType.id] != nil {
             return
         }
-        let record = registry.addMetadata(name: classType.name)
+        let record = registry.addMetadata(name: classType.displayText)
         metadataByType[classType.id] = record.id
         if let superclass = superclassType(of: type),
            let superLowered = lower(superclass) as? TIRType.ClassType,
@@ -238,10 +238,32 @@ final class TypeLower {
             return existing
         }
         let name = "Optional<" + mangler.typeName(wrapped, modulePath: modulePath) + ">"
-        let enumType = registry.enumType(name: name)
+        let enumType = registry.enumType(
+            name: name, displayName: "Optional<" + sourceTypeName(wrapped) + ">"
+        )
         optionalEnums[wrappedId] = enumType
         enumType.cases = [("None", []), ("Some", [wrappedId])]
         return enumType
+    }
+
+    private func sourceTypeName(_ type: TrussType.TrussType) -> String {
+        if let nominal = type as? TrussType.NominalType {
+            return sourceNominalName(nominal)
+        }
+        if let builtin = type as? TrussType.BuiltinType {
+            return builtin.name
+        }
+        return mangler.typeName(type, modulePath: modulePath)
+    }
+
+    private func sourceNominalName(_ type: TrussType.NominalType) -> String {
+        var chain = [type.name]
+        var current = type.symbol?.memberOf
+        while let member = current, let owner = context.id2Symbol[member] {
+            chain.append(owner.name)
+            current = owner.memberOf
+        }
+        return chain.reversed().joined(separator: ".")
     }
 
     private func nominalType(_ type: TrussType.NominalType) -> TIRType.NominalType {
@@ -249,15 +271,16 @@ final class TypeLower {
             return existing
         }
         let mangledName = mangler.nominalPath(type, modulePath: modulePath)
+        let displayName = sourceNominalName(type)
         let lowered: TIRType.NominalType = switch type {
         case is TrussType.StructType:
-            registry.structType(name: mangledName)
+            registry.structType(name: mangledName, displayName: displayName)
         case is TrussType.ClassType:
-            registry.classType(name: mangledName)
+            registry.classType(name: mangledName, displayName: displayName)
         case is TrussType.EnumType:
-            registry.enumType(name: mangledName)
+            registry.enumType(name: mangledName, displayName: displayName)
         default:
-            registry.structType(name: mangledName)
+            registry.structType(name: mangledName, displayName: displayName)
         }
         nominalInProgress[type.id] = lowered
         fillMembers(lowered, type: type)

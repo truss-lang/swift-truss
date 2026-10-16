@@ -246,13 +246,14 @@ public extension TIR {
             }
         }
 
-        public func structType(name: String) -> TIRType.StructType {
+        public func structType(name: String, displayName: String? = nil) -> TIRType.StructType {
             if let cached = typeCache[name] {
                 return cached as! TIRType.StructType
             } else {
                 let ty = TIRType.StructType(
                     id: nextTypeId,
-                    name: name
+                    name: name,
+                    displayName: displayName
                 )
                 types[ty.id] = ty
                 typeCache[name] = ty
@@ -260,13 +261,14 @@ public extension TIR {
             }
         }
 
-        public func enumType(name: String) -> TIRType.EnumType {
+        public func enumType(name: String, displayName: String? = nil) -> TIRType.EnumType {
             if let cached = typeCache[name] {
                 return cached as! TIRType.EnumType
             } else {
                 let ty = TIRType.EnumType(
                     id: nextTypeId,
-                    name: name
+                    name: name,
+                    displayName: displayName
                 )
                 types[ty.id] = ty
                 typeCache[name] = ty
@@ -274,13 +276,14 @@ public extension TIR {
             }
         }
 
-        public func classType(name: String) -> TIRType.ClassType {
+        public func classType(name: String, displayName: String? = nil) -> TIRType.ClassType {
             if let cached = typeCache[name] {
                 return cached as! TIRType.ClassType
             } else {
                 let ty = TIRType.ClassType(
                     id: nextTypeId,
-                    name: name
+                    name: name,
+                    displayName: displayName
                 )
                 types[ty.id] = ty
                 typeCache[name] = ty

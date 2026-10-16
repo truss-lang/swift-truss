@@ -81,31 +81,37 @@ public enum TIRType {
     @abstractClass
     public class NominalType: TIRType {
         public let name: String
+        public let displayName: String?
         @abstractInit
-        public init(id: Id.TIRTypeId, name: String) {
+        public init(id: Id.TIRTypeId, name: String, displayName: String? = nil) {
             self.name = name
+            self.displayName = displayName
             super.init(id: id)
+        }
+
+        public var displayText: String {
+            displayName ?? name
         }
     }
 
     public final class StructType: NominalType {
         public var fields: [(name: String, type: Id.TIRTypeId)] = []
-        public override init(id: Id.TIRTypeId, name: String) {
-            super.init(id: id, name: name)
+        public override init(id: Id.TIRTypeId, name: String, displayName: String? = nil) {
+            super.init(id: id, name: name, displayName: displayName)
         }
     }
 
     public final class EnumType: NominalType {
         public var cases: [(name: String, associatedTypes: [Id.TIRTypeId])] = []
-        public override init(id: Id.TIRTypeId, name: String) {
-            super.init(id: id, name: name)
+        public override init(id: Id.TIRTypeId, name: String, displayName: String? = nil) {
+            super.init(id: id, name: name, displayName: displayName)
         }
     }
 
     public final class ClassType: NominalType {
         public var fields: [(name: String, type: Id.TIRTypeId)] = []
-        public override init(id: Id.TIRTypeId, name: String) {
-            super.init(id: id, name: name)
+        public override init(id: Id.TIRTypeId, name: String, displayName: String? = nil) {
+            super.init(id: id, name: name, displayName: displayName)
         }
     }
 
