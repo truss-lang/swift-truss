@@ -178,6 +178,10 @@ public final class Driver {
         } else {
             tirModules = []
         }
+        let verifier = TIR.Verifier(context: context)
+        for module in tirModules {
+            verifier.verify(module)
+        }
         let llvmContext: LLVMSwiftBinding.Context?
         let llvmModules: [LLVMSwiftBinding.Module]
         if !context.diagnosticEngine.hasErrors && false {
