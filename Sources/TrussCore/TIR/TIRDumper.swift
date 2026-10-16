@@ -1,5 +1,3 @@
-import Foundation
-
 public extension TIR {
     final class Dumper: Visitor {
         private var registry: TIR.Registry?
@@ -8,68 +6,41 @@ public extension TIR {
 
         public func dump(_ module: TIR.Module) -> String {
             registry = module.registry
-            var lines: [String] = []
+            var sections: [String] = []
             let nominalTypes = module.registry.types.values.compactMap { $0 as? TIRType.NominalType }
                 .sorted { $0.name < $1.name }
-            for type in nominalTypes {
-                lines.append("%" + type.name + " = type " + nominalBody(type))
-            }
             if !nominalTypes.isEmpty {
-                lines.append("")
-            }
-            let vtableMetadatas = module.registry.metadatas.values
-                .filter { !$0.vtable.isEmpty }
-                .sorted { $0.name < $1.name }
-            for metadata in vtableMetadatas {
-                let entries = metadata.vtable.enumerated().map { index, entry in
-                    "\(index): " + entry.name + " " + typeText(entry.signature) + " @" +
-                        (module.registry.functions[entry.function]?.name ?? "?")
-                }
-                lines.append(
-                    "@" + metadata.name + " = vtable [ " + entries.joined(separator: ", ") + " ]"
+                sections.append(
+                    nominalTypes.map { "type " + $0.displayText + " = " + nominalBody($0) }
+                        .joined(separator: "\n")
                 )
             }
-            if !vtableMetadatas.isEmpty {
-                lines.append("")
+            let metadataLines = metadataSection(module)
+            if !metadataLines.isEmpty {
+                sections.append(metadataLines.joined(separator: "\n"))
             }
-            for global in module.globals {
-                let externMark = global.isExtern ? "external " : ""
-                let initializerMark = if let initializer = global.initializer {
-                    ", initializer \(registry!.functions[initializer]!.name)"
-                } else {
-                    ""
-                }
-                lines.append("@\(global.name) = \(externMark)global \(typeText(global.type))\(initializerMark)")
+            if !module.globals.isEmpty {
+                sections.append(module.globals.map { globalText($0) }.joined(separator: "\n"))
             }
-            let functions = module.functions
-            if !module.globals.isEmpty, !functions.isEmpty {
-                lines.append("")
+            if !module.functions.isEmpty {
+                sections.append(module.functions.map { dump($0) }.joined(separator: "\n\n"))
             }
-            lines.append(contentsOf: functions.map { dump($0) })
-            return lines.joined(separator: "\n")
+            return sections.joined(separator: "\n\n")
         }
 
         public func dump(_ function: TIR.Function) -> String {
-            var lines: [String] = []
-            let signature = functionSignature(function)
-            if function.isExtern {
-                lines.append("declare " + signature)
-                return lines.joined(separator: "\n")
-            }
-            var attributes = ""
+            var header = function.isExtern ? "tir.extern" : "tir"
+            header += " @" + function.name + "(" + parameterList(function) + ")"
+            header += " -> " + typeText(function.returnType)
             if let convention = function.callingConvention {
-                attributes += " \"\(convention)\""
+                header += " cc " + convention
             }
-            lines.append("define " + signature + attributes + " {")
+            if function.isExtern {
+                return header
+            }
+            var lines = [header + " {"]
             for block in function.basicBlocks {
-                if block.parameters.isEmpty {
-                    lines.append(block.name + ":")
-                } else {
-                    let parameters = block.parameters.map {
-                        "%" + $0.name + ": " + typeText($0.ty)
-                    }
-                    lines.append(block.name + "(" + parameters.joined(separator: ", ") + "):")
-                }
+                lines.append(blockHeader(block))
                 for instruction in block.instructions {
                     lines.append("  " + instructionText(instruction))
                 }
@@ -78,88 +49,199 @@ public extension TIR {
             return lines.joined(separator: "\n")
         }
 
-        private func functionSignature(_ function: TIR.Function) -> String {
-            let returnText = typeText(function.returnType)
-            let parameterText = function.parameters.map { parameter in
-                typeText(parameter.ty) + " %" + parameter.name
-            }
-            var result = returnText + " @" + function.name + "(" + parameterText.joined(separator: ", ") + ")"
+        private func parameterList(_ function: TIR.Function) -> String {
+            var parts = function.parameters.map { "%" + $0.name + ": " + typeText($0.ty) }
             if function.isVariadic {
-                result += ", ..."
+                parts.append("...")
             }
-            return result
+            return parts.joined(separator: ", ")
+        }
+
+        private func blockHeader(_ block: BasicBlock) -> String {
+            guard !block.parameters.isEmpty else {
+                return "^" + block.name + ":"
+            }
+            let parameters = block.parameters.enumerated().map { index, parameter in
+                "%" + blockArgumentName(parameter, index: index) + ": " + typeText(parameter.ty)
+            }
+            return "^" + block.name + "(" + parameters.joined(separator: ", ") + "):"
+        }
+
+        private func blockArgumentName(_ argument: BlockArgument, index: Int) -> String {
+            argument.name.isEmpty ? "arg" + String(index) : argument.name
+        }
+
+        private func metadataSection(_ module: TIR.Module) -> [String] {
+            var lines: [String] = []
+            for metadata in module.registry.metadatas.values.sorted(by: {
+                ($0.name, $0.id.id) < ($1.name, $1.id.id)
+            }) {
+                var attributes: [String] = []
+                if let superclass = metadata.superclass {
+                    attributes.append("super @" + metadataName(superclass))
+                }
+                if !metadata.conformedProtocols.isEmpty {
+                    let protocols = metadata.conformedProtocols.map { protocolName($0) }
+                    attributes.append("conforms " + protocols.joined(separator: ", "))
+                }
+                if !attributes.isEmpty {
+                    lines.append("metadata @" + metadata.name + " : " + attributes.joined(separator: ", "))
+                }
+                if !metadata.vtable.isEmpty {
+                    let entries = metadata.vtable.enumerated().map { index, entry in
+                        String(index) + ": " + vtableEntryText(entry, module: module)
+                    }
+                    lines.append("vtable @" + metadata.name + " { " + entries.joined(separator: ", ") + " }")
+                }
+            }
+            return lines
+        }
+
+        private func vtableEntryText(_ entry: TIR.VTableEntry, module: TIR.Module) -> String {
+            let functionName = module.registry.functions[entry.function].map { "@" + $0.name } ?? "@<?>"
+            return entry.name + signatureText(entry.signature) + " " + functionName
+        }
+
+        private func signatureText(_ typeId: Id.TIRTypeId) -> String {
+            guard let functionType = registry?.types[typeId] as? TIRType.FunctionType else {
+                return "(" + typeText(typeId) + ")"
+            }
+            var parameters = functionType.parameters.map { typeText($0) }
+            if functionType.isVariadic {
+                parameters.append("...")
+            }
+            return "(" + parameters.joined(separator: ",") + ")->" + typeText(functionType.returnType)
+        }
+
+        private func globalText(_ global: TIR.GlobalVariable) -> String {
+            var text = (global.isExtern ? "extern " : "") + "global @" + global.name
+            text += " : " + typeText(global.type)
+            if let initializer = global.initializer {
+                text += " init " + (registry?.functions[initializer].map { "@" + $0.name } ?? "@<?>")
+            }
+            return text
         }
 
         private func nominalBody(_ type: TIRType.NominalType) -> String {
             switch type {
             case let structType as TIRType.StructType:
-                return "{ " + structType.fields.map { $0.name + ": " + typeText($0.type) }
-                    .joined(separator: ", ") + " }"
+                return "struct " + braced(fieldsText(structType.fields))
             case let classType as TIRType.ClassType:
-                return "{ ptr" + (classType.fields.isEmpty ? "" : ", ") + classType.fields
-                    .map { $0.name + ": " + typeText($0.type) }
-                    .joined(separator: ", ") + " }"
+                return "class " + braced(fieldsText(classType.fields))
             case let enumType as TIRType.EnumType:
                 let cases = enumType.cases.map { caseInfo in
-                    "." + caseInfo
-                        .name +
-                        (
-                            caseInfo.associatedTypes.isEmpty ? "" : "(" + caseInfo.associatedTypes.map { typeText($0) }
-                                .joined(separator: ", ") + ")"
-                        )
+                    let payload = caseInfo.associatedTypes.map { typeText($0) }.joined(separator: ",")
+                    return "." + caseInfo.name + (payload.isEmpty ? "" : "(" + payload + ")")
                 }
-                return "{ i32" + (cases.isEmpty ? "" : ", ") + cases.joined(separator: " | ") + " }"
+                return "enum " + braced(cases.joined(separator: ", "))
             default:
-                return "opaque"
+                return "nominal {}"
             }
+        }
+
+        private func braced(_ body: String) -> String {
+            body.isEmpty ? "{}" : "{ " + body + " }"
+        }
+
+        private func fieldsText(_ fields: [(name: String, type: Id.TIRTypeId)]) -> String {
+            fields.map { $0.name + ": " + typeText($0.type) }.joined(separator: ", ")
         }
 
         private func typeText(_ typeId: Id.TIRTypeId) -> String {
             guard let type = registry?.types[typeId] else {
-                return "?"
+                return "<?type " + String(typeId.id) + ">"
             }
             switch type {
             case _ as TIRType.VoidType:
                 return "void"
             case let primitive as TIRType.PrimitiveType:
                 switch primitive.kind {
+                case .Signed:
+                    return "i" + String(primitive.bitWidth)
+                case .Unsigned:
+                    return "u" + String(primitive.bitWidth)
                 case .Float:
-                    return "f\(primitive.bitWidth)"
-                case .Signed, .Unsigned, .Bool, .Char:
-                    return "i\(primitive.bitWidth)"
+                    return "f" + String(primitive.bitWidth)
+                case .Bool:
+                    return "bool"
+                case .Char:
+                    return "char"
                 }
-            case _ as TIRType.PointerType:
-                return "ptr"
+            case let pointer as TIRType.PointerType:
+                return "*" + pointeeText(pointer.pointee)
             case _ as TIRType.MetadataType:
-                return "metadata"
+                return "meta"
             case let nominal as TIRType.NominalType:
-                return "%" + nominal.name
+                return nominalKeyword(nominal) + " " + nominal.displayText
             case let tuple as TIRType.TupleType:
-                return "{ " + tuple.elements.map { typeText($0.type) }.joined(separator: ", ") + " }"
+                let elements = tuple.elements.map { element in
+                    (element.label.map { $0 + ": " } ?? "") + typeText(element.type)
+                }
+                return "(" + elements.joined(separator: ",") + ")"
             case let function as TIRType.FunctionType:
-                return "(" + function.parameters.map { typeText($0) }
-                    .joined(separator: ", ") + ") -> " + typeText(function.returnType)
+                var parameters = function.parameters.map { typeText($0) }
+                if function.isVariadic {
+                    parameters.append("...")
+                }
+                return "fn(" + parameters.joined(separator: ",") + ")->" + typeText(function.returnType)
             case let existential as TIRType.ExistentialType:
-                return "%" + existential.name
+                return "any " + existential.name
             default:
-                return "?"
+                return "<?type " + String(typeId.id) + ">"
             }
         }
 
-        private func enumCaseName(_ ty: Id.TIRTypeId, _ tag: Int) -> String {
+        private func pointeeText(_ pointee: Id.TIRTypeId) -> String {
+            if let nominal = registry?.types[pointee] as? TIRType.NominalType {
+                return nominal.displayText
+            }
+            return typeText(pointee)
+        }
+
+        private func nominalKeyword(_ type: TIRType.NominalType) -> String {
+            switch type {
+            case _ as TIRType.StructType:
+                "struct"
+            case _ as TIRType.ClassType:
+                "class"
+            case _ as TIRType.EnumType:
+                "enum"
+            default:
+                "nominal"
+            }
+        }
+
+        private func metadataName(_ id: Id.TIRMetadataId) -> String {
+            registry?.metadatas[id]?.name ?? "#" + String(id.id)
+        }
+
+        private func protocolName(_ id: Id.TIRProtocolId) -> String {
+            registry?.protocols[id]?.name ?? "#" + String(id.id)
+        }
+
+        private func witnessText(_ id: Id.TIRWitnessId) -> String {
+            guard let witness = registry?.witnesses[id] else {
+                return "<witness #" + String(id.id) + ">"
+            }
+            let concrete = (registry?.types[witness.concreteType] as? TIRType.NominalType)?.displayText
+                ?? typeText(witness.concreteType)
+            return "%" + concrete + ":" + protocolName(witness.protocolId) + "#" + String(id.id)
+        }
+
+        private func enumCaseRef(_ ty: Id.TIRTypeId, _ tag: Int) -> String {
             guard let type = registry?.types[ty] as? TIRType.EnumType,
                   tag >= 0, tag < type.cases.count
             else {
-                return String(tag)
+                return "#" + String(tag)
             }
-            return type.cases[tag].name
+            return "." + type.cases[tag].name
         }
 
         private func fieldText(_ base: Value, _ index: Int) -> String {
-            guard let pointer = registry?.type(base.ty) as? TIRType.PointerType,
-                  let nominal = registry?.type(pointer.pointee)
+            guard let pointer = registry?.types[base.ty] as? TIRType.PointerType,
+                  let nominal = registry?.types[pointer.pointee]
             else {
-                return "#\(index)"
+                return "#" + String(index)
             }
             let name: String? = if let structType = nominal as? TIRType.StructType {
                 structType.fields.indices.contains(index) ? structType.fields[index].name : nil
@@ -169,9 +251,51 @@ public extension TIR {
                 nil
             }
             guard let name else {
-                return "#\(index)"
+                return "#" + String(index)
             }
-            return "#\(index) \(name)"
+            return "#" + String(index) + " " + name
+        }
+
+        private func definition(_ result: Value, _ body: String) -> String {
+            "%" + result.name + " = " + body + " : " + typeText(result.ty)
+        }
+
+        private func blockRef(_ block: BasicBlock, _ arguments: [Value]) -> String {
+            var text = "^" + block.name
+            if !arguments.isEmpty {
+                text += "(" + arguments.map { valueText($0) }.joined(separator: ", ") + ")"
+            }
+            return text
+        }
+
+        private func calleeReturnTypeText(_ callee: Value) -> String {
+            guard let functionType = registry?.types[callee.ty] as? TIRType.FunctionType else {
+                return "void"
+            }
+            return typeText(functionType.returnType)
+        }
+
+        private func quoted(_ text: String) -> String {
+            var result = "\""
+            for character in text {
+                switch character {
+                case "\\": result += "\\\\"
+                case "\"": result += "\\\""
+                case "\n": result += "\\n"
+                case "\r": result += "\\r"
+                case "\t": result += "\\t"
+                default: result.append(character)
+                }
+            }
+            return result + "\""
+        }
+
+        private func charQuoted(_ character: Character) -> String {
+            switch character {
+            case "\\": "'\\\\'"
+            case "'": "'\\''"
+            default: "'" + String(character) + "'"
+            }
         }
 
         private func valueText(_ value: Value) -> String {
@@ -181,218 +305,215 @@ public extension TIR {
             case let literal as FloatLiteral:
                 String(literal.value)
             case let literal as CharLiteral:
-                "'" + String(literal.value) + "'"
+                charQuoted(literal.value)
             case let literal as BoolLiteral:
                 literal.value ? "true" : "false"
             case let literal as StringLiteral:
-                "\"" + literal.value
-                    .replacingOccurrences(of: "\\", with: "\\\\")
-                    .replacingOccurrences(of: "\"", with: "\\\"") + "\""
+                quoted(literal.value)
             case _ as NullptrLiteral:
                 "null"
             case _ as VoidLiteral:
                 "void"
             case let function as FunctionRef:
-                registry?.functions[function.functionId].map { "@" + $0.name } ?? "?"
+                registry?.functions[function.functionId].map { "@" + $0.name } ?? "@<?>"
             case let globalAddr as GlobalAddr:
-                registry?.globals[globalAddr.globalId].map { "@" + $0.name } ?? "?"
+                registry?.globals[globalAddr.globalId].map { "@" + $0.name } ?? "@<?>"
             default:
-                "%" + value.name
+                value.name.isEmpty ? "%<?>" : "%" + value.name
             }
-        }
-
-        private func blockLabel(_ block: BasicBlock) -> String {
-            "label %" + block.name
         }
 
         private func instructionText(_ instruction: Instruction) -> String {
             switch instruction {
             case let ret as Return:
-                if let value = ret.value {
-                    return "ret \(typeText(value.ty)) \(valueText(value))"
-                } else {
-                    return "ret void"
-                }
+                return ret.value.map { "ret " + valueText($0) } ?? "ret"
             case let branch as Branch:
-                var text = "br " + blockLabel(branch.target)
-                if !branch.arguments.isEmpty {
-                    text += "(" + branch.arguments.map { valueText($0) }.joined(separator: ", ") + ")"
-                }
-                return text
+                return "br " + blockRef(branch.target, branch.arguments)
             case let cond as ConditionalBranch:
-                var trueTarget = blockLabel(cond.trueBranch)
-                if !cond.trueArguments.isEmpty {
-                    trueTarget += "(" + cond.trueArguments.map { valueText($0) }.joined(separator: ", ") + ")"
-                }
-                var falseTarget = blockLabel(cond.falseBranch)
-                if !cond.falseArguments.isEmpty {
-                    falseTarget += "(" + cond.falseArguments.map { valueText($0) }.joined(separator: ", ") + ")"
-                }
-                return "br \(typeText(cond.condition.ty)) \(valueText(cond.condition)), "
-                    + trueTarget + ", " + falseTarget
+                return "condbr " + valueText(cond.condition)
+                    + " ? " + blockRef(cond.trueBranch, cond.trueArguments)
+                    + " : " + blockRef(cond.falseBranch, cond.falseArguments)
             case _ as Unreachable:
-                return "unreachable"
+                return "halt"
             case let phi as Phi:
-                let incomings = phi.incomings.map { incoming in
-                    "[" + valueText(incoming.value) + ", %" + incoming.block.name + "]"
-                }
-                return "%\(phi.result.name) = phi \(typeText(phi.result.ty)) " + incomings.joined(separator: ", ")
+                let incomings = phi.incomings.map { "^" + $0.block.name + ": " + valueText($0.value) }
+                return definition(phi.result, "phi { " + incomings.joined(separator: ", ") + " }")
             case let switchEnum as SwitchEnum:
-                var text = "switch \(typeText(switchEnum.value.ty)) \(valueText(switchEnum.value))"
+                var entries = switchEnum.cases.map { caseInfo in
+                    enumCaseRef(switchEnum.value.ty, caseInfo.tag) + ": "
+                        + blockRef(caseInfo.block, caseInfo.arguments)
+                }
                 if let defaultBlock = switchEnum.defaultBlock {
-                    text += ", " + blockLabel(defaultBlock)
+                    entries.append("default: " + blockRef(defaultBlock, []))
                 }
-                text += " [ "
-                text += switchEnum.cases.map { caseInfo in
-                    var label = blockLabel(caseInfo.block)
-                    if !caseInfo.arguments.isEmpty {
-                        label += "(" + caseInfo.arguments.map { valueText($0) }.joined(separator: ", ") + ")"
-                    }
-                    return "case \(enumCaseName(switchEnum.value.ty, caseInfo.tag)), " + label
-                }.joined(separator: ", ")
-                text += " ]"
-                return text
+                return "switch " + valueText(switchEnum.value) + " { " + entries.joined(separator: ", ") + " }"
             case let extract as ExtractPayload:
-                return "%\(extract.result.name) = extractpayload \(typeText(extract.value.ty)) \(valueText(extract.value))"
+                return definition(
+                    extract.result,
+                    "extractpayload " + valueText(extract.value) + ", " +
+                        enumCaseRef(extract.value.ty, extract.caseIndex)
+                )
             case let arith as UnaryArith:
-                return "%\(arith.result.name) = \(arith.op.rawValue) \(typeText(arith.result.ty)) \(valueText(arith.operand))"
+                return definition(arith.result, arith.op.rawValue + " " + valueText(arith.operand))
             case let arith as BinaryArith:
-                return "%\(arith.result.name) = \(arith.op.rawValue) \(typeText(arith.result.ty)) \(valueText(arith.lhs)), \(valueText(arith.rhs))"
+                return definition(
+                    arith.result,
+                    arith.op.rawValue + " " + valueText(arith.lhs) + ", " + valueText(arith.rhs)
+                )
             case let alloc as AllocStack:
-                return "%\(alloc.result.name) = alloca \(typeText(alloc.allocatedType))"
+                return definition(alloc.result, "alloca " + typeText(alloc.allocatedType))
             case let dealloc as DeallocStack:
-                return "deallocstack \(valueText(dealloc.value))"
+                return "deallocstack " + valueText(dealloc.value)
             case let alloc as AllocHeap:
-                return "%\(alloc.result.name) = allocheap \(typeText(alloc.allocatedType))"
+                return definition(alloc.result, "allocheap " + typeText(alloc.allocatedType))
             case let dealloc as DeallocHeap:
-                return "deallocheap \(valueText(dealloc.value))"
+                return "deallocheap " + valueText(dealloc.value)
             case let alloc as AllocCell:
-                return "%\(alloc.result.name) = alloccell \(typeText(alloc.allocatedType))"
+                return definition(alloc.result, "alloccell " + typeText(alloc.allocatedType))
             case let dealloc as DeallocCell:
-                return "dealloccell \(valueText(dealloc.value))"
+                return "dealloccell " + valueText(dealloc.value)
             case let load as Load:
-                return "%\(load.result.name) = load \(typeText(load.result.ty)), ptr \(valueText(load.ptr))"
+                return definition(load.result, "load " + valueText(load.ptr))
             case let store as Store:
-                return "store \(typeText(store.value.ty)) \(valueText(store.value)), ptr \(valueText(store.ptr))"
+                return "store " + valueText(store.value) + " -> " + valueText(store.ptr)
             case let sizeOf as SizeOf:
-                return "%\(sizeOf.result.name) = sizeof \(typeText(sizeOf.sizedType))"
+                return definition(sizeOf.result, "sizeof " + typeText(sizeOf.sizedType))
             case let structAddr as StructElementAddr:
-                return "%\(structAddr.result.name) = structelementaddr \(valueText(structAddr.base)), "
-                    + fieldText(structAddr.base, structAddr.index)
+                return definition(
+                    structAddr.result,
+                    "structelementaddr " + valueText(structAddr.base) + ", "
+                        + fieldText(structAddr.base, structAddr.index)
+                )
             case let tupleAddr as TupleElementAddr:
-                return "%\(tupleAddr.result.name) = tupleelementaddr \(typeText(tupleAddr.base.ty)) \(valueText(tupleAddr.base)), \(tupleAddr.index)"
+                return definition(
+                    tupleAddr.result,
+                    "tupleelementaddr " + valueText(tupleAddr.base) + ", #" + String(tupleAddr.index)
+                )
             case let classAddr as ClassElementAddr:
-                return "%\(classAddr.result.name) = classelementaddr \(typeText(classAddr.base.ty)) \(valueText(classAddr.base)), \(classAddr.index)"
+                return definition(
+                    classAddr.result,
+                    "classelementaddr " + valueText(classAddr.base) + ", "
+                        + fieldText(classAddr.base, classAddr.index)
+                )
             case let project as ProjectCell:
-                return "%\(project.result.name) = projectcell \(valueText(project.cell))"
+                return definition(project.result, "projectcell " + valueText(project.cell))
             case let structValue as StructValue:
-                return "%\(structValue.result.name) = structvalue \(typeText(structValue.result.ty)) ("
-                    + structValue.fields.map { valueText($0) }.joined(separator: ", ")
-                    + ")"
+                return definition(
+                    structValue.result,
+                    "structvalue (" + structValue.fields.map { valueText($0) }.joined(separator: ", ") + ")"
+                )
             case let tupleValue as TupleValue:
-                return "%\(tupleValue.result.name) = tuplevalue \(typeText(tupleValue.result.ty)) ("
-                    + tupleValue.elements.map { valueText($0) }.joined(separator: ", ")
-                    + ")"
+                return definition(
+                    tupleValue.result,
+                    "tuplevalue (" + tupleValue.elements.map { valueText($0) }.joined(separator: ", ") + ")"
+                )
             case let enumValue as EnumValue:
-                var text =
-                    "%\(enumValue.result.name) = enumvalue \(typeText(enumValue.result.ty)) case \(enumCaseName(enumValue.result.ty, enumValue.caseIndex))"
+                var body = "enumvalue " + enumCaseRef(enumValue.result.ty, enumValue.caseIndex)
                 if let payload = enumValue.payload {
-                    text += ", \(valueText(payload))"
+                    body += "(" + valueText(payload) + ")"
                 }
-                return text
+                return definition(enumValue.result, body)
             case let call as Call:
-                let prefix = if let result = call.result {
-                    "%\(result.name) = "
-                } else {
-                    ""
+                let body = "call " + valueText(call.callee) + "("
+                    + call.arguments.map { valueText($0) }.joined(separator: ", ") + ")"
+                if let result = call.result {
+                    return definition(result, body)
                 }
-                return prefix
-                    + "call \(typeText(call.result?.ty ?? registry!.voidType().id)) \(valueText(call.callee))("
-                    + call.arguments.map { valueText($0) }.joined(separator: ", ")
-                    + ")"
+                return body + " : " + calleeReturnTypeText(call.callee)
             case let tryCall as TryCall:
-                let prefix = if let result = tryCall.result {
-                    "%\(result.name) = "
-                } else {
-                    ""
-                }
-                var text = prefix
-                    + "trycall \(typeText(tryCall.result?.ty ?? registry!.voidType().id)) \(valueText(tryCall.callee))("
-                    + tryCall.arguments.map { valueText($0) }.joined(separator: ", ")
-                    + ") to "
-                    + blockLabel(tryCall.successBlock)
-                    + ", error "
-                    + blockLabel(tryCall.errorBlock)
+                var body = "trycall " + valueText(tryCall.callee) + "("
+                    + tryCall.arguments.map { valueText($0) }.joined(separator: ", ") + ")"
+                body += " -> " + blockRef(tryCall.successBlock, [])
+                body += ", error " + blockRef(tryCall.errorBlock, [])
                 if let errorCell = tryCall.errorCell {
-                    text += ", errorcell \(valueText(errorCell))"
+                    body += ", cell " + valueText(errorCell)
+                }
+                if let result = tryCall.result {
+                    return definition(result, body)
+                }
+                return body + " : " + calleeReturnTypeText(tryCall.callee)
+            case let closure as Closure:
+                return definition(
+                    closure.result,
+                    "closure " + valueText(closure.function) + "("
+                        + closure.captures.map { valueText($0) }.joined(separator: ", ") + ")"
+                )
+            case let upcast as Upcast:
+                return definition(upcast.result, "upcast " + valueText(upcast.value))
+            case let cast as UncheckedRefCast:
+                return definition(cast.result, "uncheckedrefcast " + valueText(cast.value))
+            case let numericCast as NumericCast:
+                return definition(
+                    numericCast.result,
+                    "numericcast " + numericCast.op.rawValue + " " + valueText(numericCast.value)
+                )
+            case let bitCast as BitCast:
+                return definition(bitCast.result, "bitcast " + valueText(bitCast.value))
+            case let typeMetadata as TypeMetadata:
+                return definition(typeMetadata.result, "typemetadata " + valueText(typeMetadata.value))
+            case let typeMetadataConstant as TypeMetadataConstant:
+                return definition(
+                    typeMetadataConstant.result,
+                    "typemetadataconstant " + typeText(typeMetadataConstant.type)
+                        + " @" + metadataName(typeMetadataConstant.metadata)
+                )
+            case let isInstance as IsInstance:
+                return definition(
+                    isInstance.result,
+                    "isinstance " + valueText(isInstance.metadata) + ", " + valueText(isInstance.target)
+                )
+            case let superclass as Superclass:
+                return definition(superclass.result, "superclass " + valueText(superclass.metadata))
+            case let trap as Trap:
+                return trap.message.map { "trap " + quoted($0) } ?? "trap"
+            case let retain as Retain:
+                return "retain " + valueText(retain.value)
+            case let release as Release:
+                return "release " + valueText(release.value)
+            case let copy as Copy:
+                return definition(copy.result, "copy " + valueText(copy.value))
+            case let destroy as Destroy:
+                return "destroy " + valueText(destroy.value)
+            case let asm as InlineAsm:
+                var text = "asm " + quoted(asm.template) + ", " + quoted(asm.constraints.joined(separator: ","))
+                text += "(" + asm.operands.map { valueText($0) }.joined(separator: ", ") + ")"
+                if !asm.options.isEmpty {
+                    text += " options " + asm.options.joined(separator: ", ")
                 }
                 return text
-            case let closure as Closure:
-                return "%\(closure.result.name) = closure @\(closure.function.name)("
-                    + closure.captures.map { valueText($0) }.joined(separator: ", ")
-                    + ")"
-            case let upcast as Upcast:
-                return "%\(upcast.result.name) = upcast \(valueText(upcast.value)) to \(typeText(upcast.targetType))"
-            case let cast as UncheckedRefCast:
-                return "%\(cast.result.name) = uncheckedrefcast \(valueText(cast.value)) to \(typeText(cast.targetType))"
-            case let numericCast as NumericCast:
-                return "%\(numericCast.result.name) = numericcast \(numericCast.op.rawValue) "
-                    + "\(valueText(numericCast.value)) to \(typeText(numericCast.targetType))"
-            case let bitCast as BitCast:
-                return "%\(bitCast.result.name) = bitcast \(valueText(bitCast.value)) to \(typeText(bitCast.targetType))"
-            case let typeMetadata as TypeMetadata:
-                return "%\(typeMetadata.result.name) = typemetadata \(valueText(typeMetadata.value))"
-            case let typeMetadataConstant as TypeMetadataConstant:
-                return "%\(typeMetadataConstant.result.name) = typemetadataconstant \(typeText(typeMetadataConstant.type))"
-            case let isInstance as IsInstance:
-                return "%\(isInstance.result.name) = isinstance \(valueText(isInstance.metadata)), \(valueText(isInstance.target))"
-            case let superclass as Superclass:
-                return "%\(superclass.result.name) = superclass \(valueText(superclass.metadata))"
-            case let trap as Trap:
-                if let message = trap.message {
-                    return "trap \"" + message + "\""
-                } else {
-                    return "trap"
-                }
-            case let retain as Retain:
-                return "retain \(valueText(retain.value))"
-            case let release as Release:
-                return "release \(valueText(release.value))"
-            case let copy as Copy:
-                return "%\(copy.result.name) = copy \(valueText(copy.value))"
-            case let destroy as Destroy:
-                return "destroy \(valueText(destroy.value))"
-            case let asm as InlineAsm:
-                return "asm \""
-                    + asm.template
-                    + "\", \""
-                    + asm.constraints.joined(separator: ",")
-                    + "\"("
-                    + asm.operands.map { valueText($0) }.joined(separator: ", ")
-                    + ")"
             case let build as BuildExistential:
-                let witnesses = build.witnesses.map { String($0.id) }.joined(separator: ", ")
-                return "%\(build.result.name) = buildexistential \(valueText(build.value)) witness \(witnesses) to \(typeText(build.result.ty))"
+                let witnesses = build.witnesses.map { witnessText($0) }.joined(separator: ", ")
+                return definition(
+                    build.result,
+                    "buildexistential " + valueText(build.value) + ", witnesses [" + witnesses + "]"
+                )
             case let open as OpenExistential:
-                return "%\(open.result.name) = openexistential \(valueText(open.container)) as \(typeText(open.result.ty))"
+                return definition(open.result, "openexistential " + valueText(open.container))
             case let witnessMethod as WitnessMethod:
-                let witness = registry?.witnesses[witnessMethod.witness]
-                let concreteName = witness
-                    .flatMap { registry?.types[$0.concreteType] as? TIRType.NominalType }?.name ?? "?"
-                let protocolName = witness.flatMap { registry?.protocols[$0.protocolId]?.name } ?? "?"
-                return "%\(witnessMethod.result.name) = witnessmethod %\(concreteName):\(protocolName)#\(witnessMethod.witness.id).\(witnessMethod.index)"
+                return definition(
+                    witnessMethod.result,
+                    "witnessmethod " + witnessText(witnessMethod.witness) + "." + String(witnessMethod.index)
+                )
             case let opaqueWitness as OpaqueWitnessMethod:
-                let protocolName = registry?.protocols[opaqueWitness.protocolId]?.name ?? "?"
-                return "%\(opaqueWitness.result.name) = opaquewitnessmethod \(valueText(opaqueWitness.container)) %\(protocolName)#\(opaqueWitness.protocolId.id).\(opaqueWitness.index)"
+                return definition(
+                    opaqueWitness.result,
+                    "opaquewitnessmethod " + valueText(opaqueWitness.container) + " %"
+                        + protocolName(opaqueWitness.protocolId) + "#" + String(opaqueWitness.protocolId.id)
+                        + "." + String(opaqueWitness.index)
+                )
             case let virtualMethod as VirtualMethod:
-                let metadataName = registry?.metadatas[virtualMethod.metadata]?.name ?? "?"
-                return "%\(virtualMethod.result.name) = virtualmethod %\(metadataName)#\(virtualMethod.metadata.id).\(virtualMethod.index)(\(valueText(virtualMethod.selfValue)))"
+                return definition(
+                    virtualMethod.result,
+                    "virtualmethod @" + metadataName(virtualMethod.metadata) + "#"
+                        + String(virtualMethod.metadata.id) + "." + String(virtualMethod.index)
+                        + "(" + valueText(virtualMethod.selfValue) + ")"
+                )
             case let existentialCopy as ExistentialCopy:
-                return "%\(existentialCopy.result.name) = existentialcopy \(valueText(existentialCopy.container))"
+                return definition(existentialCopy.result, "existentialcopy " + valueText(existentialCopy.container))
             case let existentialDestroy as ExistentialDestroy:
-                return "existentialdestroy \(valueText(existentialDestroy.container))"
+                return "existentialdestroy " + valueText(existentialDestroy.container)
             default:
-                return "unknown"
+                fatalError("unhandled TIR instruction in dumper: \(type(of: instruction))")
             }
         }
     }
