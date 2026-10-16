@@ -202,6 +202,7 @@ public enum TIR {
         public let name: String
         public let parameters: [BlockArgument]
         public var instructions: [Instruction] = []
+        public var sourceRange: SourceRange = TIR.unknownSourceRange
         public init(function: Function, name: String, parameters: [BlockArgument] = []) {
             self.function = function
             self.name = name
