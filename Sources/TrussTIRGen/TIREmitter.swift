@@ -36,6 +36,7 @@ public final class TIREmitter: AST.Visitor {
     private var loopTargetCache: [ObjectIdentifier: LoopTarget] = [:]
     private var loopStack: [LoopTarget] = []
     private var deferDomainStack: [DeferDomain] = []
+    private var currentSourceRange: SourceRange = TIR.unknownSourceRange
 
     private var currentModule: TIR.Module? {
         get {
@@ -56,21 +57,90 @@ public final class TIREmitter: AST.Visitor {
         self.gen = gen
     }
 
+    private func isKnown(_ range: SourceRange) -> Bool {
+        range.start.buffer.filePath != TIR.unknownSourceRange.start.buffer.filePath
+    }
+
+    private func sourceRange(of token: Token) -> SourceRange? {
+        guard let source = context.sourceTable[token.id] else {
+            return nil
+        }
+        return token.sourceRange(in: source.stringSourceBuffer)
+    }
+
+    private var currentRange: SourceRange {
+        if isKnown(currentSourceRange) {
+            return currentSourceRange
+        }
+        if let currentFunction, isKnown(currentFunction.sourceRange) {
+            return currentFunction.sourceRange
+        }
+        return currentSourceRange
+    }
+
+    @discardableResult
+    private func at<T: TIR.Instruction>(_ instruction: T) -> T {
+        instruction.sourceRange = currentRange
+        return instruction
+    }
+
+    @discardableResult
+    private func at<T: TIR.Value>(_ value: T) -> T {
+        value.sourceRange = currentRange
+        return value
+    }
+
+    @discardableResult
+    public override func visit(_ node: AST.AstNode, additional: Any? = nil) -> Any? {
+        guard let builder, let block = builder.insertPoint, block.function === currentFunction else {
+            return super.visit(node, additional: additional)
+        }
+        let lastRange = currentSourceRange
+        let startIndex = block.instructions.count
+        currentSourceRange = node.sourceRange
+        let result = super.visit(node, additional: additional)
+        currentSourceRange = lastRange
+        if builder.insertPoint === block {
+            for index in startIndex ..< block.instructions.count {
+                let instruction = block.instructions[index]
+                guard !isKnown(instruction.sourceRange) else {
+                    continue
+                }
+                instruction.sourceRange = node.sourceRange
+            }
+        }
+        return result
+    }
+
+    private func backfillSourceRanges(in function: TIR.Function) {
+        let fallback = isKnown(function.sourceRange) ? function.sourceRange : currentRange
+        for block in function.basicBlocks {
+            if !isKnown(block.sourceRange) {
+                block.sourceRange = fallback
+            }
+            for instruction in block.instructions where !isKnown(instruction.sourceRange) {
+                instruction.sourceRange = fallback
+            }
+        }
+    }
+
     private func visitExpression(_ expression: AST.Expression) -> TIR.Value {
         guard let v = visit(expression) as? TIR.Value else {
-            fatalError()
+            fatalError("unreachable: an expression must lower to a TIR value")
         }
         if expression.isLeftValue {
-            return v
-        } else if let wrapper = v as? TIR.LeftValueWrapper {
-            return wrapper.innerValue
-        } else {
-            guard let builder else {
-                fatalError("unreachable")
+            if let wrapper = v as? TIR.LeftValueWrapper {
+                return wrapper.innerValue
+            } else {
+                guard let builder else {
+                    fatalError("unreachable")
+                }
+                let tmp = builder.buildAllocStack(allocatedType: v.ty).result
+                builder.buildStore(value: v, to: tmp)
+                return tmp
             }
-            let tmp = builder.buildAllocStack(allocatedType: v.ty).result
-            builder.buildStore(value: v, to: tmp)
-            return tmp
+        } else {
+            return v
         }
     }
 
@@ -112,6 +182,7 @@ public final class TIREmitter: AST.Visitor {
         else {
             fatalError("unreachable")
         }
+        fn.sourceRange = functionDecl.sourceRange
         guard let body = functionDecl.body else {
             return nil
         }
@@ -151,14 +222,13 @@ public final class TIREmitter: AST.Visitor {
         else {
             fatalError("unreachable")
         }
+        fn.sourceRange = initDecl.sourceRange
         emitFunctionBody(
             fn: fn,
             parameters: initDecl.parameters,
             parameterStartIndex: 1
         ) {
-            for statement in initDecl.body {
-                visit(statement)
-            }
+            visitStatements(initDecl.body)
             emitFunctionNormalExit()
         } prologue: { [self] in
             bindLocal("<self>", fn.parameters[0])
@@ -173,14 +243,13 @@ public final class TIREmitter: AST.Visitor {
         else {
             fatalError("unreachable")
         }
+        fn.sourceRange = deinitDecl.sourceRange
         emitFunctionBody(
             fn: fn,
             parameters: [],
             parameterStartIndex: 1
         ) {
-            for statement in deinitDecl.body {
-                visit(statement)
-            }
+            visitStatements(deinitDecl.body)
             emitFunctionNormalExit()
         } prologue: { [self] in
             bindLocal("<self>", fn.parameters[0])
@@ -191,7 +260,7 @@ public final class TIREmitter: AST.Visitor {
     @discardableResult
     public override func visitSubscriptDecl(_ subscriptDecl: AST.SubscriptDecl, additional: Any? = nil) -> Any? {
         for accessor in subscriptDecl.accessors {
-            visitAccessor(accessor, additional: additional)
+            visit(accessor, additional: additional)
         }
         return nil
     }
@@ -203,6 +272,7 @@ public final class TIREmitter: AST.Visitor {
         else {
             fatalError("unreachable")
         }
+        fn.sourceRange = accessor.sourceRange
         emitFunctionBody(
             fn: fn,
             parameters: [],
@@ -210,9 +280,7 @@ public final class TIREmitter: AST.Visitor {
         ) {
             switch accessor.body {
             case let .Block(statements):
-                for statement in statements {
-                    visit(statement)
-                }
+                visitStatements(statements)
                 emitFunctionNormalExit()
             case let .Expression(expression):
                 emitReturn(visitExpression(expression))
@@ -257,15 +325,18 @@ public final class TIREmitter: AST.Visitor {
 
         for (index, parameter) in parameters.enumerated() {
             let name = mangleVariable(parameter.name.value)
-            let alloc = builder!.buildAllocStack(
-                allocatedType: lowerType(parameter.symbol!.type).id,
-                name: name
+            let alloc = at(
+                builder!.buildAllocStack(
+                    allocatedType: lowerType(parameter.symbol!.type).id,
+                    name: name
+                )
             )
-            builder!.buildStore(value: fn.parameters[parameterStartIndex + index], to: alloc.result)
+            at(builder!.buildStore(value: fn.parameters[parameterStartIndex + index], to: alloc.result))
             bindLocal(parameter.name.value, alloc.result)
         }
 
         body()
+        backfillSourceRanges(in: fn)
 
         currentFunction = lastFunction
         labelMap = lastLabelMap
@@ -302,6 +373,7 @@ public final class TIREmitter: AST.Visitor {
         switch symbol.kind {
         case .Global:
             let global = gen.globalsBySymbol[symbol.id]!
+            global.sourceRange = variableDecl.sourceRange
             if let initializer = variableDecl.initializer {
                 guard let initializerId = global.initializer,
                       let initializerFunction = gen.registry.functions[initializerId]
@@ -312,13 +384,15 @@ public final class TIREmitter: AST.Visitor {
                 let lastFunction = currentFunction
 
                 currentFunction = initializerFunction
+                initializerFunction.sourceRange = variableDecl.sourceRange
 
                 newBlock("entry")
-                let v = visitExpression(initializer)
-                let addr = builder.buildGlobalAddr(global: global)
-                builder.buildStore(value: v, to: addr)
-                builder.buildReturn()
+                let v = rvalue(of: visitExpression(initializer), of: initializer)
+                let addr = at(builder.buildGlobalAddr(global: global))
+                at(builder.buildStore(value: v, to: addr))
+                at(builder.buildReturn())
 
+                backfillSourceRanges(in: initializerFunction)
                 builder.insertPoint = lastInsertPoint
                 currentFunction = lastFunction
             }
@@ -331,7 +405,9 @@ public final class TIREmitter: AST.Visitor {
                 )
                 bindLocal(variableDecl.name.value, alloc.result)
                 if let initializer = variableDecl.initializer {
-                    builder.buildStore(value: visitExpression(initializer), to: alloc.result)
+                    builder.buildStore(
+                        value: rvalue(of: visitExpression(initializer), of: initializer), to: alloc.result
+                    )
                 }
             } else {
                 let alloc = builder.buildAllocStack(
@@ -340,14 +416,16 @@ public final class TIREmitter: AST.Visitor {
                 )
                 bindLocal(variableDecl.name.value, alloc.result)
                 if let initializer = variableDecl.initializer {
-                    builder.buildStore(value: visitExpression(initializer), to: alloc.result)
+                    builder.buildStore(
+                        value: rvalue(of: visitExpression(initializer), of: initializer), to: alloc.result
+                    )
                 }
             }
         default:
             break
         }
         for accessor in variableDecl.accessors {
-            visitAccessor(accessor, additional: additional)
+            visit(accessor, additional: additional)
         }
         return nil
     }
@@ -371,16 +449,14 @@ public final class TIREmitter: AST.Visitor {
         let nextBlock = buildBlock()
         loopTarget.nextBlock = nextBlock
 
-        builder.buildBranch(to: block)
+        at(builder.buildBranch(to: block))
 
         builder.insertPoint = block
         let domain = DeferDomain()
         deferDomainStack.append(domain)
-        for statement in loopStatement.body {
-            visit(statement)
-        }
+        visitStatements(loopStatement.body)
         emitDomainExit(domain) {
-            builder.buildBranch(to: block)
+            at(builder.buildBranch(to: block))
         }
         deferDomainStack.removeLast()
 
@@ -411,20 +487,23 @@ public final class TIREmitter: AST.Visitor {
         loopTarget.condBlock = condBlock
         loopTarget.nextBlock = nextBlock
 
-        builder.buildBranch(to: condBlock)
+        at(builder.buildBranch(to: condBlock))
 
         builder.insertPoint = condBlock
         let cond = visitExpression(whileStatement.condition)
-        builder.buildConditionalBranch(condition: cond, trueBranch: thenBlock, falseBranch: nextBlock)
+        at(
+            builder.buildConditionalBranch(
+                condition: rvalue(of: cond, as: booleanTypeId), trueBranch: thenBlock,
+                falseBranch: nextBlock
+            )
+        )
 
         builder.insertPoint = thenBlock
         let domain = DeferDomain()
         deferDomainStack.append(domain)
-        for statement in whileStatement.body {
-            visit(statement)
-        }
+        visitStatements(whileStatement.body)
         emitDomainExit(domain) {
-            builder.buildBranch(to: condBlock)
+            at(builder.buildBranch(to: condBlock))
         }
         deferDomainStack.removeLast()
 
@@ -455,21 +534,24 @@ public final class TIREmitter: AST.Visitor {
         loopTarget.condBlock = condBlock
         loopTarget.nextBlock = nextBlock
 
-        builder.buildBranch(to: bodyBlock)
+        at(builder.buildBranch(to: bodyBlock))
 
         builder.insertPoint = bodyBlock
         let domain = DeferDomain()
         deferDomainStack.append(domain)
-        for statement in repeatWhile.body {
-            visit(statement)
-        }
+        visitStatements(repeatWhile.body)
         emitDomainExit(domain) {
-            builder.buildBranch(to: condBlock)
+            at(builder.buildBranch(to: condBlock))
         }
         deferDomainStack.removeLast()
         builder.insertPoint = condBlock
         let cond = visitExpression(repeatWhile.condition)
-        builder.buildConditionalBranch(condition: cond, trueBranch: bodyBlock, falseBranch: nextBlock)
+        at(
+            builder.buildConditionalBranch(
+                condition: rvalue(of: cond, as: booleanTypeId), trueBranch: bodyBlock,
+                falseBranch: nextBlock
+            )
+        )
 
         builder.insertPoint = nextBlock
         popScope()
@@ -479,38 +561,29 @@ public final class TIREmitter: AST.Visitor {
 
     @discardableResult
     public override func visitGoto(_ gotoStatement: AST.Goto, additional _: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         let target = getLabelTarget(gotoStatement.label.value)
-        builder.buildBranch(to: target.block)
+        buildBranchIfOpen(to: target.block)
         return nil
     }
 
     @discardableResult
     public override func visitBreak(_ breakStatement: AST.Break, additional _: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         let target = if let label = breakStatement.label?.value {
             loopTargetMap[label]!
         } else {
             loopStack.last!
         }
-        builder.buildBranch(to: target.nextBlock!)
+        buildBranchIfOpen(to: target.nextBlock!)
         return nil
     }
 
     public override func visitContinue(_ continueStatement: AST.Continue, additional _: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         let target = if let label = continueStatement.label?.value {
             loopTargetMap[label]!
         } else {
             loopStack.last!
         }
-        builder.buildBranch(to: target.condBlock!)
+        buildBranchIfOpen(to: target.condBlock!)
         return nil
     }
 
@@ -522,18 +595,19 @@ public final class TIREmitter: AST.Visitor {
         let falseBlock = buildBlock()
         let trueBlock = buildBlock()
         let cond = visitExpression(guardStatement.condition)
-        builder.buildConditionalBranch(condition: cond, trueBranch: trueBlock, falseBranch: falseBlock)
+        at(
+            builder.buildConditionalBranch(
+                condition: rvalue(of: cond, as: booleanTypeId), trueBranch: trueBlock,
+                falseBranch: falseBlock
+            )
+        )
         builder.insertPoint = falseBlock
         pushScope()
         let domain = DeferDomain()
         deferDomainStack.append(domain)
-        for statement in guardStatement.body {
-            visit(statement, additional: additional)
-        }
-        if !domain.defers.isEmpty {
-            emitDomainExit(domain) {
-                builder.buildBranch(to: trueBlock)
-            }
+        visitStatements(guardStatement.body, additional: additional)
+        emitDomainExit(domain) {
+            at(builder.buildBranch(to: trueBlock))
         }
         deferDomainStack.removeLast()
         popScope()
@@ -551,6 +625,10 @@ public final class TIREmitter: AST.Visitor {
         }
         let label = labeledStatement.label.value
         let target = getLabelTarget(label)
+        target.block.sourceRange = sourceRange(of: labeledStatement.label) ?? labeledStatement.sourceRange
+        if isInsertPointOpen, builder.insertPoint !== target.block {
+            at(builder.buildBranch(to: target.block))
+        }
         builder.insertPoint = target.block
         var body = labeledStatement.body
         if let labeled = body as? AST.LabeledStatement,
@@ -612,9 +690,11 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         let type = lowerType(integerLiteral.ty)
-        return builder.buildIntegerLiteral(
-            value: UInt64(integerLiteral.value),
-            ty: type.id
+        return at(
+            builder.buildIntegerLiteral(
+                value: UInt64(integerLiteral.value),
+                ty: type.id
+            )
         )
     }
 
@@ -624,7 +704,7 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         let type = lowerType(floatLiteral.ty)
-        return builder.buildFloatLiteral(value: floatLiteral.value, ty: type.id)
+        return at(builder.buildFloatLiteral(value: floatLiteral.value, ty: type.id))
     }
 
     @discardableResult
@@ -633,7 +713,7 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         let type = lowerType(boolLiteral.ty)
-        return builder.buildBoolLiteral(value: boolLiteral.value, ty: type.id)
+        return at(builder.buildBoolLiteral(value: boolLiteral.value, ty: type.id))
     }
 
     @discardableResult
@@ -642,7 +722,7 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         let type = lowerType(charLiteral.ty)
-        return builder.buildCharLiteral(value: charLiteral.value, ty: type.id)
+        return at(builder.buildCharLiteral(value: charLiteral.value, ty: type.id))
     }
 
     @discardableResult
@@ -651,7 +731,7 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         let type = lowerType(stringLiteral.ty)
-        return builder.buildStringLiteral(value: stringLiteral.token.value, ty: type.id)
+        return at(builder.buildStringLiteral(value: stringLiteral.token.value, ty: type.id))
     }
 
     @discardableResult
@@ -663,7 +743,7 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         let type = lowerType(nullPointerLiteral.ty)
-        return builder.buildNullptrLiteral(ty: type.id)
+        return at(builder.buildNullptrLiteral(ty: type.id))
     }
 
     @discardableResult
@@ -672,7 +752,7 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         let ty = lowerType(nullLiteral.ty).id
-        return builder.buildNullptrLiteral(ty: ty)
+        return at(builder.buildNullptrLiteral(ty: ty))
     }
 
     @discardableResult
@@ -680,7 +760,7 @@ public final class TIREmitter: AST.Visitor {
         guard let builder else {
             return nil
         }
-        return builder.buildVoidLiteral(ty: lowerType(voidLiteral.ty).id)
+        return at(builder.buildVoidLiteral(ty: lowerType(voidLiteral.ty).id))
     }
 
     @discardableResult
@@ -689,9 +769,16 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         let elements = tuple.elements.map {
-            visitExpression($0.value)
+            rvalue(of: visitExpression($0.value), of: $0.value)
         }
-        return builder.buildTupleValue(elements: elements, ty: lowerType(tuple.ty).id)
+        let elementsType: TIRType.TIRType = if let ty = tuple.ty {
+            lowerType(ty)
+        } else {
+            gen.registry.tupleType(elements: elements.enumerated().map { index, value in
+                TIRType.TupleType.Element(label: tuple.elements[index].label?.value, type: value.ty)
+            })
+        }
+        return builder.buildTupleValue(elements: elements, ty: elementsType.id).result
     }
 
     @discardableResult
@@ -751,7 +838,7 @@ public final class TIREmitter: AST.Visitor {
         case let variableSymbol as Symbol.VariableSymbol:
             switch variableSymbol.kind {
             case .Global, .StaticProperty:
-                let addr = builder.buildGlobalAddr(global: gen.globalsBySymbol[variableSymbol.id]!)
+                let addr = at(builder.buildGlobalAddr(global: gen.globalsBySymbol[variableSymbol.id]!))
                 if variable.isLeftValue {
                     return wrapLeftValue(addr)
                 }
@@ -873,7 +960,7 @@ public final class TIREmitter: AST.Visitor {
                     )
 
                 case .Method:
-                    let obj = visitExpression(memberAccess.object)
+                    let obj = receiverAddress(of: memberAccess.object)
                     let method = functionValue(of: functionSymbol, obj: obj, sourceRange: memberAccess.sourceRange)
                     return builder.buildObjectBinding(
                         object: obj,
@@ -893,9 +980,9 @@ public final class TIREmitter: AST.Visitor {
             let addr: TIR.Value
             switch variableSymbol.kind {
             case .Global, .StaticProperty:
-                addr = builder.buildGlobalAddr(global: gen.globalsBySymbol[variableSymbol.id]!)
+                addr = at(builder.buildGlobalAddr(global: gen.globalsBySymbol[variableSymbol.id]!))
             case .Property:
-                let v = visitExpression(memberAccess.object)
+                let v = rvalue(of: visitExpression(memberAccess.object), of: memberAccess.object)
                 let obj = builder.buildAllocStack(allocatedType: lowerType(memberAccess.object.ty!).id).result
                 builder.buildStore(value: v, to: obj)
                 if memberAccess.isLeftValue {
@@ -1036,7 +1123,7 @@ public final class TIREmitter: AST.Visitor {
             guard variableSymbol.kind == .Global || variableSymbol.kind == .StaticProperty else {
                 fatalError("unreachable")
             }
-            let addr = builder.buildGlobalAddr(global: gen.globalsBySymbol[variableSymbol.id]!)
+            let addr = at(builder.buildGlobalAddr(global: gen.globalsBySymbol[variableSymbol.id]!))
             if implicitMemberAccess.isLeftValue {
                 return wrapLeftValue(addr)
             }
@@ -1064,7 +1151,9 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         if let arith = builtinArithInfo(of: call.callee) {
-            let arguments: [TIR.Value] = call.arguments.compactMap { visitExpression($0.value) }
+            let arguments: [TIR.Value] = call.arguments.compactMap {
+                rvalue(of: visitExpression($0.value), of: $0.value)
+            }
             return emitBuiltinArith(arith, arguments: arguments)
         }
         let calleeValue = visitExpression(call.callee)
@@ -1094,7 +1183,7 @@ public final class TIREmitter: AST.Visitor {
             selfParameter = nil
         }
         let arguments = [selfParameter].compactMap { $0 } + call.arguments.map {
-            visitExpression($0.value)
+            rvalue(of: visitExpression($0.value), of: $0.value)
         }
         let inst = builder.buildCall(callee: callee, arguments: arguments)
         if needLoad {
@@ -1110,7 +1199,7 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         let left = visitExpression(binary.left)
-        let right = visitExpression(binary.right)
+        let right = rvalue(of: visitExpression(binary.right), of: binary.right)
         if binary.operatorToken.kind == .Operator(.Assign) {
             switch left {
             case let propertyBinding as TIR.PropertyBinding:
@@ -1148,7 +1237,10 @@ public final class TIREmitter: AST.Visitor {
                 fatalError("unreachable")
             }
             let f = functionRefValue(symbol, at: binary.sourceRange)
-            let inst = builder.buildCall(callee: f, arguments: [left, right])
+            let inst = builder.buildCall(
+                callee: f,
+                arguments: [rvalue(of: left, of: binary.left), right]
+            )
             return inst.result
         }
     }
@@ -1160,12 +1252,12 @@ public final class TIREmitter: AST.Visitor {
         }
         if symbol.isBuiltin {
             if let arith = arithOp(named: builtinOpName(of: symbol)) {
-                let operand = visitExpression(prefix.expression)
+                let operand = rvalue(of: visitExpression(prefix.expression), of: prefix.expression)
                 return builder.buildUnaryArith(op: arith, operand: operand).result
             }
         }
         let callee = functionRefValue(symbol, at: prefix.sourceRange)
-        let operand = visitExpression(prefix.expression)
+        let operand = rvalue(of: visitExpression(prefix.expression), of: prefix.expression)
         return builder.buildCall(callee: callee, arguments: [operand]).result
     }
 
@@ -1175,7 +1267,7 @@ public final class TIREmitter: AST.Visitor {
             return nil
         }
         let callee = functionRefValue(symbol, at: postfix.sourceRange)
-        let operand = visitExpression(postfix.expression)
+        let operand = rvalue(of: visitExpression(postfix.expression), of: postfix.expression)
         return builder.buildCall(callee: callee, arguments: [operand]).result
     }
 
@@ -1186,7 +1278,7 @@ public final class TIREmitter: AST.Visitor {
         }
         let obj = visitExpression(subscriptExpr.base)
         let args = [obj] + subscriptExpr.arguments.map {
-            visitExpression($0.value)
+            rvalue(of: visitExpression($0.value), of: $0.value)
         }
         if subscriptExpr.isLeftValue {
             let getter = functionValue(of: symbol.getter, obj: obj, sourceRange: subscriptExpr.sourceRange)
@@ -1207,19 +1299,23 @@ public final class TIREmitter: AST.Visitor {
 
     @discardableResult
     public override func visitIf(_ ifExpression: AST.If, additional: Any? = nil) -> Any? {
-        guard let builder else {
+        guard let builder, isInsertPointOpen else {
             return nil
         }
         let isVoid = ifExpression.ty is TrussType.VoidType
+        let resultType = lowerType(ifExpression.ty).id
         let thenBlock = buildBlock()
         let elseBlock = ifExpression.elseKind != nil ? buildBlock() : nil
-        let resultBlock = buildBlock(parameters: isVoid ? [] : [("result", lowerType(ifExpression.ty).id)])
+        let resultBlock = buildBlock(parameters: isVoid ? [] : [("result", resultType)])
         let cond = visitExpression(ifExpression.condition)
-        builder.buildConditionalBranch(
-            condition: cond,
-            trueBranch: thenBlock,
-            falseBranch: elseBlock ?? resultBlock
+        at(
+            builder.buildConditionalBranch(
+                condition: rvalue(of: cond, as: booleanTypeId),
+                trueBranch: thenBlock,
+                falseBranch: elseBlock ?? resultBlock
+            )
         )
+        var thenReachesResult = false
         builder.insertPoint = thenBlock
         pushScope()
         let thenDomain = DeferDomain()
@@ -1227,14 +1323,17 @@ public final class TIREmitter: AST.Visitor {
         let v = visitBlock(ifExpression.then)
         emitDomainExit(thenDomain) {
             if let v, !isVoid {
-                builder.buildBranch(to: resultBlock, arguments: [builder.buildLoad(ptr: v).result])
+                thenReachesResult = buildBranchIfOpen(
+                    to: resultBlock, arguments: [rvalue(of: v, as: resultType)]
+                )
             } else {
-                builder.buildBranch(to: resultBlock)
+                thenReachesResult = buildBranchIfOpen(to: resultBlock)
             }
         }
         deferDomainStack.removeLast()
         popScope()
 
+        var elseReachesResult = elseBlock == nil
         if let elseKind = ifExpression.elseKind {
             builder.insertPoint = elseBlock
             pushScope()
@@ -1242,19 +1341,17 @@ public final class TIREmitter: AST.Visitor {
             deferDomainStack.append(elseDomain)
             let v2: TIR.Value? = switch elseKind {
             case let .Block(statements):
-                if let slot = visitBlock(statements), !isVoid {
-                    builder.buildLoad(ptr: slot).result
-                } else {
-                    nil
-                }
+                visitBlock(statements)
             case let .If(ifExpr):
                 visitIf(ifExpr, additional: additional) as? TIR.Value
             }
             emitDomainExit(elseDomain) {
                 if let v2, !isVoid {
-                    builder.buildBranch(to: resultBlock, arguments: [v2])
+                    elseReachesResult = buildBranchIfOpen(
+                        to: resultBlock, arguments: [rvalue(of: v2, as: resultType)]
+                    )
                 } else {
-                    builder.buildBranch(to: resultBlock)
+                    elseReachesResult = buildBranchIfOpen(to: resultBlock)
                 }
             }
             deferDomainStack.removeLast()
@@ -1262,6 +1359,9 @@ public final class TIREmitter: AST.Visitor {
         }
 
         builder.insertPoint = resultBlock
+        if !thenReachesResult, !elseReachesResult {
+            at(builder.buildUnreachable())
+        }
         return if isVoid {
             nil
         } else {
@@ -1340,7 +1440,7 @@ public final class TIREmitter: AST.Visitor {
         guard let builder else {
             fatalError("unreachable")
         }
-        let value = visitExpression(castExpression.left)
+        let value = rvalue(of: visitExpression(castExpression.left), of: castExpression.left)
         switch castExpression.kind {
         case .Is:
             switch castExpression.staticIsResult {
@@ -1430,17 +1530,31 @@ public final class TIREmitter: AST.Visitor {
     }
 
     @discardableResult
-    private func visitBlock(_ statements: [AST.Statement]) -> TIR.Value? {
+    private func visitBlock(_ statements: [AST.Statement], additional: Any? = nil) -> TIR.Value? {
+        var result: TIR.Value?
         for (index, statement) in statements.enumerated() {
+            if !(statement is AST.LabeledStatement) {
+                openInsertBlockIfNeeded(at: statement.sourceRange)
+            }
             if index == statements.count - 1,
                let expressionStatement = statement as? AST.ExpressionStatement,
                !(expressionStatement.expression.ty is TrussType.VoidType)
             {
-                return visitExpression(expressionStatement.expression)
+                result = visitExpression(expressionStatement.expression)
+                continue
             }
-            visit(statement)
+            visit(statement, additional: additional)
         }
-        return nil
+        return result
+    }
+
+    private func visitStatements(_ statements: [AST.Statement], additional: Any? = nil) {
+        for statement in statements {
+            if !(statement is AST.LabeledStatement) {
+                openInsertBlockIfNeeded(at: statement.sourceRange)
+            }
+            visit(statement, additional: additional)
+        }
     }
 
     @discardableResult
@@ -1465,10 +1579,12 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         let blockName = name ?? "bb\(currentFunction.basicBlocks.count)"
-        return currentFunction.addBasicBlock(
+        let block = currentFunction.addBasicBlock(
             name: blockName,
             parameters: parameters
         )
+        block.sourceRange = currentRange
+        return block
     }
 
     private func mangleVariable(_ name: String) -> String {
@@ -1483,41 +1599,161 @@ public final class TIREmitter: AST.Visitor {
         return mangledName
     }
 
-    private func emitReturn(_ value: TIR.Value? = nil) {
+    private var isInsertPointOpen: Bool {
+        guard let insertPoint = builder?.insertPoint else {
+            return true
+        }
+        return !insertPoint.isTerminated
+    }
+
+    private func openInsertBlockIfNeeded(at range: SourceRange? = nil) {
+        guard let builder, let insertPoint = builder.insertPoint, insertPoint.isTerminated else {
+            return
+        }
+        let block = buildBlock()
+        if let range, isKnown(range) {
+            block.sourceRange = range
+        }
+        builder.insertPoint = block
+    }
+
+    @discardableResult
+    private func buildBranchIfOpen(to target: TIR.BasicBlock, arguments: [TIR.Value] = []) -> Bool {
+        guard let builder, isInsertPointOpen else {
+            return false
+        }
+        at(builder.buildBranch(to: target, arguments: arguments))
+        return true
+    }
+
+    private var booleanTypeId: Id.TIRTypeId {
+        gen.registry.primitiveType(kind: .Bool, bitWidth: 1).id
+    }
+
+    private func pointeeType(of typeId: Id.TIRTypeId) -> Id.TIRTypeId? {
+        (gen.registry.type(typeId) as? TIRType.PointerType)?.pointee
+    }
+
+    private func rvalue(of value: TIR.Value, as expected: Id.TIRTypeId) -> TIR.Value {
+        guard let builder, let pointee = pointeeType(of: value.ty), pointee == expected else {
+            return value
+        }
+        return builder.buildLoad(ptr: value).result
+    }
+
+    private func rvalue(of value: TIR.Value, of expression: AST.Expression) -> TIR.Value {
+        guard let ty = expression.ty else {
+            return value
+        }
+        return rvalue(of: value, as: lowerType(ty).id)
+    }
+
+    private func receiverAddress(of expression: AST.Expression) -> TIR.Value {
         guard let builder else {
             fatalError("unreachable")
         }
+        let value = storageAddress(of: expression) ?? visitExpression(expression)
+        if let ty = expression.ty, pointeeType(of: value.ty) == lowerType(ty).id {
+            return value
+        }
+        let rvalue = rvalue(of: value, of: expression)
+        guard pointeeType(of: rvalue.ty) == nil else {
+            return rvalue
+        }
+        let slot = at(builder.buildAllocStack(allocatedType: rvalue.ty)).result
+        at(builder.buildStore(value: rvalue, to: slot))
+        return slot
+    }
+
+    private func storageAddress(of expression: AST.Expression) -> TIR.Value? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        if expression is AST.SelfExpression {
+            return getSelf()
+        }
+        guard let variable = expression as? AST.Variable,
+              let symbol = variable.symbol as? Symbol.VariableSymbol
+        else {
+            return nil
+        }
+        switch symbol.kind {
+        case .Local:
+            return lookupLocal(variable.name.value)
+        case .Global, .StaticProperty:
+            return at(builder.buildGlobalAddr(global: gen.globalsBySymbol[symbol.id]!))
+        default:
+            return nil
+        }
+    }
+
+    private func implicitReturnValue(in function: TIR.Function) -> TIR.Value? {
+        guard !(gen.registry.type(function.returnType) is TIRType.VoidType) else {
+            return nil
+        }
+        guard let selfValue = lookupLocal("<self>"), selfValue.ty == function.returnType else {
+            return nil
+        }
+        return selfValue
+    }
+
+    private func returnValue(of value: TIR.Value?, in function: TIR.Function) -> TIR.Value? {
+        guard let value else {
+            return implicitReturnValue(in: function)
+        }
+        guard !(gen.registry.type(function.returnType) is TIRType.VoidType) else {
+            return nil
+        }
+        return rvalue(of: value, as: function.returnType)
+    }
+
+    private func emitReturn(_ value: TIR.Value? = nil) {
+        guard let builder, let currentFunction else {
+            fatalError("unreachable")
+        }
+        guard isInsertPointOpen else {
+            return
+        }
+        let value = returnValue(of: value, in: currentFunction)
         let defers = deferDomainStack.reversed().flatMap { $0.defers.reversed() }
         guard !defers.isEmpty else {
-            builder.buildReturn(value)
+            at(builder.buildReturn(value))
             return
         }
         emitDeferChain(defers) {
-            builder.buildReturn(value)
+            at(builder.buildReturn(value))
         }
     }
 
     private func emitFunctionNormalExit() {
-        guard let builder else {
+        guard let builder, let currentFunction else {
             fatalError("unreachable")
         }
-        guard let domain = deferDomainStack.last, !domain.defers.isEmpty else {
+        guard isInsertPointOpen else {
             return
         }
-        guard let insertPoint = builder.insertPoint, !insertPoint.isTerminated else {
+        let value = implicitReturnValue(in: currentFunction)
+        if let domain = deferDomainStack.last, !domain.defers.isEmpty {
+            emitDeferChain(Array(domain.defers.reversed())) {
+                at(builder.buildReturn(value))
+            }
             return
         }
-        emitDeferChain(Array(domain.defers.reversed())) {
-            builder.buildReturn()
+        if gen.registry.type(currentFunction.returnType) is TIRType.VoidType {
+            at(builder.buildReturn())
+        } else if let value {
+            at(builder.buildReturn(value))
+        } else {
+            at(builder.buildUnreachable())
         }
     }
 
     private func emitDomainExit(_ domain: DeferDomain, finish: () -> Void) {
-        guard !domain.defers.isEmpty else {
-            finish()
+        guard isInsertPointOpen else {
             return
         }
-        guard let insertPoint = builder?.insertPoint, !insertPoint.isTerminated else {
+        guard !domain.defers.isEmpty else {
+            finish()
             return
         }
         emitDeferChain(Array(domain.defers.reversed()), finish: finish)
@@ -1527,8 +1763,15 @@ public final class TIREmitter: AST.Visitor {
         guard let builder else {
             fatalError("unreachable")
         }
-        let blocks = defers.map { _ in buildBlock() }
-        builder.buildBranch(to: blocks[0])
+        guard isInsertPointOpen, !defers.isEmpty else {
+            return
+        }
+        let blocks = defers.map { deferStatement in
+            let block = buildBlock()
+            block.sourceRange = deferStatement.sourceRange
+            return block
+        }
+        at(builder.buildBranch(to: blocks[0]))
         for (index, deferStatement) in defers.enumerated() {
             builder.insertPoint = blocks[index]
             let nextBlock = index + 1 < blocks.count ? blocks[index + 1] : nil
@@ -1547,7 +1790,7 @@ public final class TIREmitter: AST.Visitor {
         }
         if let nextBlock {
             emitDomainExit(domain) {
-                builder.buildBranch(to: nextBlock)
+                at(builder.buildBranch(to: nextBlock))
             }
         } else {
             emitDomainExit(domain, finish: finish)
@@ -1588,7 +1831,7 @@ public final class TIREmitter: AST.Visitor {
             )
             gen.functionsBySymbol[symbol.id] = function
         }
-        return builder.buildFunctionRef(function: function)
+        return at(builder.buildFunctionRef(function: function))
     }
 
     private func getSelf() -> TIR.Value {
@@ -1625,11 +1868,24 @@ public final class TIREmitter: AST.Visitor {
                 metadata: metadataId,
                 index: index,
                 selfValue: obj,
-                ty: loweredType
+                ty: boundFunctionType(of: symbol, selfType: obj.ty)
             ).result
         default:
             fatalError()
         }
+    }
+
+    private func boundFunctionType(
+        of symbol: Symbol.FunctionSymbol, selfType: Id.TIRTypeId
+    ) -> Id.TIRTypeId {
+        guard let functionType = symbol.functionType else {
+            return lowerType(symbol.functionType).id
+        }
+        return gen.registry.functionType(
+            parameters: [selfType] + functionType.parameters.map { lowerType($0.type).id },
+            returnType: lowerType(functionType.returnType).id,
+            isVariadic: false
+        ).id
     }
 
     private func propertyValue(
@@ -1756,8 +2012,10 @@ public final class TIREmitter: AST.Visitor {
         let targetId = lowerType(target).id
         let successBlock = buildBlock()
         let failureBlock = buildBlock()
-        builder.buildConditionalBranch(
-            condition: check.result, trueBranch: successBlock, falseBranch: failureBlock
+        at(
+            builder.buildConditionalBranch(
+                condition: check.result, trueBranch: successBlock, falseBranch: failureBlock
+            )
         )
         builder.insertPoint = successBlock
         let casted = builder.buildUncheckedRefCast(value: value, to: targetId)
@@ -1792,7 +2050,7 @@ public final class TIREmitter: AST.Visitor {
         case (.Unsigned, .Float), (.Char, .Float), (.Bool, .Float):
             return .UIToFP
         default:
-            if source.bitWidth == target.bitWidth, source.kind == target.kind {
+            if source.bitWidth == target.bitWidth {
                 return nil
             }
             guard source.bitWidth <= target.bitWidth else {
