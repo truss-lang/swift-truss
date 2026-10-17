@@ -25,12 +25,16 @@ public enum TIR {
             returnType: Id.TIRTypeId,
             isVariadic: Bool,
             isExtern: Bool,
-            callingConvention: String?
+            callingConvention: String?,
+            parameterOwnership: [Ownership]? = nil,
+            resultOwnership: Ownership = .Owned
         ) -> Function {
             let ty = registry.functionType(
                 parameters: parameters.map(\.ty),
                 returnType: returnType,
-                isVariadic: isVariadic
+                isVariadic: isVariadic,
+                parameterOwnership: parameterOwnership,
+                resultOwnership: resultOwnership
             )
             let f = Function(
                 module: self,

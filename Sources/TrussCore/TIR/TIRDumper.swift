@@ -31,7 +31,7 @@ public extension TIR {
         public func dump(_ function: TIR.Function) -> String {
             var header = function.isExtern ? "tir.extern" : "tir"
             header += " @" + function.name + "(" + parameterList(function) + ")"
-            header += " -> " + typeText(function.returnType)
+            header += " -> " + ownershipKeyword(resultOwnership(function)) + " " + typeText(function.returnType)
             if let convention = function.callingConvention {
                 header += " cc " + convention
             }
@@ -50,11 +50,40 @@ public extension TIR {
         }
 
         private func parameterList(_ function: TIR.Function) -> String {
-            var parts = function.parameters.map { "%" + $0.name + ": " + typeText($0.ty) }
+            var parts = function.parameters.enumerated().map { index, parameter in
+                ownershipKeyword(parameterOwnership(function, index)) + " %" + parameter.name + ": "
+                    + typeText(parameter.ty)
+            }
             if function.isVariadic {
                 parts.append("...")
             }
             return parts.joined(separator: ", ")
+        }
+
+        private func functionType(_ function: TIR.Function) -> TIRType.FunctionType? {
+            registry?.types[function.ty] as? TIRType.FunctionType
+        }
+
+        private func parameterOwnership(_ function: TIR.Function, _ index: Int) -> Ownership {
+            guard let ownership = functionType(function)?.parameterOwnership,
+                  ownership.indices.contains(index)
+            else {
+                return .Owned
+            }
+            return ownership[index]
+        }
+
+        private func resultOwnership(_ function: TIR.Function) -> Ownership {
+            functionType(function)?.resultOwnership ?? .Owned
+        }
+
+        private func ownershipKeyword(_ ownership: Ownership) -> String {
+            switch ownership {
+            case .Owned:
+                "owned"
+            case .Guaranteed:
+                "guaranteed"
+            }
         }
 
         private func blockHeader(_ block: BasicBlock) -> String {

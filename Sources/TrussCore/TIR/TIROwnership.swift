@@ -1,4 +1,9 @@
 public extension TIR {
+    enum Ownership: Hashable, Sendable {
+        case Owned
+        case Guaranteed
+    }
+
     final class Retain: Instruction {
         public let value: Value
         public init(value: Value) {

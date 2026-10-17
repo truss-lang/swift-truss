@@ -5,9 +5,16 @@ public extension TIR {
         public var superclass: Id.TIRMetadataId?
         public var conformedProtocols: [Id.TIRProtocolId] = []
         public var vtable: [VTableEntry] = []
-        public init(id: Id.TIRMetadataId, name: String) {
+        public var typeId: Id.TIRTypeId?
+        public var hasRealDeinitializer: Bool = false
+        public init(
+            id: Id.TIRMetadataId, name: String, typeId: Id.TIRTypeId? = nil,
+            hasRealDeinitializer: Bool = false
+        ) {
             self.id = id
             self.name = name
+            self.typeId = typeId
+            self.hasRealDeinitializer = hasRealDeinitializer
         }
     }
 
@@ -119,8 +126,8 @@ public extension TIR {
         }
 
         @discardableResult
-        public func addMetadata(name: String) -> MetadataRecord {
-            let record = MetadataRecord(id: nextMetadataId, name: name)
+        public func addMetadata(name: String, typeId: Id.TIRTypeId? = nil) -> MetadataRecord {
+            let record = MetadataRecord(id: nextMetadataId, name: name, typeId: typeId)
             metadatas[record.id] = record
             return record
         }
@@ -224,12 +231,19 @@ public extension TIR {
         }
 
         public func functionType(
-            parameters: [Id.TIRTypeId], returnType: Id.TIRTypeId, isVariadic: Bool
+            parameters: [Id.TIRTypeId],
+            returnType: Id.TIRTypeId,
+            isVariadic: Bool,
+            parameterOwnership: [Ownership]? = nil,
+            resultOwnership: Ownership = .Owned
         ) -> TIRType.FunctionType {
+            let ownership = normalizedParameterOwnership(parameterOwnership, count: parameters.count)
             let key = FunctionTypeKey(
                 parameters: parameters,
                 returnType: returnType,
-                isVariadic: isVariadic
+                isVariadic: isVariadic,
+                parameterOwnership: ownership,
+                resultOwnership: resultOwnership
             )
             if let cached = typeCache[key] {
                 return cached as! TIRType.FunctionType
@@ -238,7 +252,9 @@ public extension TIR {
                     id: nextTypeId,
                     parameters: parameters,
                     returnType: returnType,
-                    isVariadic: isVariadic
+                    isVariadic: isVariadic,
+                    parameterOwnership: ownership,
+                    resultOwnership: resultOwnership
                 )
                 types[ty.id] = ty
                 typeCache[key] = ty
@@ -329,6 +345,15 @@ public extension TIR {
             return pointerType(pointee: elementType).id
         }
 
+        private func normalizedParameterOwnership(
+            _ ownership: [Ownership]?, count: Int
+        ) -> [Ownership] {
+            let supplied = ownership ?? []
+            return (0 ..< count).map { index in
+                supplied.indices.contains(index) ? supplied[index] : .Owned
+            }
+        }
+
         private struct PrimitiveKey: Hashable, Equatable {
             let kind: TIRType.PrimitiveKind
             let bitWidth: Int
@@ -342,6 +367,8 @@ public extension TIR {
             let parameters: [Id.TIRTypeId]
             let returnType: Id.TIRTypeId
             let isVariadic: Bool
+            let parameterOwnership: [Ownership]
+            let resultOwnership: Ownership
         }
 
         private struct TupleKey: Hashable, Equatable {
