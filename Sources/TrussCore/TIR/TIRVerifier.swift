@@ -7,6 +7,7 @@ public extension TIR {
             case Dominance
             case Registry
             case TypeConsistency = "type"
+            case Ownership
 
             public var label: String {
                 switch self {
@@ -18,6 +19,8 @@ public extension TIR {
                     "registry"
                 case .TypeConsistency:
                     "type"
+                case .Ownership:
+                    "ownership"
                 }
             }
         }
@@ -49,7 +52,13 @@ public extension TIR {
             }
         }
 
+        public enum OwnershipMode: Sendable, Equatable {
+            case Advisory
+            case Strict
+        }
+
         private let context: Context
+        private let ownershipMode: OwnershipMode
         private var registry: Registry?
         private var failures: [Failure] = []
         private var failureKeys: Set<String> = []
@@ -58,6 +67,12 @@ public extension TIR {
 
         public init(context: Context) {
             self.context = context
+            ownershipMode = .Advisory
+        }
+
+        public init(context: Context, ownershipMode: OwnershipMode) {
+            self.context = context
+            self.ownershipMode = ownershipMode
         }
 
         public func verify(_ module: Module) -> [Failure] {
@@ -171,7 +186,7 @@ public extension TIR {
             var definitions: [ObjectIdentifier: Definition] = [:]
             for block in blocks {
                 for (index, instruction) in block.instructions.enumerated() {
-                    for value in results(of: instruction) {
+                    for value in TIR.Result.results(of: instruction) {
                         definitions[ObjectIdentifier(value)] = Definition(block: block, index: index)
                     }
                 }
@@ -192,7 +207,7 @@ public extension TIR {
                         range: instructionRange(instruction, in: block, function: function)
                     )
                     verifyInstruction(instruction, at: site)
-                    for operand in operands(of: instruction) {
+                    for operand in TIR.Operands.operands(of: instruction) {
                         verifyOperand(
                             operand, useBlock: block, useIndex: index, definitions: definitions,
                             dominators: dominators, at: site
@@ -214,6 +229,7 @@ public extension TIR {
                     }
                 }
             }
+            verifyOwnership(function, blocks: blocks, successors: successors)
         }
 
         private func verifyFunctionSignature(_ function: Function) {
@@ -550,6 +566,1410 @@ public extension TIR {
                 }
             }
             return dominators
+        }
+
+        private final class OwnershipState: Equatable {
+            var balances: [ObjectIdentifier: Int?]
+            var allocations: [ObjectIdentifier: Int?]
+            var tokens: [ObjectIdentifier: Int?]
+            var tokenOwners: [ObjectIdentifier: ObjectIdentifier?]
+
+            init(
+                balances: [ObjectIdentifier: Int?] = [:],
+                allocations: [ObjectIdentifier: Int?] = [:],
+                tokens: [ObjectIdentifier: Int?] = [:],
+                tokenOwners: [ObjectIdentifier: ObjectIdentifier?] = [:]
+            ) {
+                self.balances = balances
+                self.allocations = allocations
+                self.tokens = tokens
+                self.tokenOwners = tokenOwners
+            }
+
+            func copy() -> OwnershipState {
+                OwnershipState(
+                    balances: balances, allocations: allocations, tokens: tokens,
+                    tokenOwners: tokenOwners
+                )
+            }
+
+            static func == (lhs: OwnershipState, rhs: OwnershipState) -> Bool {
+                lhs.balances == rhs.balances && lhs.allocations == rhs.allocations
+                    && lhs.tokens == rhs.tokens && lhs.tokenOwners == rhs.tokenOwners
+            }
+        }
+
+        private struct OwnershipFlow {
+            let entries: [ObjectIdentifier: OwnershipState]
+            let initial: OwnershipState
+        }
+
+        private func hasOwnershipInstructions(_ function: Function) -> Bool {
+            function.basicBlocks.contains { block in
+                block.instructions.contains { instruction in
+                    instruction is Retain || instruction is Release || instruction is Destroy
+                        || instruction is DeallocStack || instruction is DeallocHeap
+                        || instruction is DeallocCell
+                }
+            }
+        }
+
+        private func isReferenceValue(_ id: Id.TIRTypeId) -> Bool {
+            isReferenceType(id, visited: [])
+        }
+
+        private func isReferenceType(_ id: Id.TIRTypeId, visited: Set<Id.TIRTypeId>) -> Bool {
+            guard !visited.contains(id), let ty = currentRegistry.types[id] else {
+                return false
+            }
+            switch ty {
+            case is TIRType.ClassType:
+                return true
+            case let pointer as TIRType.PointerType:
+                return currentRegistry.types[pointer.pointee] is TIRType.ClassType
+            case let structType as TIRType.StructType:
+                let nested = visited.union([id])
+                return structType.fields.contains { isReferenceType($0.type, visited: nested) }
+            default:
+                return false
+            }
+        }
+
+        private func isClassReference(_ id: Id.TIRTypeId) -> Bool {
+            guard let ty = currentRegistry.types[id] else {
+                return false
+            }
+            if ty is TIRType.ClassType {
+                return true
+            }
+            guard let pointer = ty as? TIRType.PointerType else {
+                return false
+            }
+            return currentRegistry.types[pointer.pointee] is TIRType.ClassType
+        }
+
+        private func isTeardownValue(_ id: Id.TIRTypeId) -> Bool {
+            if isClassReference(id) {
+                return true
+            }
+            guard let structType = currentRegistry.types[id] as? TIRType.StructType else {
+                return false
+            }
+            return structType.fields.contains { isReferenceValue($0.type) }
+        }
+
+        private func seedOwnedResult(
+            _ result: Value?, callee: Value, state: OwnershipState
+        ) {
+            guard let result, isReferenceValue(result.ty) else {
+                return
+            }
+            guard let signature = currentRegistry.types[callee.ty] as? TIRType.FunctionType,
+                  signature.resultOwnership == .Owned
+            else {
+                return
+            }
+            setBalance(result, to: 1, in: state)
+        }
+
+        private func consumeCallArguments(
+            callee: Value, arguments: [Value], state: OwnershipState
+        ) {
+            guard let signature = currentRegistry.types[callee.ty] as? TIRType.FunctionType else {
+                return
+            }
+            for (index, argument) in arguments.enumerated() {
+                guard index < signature.parameterOwnership.count,
+                      signature.parameterOwnership[index] == .Owned,
+                      isReferenceValue(argument.ty)
+                else {
+                    continue
+                }
+                adjustBalance(argument, by: -1, in: state)
+            }
+        }
+
+        private func seedAllocatedResult(_ result: Value, state: OwnershipState) {
+            guard isReferenceValue(result.ty) else {
+                return
+            }
+            setBalance(result, to: 1, in: state)
+        }
+
+        private func ownershipValues(of function: Function) -> [Value] {
+            var seen: Set<ObjectIdentifier> = []
+            var values: [Value] = []
+            func add(_ value: Value) {
+                guard isReferenceValue(value.ty), seen.insert(ObjectIdentifier(value)).inserted else {
+                    return
+                }
+                values.append(value)
+            }
+            for parameter in function.parameters {
+                add(parameter)
+            }
+            for block in function.basicBlocks {
+                for argument in block.parameters {
+                    add(argument)
+                }
+                for instruction in block.instructions {
+                    for result in TIR.Result.results(of: instruction) {
+                        add(result)
+                    }
+                    for operand in TIR.Operands.operands(of: instruction) {
+                        add(operand)
+                    }
+                    if let phi = instruction as? Phi {
+                        for incoming in phi.incomings {
+                            add(incoming.value)
+                        }
+                    }
+                }
+            }
+            return values
+        }
+
+        private func allocationValues(of function: Function) -> [Value] {
+            var values: [Value] = []
+            for block in function.basicBlocks {
+                for instruction in block.instructions {
+                    guard let allocation = instruction as? AllocStack else {
+                        continue
+                    }
+                    values.append(allocation.result)
+                }
+            }
+            return values
+        }
+
+        private func verifyOwnership(
+            _ function: Function, blocks: [BasicBlock],
+            successors: [ObjectIdentifier: [ObjectIdentifier]]
+        ) {
+            if ownershipMode == .Strict {
+                guard !function.isExtern else {
+                    return
+                }
+            } else {
+                guard hasOwnershipInstructions(function) else {
+                    return
+                }
+            }
+            let valueByIdentity = Dictionary(
+                uniqueKeysWithValues: ownershipValues(of: function).map { (ObjectIdentifier($0), $0) }
+            )
+            let allocationByIdentity = Dictionary(
+                uniqueKeysWithValues: allocationValues(of: function).map { (ObjectIdentifier($0), $0) }
+            )
+            let slots = ownershipMode == .Strict ? slotValues(of: function) : SlotTable()
+            let slotByIdentity = slots.storages.keys.reduce(into: [ObjectIdentifier: Value]()) { result, key in
+                result[key] = valueByIdentity[key]
+            }
+            guard !valueByIdentity.isEmpty || !allocationByIdentity.isEmpty else {
+                return
+            }
+            let takenLoads = takenLoadResults(of: function, slots: slots)
+            let flow = computeOwnershipFlow(
+                blocks: blocks, successors: successors, phis: phisByBlock(of: function),
+                referenceValues: Set(valueByIdentity.keys),
+                allocationValues: Set(allocationByIdentity.keys),
+                entryBalances: entryBalances(of: function),
+                slots: slots, takenLoads: takenLoads
+            )
+            for block in blocks {
+                let state = (flow.entries[ObjectIdentifier(block)] ?? flow.initial).copy()
+                for (index, instruction) in block.instructions.enumerated() {
+                    let site = Site(
+                        function: function, block: block,
+                        range: instructionRange(instruction, in: block, function: function)
+                    )
+                    if let ret = instruction as? Return {
+                        verifyReturnOwnership(
+                            ret, function: function, state: state,
+                            valueByIdentity: valueByIdentity,
+                            allocationByIdentity: allocationByIdentity, at: site
+                        )
+                    }
+                    if let dealloc = instruction as? DeallocStack {
+                        verifyDeallocStack(dealloc, allocationByIdentity: allocationByIdentity, at: site)
+                    }
+                    verifyConsumeTarget(instruction, state: state, at: site)
+                    verifyTeardownKind(instruction, at: site)
+                    verifySlotOwnership(
+                        instruction, state: state, slots: slots,
+                        slotByIdentity: slotByIdentity, at: site
+                    )
+                    if ownershipMode == .Strict {
+                        verifyDeinitializerDischarge(
+                            instruction, function: function, state: state, slots: slots, at: site
+                        )
+                    }
+                    verifyOwnedArguments(instruction, state: state, at: site)
+                    transferOwnership(
+                        instruction, state: state, slots: slots, takenLoads: takenLoads
+                    )
+                }
+            }
+        }
+
+        private func functionType(of function: Function) -> TIRType.FunctionType? {
+            currentRegistry.types[function.ty] as? TIRType.FunctionType
+        }
+
+        private func parameterOwnership(of function: Function, at index: Int) -> Ownership {
+            guard let ownership = functionType(of: function)?.parameterOwnership,
+                  ownership.indices.contains(index)
+            else {
+                return .Owned
+            }
+            return ownership[index]
+        }
+
+        private func resultOwnership(of function: Function) -> Ownership {
+            functionType(of: function)?.resultOwnership ?? .Owned
+        }
+
+        private func entryBalances(of function: Function) -> [ObjectIdentifier: Int?] {
+            var balances: [ObjectIdentifier: Int?] = [:]
+            for (index, parameter) in function.parameters.enumerated()
+                where isReferenceValue(parameter.ty)
+            {
+                let owned = parameterOwnership(of: function, at: index) == .Owned
+                balances[ObjectIdentifier(parameter)] = owned ? 1 : 0
+            }
+            return balances
+        }
+
+        private enum SlotStorage: Equatable {
+            case Stack(ObjectIdentifier)
+            case Field
+            case Global
+        }
+
+        private struct SlotTable {
+            var storages: [ObjectIdentifier: SlotStorage] = [:]
+            var keys: [ObjectIdentifier: ObjectIdentifier] = [:]
+            var addressBases: [ObjectIdentifier: (base: ObjectIdentifier, index: Int)] = [:]
+
+            func key(of value: Value) -> ObjectIdentifier? {
+                keys[ObjectIdentifier(value)]
+            }
+
+            func storage(of value: Value) -> SlotStorage? {
+                guard let key = key(of: value) else {
+                    return nil
+                }
+                return storages[key]
+            }
+
+            func addressChain(of key: ObjectIdentifier) -> (root: ObjectIdentifier, path: [Int])? {
+                var indices: [Int] = []
+                var current = key
+                var visited: Set<ObjectIdentifier> = []
+                while let step = addressBases[current], visited.insert(current).inserted {
+                    indices.append(step.index)
+                    current = step.base
+                }
+                guard !indices.isEmpty else {
+                    return nil
+                }
+                return (current, indices.reversed())
+            }
+        }
+
+        private func isSlot(_ id: Id.TIRTypeId) -> Bool {
+            guard let pointer = currentRegistry.types[id] as? TIRType.PointerType else {
+                return false
+            }
+            return containsReferenceLeaf(pointer.pointee)
+        }
+
+        private func containsReferenceLeaf(_ id: Id.TIRTypeId) -> Bool {
+            containsReferenceLeaf(id, visited: [])
+        }
+
+        private func containsReferenceLeaf(
+            _ id: Id.TIRTypeId, visited: Set<Id.TIRTypeId>
+        ) -> Bool {
+            guard !visited.contains(id), let ty = currentRegistry.types[id] else {
+                return false
+            }
+            if isClassReference(id) {
+                return true
+            }
+            let nested = visited.union([id])
+            switch ty {
+            case let structType as TIRType.StructType:
+                return structType.fields.contains {
+                    containsReferenceLeaf($0.type, visited: nested)
+                }
+            case let tupleType as TIRType.TupleType:
+                return tupleType.elements.contains {
+                    containsReferenceLeaf($0.type, visited: nested)
+                }
+            default:
+                return false
+            }
+        }
+
+        private func slotStorage(
+            _ value: Value, slots: SlotTable
+        ) -> SlotStorage? {
+            slots.storage(of: value)
+        }
+
+        private func slotValues(of function: Function) -> SlotTable {
+            var producers: [ObjectIdentifier: Instruction] = [:]
+            var table = SlotTable()
+            var globalKeys: [Id.TIRGlobalId: ObjectIdentifier] = [:]
+            for block in function.basicBlocks {
+                for instruction in block.instructions {
+                    for result in TIR.Result.results(of: instruction) {
+                        producers[ObjectIdentifier(result)] = instruction
+                    }
+                    for operand in TIR.Operands.operands(of: instruction) {
+                        guard let address = operand as? GlobalAddr, isSlot(address.ty) else {
+                            continue
+                        }
+                        let key = ObjectIdentifier(address)
+                        if let canonical = globalKeys[address.globalId] {
+                            table.keys[key] = canonical
+                            continue
+                        }
+                        globalKeys[address.globalId] = key
+                        table.keys[key] = key
+                        table.storages[key] = .Global
+                    }
+                }
+            }
+            for block in function.basicBlocks {
+                for instruction in block.instructions {
+                    let candidate: Value? = switch instruction {
+                    case let allocation as AllocStack: allocation.result
+                    case let address as StructElementAddr: address.result
+                    case let address as TupleElementAddr: address.result
+                    case let address as ClassElementAddr: address.result
+                    case let cell as ProjectCell: cell.result
+                    default: nil
+                    }
+                    guard let candidate, isSlot(candidate.ty) else {
+                        continue
+                    }
+                    let key = ObjectIdentifier(candidate)
+                    table.keys[key] = key
+                    switch instruction {
+                    case let address as ClassElementAddr:
+                        table.addressBases[key] = (
+                            base: ObjectIdentifier(address.base), index: address.index
+                        )
+                    case let address as StructElementAddr:
+                        table.addressBases[key] = (
+                            base: ObjectIdentifier(address.base), index: address.index
+                        )
+                    case let address as TupleElementAddr:
+                        table.addressBases[key] = (
+                            base: ObjectIdentifier(address.base), index: address.index
+                        )
+                    default:
+                        break
+                    }
+                    if let root = stackSlotRoot(of: candidate, producers: producers) {
+                        table.storages[key] = .Stack(root)
+                    } else {
+                        table.storages[key] = .Field
+                    }
+                }
+            }
+            return table
+        }
+
+        private func stackSlotRoot(
+            of value: Value, producers: [ObjectIdentifier: Instruction]
+        ) -> ObjectIdentifier? {
+            guard let producer = producers[ObjectIdentifier(value)] else {
+                return nil
+            }
+            switch producer {
+            case is AllocStack:
+                return ObjectIdentifier(value)
+            case let address as StructElementAddr:
+                return stackSlotRoot(of: address.base, producers: producers)
+            case let address as TupleElementAddr:
+                return stackSlotRoot(of: address.base, producers: producers)
+            default:
+                return nil
+            }
+        }
+
+        private func phisByBlock(of function: Function) -> [ObjectIdentifier: [Phi]] {
+            var map: [ObjectIdentifier: [Phi]] = [:]
+            for block in function.basicBlocks {
+                let phis = block.instructions.compactMap { $0 as? Phi }
+                if !phis.isEmpty {
+                    map[ObjectIdentifier(block)] = phis
+                }
+            }
+            return map
+        }
+
+        private func computeOwnershipFlow(
+            blocks: [BasicBlock], successors: [ObjectIdentifier: [ObjectIdentifier]],
+            phis: [ObjectIdentifier: [Phi]],
+            referenceValues: Set<ObjectIdentifier>, allocationValues: Set<ObjectIdentifier>,
+            entryBalances: [ObjectIdentifier: Int?],
+            slots: SlotTable, takenLoads: Set<ObjectIdentifier>
+        ) -> OwnershipFlow {
+            var balances = Dictionary(uniqueKeysWithValues: referenceValues.map { ($0, 0 as Int?) })
+            for (key, balance) in entryBalances {
+                balances[key] = balance
+            }
+            var tokens: [ObjectIdentifier: Int?] = [:]
+            var tokenOwners: [ObjectIdentifier: ObjectIdentifier?] = [:]
+            for (key, storage) in slots.storages {
+                switch storage {
+                case .Stack:
+                    tokens[key] = 0
+                case .Field, .Global:
+                    tokens[key] = 1
+                }
+                tokenOwners[key] = ObjectIdentifier?.none
+            }
+            let initial = OwnershipState(
+                balances: balances,
+                allocations: Dictionary(uniqueKeysWithValues: allocationValues.map { ($0, 0 as Int?) }),
+                tokens: tokens,
+                tokenOwners: tokenOwners
+            )
+            let entryKey = ObjectIdentifier(blocks[0])
+            var entries: [ObjectIdentifier: OwnershipState] = [:]
+            var exits: [ObjectIdentifier: OwnershipState] = [:]
+            var changed = true
+            while changed {
+                changed = false
+                for block in blocks {
+                    let key = ObjectIdentifier(block)
+                    let state: OwnershipState
+                    if key == entryKey {
+                        state = initial
+                    } else if let propagated = entries[key] {
+                        state = propagated
+                    } else {
+                        continue
+                    }
+                    let outgoing = state.copy()
+                    for (index, instruction) in block.instructions.enumerated() {
+                        transferOwnership(
+                            instruction, state: outgoing, slots: slots, takenLoads: takenLoads
+                        )
+                    }
+                    if exits[key] != outgoing {
+                        exits[key] = outgoing
+                        changed = true
+                    }
+                    guard let terminator = block.instructions.last else {
+                        continue
+                    }
+                    for successor in successors[key] ?? [] where successor != entryKey {
+                        let edgeState = outgoing.copy()
+                        if let target = blocks.first(where: { ObjectIdentifier($0) == successor }) {
+                            applyEdgeTransfers(
+                                terminator, predecessor: block, to: target,
+                                phis: phis[successor] ?? [], state: edgeState
+                            )
+                        }
+                        let next = entries[successor].map { joinOwnership($0, edgeState) } ?? edgeState
+                        if entries[successor] != next {
+                            entries[successor] = next
+                            changed = true
+                        }
+                    }
+                }
+            }
+            return OwnershipFlow(entries: entries, initial: initial)
+        }
+
+        private func joinOwnership(_ lhs: OwnershipState, _ rhs: OwnershipState) -> OwnershipState {
+            var balances: [ObjectIdentifier: Int?] = [:]
+            for (key, value) in lhs.balances {
+                balances[key] = value != nil && value == (rhs.balances[key] ?? nil) ? value : nil
+            }
+            var allocations: [ObjectIdentifier: Int?] = [:]
+            for (key, value) in lhs.allocations {
+                allocations[key] = value != nil && value == (rhs.allocations[key] ?? nil) ? value : nil
+            }
+            var tokens: [ObjectIdentifier: Int?] = [:]
+            for (key, value) in lhs.tokens {
+                tokens[key] = value != nil && value == (rhs.tokens[key] ?? nil) ? value : nil
+            }
+            var tokenOwners: [ObjectIdentifier: ObjectIdentifier?] = [:]
+            for (key, value) in lhs.tokenOwners {
+                let other = rhs.tokenOwners[key] ?? nil
+                tokenOwners[key] = value != nil && value == other ? value : nil
+            }
+            return OwnershipState(
+                balances: balances, allocations: allocations, tokens: tokens, tokenOwners: tokenOwners
+            )
+        }
+
+        private func transferOwnership(
+            _ instruction: Instruction, state: OwnershipState,
+            slots: SlotTable, takenLoads: Set<ObjectIdentifier>
+        ) {
+            if !(instruction is Phi) {
+                for result in TIR.Result.results(of: instruction) {
+                    resetBalance(result, in: state)
+                }
+            }
+            if let allocation = instruction as? AllocStack {
+                state.allocations[ObjectIdentifier(allocation.result)] = 1
+            }
+            switch instruction {
+            case let retain as Retain:
+                adjustBalance(retain.value, by: 1, in: state)
+            case let release as Release:
+                adjustBalance(release.value, by: -1, in: state)
+            case let destroy as Destroy where isTeardownValue(destroy.value.ty):
+                adjustBalance(destroy.value, by: -1, in: state)
+            case let store as Store:
+                transferStore(store, state: state, slots: slots)
+            case let load as Load:
+                transferLoad(load, state: state, slots: slots, takenLoads: takenLoads)
+            case let dealloc as DeallocStack:
+                adjustAllocation(dealloc.value, by: -1, in: state)
+            case let cast as Upcast:
+                transferCast(cast.value, result: cast.result, state: state)
+            case let cast as UncheckedRefCast:
+                transferCast(cast.value, result: cast.result, state: state)
+            case let cast as BitCast:
+                transferCast(cast.value, result: cast.result, state: state)
+            case let copy as Copy:
+                if isReferenceValue(copy.value.ty) {
+                    setBalance(copy.result, to: 1, in: state)
+                }
+            case let call as Call:
+                consumeCallArguments(callee: call.callee, arguments: call.arguments, state: state)
+                seedOwnedResult(call.result, callee: call.callee, state: state)
+            case let call as TryCall:
+                consumeCallArguments(callee: call.callee, arguments: call.arguments, state: state)
+                seedOwnedResult(call.result, callee: call.callee, state: state)
+            case let allocation as AllocHeap:
+                seedAllocatedResult(allocation.result, state: state)
+            case let allocation as AllocCell:
+                seedAllocatedResult(allocation.result, state: state)
+            default:
+                break
+            }
+        }
+
+        private func applyEdgeTransfers(
+            _ terminator: Instruction, predecessor: BasicBlock, to target: BasicBlock,
+            phis: [Phi], state: OwnershipState
+        ) {
+            switch terminator {
+            case let branch as Branch where branch.target === target:
+                transferBlockArguments(target, arguments: branch.arguments, state: state)
+            case let conditional as ConditionalBranch:
+                if conditional.trueBranch === target {
+                    transferBlockArguments(
+                        target, arguments: conditional.trueArguments, state: state
+                    )
+                }
+                if conditional.falseBranch === target {
+                    transferBlockArguments(
+                        target, arguments: conditional.falseArguments, state: state
+                    )
+                }
+            case let switchEnum as SwitchEnum:
+                for enumCase in switchEnum.cases where enumCase.block === target {
+                    transferBlockArguments(target, arguments: enumCase.arguments, state: state)
+                }
+                if let defaultBlock = switchEnum.defaultBlock, defaultBlock === target {
+                    transferBlockArguments(target, arguments: [], state: state)
+                }
+            default:
+                break
+            }
+            transferPhiIncomings(from: predecessor, phis: phis, state: state)
+        }
+
+        private func transferPhiIncomings(
+            from predecessor: BasicBlock, phis: [Phi], state: OwnershipState
+        ) {
+            for phi in phis {
+                guard let incoming = phi.incomings.first(where: { $0.block === predecessor }) else {
+                    continue
+                }
+                if isReferenceValue(incoming.value.ty) {
+                    adjustBalance(incoming.value, by: -1, in: state)
+                }
+                if isReferenceValue(phi.result.ty) {
+                    setBalance(phi.result, to: 1, in: state)
+                }
+            }
+        }
+
+        private func transferBlockArguments(
+            _ target: BasicBlock, arguments: [Value], state: OwnershipState
+        ) {
+            for (index, argument) in arguments.enumerated() {
+                guard isReferenceValue(argument.ty) else {
+                    continue
+                }
+                adjustBalance(argument, by: -1, in: state)
+                guard index < target.parameters.count else {
+                    continue
+                }
+                let parameter = target.parameters[index]
+                guard isReferenceValue(parameter.ty) else {
+                    continue
+                }
+                adjustBalance(parameter, by: 1, in: state)
+            }
+        }
+
+        private func transferStore(
+            _ store: Store, state: OwnershipState,
+            slots: SlotTable
+        ) {
+            guard let key = slotStorage(store.ptr, slots: slots) != nil ? slots.key(of: store.ptr) : nil
+            else {
+                return
+            }
+            adjustBalance(store.value, by: -1, in: state)
+            state.tokens[key] = 1
+            state.tokenOwners[key] = ObjectIdentifier(store.value)
+        }
+
+        private func transferLoad(
+            _ load: Load, state: OwnershipState,
+            slots: SlotTable, takenLoads: Set<ObjectIdentifier>
+        ) {
+            guard let key = slots.key(of: load.ptr),
+                  let storage = slotStorage(load.ptr, slots: slots)
+            else {
+                return
+            }
+            switch storage {
+            case .Stack:
+                switch state.tokens[key] ?? nil {
+                case .some(1):
+                    setBalance(load.result, to: 1, in: state)
+                    state.tokens[key] = 0
+                    state.tokenOwners[key] = ObjectIdentifier?.none
+                case let .some(token):
+                    setBalance(load.result, to: token, in: state)
+                    state.tokens[key] = 0
+                    state.tokenOwners[key] = ObjectIdentifier?.none
+                case .none:
+                    setBalance(load.result, to: nil, in: state)
+                    state.tokens[key] = 0
+                    state.tokenOwners[key] = ObjectIdentifier?.none
+                }
+            case .Field, .Global:
+                if takenLoads.contains(ObjectIdentifier(load.result)),
+                   (state.tokens[key] ?? nil) == 1
+                {
+                    setBalance(load.result, to: 1, in: state)
+                    state.tokens[key] = 0
+                    state.tokenOwners[key] = ObjectIdentifier?.none
+                } else {
+                    setBalance(load.result, to: 0, in: state)
+                }
+            }
+        }
+
+        private func transferCast(_ value: Value, result: Value, state: OwnershipState) {
+            guard isReferenceValue(value.ty) else {
+                return
+            }
+            let key = ObjectIdentifier(value)
+            guard let current = state.balances[key] else {
+                return
+            }
+            state.balances[key] = 0
+            setBalance(result, to: current, in: state)
+        }
+
+        private struct BlockPoint: Hashable {
+            let block: ObjectIdentifier
+            let index: Int
+        }
+
+        private func takenLoadResults(
+            of function: Function, slots: SlotTable
+        ) -> Set<ObjectIdentifier> {
+            guard !slots.storages.isEmpty else {
+                return []
+            }
+            let edges = aliasEdges(of: function)
+            let blockByIdentity = Dictionary(
+                uniqueKeysWithValues: function.basicBlocks.map { (ObjectIdentifier($0), $0) }
+            )
+            var taken: Set<ObjectIdentifier> = []
+            for block in function.basicBlocks {
+                for (index, instruction) in block.instructions.enumerated() {
+                    guard let load = instruction as? Load, isReferenceValue(load.result.ty) else {
+                        continue
+                    }
+                    switch slotStorage(load.ptr, slots: slots) {
+                    case .Field, .Global:
+                        break
+                    default:
+                        continue
+                    }
+                    let family = valueFamily(of: load.result, edges: edges)
+                    guard hasDischarge(of: family, in: function),
+                          !hasBorrowUse(of: family, in: function),
+                          dischargesOnEveryPath(
+                              from: block, index: index + 1, family: family,
+                              blockByIdentity: blockByIdentity
+                          )
+                    else {
+                        continue
+                    }
+                    taken.insert(ObjectIdentifier(load.result))
+                }
+            }
+            return taken
+        }
+
+        private func aliasEdges(of function: Function) -> [ObjectIdentifier: Set<ObjectIdentifier>] {
+            var edges: [ObjectIdentifier: Set<ObjectIdentifier>] = [:]
+            func connect(_ lhs: Value, _ rhs: Value) {
+                guard isReferenceValue(lhs.ty), isReferenceValue(rhs.ty) else {
+                    return
+                }
+                edges[ObjectIdentifier(lhs), default: []].insert(ObjectIdentifier(rhs))
+                edges[ObjectIdentifier(rhs), default: []].insert(ObjectIdentifier(lhs))
+            }
+            for block in function.basicBlocks {
+                for instruction in block.instructions {
+                    switch instruction {
+                    case let cast as Upcast:
+                        connect(cast.value, cast.result)
+                    case let cast as UncheckedRefCast:
+                        connect(cast.value, cast.result)
+                    case let cast as BitCast:
+                        connect(cast.value, cast.result)
+                    case let branch as Branch:
+                        for (index, argument) in branch.arguments.enumerated()
+                            where index < branch.target.parameters.count
+                        {
+                            connect(argument, branch.target.parameters[index])
+                        }
+                    case let branch as ConditionalBranch:
+                        for (index, argument) in branch.trueArguments.enumerated()
+                            where index < branch.trueBranch.parameters.count
+                        {
+                            connect(argument, branch.trueBranch.parameters[index])
+                        }
+                        for (index, argument) in branch.falseArguments.enumerated()
+                            where index < branch.falseBranch.parameters.count
+                        {
+                            connect(argument, branch.falseBranch.parameters[index])
+                        }
+                    case let switchEnum as SwitchEnum:
+                        for enumCase in switchEnum.cases {
+                            for (index, argument) in enumCase.arguments.enumerated()
+                                where index < enumCase.block.parameters.count
+                            {
+                                connect(argument, enumCase.block.parameters[index])
+                            }
+                        }
+                    case let phi as Phi:
+                        for incoming in phi.incomings {
+                            connect(incoming.value, phi.result)
+                        }
+                    default:
+                        break
+                    }
+                }
+            }
+            return edges
+        }
+
+        private func valueFamily(
+            of value: Value, edges: [ObjectIdentifier: Set<ObjectIdentifier>]
+        ) -> Set<ObjectIdentifier> {
+            let start = ObjectIdentifier(value)
+            var family: Set<ObjectIdentifier> = [start]
+            var worklist = [start]
+            while let current = worklist.popLast() {
+                for neighbor in edges[current] ?? [] where family.insert(neighbor).inserted {
+                    worklist.append(neighbor)
+                }
+            }
+            return family
+        }
+
+        private func hasDischarge(
+            of family: Set<ObjectIdentifier>, in function: Function
+        ) -> Bool {
+            function.basicBlocks.contains { block in
+                block.instructions.contains { instruction in
+                    discharges(instruction, family: family)
+                }
+            }
+        }
+
+        private func hasBorrowUse(
+            of family: Set<ObjectIdentifier>, in function: Function
+        ) -> Bool {
+            for block in function.basicBlocks {
+                for instruction in block.instructions {
+                    switch instruction {
+                    case let retain as Retain where family.contains(ObjectIdentifier(retain.value)):
+                        return true
+                    case let copy as Copy where family.contains(ObjectIdentifier(copy.value)):
+                        return true
+                    case let store as Store where family.contains(ObjectIdentifier(store.value)):
+                        return true
+                    case let ret as Return:
+                        if let value = ret.value, family.contains(ObjectIdentifier(value)) {
+                            return true
+                        }
+                    case let call as Call:
+                        if passesOwnedArgument(call.callee, call.arguments, family: family) {
+                            return true
+                        }
+                    case let call as TryCall:
+                        if passesOwnedArgument(call.callee, call.arguments, family: family) {
+                            return true
+                        }
+                    default:
+                        break
+                    }
+                }
+            }
+            return false
+        }
+
+        private func passesOwnedArgument(
+            _ callee: Value, _ arguments: [Value], family: Set<ObjectIdentifier>
+        ) -> Bool {
+            guard let signature = currentRegistry.types[callee.ty] as? TIRType.FunctionType else {
+                return false
+            }
+            for (index, argument) in arguments.enumerated() {
+                guard index < signature.parameterOwnership.count,
+                      signature.parameterOwnership[index] == .Owned,
+                      family.contains(ObjectIdentifier(argument))
+                else {
+                    continue
+                }
+                return true
+            }
+            return false
+        }
+
+        private func discharges(_ instruction: Instruction, family: Set<ObjectIdentifier>) -> Bool {
+            switch instruction {
+            case let release as Release:
+                family.contains(ObjectIdentifier(release.value))
+            case let destroy as Destroy:
+                family.contains(ObjectIdentifier(destroy.value))
+            default:
+                false
+            }
+        }
+
+        private func dischargesOnEveryPath(
+            from block: BasicBlock, index: Int, family: Set<ObjectIdentifier>,
+            blockByIdentity: [ObjectIdentifier: BasicBlock]
+        ) -> Bool {
+            var visited: Set<BlockPoint> = []
+            var worklist = [BlockPoint(block: ObjectIdentifier(block), index: index)]
+            while let point = worklist.popLast() {
+                guard visited.insert(point).inserted, let current = blockByIdentity[point.block]
+                else {
+                    continue
+                }
+                var position = point.index
+                while position < current.instructions.count {
+                    let instruction = current.instructions[position]
+                    if discharges(instruction, family: family) {
+                        break
+                    }
+                    guard isTerminator(instruction) else {
+                        position += 1
+                        continue
+                    }
+                    switch instruction {
+                    case is Return, is Unreachable, is Trap:
+                        return false
+                    case let branch as Branch:
+                        worklist.append(BlockPoint(block: ObjectIdentifier(branch.target), index: 0))
+                    case let branch as ConditionalBranch:
+                        worklist.append(
+                            BlockPoint(block: ObjectIdentifier(branch.trueBranch), index: 0)
+                        )
+                        worklist.append(
+                            BlockPoint(block: ObjectIdentifier(branch.falseBranch), index: 0)
+                        )
+                    case let switchEnum as SwitchEnum:
+                        for enumCase in switchEnum.cases {
+                            worklist.append(
+                                BlockPoint(block: ObjectIdentifier(enumCase.block), index: 0)
+                            )
+                        }
+                        if let defaultBlock = switchEnum.defaultBlock {
+                            worklist.append(
+                                BlockPoint(block: ObjectIdentifier(defaultBlock), index: 0)
+                            )
+                        }
+                    case let tryCall as TryCall:
+                        worklist.append(
+                            BlockPoint(block: ObjectIdentifier(tryCall.successBlock), index: 0)
+                        )
+                        worklist.append(
+                            BlockPoint(block: ObjectIdentifier(tryCall.errorBlock), index: 0)
+                        )
+                    default:
+                        break
+                    }
+                    break
+                }
+            }
+            return true
+        }
+
+        private func setBalance(_ value: Value, to balance: Int?, in state: OwnershipState) {
+            let key = ObjectIdentifier(value)
+            guard state.balances.index(forKey: key) != nil else {
+                return
+            }
+            state.balances[key] = balance
+        }
+
+        private func resetBalance(_ value: Value, in state: OwnershipState) {
+            let key = ObjectIdentifier(value)
+            guard state.balances.index(forKey: key) != nil else {
+                return
+            }
+            state.balances[key] = 0
+        }
+
+        private func adjustBalance(_ value: Value, by delta: Int, in state: OwnershipState) {
+            let key = ObjectIdentifier(value)
+            guard let current = state.balances[key], let balance = current else {
+                return
+            }
+            state.balances[key] = balance + delta
+        }
+
+        private func adjustAllocation(_ value: Value, by delta: Int, in state: OwnershipState) {
+            let key = ObjectIdentifier(value)
+            guard let current = state.allocations[key], let count = current else {
+                return
+            }
+            state.allocations[key] = count + delta
+        }
+
+        private func verifyReturnOwnership(
+            _ instruction: Return, function: Function, state: OwnershipState,
+            valueByIdentity: [ObjectIdentifier: Value],
+            allocationByIdentity: [ObjectIdentifier: Value], at site: Site
+        ) {
+            let returned = instruction.value.map { ObjectIdentifier($0) }
+            let transfersOwnedResult = resultOwnership(of: function) == .Owned
+            let balances = state.balances.sorted {
+                (valueByIdentity[$0.key]?.name ?? "") < (valueByIdentity[$1.key]?.name ?? "")
+            }
+            for (key, balance) in balances {
+                if key == returned, transfersOwnedResult {
+                    guard balance != 1 else {
+                        continue
+                    }
+                    guard let value = valueByIdentity[key] else {
+                        continue
+                    }
+                    let text = balance.map { String($0) } ?? "unknown"
+                    record(
+                        .Ownership,
+                        "reference value '\(value.name)' in \(site.location) is transferred as an owned result with retain/release balance \(text), expected 1",
+                        at: site.range
+                    )
+                } else {
+                    guard balance != 0 else {
+                        continue
+                    }
+                    guard let value = valueByIdentity[key] else {
+                        continue
+                    }
+                    let text = balance.map { String($0) } ?? "unknown"
+                    record(
+                        .Ownership,
+                        "reference value '\(value.name)' in \(site.location) has retain/release balance \(text) at the return, expected 0",
+                        at: site.range
+                    )
+                }
+            }
+            let allocations = state.allocations.sorted {
+                (allocationByIdentity[$0.key]?.name ?? "") < (allocationByIdentity[$1.key]?.name ?? "")
+            }
+            for (key, count) in allocations where count != 0 {
+                guard let value = allocationByIdentity[key] else {
+                    continue
+                }
+                let text = if count == nil {
+                    "is not deallocated exactly once on every path to this return"
+                } else if count == 1 {
+                    "is not deallocated on every path to this return"
+                } else {
+                    "is deallocated more than once on some path to this return"
+                }
+                record(
+                    .Ownership,
+                    "stack allocation '\(value.name)' in \(site.location) \(text)",
+                    at: site.range
+                )
+            }
+        }
+
+        private func verifyConsumeTarget(
+            _ instruction: Instruction, state: OwnershipState, at site: Site
+        ) {
+            let value: Value?
+            let opName: String
+            switch instruction {
+            case let release as Release:
+                value = release.value
+                opName = "release"
+            case let destroy as Destroy:
+                value = destroy.value
+                opName = "destroy"
+            default:
+                return
+            }
+            guard let value else {
+                return
+            }
+            let key = ObjectIdentifier(value)
+            guard state.balances.index(forKey: key) != nil, let balance = state.balances[key] ?? nil
+            else {
+                return
+            }
+            guard balance <= 0 else {
+                return
+            }
+            record(
+                .Ownership,
+                "reference value '\(value.name)' in \(site.location) is consumed by \(opName) with no owned instance left (retain/release balance \(balance))",
+                at: site.range
+            )
+        }
+
+        private func verifyOwnedArguments(
+            _ instruction: Instruction, state: OwnershipState, at site: Site
+        ) {
+            let callee: Value
+            let arguments: [Value]
+            switch instruction {
+            case let call as Call:
+                callee = call.callee
+                arguments = call.arguments
+            case let call as TryCall:
+                callee = call.callee
+                arguments = call.arguments
+            default:
+                return
+            }
+            guard let signature = currentRegistry.types[callee.ty] as? TIRType.FunctionType else {
+                return
+            }
+            for (index, argument) in arguments.enumerated() {
+                guard index < signature.parameterOwnership.count,
+                      signature.parameterOwnership[index] == .Owned,
+                      isReferenceValue(argument.ty)
+                else {
+                    continue
+                }
+                let balance = state.balances[ObjectIdentifier(argument)] ?? nil
+                guard balance != 1 else {
+                    continue
+                }
+                let text = balance.map { String($0) } ?? "unknown"
+                record(
+                    .Ownership,
+                    "reference value '\(argument.name)' in \(site.location) is passed as an owned argument to '\(callee.name)' with retain/release balance \(text), expected 1",
+                    at: site.range
+                )
+            }
+        }
+
+        private func verifyDeinitializerDischarge(
+            _ instruction: Instruction, function: Function, state: OwnershipState,
+            slots: SlotTable, at site: Site
+        ) {
+            let isExit = instruction is Return || instruction is Unreachable || instruction is Trap
+            guard isExit, let classType = deinitializerClass(of: function) else {
+                return
+            }
+            guard let selfParameter = function.parameters.first else {
+                return
+            }
+            let selfKey = ObjectIdentifier(selfParameter)
+            let startIndex = inheritedFieldCount(of: classType)
+            for (index, field) in classType.fields.enumerated() where index >= startIndex {
+                for path in referenceLeafPaths(of: field.type, path: [index], visited: []) {
+                    let matching = slots.keys.keys.compactMap { valueKey -> ObjectIdentifier? in
+                        guard let chain = slots.addressChain(of: valueKey),
+                              chain.root == selfKey, chain.path == path
+                        else {
+                            return nil
+                        }
+                        return slots.keys[valueKey]
+                    }
+                    let name = fieldPathName(path)
+                    guard !matching.isEmpty else {
+                        record(
+                            .Ownership,
+                            "deinitializer '\(function.name)' in \(site.location) does not discharge reference field \(name) of '\(classType.displayText)'",
+                            at: site.range
+                        )
+                        continue
+                    }
+                    let holding = matching.filter { (state.tokens[$0] ?? nil) != 0 }
+                    for key in holding {
+                        record(
+                            .Ownership,
+                            "deinitializer '\(function.name)' in \(site.location) still holds a reference in field \(name) of '\(classType.displayText)' at this exit",
+                            at: site.range
+                        )
+                    }
+                }
+            }
+        }
+
+        private func fieldPathName(_ path: [Int]) -> String {
+            "#" + path.map(String.init).joined(separator: ".")
+        }
+
+        private func referenceLeafPaths(
+            of id: Id.TIRTypeId, path: [Int], visited: Set<Id.TIRTypeId>
+        ) -> [[Int]] {
+            guard !visited.contains(id) else {
+                return []
+            }
+            if isClassReference(id) {
+                return [path]
+            }
+            let nested = visited.union([id])
+            switch currentRegistry.types[id] {
+            case let structType as TIRType.StructType:
+                return structType.fields.enumerated().flatMap { index, field in
+                    referenceLeafPaths(of: field.type, path: path + [index], visited: nested)
+                }
+            case let tupleType as TIRType.TupleType:
+                return tupleType.elements.enumerated().flatMap { index, element in
+                    referenceLeafPaths(of: element.type, path: path + [index], visited: nested)
+                }
+            default:
+                return []
+            }
+        }
+
+        private func classMetadata(of classType: TIRType.ClassType) -> TIR.MetadataRecord? {
+            if let record = currentRegistry.metadatas.values.first(where: {
+                $0.typeId == classType.id
+            }) {
+                return record
+            }
+            return currentRegistry.metadatas.values.first {
+                $0.typeId == nil && $0.name == classType.displayText
+            }
+        }
+
+        private func classTypeForMetadata(_ record: TIR.MetadataRecord) -> TIRType.ClassType? {
+            guard let typeId = record.typeId else {
+                return nil
+            }
+            return currentRegistry.types[typeId] as? TIRType.ClassType
+        }
+
+        private func deinitializerClass(of function: Function) -> TIRType.ClassType? {
+            guard function.parameters.count == 1,
+                  let pointeeId = (
+                      currentRegistry.types[function.parameters[0].ty]
+                          as? TIRType.PointerType
+                  )?.pointee,
+                  let classType = currentRegistry.types[pointeeId] as? TIRType.ClassType,
+                  let record = classMetadata(of: classType),
+                  record.vtable.first?.function == function.id
+            else {
+                return nil
+            }
+            return classType
+        }
+
+        private func inheritedFieldCount(of classType: TIRType.ClassType) -> Int {
+            inheritedFieldCount(of: classType, visited: [])
+        }
+
+        private func inheritedFieldCount(
+            of classType: TIRType.ClassType, visited: Set<Id.TIRTypeId>
+        ) -> Int {
+            guard !visited.contains(classType.id),
+                  let record = classMetadata(of: classType),
+                  let superclassId = record.superclass,
+                  let superclassRecord = currentRegistry.metadatas[superclassId],
+                  let superclassType = classTypeForMetadata(superclassRecord)
+            else {
+                return 0
+            }
+            return superclassType.fields.count + inheritedFieldCount(
+                of: superclassType, visited: visited.union([classType.id])
+            )
+        }
+
+        private func classReference(of id: Id.TIRTypeId) -> TIRType.ClassType? {
+            if let classType = currentRegistry.types[id] as? TIRType.ClassType {
+                return classType
+            }
+            guard let pointer = currentRegistry.types[id] as? TIRType.PointerType else {
+                return nil
+            }
+            return currentRegistry.types[pointer.pointee] as? TIRType.ClassType
+        }
+
+        private func classNeedsTeardown(
+            _ classType: TIRType.ClassType, visited: Set<Id.TIRTypeId>
+        ) -> Bool {
+            guard !visited.contains(classType.id) else {
+                return false
+            }
+            let record = classMetadata(of: classType)
+            if record?.hasRealDeinitializer == true {
+                return true
+            }
+            if classType.fields.contains(where: { isReferenceValue($0.type) }) {
+                return true
+            }
+            guard let superclassId = record?.superclass,
+                  let superclassRecord = currentRegistry.metadatas[superclassId],
+                  let superclassType = classTypeForMetadata(superclassRecord)
+            else {
+                return false
+            }
+            return classNeedsTeardown(
+                superclassType, visited: visited.union([classType.id])
+            )
+        }
+
+        private func verifyTeardownKind(_ instruction: Instruction, at site: Site) {
+            let value: Value
+            let destroyed: Bool
+            switch instruction {
+            case let release as Release:
+                value = release.value
+                destroyed = false
+            case let destroy as Destroy:
+                value = destroy.value
+                destroyed = true
+            default:
+                return
+            }
+            guard let classType = classReference(of: value.ty),
+                  let metadata = classMetadata(of: classType),
+                  let metadataClass = classTypeForMetadata(metadata)
+            else {
+                return
+            }
+            let needsTeardown = classNeedsTeardown(metadataClass, visited: [])
+            if destroyed, !needsTeardown {
+                record(
+                    .Ownership,
+                    "reference value '\(value.name)' in \(site.location) is destroyed but '\(metadata.name)' has no real deinitializer, release is required",
+                    at: site.range
+                )
+            } else if !destroyed, needsTeardown {
+                record(
+                    .Ownership,
+                    "reference value '\(value.name)' in \(site.location) is released but '\(metadata.name)' has a real deinitializer, destroy is required",
+                    at: site.range
+                )
+            }
+        }
+
+        private func verifySlotOwnership(
+            _ instruction: Instruction, state: OwnershipState,
+            slots: SlotTable,
+            slotByIdentity: [ObjectIdentifier: Value], at site: Site
+        ) {
+            switch instruction {
+            case let store as Store:
+                guard let key = slots.key(of: store.ptr), (state.tokens[key] ?? nil) != 0 else {
+                    return
+                }
+                record(
+                    .Ownership,
+                    "store of '\(store.value.name)' into slot '\(store.ptr.name)' in \(site.location) overwrites a reference held by the slot that is not discharged first",
+                    at: site.range
+                )
+            case let dealloc as DeallocStack:
+                verifySlotDischarge(
+                    dealloc, state: state, slots: slots, slotByIdentity: slotByIdentity, at: site
+                )
+            case let destroy as Destroy where isTeardownValue(destroy.value.ty):
+                verifyDestroyAgainstSlots(
+                    destroy, state: state, slotByIdentity: slotByIdentity, at: site
+                )
+            default:
+                break
+            }
+        }
+
+        private func verifySlotDischarge(
+            _ instruction: DeallocStack, state: OwnershipState,
+            slots: SlotTable,
+            slotByIdentity: [ObjectIdentifier: Value], at site: Site
+        ) {
+            let root = ObjectIdentifier(instruction.value)
+            let holding = slots.storages.keys.filter { key in
+                guard case let .Stack(slotRoot)? = slots.storages[key], slotRoot == root else {
+                    return false
+                }
+                return (state.tokens[key] ?? nil) != 0
+            }.sorted { (slotByIdentity[$0]?.name ?? "") < (slotByIdentity[$1]?.name ?? "") }
+            for key in holding {
+                let name = slotByIdentity[key]?.name ?? "slot"
+                record(
+                    .Ownership,
+                    "stack slot '\(name)' in \(site.location) still holds a reference that is not discharged before this deallocstack",
+                    at: site.range
+                )
+            }
+        }
+
+        private func verifyDestroyAgainstSlots(
+            _ instruction: Destroy, state: OwnershipState,
+            slotByIdentity: [ObjectIdentifier: Value], at site: Site
+        ) {
+            let owned = ObjectIdentifier(instruction.value)
+            let holding = state.tokens.keys.filter { key in
+                (state.tokens[key] ?? nil) != 0 && (state.tokenOwners[key] ?? nil) == owned
+            }.sorted { (slotByIdentity[$0]?.name ?? "") < (slotByIdentity[$1]?.name ?? "") }
+            for key in holding {
+                let name = slotByIdentity[key]?.name ?? "slot"
+                record(
+                    .Ownership,
+                    "reference value '\(instruction.value.name)' in \(site.location) is destroyed while slot '\(name)' still holds a reference to it",
+                    at: site.range
+                )
+            }
+        }
+
+        private func verifyDeallocStack(
+            _ instruction: DeallocStack, allocationByIdentity: [ObjectIdentifier: Value], at site: Site
+        ) {
+            guard allocationByIdentity[ObjectIdentifier(instruction.value)] == nil else {
+                return
+            }
+            record(
+                .Ownership,
+                "deallocstack operand '\(instruction.value.name)' in \(site.location) is not a stack allocation of function '\(site.function.name)'",
+                at: site.range
+            )
         }
 
         private func verifyOperand(
@@ -1109,168 +2529,6 @@ public extension TIR {
                 }
             default:
                 break
-            }
-        }
-
-        private func results(of instruction: Instruction) -> [Value] {
-            switch instruction {
-            case let i as Phi:
-                [i.result]
-            case let i as ExtractPayload:
-                [i.result]
-            case let i as UnaryArith:
-                [i.result]
-            case let i as BinaryArith:
-                [i.result]
-            case let i as AllocStack:
-                [i.result]
-            case let i as AllocHeap:
-                [i.result]
-            case let i as AllocCell:
-                [i.result]
-            case let i as Load:
-                [i.result]
-            case let i as StructElementAddr:
-                [i.result]
-            case let i as TupleElementAddr:
-                [i.result]
-            case let i as ClassElementAddr:
-                [i.result]
-            case let i as ProjectCell:
-                [i.result]
-            case let i as StructValue:
-                [i.result]
-            case let i as TupleValue:
-                [i.result]
-            case let i as EnumValue:
-                [i.result]
-            case let i as Call:
-                i.result.map { [$0] } ?? []
-            case let i as TryCall:
-                i.result.map { [$0] } ?? []
-            case let i as Closure:
-                [i.result]
-            case let i as VirtualMethod:
-                [i.result]
-            case let i as Upcast:
-                [i.result]
-            case let i as UncheckedRefCast:
-                [i.result]
-            case let i as NumericCast:
-                [i.result]
-            case let i as BitCast:
-                [i.result]
-            case let i as SizeOf:
-                [i.result]
-            case let i as TypeMetadata:
-                [i.result]
-            case let i as TypeMetadataConstant:
-                [i.result]
-            case let i as IsInstance:
-                [i.result]
-            case let i as Superclass:
-                [i.result]
-            case let i as Copy:
-                [i.result]
-            case let i as BuildExistential:
-                [i.result]
-            case let i as OpenExistential:
-                [i.result]
-            case let i as WitnessMethod:
-                [i.result]
-            case let i as OpaqueWitnessMethod:
-                [i.result]
-            case let i as ExistentialCopy:
-                [i.result]
-            default:
-                []
-            }
-        }
-
-        private func operands(of instruction: Instruction) -> [Value] {
-            switch instruction {
-            case let i as Return:
-                i.value.map { [$0] } ?? []
-            case let i as Branch:
-                i.arguments
-            case let i as ConditionalBranch:
-                [i.condition] + i.trueArguments + i.falseArguments
-            case let i as SwitchEnum:
-                [i.value] + i.cases.flatMap(\.arguments)
-            case let i as ExtractPayload:
-                [i.value]
-            case let i as UnaryArith:
-                [i.operand]
-            case let i as BinaryArith:
-                [i.lhs, i.rhs]
-            case let i as DeallocStack:
-                [i.value]
-            case let i as DeallocHeap:
-                [i.value]
-            case let i as DeallocCell:
-                [i.value]
-            case let i as Load:
-                [i.ptr]
-            case let i as Store:
-                [i.value, i.ptr]
-            case let i as StructElementAddr:
-                [i.base]
-            case let i as TupleElementAddr:
-                [i.base]
-            case let i as ClassElementAddr:
-                [i.base]
-            case let i as ProjectCell:
-                [i.cell]
-            case let i as StructValue:
-                i.fields
-            case let i as TupleValue:
-                i.elements
-            case let i as EnumValue:
-                i.payload.map { [$0] } ?? []
-            case let i as Call:
-                [i.callee] + i.arguments
-            case let i as TryCall:
-                [i.callee] + i.arguments + (i.errorCell.map { [$0] } ?? [])
-            case let i as Closure:
-                [i.function] + i.captures
-            case let i as VirtualMethod:
-                [i.selfValue]
-            case let i as Upcast:
-                [i.value]
-            case let i as UncheckedRefCast:
-                [i.value]
-            case let i as NumericCast:
-                [i.value]
-            case let i as BitCast:
-                [i.value]
-            case let i as TypeMetadata:
-                [i.value]
-            case let i as IsInstance:
-                [i.metadata, i.target]
-            case let i as Superclass:
-                [i.metadata]
-            case let i as Retain:
-                [i.value]
-            case let i as Release:
-                [i.value]
-            case let i as Copy:
-                [i.value]
-            case let i as Destroy:
-                [i.value]
-            case let i as InlineAsm:
-                i.operands
-            case let i as BuildExistential:
-                [i.value]
-            case let i as OpenExistential:
-                [i.container]
-            case let i as OpaqueWitnessMethod:
-                [i.container]
-            case let i as ExistentialCopy:
-                [i.container]
-            case let i as ExistentialDestroy:
-                [i.container]
-            default:
-                []
             }
         }
     }
