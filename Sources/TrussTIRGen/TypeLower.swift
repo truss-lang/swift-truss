@@ -107,24 +107,26 @@ final class TypeLower {
     }
 
     func conformancePairs() -> [(concrete: TrussType.NominalType, protocol: Symbol.ProtocolSymbol)] {
-        var result: [(TrussType.NominalType, Symbol.ProtocolSymbol)] = []
+        var result: [(concrete: TrussType.NominalType, protocol: Symbol.ProtocolSymbol)] = []
         var seen: Set<String> = []
-        for (_, nominal) in context.typeTable {
-            guard let nominalType = nominal as? TrussType.NominalType,
-                  let symbol = nominalType.symbol,
+        let nominalTypes = context.typeTable.values.compactMap { $0 as? TrussType.NominalType }
+            .sorted { $0.name < $1.name }
+        for nominalType in nominalTypes {
+            guard let symbol = nominalType.symbol,
                   !(symbol is Symbol.ProtocolSymbol)
             else {
                 continue
             }
-            for protocolSymbol in symbol.conformances {
-                guard let typeId = protocolSymbol.typeId,
-                      context.typeTable[typeId] is TrussType.ProtocolType
-                else {
-                    continue
+            let conformances = symbol.conformances.filter { protocolSymbol in
+                guard let typeId = protocolSymbol.typeId else {
+                    return false
                 }
+                return context.typeTable[typeId] is TrussType.ProtocolType
+            }.sorted { $0.name < $1.name }
+            for protocolSymbol in conformances {
                 let key = "(nominalType.id.id):(protocolType.id.id)"
                 if seen.insert(key).inserted {
-                    result.append((nominalType, protocolSymbol))
+                    result.append((concrete: nominalType, protocol: protocolSymbol))
                 }
             }
         }
@@ -151,7 +153,7 @@ final class TypeLower {
         guard let classType = lowered as? TIRType.ClassType else {
             return nil
         }
-        let record = registry.addMetadata(name: classType.displayText)
+        let record = registry.addMetadata(name: classType.displayText, typeId: classType.id)
         metadataByType[lowered.id] = record.id
         if let superclass = superclassType(of: type), let superId = metadataId(for: superclass) {
             record.superclass = superId
@@ -165,7 +167,7 @@ final class TypeLower {
         if metadataByType[classType.id] != nil {
             return
         }
-        let record = registry.addMetadata(name: classType.displayText)
+        let record = registry.addMetadata(name: classType.displayText, typeId: classType.id)
         metadataByType[classType.id] = record.id
         if let superclass = superclassType(of: type),
            let superLowered = lower(superclass) as? TIRType.ClassType,

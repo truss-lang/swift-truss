@@ -32,6 +32,18 @@ final class WitnessCollector {
             }
             fillMetadataConformance(symbol, protocolId: protocolId)
         }
+        for witness in gen.registry.witnesses.values {
+            witness.entries.sort { $0.name < $1.name }
+        }
+        for record in gen.registry.metadatas.values {
+            record.conformedProtocols.sort {
+                protocolName($0) < protocolName($1)
+            }
+        }
+    }
+
+    private func protocolName(_ id: Id.TIRProtocolId) -> String {
+        gen.registry.protocols[id]?.name ?? ""
     }
 
     private func resolveFunction(

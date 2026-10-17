@@ -66,6 +66,9 @@ final class FunctionCollector {
                 collectStatements(decl.body)
                 gen.collectTypeStack.removeLast()
             case let decl as AST.ClassDecl:
+                registerClassModule(decl)
+                registerDefaultInitializer(decl)
+                registerSharedNoOpDeinitializer(decl)
                 collectTypeStackPush(decl.symbol)
                 collectStatements(decl.body)
                 gen.collectTypeStack.removeLast()
@@ -90,6 +93,64 @@ final class FunctionCollector {
     private func collectTypeStackPush(_ symbol: Symbol.NominalTypeSymbol?) {
         let resolved = symbol ?? Symbol.StructSymbol(id: Id.SymbolId(0), name: "")
         gen.collectTypeStack.append(resolved)
+    }
+
+    private func registerClassModule(_ decl: AST.ClassDecl) {
+        guard let symbol = decl.symbol,
+              let module = gen.currentModule
+        else {
+            return
+        }
+        gen.classModules[ObjectIdentifier(symbol)] = module
+    }
+
+    private func registerDefaultInitializer(_ decl: AST.ClassDecl) {
+        guard let symbol = decl.symbol as? Symbol.ClassSymbol,
+              symbol.initializers.isEmpty,
+              symbol.superclass == nil,
+              let typeId = symbol.typeId,
+              let type = context.typeTable[typeId] as? TrussType.ClassType,
+              let module = gen.currentModule
+        else {
+            return
+        }
+        let lowered = gen.typeLower.lower(type)
+        let pointer = gen.registry.pointerType(pointee: lowered.id)
+        let function = module.addFunction(
+            name: gen.mangler.mangleDefaultInitializerName(type, modulePath: gen.modulePathStack),
+            parameters: [TIR.Parameter(ty: pointer.id, name: "self")],
+            returnType: pointer.id, isVariadic: false, isExtern: false, callingConvention: nil,
+            parameterOwnership: [.Owned]
+        )
+        function.sourceRange = decl.sourceRange
+        gen.defaultInitializers[ObjectIdentifier(symbol)] = function
+    }
+
+    private func registerSharedNoOpDeinitializer(_ decl: AST.ClassDecl) {
+        guard let owner = decl.symbol, !chainHasDeinitializer(owner) else {
+            return
+        }
+        guard let function = gen.sharedNoOpDeinitializer(sourceRange: decl.sourceRange) else {
+            return
+        }
+        gen.sharedNoOpDeinitializerByClass[ObjectIdentifier(owner)] = function
+    }
+
+    private func chainHasDeinitializer(_ symbol: Symbol.NominalTypeSymbol) -> Bool {
+        if symbol.deinitializer != nil {
+            return true
+        }
+        guard let classSymbol = symbol as? Symbol.ClassSymbol else {
+            return false
+        }
+        var superclass = classSymbol.superclass
+        while let current = superclass {
+            if current.deinitializer != nil {
+                return true
+            }
+            superclass = current.superclass
+        }
+        return false
     }
 
     private func collectFunction(_ decl: AST.FunctionDecl) {
@@ -139,13 +200,17 @@ final class FunctionCollector {
     }
 
     private func collectDeinit(_ decl: AST.DeinitDecl) {
-        guard let owner = gen.collectTypeStack.last else {
+        guard let owner = gen.collectTypeStack.last,
+              let symbol = decl.symbol
+        else {
             return
         }
         let name = cname(decl.attributes) ?? gen.mangler.mangleDeinitName(
             owner, modulePath: gen.modulePathStack
         )
-        let function = createFunction(nil, name: name, returnType: gen.registry.voidType())
+        let function = createFunction(
+            symbol, name: name, returnType: gen.registry.voidType(), symbolType: symbol
+        )
         gen.deinitFunctions[ObjectIdentifier(decl)] = function
         gen.deinitOwners[ObjectIdentifier(decl)] = owner
     }
@@ -181,8 +246,10 @@ final class FunctionCollector {
                     modulePath: gen.modulePathStack
                 )
             var tirParameters: [TIR.Parameter] = []
+            var selfKind: Symbol.FunctionSymbol.Kind?
             if setterSymbol.kind != .StaticMethod {
                 tirParameters.append(TIR.Parameter(ty: selfType.id, name: "self"))
+                selfKind = setterSymbol.kind
             }
             tirParameters.append(contentsOf: decl.parameters.enumerated().map { index, parameter in
                 let ty = setterSymbol.functionType?.parameters[safe: index].map {
@@ -195,7 +262,8 @@ final class FunctionCollector {
             tirParameters.append(TIR.Parameter(ty: returnType.id, name: "newValue"))
             let setter = gen.currentModule!.addFunction(
                 name: setterName, parameters: tirParameters, returnType: setterReturn.id,
-                isVariadic: false, isExtern: false, callingConvention: nil
+                isVariadic: false, isExtern: false, callingConvention: nil,
+                parameterOwnership: parameterConventions(selfKind: selfKind, count: tirParameters.count)
             )
             gen.functionsBySymbol[setterSymbol.id] = setter
         }
@@ -215,12 +283,14 @@ final class FunctionCollector {
         isVariadic: Bool = false, isExtern: Bool = false, callingConvention: String? = nil
     ) -> TIR.Function {
         var tirParameters: [TIR.Parameter] = []
+        var selfKind: Symbol.FunctionSymbol.Kind?
         if let memberOf = symbol?.memberOf, (symbol?.kind ?? .StaticMethod) != .StaticMethod,
            let owner = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol,
            let typeId = owner.typeId, let type = context.typeTable[typeId]
         {
             let selfType = gen.registry.pointerType(pointee: gen.typeLower.lower(type).id)
             tirParameters.append(TIR.Parameter(ty: selfType.id, name: "self"))
+            selfKind = symbol?.kind
         }
         tirParameters.append(contentsOf: parameters.enumerated().map { index, parameter in
             let ty = symbolType?.functionType?.parameters[safe: index].map { gen.typeLower.lower($0.type) }
@@ -240,7 +310,8 @@ final class FunctionCollector {
         }
         let function = gen.currentModule!.addFunction(
             name: name, parameters: tirParameters, returnType: tirReturnType.id,
-            isVariadic: isVariadic, isExtern: isExtern, callingConvention: callingConvention
+            isVariadic: isVariadic, isExtern: isExtern, callingConvention: callingConvention,
+            parameterOwnership: parameterConventions(selfKind: selfKind, count: tirParameters.count)
         )
         if let symbol {
             gen.functionsBySymbol[symbol.id] = function
@@ -294,6 +365,7 @@ final class FunctionCollector {
             let suffix: String
             let returnType: TIRType.TIRType
             var parameters: [TIR.Parameter] = isStatic ? [] : [TIR.Parameter(ty: selfType.id, name: "self")]
+            let selfKind: Symbol.FunctionSymbol.Kind? = isStatic ? nil : accessorSymbol.kind
             switch accessor.kind {
             case .Get:
                 suffix = "Getter"
@@ -325,7 +397,8 @@ final class FunctionCollector {
             )
             gen.functionsBySymbol[accessorSymbol.id] = gen.currentModule!.addFunction(
                 name: name, parameters: parameters, returnType: returnType.id,
-                isVariadic: false, isExtern: false, callingConvention: nil
+                isVariadic: false, isExtern: false, callingConvention: nil,
+                parameterOwnership: parameterConventions(selfKind: selfKind, count: parameters.count)
             )
         }
     }

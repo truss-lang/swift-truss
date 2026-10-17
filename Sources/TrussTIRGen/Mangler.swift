@@ -189,6 +189,25 @@ final class Mangler {
         return result
     }
 
+    func mangleDefaultInitializerName(
+        _ type: TrussType.NominalType, modulePath: [Symbol.ModuleSymbol]
+    ) -> String {
+        var result = "$t"
+        let packageName = type.symbol.flatMap(\.packageId).flatMap { context.id2Symbol[$0]?.name }
+            ?? "main"
+        result += mangleIdentifier(packageName)
+        for moduleSymbol in modulePath {
+            result += mangleIdentifier(moduleSymbol.name)
+        }
+        result += "_"
+        result += mangleIdentifier(type.name)
+        result += "_"
+        result += mangleIdentifier("init")
+        result += "_"
+        result += mangleIdentifier(nominalPath(type, modulePath: modulePath))
+        return result
+    }
+
     func mangleIdentifier(_ name: String) -> String {
         "\(name.count)\(name)"
     }

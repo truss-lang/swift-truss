@@ -169,10 +169,52 @@ public final class TIREmitter: AST.Visitor {
         if let genericDecl = nominalTypeDecl.genericDecl {
             visitGenericDecl(genericDecl, additional: additional)
         }
+        if let classDecl = nominalTypeDecl as? AST.ClassDecl,
+           let symbol = classDecl.symbol,
+           let defaultInitializer = gen.defaultInitializers[ObjectIdentifier(symbol)]
+        {
+            emitDefaultInitializer(defaultInitializer, owner: symbol)
+        }
         for statement in nominalTypeDecl.body {
             visit(statement, additional: additional)
         }
         return nil
+    }
+
+    private func emitDefaultInitializer(
+        _ function: TIR.Function, owner: Symbol.NominalTypeSymbol
+    ) {
+        emitFunctionBody(
+            fn: function,
+            parameters: [],
+            parameterStartIndex: 1
+        ) { [self] in
+            emitDefaultFieldInitializers(of: owner, selfValue: getSelf())
+            emitFunctionNormalExit()
+        } prologue: { [self] in
+            bindLocal("<self>", function.parameters[0])
+        }
+    }
+
+    private func emitDefaultFieldInitializers(
+        of owner: Symbol.NominalTypeSymbol, selfValue: TIR.Value
+    ) {
+        guard let builder,
+              let typeId = owner.typeId,
+              let properties = gen.storedProperties[typeId]
+        else {
+            return
+        }
+        for property in properties {
+            guard let initializer = property.initializer else {
+                continue
+            }
+            let value = rvalue(of: visitExpression(initializer), of: initializer)
+            let slot = propertyValue(
+                of: property.symbol, obj: selfValue, sourceRange: initializer.sourceRange
+            )
+            at(builder.buildStore(value: value, to: slot))
+        }
     }
 
     @discardableResult
@@ -227,7 +269,12 @@ public final class TIREmitter: AST.Visitor {
             fn: fn,
             parameters: initDecl.parameters,
             parameterStartIndex: 1
-        ) {
+        ) { [self] in
+            if let memberOf = initDecl.symbol?.memberOf,
+               let owner = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol
+            {
+                emitDefaultFieldInitializers(of: owner, selfValue: getSelf())
+            }
             visitStatements(initDecl.body)
             emitFunctionNormalExit()
         } prologue: { [self] in
@@ -825,8 +872,23 @@ public final class TIREmitter: AST.Visitor {
                 return builder.buildClosure(function: ref, captures: []).result
             }
         case let nominal as Symbol.NominalTypeSymbol:
-            // TODO: return reflection of the nominal type
-            fatalError()
+            guard variable.willBeCalled,
+                  let classSymbol = nominal as? Symbol.ClassSymbol,
+                  let defaultInitializer = gen.defaultInitializers[ObjectIdentifier(classSymbol)],
+                  let typeId = classSymbol.typeId,
+                  let type = context.typeTable[typeId]
+            else {
+                fatalError()
+            }
+            let ref = TIR.FunctionRef(
+                functionId: defaultInitializer.id, ty: defaultInitializer.ty,
+                name: defaultInitializer.name
+            )
+            return builder.buildObjectConstruction(
+                initializer: ref,
+                objectTy: lowerType(type).id,
+                functionTy: defaultInitializer.ty
+            )
         case is Symbol.SelfSymbol:
             let v = getSelf()
             if variable.isLeftValue {
@@ -1827,7 +1889,8 @@ public final class TIREmitter: AST.Visitor {
                 returnType: returnType.id,
                 isVariadic: false,
                 isExtern: true,
-                callingConvention: nil
+                callingConvention: nil,
+                parameterOwnership: ownedConventions(count: parameters.count)
             )
             gen.functionsBySymbol[symbol.id] = function
         }
@@ -1884,7 +1947,10 @@ public final class TIREmitter: AST.Visitor {
         return gen.registry.functionType(
             parameters: [selfType] + functionType.parameters.map { lowerType($0.type).id },
             returnType: lowerType(functionType.returnType).id,
-            isVariadic: false
+            isVariadic: false,
+            parameterOwnership: parameterConventions(
+                selfKind: symbol.kind, count: functionType.parameters.count + 1
+            )
         ).id
     }
 

@@ -26,6 +26,7 @@ public final class TIRGen {
             collector.collect(program)
         }
         gen.typeLower.setStoredProperties(collector.storedProperties)
+        gen.storedProperties = collector.storedProperties
         gen.typeLower.setEnumCases(collector.enumCases)
         let modules: [TIR.Module] = programs.map {
             let module = gen.makeModule()

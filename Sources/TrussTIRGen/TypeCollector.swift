@@ -4,6 +4,7 @@ struct StoredProperty {
     let symbol: Symbol.VariableSymbol
     let name: String
     let type: TrussType.TrussType
+    let initializer: AST.Expression?
 }
 
 final class TypeCollector {
@@ -58,7 +59,7 @@ final class TypeCollector {
             return
         }
         storedProperties[typeId, default: []].append(
-            StoredProperty(symbol: symbol, name: symbol.name, type: type)
+            StoredProperty(symbol: symbol, name: symbol.name, type: type, initializer: decl.initializer)
         )
     }
 

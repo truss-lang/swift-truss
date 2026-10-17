@@ -1,3 +1,4 @@
+import SwiftBetterDiagnostic
 import TrussCore
 
 struct VirtualMethodSlot {
@@ -22,6 +23,13 @@ final class GenerationContext {
     var staticVariableSymbols: Set<Id.SymbolId> = []
     var deinitFunctions: [ObjectIdentifier: TIR.Function] = [:]
     var deinitOwners: [ObjectIdentifier: Symbol.NominalTypeSymbol] = [:]
+    var sharedNoOpDeinitializers: [ObjectIdentifier: TIR.Function] = [:]
+    var sharedNoOpDeinitializerByClass: [ObjectIdentifier: TIR.Function] = [:]
+    var sharedNoOpDeinitializerIds: Set<Id.TIRFunctionId> = []
+    var fieldDeinitializers: [ObjectIdentifier: TIR.Function] = [:]
+    var classModules: [ObjectIdentifier: TIR.Module] = [:]
+    var storedProperties: [Id.ASTTypeId: [StoredProperty]] = [:]
+    var defaultInitializers: [ObjectIdentifier: TIR.Function] = [:]
     var existentialBoxes: [Id.SymbolId: ExistentialBox] = [:]
     var virtualMethodSlots: [Id.SymbolId: VirtualMethodSlot] = [:]
 
@@ -45,6 +53,29 @@ final class GenerationContext {
         currentModule = module
         return module
     }
+
+    func sharedNoOpDeinitializer(sourceRange: SourceRange) -> TIR.Function? {
+        guard let module = currentModule else {
+            return nil
+        }
+        let key = ObjectIdentifier(module)
+        if let existing = sharedNoOpDeinitializers[key] {
+            return existing
+        }
+        let function = module.addFunction(
+            name: sharedNoOpDeinitializerName, parameters: [], returnType: registry.voidType().id,
+            isVariadic: false, isExtern: false, callingConvention: nil
+        )
+        function.sourceRange = sourceRange
+        let entry = function.addBasicBlock(name: "entry")
+        entry.sourceRange = sourceRange
+        let returnInstruction = TIR.Return(value: nil)
+        returnInstruction.sourceRange = sourceRange
+        entry.instructions.append(returnInstruction)
+        sharedNoOpDeinitializers[key] = function
+        sharedNoOpDeinitializerIds.insert(function.id)
+        return function
+    }
 }
 
 extension Array {
@@ -52,3 +83,22 @@ extension Array {
         indices.contains(index) ? self[index] : nil
     }
 }
+
+let fieldDeinitializerName = "$t_field_deinit_"
+
+func ownedConventions(count: Int) -> [TIR.Ownership] {
+    Array(repeating: TIR.Ownership.Owned, count: count)
+}
+
+func parameterConventions(selfKind: Symbol.FunctionSymbol.Kind?, count: Int) -> [TIR.Ownership] {
+    (0 ..< count).map { index in
+        if index == 0, let selfKind, selfKind != .Initializer {
+            return TIR.Ownership.Guaranteed
+        }
+        return TIR.Ownership.Owned
+    }
+}
+
+let sharedNoOpDeinitializerName = "$t_noop_deinit"
+
+let deinitializerSlotName = "deinit"
