@@ -7,6 +7,7 @@ import TrussOperator
 import TrussSemantics
 import TrussSyntax
 import TrussTIRGen
+import TrussTIRPass
 
 public struct DriverConfig {
     public static let hostTarget: String = TargetTriple.host
@@ -178,8 +179,15 @@ public final class Driver {
         } else {
             tirModules = []
         }
-        let verifier = TIR.Verifier(context: context)
+        let lifetimePass = TIRPass()
+        var loweredModules: [TIR.Module] = []
         for module in tirModules {
+            let result = lifetimePass.run(on: module)
+            TIRPass.emitFailures(result.failures, in: context)
+            loweredModules.append(result.module)
+        }
+        let verifier = TIR.Verifier(context: context, ownershipMode: .Strict)
+        for module in loweredModules {
             verifier.verify(module)
         }
         let llvmContext: LLVMSwiftBinding.Context?
@@ -189,7 +197,7 @@ public final class Driver {
             let codeGen = CodeGen(
                 context: context, llvmContext: llvmContext!, target: config.target
             )
-            llvmModules = tirModules.map {
+            llvmModules = loweredModules.map {
                 codeGen.generate($0)
             }
         } else {
@@ -205,9 +213,9 @@ public final class Driver {
             if config.dumpSymbols, let first = programs.first {
                 stdout += Symbol.Dumper(context: context).dump(first)
             }
-            if config.dumpTIR, !tirModules.isEmpty {
+            if config.dumpTIR, !loweredModules.isEmpty {
                 let dumper = TIR.Dumper()
-                stdout += tirModules.map { dumper.dump($0) }.joined(separator: "\n") + "\n"
+                stdout += loweredModules.map { dumper.dump($0) }.joined(separator: "\n") + "\n"
             }
             if config.dumpLLVMIR, !llvmModules.isEmpty {
                 stdout += llvmModules.map(\.irString).joined(separator: "\n") + "\n"
