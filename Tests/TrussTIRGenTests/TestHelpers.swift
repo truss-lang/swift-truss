@@ -51,3 +51,61 @@ func instructions(of module: TIR.Module) -> [TIR.Instruction] {
 func function(named name: String, in module: TIR.Module) -> TIR.Function? {
     module.functions.first { $0.name.contains(name) }
 }
+
+func runTIRGenModules(_ sources: [String]) -> (Context, [TIR.Module]) {
+    let context = Context()
+    Builtin.install(context: context)
+    var programs: [AST.Program] = []
+    for (index, source) in sources.enumerated() {
+        let filepath = "test\(index).truss"
+        let src = Source(id: context.nextSourceId, filepath: filepath, content: source)
+        context.register(source: src)
+        let lexerResult = Lexer(input: CharStream(content: source, id: src.id)).parse()
+        let preprocessed = Preprocessor(context: context).process(
+            lexerResult, config: PreprocessorConfig()
+        )
+        programs.append(Parser(context: context, packageName: "main", preprocessed).parse())
+    }
+    for program in programs {
+        DeclCollector(context: context).visitProgram(program)
+    }
+    for program in programs {
+        ImportProcessor(context: context).visitProgram(program)
+    }
+    let desugar = OptionalDesugarPass()
+    programs = programs.map { desugar.rewrite($0) }
+    for program in programs {
+        Enter(context: context).visitProgram(program)
+    }
+    let merger = MergePass(context: context)
+    for program in programs {
+        merger.visitProgram(program)
+    }
+    merger.resolvePending()
+    for program in programs {
+        NameResolver(context: context).visitProgram(program)
+    }
+    let table = OperatorTable()
+    for program in programs {
+        TrussOperator.DeclCollector(table: table, context: context).visitProgram(program)
+    }
+    for program in programs {
+        OperatorImportProcessor(table: table, context: context).visitProgram(program)
+    }
+    PrecedenceResolver(table: table, context: context).resolve()
+    let folder = ExpressionFolder(context: context, table: table)
+    programs = programs.map { folder.rewrite($0) }
+    for program in programs {
+        TypeBuilder(context: context).visitProgram(program)
+    }
+    TypeChecker(context: context).checkAll(programs)
+    for program in programs {
+        AttributeChecker(context: context).visitProgram(program)
+        ModifierChecker(context: context).visitProgram(program)
+        AccessChecker(context: context).visitProgram(program)
+        ControlFlowChecker(context: context).visitProgram(program)
+    }
+    UnusedDeclarationChecker(context: context).checkAll(programs)
+    let modules = TIRGen(context: context).generateAll(programs)
+    return (context, modules)
+}

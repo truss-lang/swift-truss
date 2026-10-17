@@ -141,6 +141,14 @@ let package = Package(
                 "TrussDriver", "TrussCodeGen", "TrussTIRGen", "TrussCore",
             ]
         ),
+        .testTarget(
+            name: "TrussTIRPassTests",
+            dependencies: [
+                "TrussTIRPass", "TrussTIRGen", "TrussSyntax", "TrussSemantics", "TrussOperator",
+                "TrussCore",
+                .product(name: "SwiftBetterDiagnostic", package: "swift-better-diagnostic"),
+            ]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )
