@@ -1,6 +1,172 @@
 import SwiftAbstract
 
 extension TIR {
+    enum Result {
+        static func results(of instruction: Instruction) -> [Value] {
+            switch instruction {
+            case let i as Phi:
+                [i.result]
+            case let i as ExtractPayload:
+                [i.result]
+            case let i as UnaryArith:
+                [i.result]
+            case let i as BinaryArith:
+                [i.result]
+            case let i as AllocStack:
+                [i.result]
+            case let i as AllocHeap:
+                [i.result]
+            case let i as AllocCell:
+                [i.result]
+            case let i as Load:
+                [i.result]
+            case let i as StructElementAddr:
+                [i.result]
+            case let i as TupleElementAddr:
+                [i.result]
+            case let i as ClassElementAddr:
+                [i.result]
+            case let i as ProjectCell:
+                [i.result]
+            case let i as StructValue:
+                [i.result]
+            case let i as TupleValue:
+                [i.result]
+            case let i as EnumValue:
+                [i.result]
+            case let i as Call:
+                i.result.map { [$0] } ?? []
+            case let i as TryCall:
+                i.result.map { [$0] } ?? []
+            case let i as Closure:
+                [i.result]
+            case let i as VirtualMethod:
+                [i.result]
+            case let i as Upcast:
+                [i.result]
+            case let i as UncheckedRefCast:
+                [i.result]
+            case let i as NumericCast:
+                [i.result]
+            case let i as BitCast:
+                [i.result]
+            case let i as SizeOf:
+                [i.result]
+            case let i as TypeMetadata:
+                [i.result]
+            case let i as TypeMetadataConstant:
+                [i.result]
+            case let i as IsInstance:
+                [i.result]
+            case let i as Superclass:
+                [i.result]
+            case let i as Copy:
+                [i.result]
+            case let i as BuildExistential:
+                [i.result]
+            case let i as OpenExistential:
+                [i.result]
+            case let i as WitnessMethod:
+                [i.result]
+            case let i as OpaqueWitnessMethod:
+                [i.result]
+            case let i as ExistentialCopy:
+                [i.result]
+            default:
+                []
+            }
+        }
+    }
+
+    enum Operands {
+        static func operands(of instruction: Instruction) -> [Value] {
+            switch instruction {
+            case let i as Return:
+                i.value.map { [$0] } ?? []
+            case let i as Branch:
+                i.arguments
+            case let i as ConditionalBranch:
+                [i.condition] + i.trueArguments + i.falseArguments
+            case let i as SwitchEnum:
+                [i.value] + i.cases.flatMap(\.arguments)
+            case let i as ExtractPayload:
+                [i.value]
+            case let i as UnaryArith:
+                [i.operand]
+            case let i as BinaryArith:
+                [i.lhs, i.rhs]
+            case let i as DeallocStack:
+                [i.value]
+            case let i as DeallocHeap:
+                [i.value]
+            case let i as DeallocCell:
+                [i.value]
+            case let i as Load:
+                [i.ptr]
+            case let i as Store:
+                [i.value, i.ptr]
+            case let i as StructElementAddr:
+                [i.base]
+            case let i as TupleElementAddr:
+                [i.base]
+            case let i as ClassElementAddr:
+                [i.base]
+            case let i as ProjectCell:
+                [i.cell]
+            case let i as StructValue:
+                i.fields
+            case let i as TupleValue:
+                i.elements
+            case let i as EnumValue:
+                i.payload.map { [$0] } ?? []
+            case let i as Call:
+                [i.callee] + i.arguments
+            case let i as TryCall:
+                [i.callee] + i.arguments + (i.errorCell.map { [$0] } ?? [])
+            case let i as Closure:
+                [i.function] + i.captures
+            case let i as VirtualMethod:
+                [i.selfValue]
+            case let i as Upcast:
+                [i.value]
+            case let i as UncheckedRefCast:
+                [i.value]
+            case let i as NumericCast:
+                [i.value]
+            case let i as BitCast:
+                [i.value]
+            case let i as TypeMetadata:
+                [i.value]
+            case let i as IsInstance:
+                [i.metadata, i.target]
+            case let i as Superclass:
+                [i.metadata]
+            case let i as Retain:
+                [i.value]
+            case let i as Release:
+                [i.value]
+            case let i as Copy:
+                [i.value]
+            case let i as Destroy:
+                [i.value]
+            case let i as InlineAsm:
+                i.operands
+            case let i as BuildExistential:
+                [i.value]
+            case let i as OpenExistential:
+                [i.container]
+            case let i as OpaqueWitnessMethod:
+                [i.container]
+            case let i as ExistentialCopy:
+                [i.container]
+            case let i as ExistentialDestroy:
+                [i.container]
+            default:
+                []
+            }
+        }
+    }
+
     @abstractClass
     open class Visitor {
         @abstractInit
