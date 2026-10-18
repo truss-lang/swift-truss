@@ -475,3 +475,120 @@ func driverDumpLLVMIRShowsCompareAndBitwiseInstructions() throws {
     #expect(result.stdout.contains("xor i1"))
     #expect(result.stdout.contains("xor i32"))
 }
+
+private func tempOutput(_ name: String) throws -> String {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("truss-emit-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    return directory.appendingPathComponent(name).path
+}
+
+private func hasSystemCompiler() -> Bool {
+    SystemLinker.findCompiler() != nil
+}
+
+private let emitSource = """
+#[cname("main")]
+func main() -> Builtin.Int32 {
+    return Builtin.builtin_add_int32(1, 1)
+}
+"""
+
+@Test
+func driverEmitsObjectFile() throws {
+    let output = try tempOutput("main.o")
+    let result = Driver(config: DriverConfig(outputPath: output, emitKind: .Object)).runString(emitSource)
+    #expect(!result.hasErrors)
+    let bytes = try Data(contentsOf: URL(fileURLWithPath: output))
+    #expect(!bytes.isEmpty)
+}
+
+@Test
+func driverEmitsLLVMIRFile() throws {
+    let output = try tempOutput("main.ll")
+    let result = Driver(config: DriverConfig(outputPath: output, emitKind: .LLVMIR)).runString(emitSource)
+    #expect(!result.hasErrors)
+    let text = try String(contentsOfFile: output, encoding: .utf8)
+    #expect(text.contains("define i32 @main"))
+    #expect(text.contains("target triple"))
+}
+
+@Test
+func driverEmitsAssemblyFile() throws {
+    let output = try tempOutput("main.s")
+    let result = Driver(config: DriverConfig(outputPath: output, emitKind: .Assembly)).runString(emitSource)
+    #expect(!result.hasErrors)
+    let text = try String(contentsOfFile: output, encoding: .utf8)
+    #expect(text.contains(".text"))
+    #expect(text.contains("main"))
+}
+
+@Test
+func driverEmitsExternDeclaration() throws {
+    let output = try tempOutput("extern.ll")
+    let source = """
+    extern "C" {
+        func truss_helper(x: Builtin.Int32) -> Builtin.Int32
+    }
+    #[cname("main")]
+    func main() -> Builtin.Int32 {
+        return truss_helper(1)
+    }
+    """
+    let result = Driver(config: DriverConfig(outputPath: output, emitKind: .LLVMIR)).runString(source)
+    #expect(!result.hasErrors)
+    let text = try String(contentsOfFile: output, encoding: .utf8)
+    #expect(text.contains("declare i32 @truss_helper"))
+    #expect(text.contains("define i32 @main"))
+}
+
+@Test
+func driverReportsEmitFailure() throws {
+    let output = try tempOutput("missing/main.o")
+    let result = Driver(config: DriverConfig(outputPath: output, emitKind: .Object))
+        .runString(emitSource)
+    #expect(result.hasErrors)
+    #expect(result.stderr.contains("could not emit '\(output)'"))
+}
+
+@Test(.enabled(if: hasSystemCompiler()))
+func driverEmitsRunnableExecutable() throws {
+    let output = try tempOutput("main")
+    let result = Driver(config: DriverConfig(outputPath: output, emitKind: .Executable)).runString(emitSource)
+    #expect(!result.hasErrors)
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: output)
+    try process.run()
+    process.waitUntilExit()
+    #expect(process.terminationStatus == 2)
+}
+
+@Test(.enabled(if: hasSystemCompiler()))
+func driverEmitsMergedMultiFileExecutable() throws {
+    let helper = try writeTemp(
+        "helper.truss",
+        """
+        func helper(x: Builtin.Int32) -> Builtin.Int32 {
+            return Builtin.builtin_add_int32(x, 2)
+        }
+        """
+    )
+    let main = try writeTemp(
+        "main.truss",
+        """
+        #[cname("main")]
+        func main() -> Builtin.Int32 {
+            return helper(40)
+        }
+        """
+    )
+    let output = try tempOutput("main")
+    let result = Driver(config: DriverConfig(outputPath: output, emitKind: .Executable))
+        .run(files: [helper, main])
+    #expect(!result.hasErrors)
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: output)
+    try process.run()
+    process.waitUntilExit()
+    #expect(process.terminationStatus == 42)
+}

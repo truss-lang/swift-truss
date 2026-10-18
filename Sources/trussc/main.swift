@@ -18,7 +18,7 @@ enum TrussStd {
 struct Trussc: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "trussc",
-        abstract: "Compile truss source files to semantic checks and dumps.",
+        abstract: "Compile truss source files to diagnostics, dumps and native artifacts.",
         version: "0.1.0"
     )
 
@@ -27,9 +27,15 @@ struct Trussc: ParsableCommand {
 
     @Option(
         name: .long,
-        help: "Target triple used by the preprocessor."
+        help: "The target triple."
     )
     var target: String = DriverConfig.hostTarget
+
+    @Option(
+        name: .customLong("module-name"),
+        help: "The module name used by the parser, the name mangler and the default output name."
+    )
+    var moduleName: String?
 
     @Option(
         name: [.customShort("D"), .customLong("define")],
@@ -58,7 +64,22 @@ struct Trussc: ParsableCommand {
     )
     var noStdlib = false
 
+    @Option(
+        name: [.customShort("o"), .customLong("output")],
+        help: "Write the emitted artifact to this path (default: derived from the first input file)."
+    )
+    var output: String?
+
+    @Option(
+        name: .long,
+        help: "Artifact to emit: object, assembly, llvm-ir or executable (default: executable unless dumps are requested)."
+    )
+    var emit: String?
+
     func run() throws {
+        if let moduleName, moduleName.isEmpty {
+            throw ValidationError("--module-name must not be empty")
+        }
         let defineMap = Dictionary(
             defines.map { raw -> (String, String) in
                 if let eq = raw.firstIndex(of: "=") {
@@ -79,6 +100,15 @@ struct Trussc: ParsableCommand {
                 importedInterfaces.append(interface)
             }
         }
+        var emitKind = EmitKind.Executable
+        if let emit {
+            guard let parsed = EmitKind(rawValue: emit) else {
+                throw ValidationError(
+                    "unknown emit kind '\(emit)' (expected: \(EmitKind.allCases.map(\.rawValue).joined(separator: ", ")))"
+                )
+            }
+            emitKind = parsed
+        }
         let config = DriverConfig(
             target: target,
             defines: defineMap,
@@ -87,8 +117,10 @@ struct Trussc: ParsableCommand {
             dumpTIR: dumpTIR,
             dumpLLVMIR: dumpLLVMIR,
             dumpSource: dumpSource,
-            moduleName: "main",
-            importedInterfaces: importedInterfaces
+            moduleName: moduleName ?? "main",
+            importedInterfaces: importedInterfaces,
+            outputPath: resolvedOutputPath(emitKind: emitKind),
+            emitKind: emitKind
         )
         let result = Driver(config: config).run(files: files)
         if !result.stdout.isEmpty {
@@ -100,5 +132,36 @@ struct Trussc: ParsableCommand {
         if result.hasErrors {
             throw ExitCode.failure
         }
+    }
+
+    private func resolvedOutputPath(emitKind: EmitKind) -> String? {
+        if let output {
+            return output
+        }
+        guard emit != nil || !hasDumps else {
+            return nil
+        }
+        guard let first = files.first else {
+            return nil
+        }
+        let stem = moduleName ?? URL(fileURLWithPath: first).deletingPathExtension().lastPathComponent
+        return switch emitKind {
+        case .Executable: Self.executableName(stem)
+        case .Object: "\(stem).o"
+        case .Assembly: "\(stem).s"
+        case .LLVMIR: "\(stem).ll"
+        }
+    }
+
+    private var hasDumps: Bool {
+        dumpAST || dumpSymbols || dumpTIR || dumpLLVMIR || dumpSource
+    }
+
+    private static func executableName(_ stem: String) -> String {
+        #if os(Windows)
+            "\(stem).exe"
+        #else
+            stem
+        #endif
     }
 }

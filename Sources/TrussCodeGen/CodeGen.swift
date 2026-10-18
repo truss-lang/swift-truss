@@ -65,7 +65,7 @@ public final class CodeGen: TIR.Visitor {
         functionMap = mod.functions.reduce(into: [:]) {
             $0[$1.id] = createFunctionDecl($1)
         }
-        for tirFunction in mod.functions {
+        for tirFunction in mod.functions where !tirFunction.isExtern {
             emitFunctionBody(tirFunction)
         }
         do {

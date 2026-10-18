@@ -9,6 +9,43 @@ import TrussSyntax
 import TrussTIRGen
 import TrussTIRPass
 
+public enum EmitKind: String, CaseIterable {
+    case Object = "object"
+    case Assembly = "assembly"
+    case LLVMIR = "llvm-ir"
+    case Executable = "executable"
+}
+
+public enum SystemLinker {
+    public static let compilerNames = ["cc", "clang", "gcc"]
+
+    public static func findCompiler() -> String? {
+        let path = ProcessInfo.processInfo.environment["PATH"] ?? ""
+        for directory in path.split(separator: pathSeparator) {
+            for name in compilerNames {
+                let candidate = "\(directory)/\(name)"
+                var isDirectory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: candidate, isDirectory: &isDirectory),
+                      !isDirectory.boolValue,
+                      FileManager.default.isExecutableFile(atPath: candidate)
+                else {
+                    continue
+                }
+                return candidate
+            }
+        }
+        return nil
+    }
+
+    private static var pathSeparator: Character {
+        #if os(Windows)
+            ";"
+        #else
+            ":"
+        #endif
+    }
+}
+
 public struct DriverConfig {
     public static let hostTarget: String = TargetTriple.host
 
@@ -22,6 +59,8 @@ public struct DriverConfig {
     public var dumpOnError: Bool
     public var moduleName: String
     public var importedInterfaces: [ModuleInterface]
+    public var outputPath: String?
+    public var emitKind: EmitKind
 
     public init(
         target: String = DriverConfig.hostTarget,
@@ -33,7 +72,9 @@ public struct DriverConfig {
         dumpSource: Bool = false,
         dumpOnError: Bool = false,
         moduleName: String = "main",
-        importedInterfaces: [ModuleInterface] = []
+        importedInterfaces: [ModuleInterface] = [],
+        outputPath: String? = nil,
+        emitKind: EmitKind = .Executable
     ) {
         self.target = target
         self.defines = defines
@@ -45,6 +86,8 @@ public struct DriverConfig {
         self.dumpOnError = dumpOnError
         self.moduleName = moduleName
         self.importedInterfaces = importedInterfaces
+        self.outputPath = outputPath
+        self.emitKind = emitKind
     }
 }
 
@@ -205,6 +248,9 @@ public final class Driver {
             llvmModules = []
         }
         var stdout = ""
+        if !context.diagnosticEngine.hasErrors, let outputPath = config.outputPath {
+            emitArtifact(to: outputPath, modules: llvmModules, context: context)
+        }
         if !context.diagnosticEngine.hasErrors || config.dumpOnError {
             if config.dumpAST, !programs.isEmpty {
                 let dumper = AST.Dumper()
@@ -282,6 +328,134 @@ public final class Driver {
         }
         let folder = ExpressionFolder(context: context, table: table)
         programs = programs.map { folder.rewrite($0) }
+    }
+
+    private func emitArtifact(
+        to path: String, modules: [LLVMSwiftBinding.Module], context: TrussCore.Context
+    ) {
+        guard let module = mergedModule(modules, context: context) else {
+            return
+        }
+        switch config.emitKind {
+        case .LLVMIR:
+            write(module.irString, to: path, context: context)
+        case .Object:
+            emitCode(module, to: path, fileType: LLVMObjectFile, context: context)
+        case .Assembly:
+            emitCode(module, to: path, fileType: LLVMAssemblyFile, context: context)
+        case .Executable:
+            emitExecutable(module, to: path, context: context)
+        }
+    }
+
+    private func mergedModule(
+        _ modules: [LLVMSwiftBinding.Module], context: TrussCore.Context
+    ) -> LLVMSwiftBinding.Module? {
+        guard let first = modules.first else {
+            return nil
+        }
+        let merged = first.clone()
+        for module in modules.dropFirst() {
+            do {
+                try merged.link(module.clone())
+            } catch {
+                context.emitError("could not link modules: \(error)", at: TIR.unknownSourceRange)
+                return nil
+            }
+        }
+        return merged
+    }
+
+    private func emitCode(
+        _ module: LLVMSwiftBinding.Module, to path: String, fileType: LLVMCodeGenFileType,
+        context: TrussCore.Context
+    ) {
+        guard let targetMachine = makeTargetMachine(context: context) else {
+            context.emitError("could not get target machine", at: TIR.unknownSourceRange)
+            return
+        }
+        do {
+            try targetMachine.emitToFile(module: module, path, fileType: fileType)
+        } catch {
+            context.emitError("could not emit '\(path)': \(error)", at: TIR.unknownSourceRange)
+        }
+    }
+
+    private func emitExecutable(
+        _ module: LLVMSwiftBinding.Module, to path: String, context: TrussCore.Context
+    ) {
+        let objectPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("truss-\(UUID().uuidString).o")
+            .path
+        emitCode(module, to: objectPath, fileType: LLVMObjectFile, context: context)
+        guard !context.diagnosticEngine.hasErrors else {
+            return
+        }
+        defer {
+            try? FileManager.default.removeItem(atPath: objectPath)
+        }
+        link(objectPath, to: path, context: context)
+    }
+
+    private func link(_ objectPath: String, to path: String, context: TrussCore.Context) {
+        guard let compiler = SystemLinker.findCompiler() else {
+            context.emitError(
+                "no C compiler found in PATH (tried \(SystemLinker.compilerNames.joined(separator: ", ")))",
+                at: TIR.unknownSourceRange
+            )
+            return
+        }
+        let logPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("truss-\(UUID().uuidString).log").path
+        _ = FileManager.default.createFile(atPath: logPath, contents: nil)
+        guard let log = FileHandle(forWritingAtPath: logPath) else {
+            context.emitError("could not write linker log '\(logPath)'", at: TIR.unknownSourceRange)
+            return
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: compiler)
+        process.arguments = [objectPath, "-o", path]
+        process.standardOutput = log
+        process.standardError = log
+        do {
+            try process.run()
+        } catch {
+            log.closeFile()
+            try? FileManager.default.removeItem(atPath: logPath)
+            context.emitError("could not run the system linker: \(error)", at: TIR.unknownSourceRange)
+            return
+        }
+        process.waitUntilExit()
+        log.closeFile()
+        let output = (try? String(contentsOfFile: logPath, encoding: .utf8)) ?? ""
+        try? FileManager.default.removeItem(atPath: logPath)
+        guard process.terminationStatus != 0 else {
+            return
+        }
+        context.emitError(
+            "system linker failed with exit code \(process.terminationStatus)\n\(output)",
+            at: TIR.unknownSourceRange
+        )
+    }
+
+    private func makeTargetMachine(context: TrussCore.Context) -> LLVMSwiftBinding.TargetMachine? {
+        let triple = config.target.isEmpty
+            ? LLVMSwiftBinding.TargetMachine.defaultTriple
+            : LLVMSwiftBinding.TargetMachine.normalizedTriple(config.target)
+        LLVMSwiftBinding.TargetMachine.initializeAllTargets()
+        guard let target = try? LLVMSwiftBinding.Target.fromTriple(triple) else {
+            context.emitError("target '\(config.target)' is not supported", at: TIR.unknownSourceRange)
+            return nil
+        }
+        return LLVMSwiftBinding.TargetMachine(target: target, triple: triple)
+    }
+
+    private func write(_ contents: String, to path: String, context: TrussCore.Context) {
+        do {
+            try contents.write(toFile: path, atomically: true, encoding: .utf8)
+        } catch {
+            context.emitError("could not write '\(path)': \(error)", at: TIR.unknownSourceRange)
+        }
     }
 
     private static func emitReadError(_ file: String, context: TrussCore.Context) {
