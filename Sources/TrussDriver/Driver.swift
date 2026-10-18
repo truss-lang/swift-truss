@@ -192,7 +192,7 @@ public final class Driver {
         }
         let llvmContext: LLVMSwiftBinding.Context?
         let llvmModules: [LLVMSwiftBinding.Module]
-        if !context.diagnosticEngine.hasErrors && false {
+        if !context.diagnosticEngine.hasErrors {
             llvmContext = .init()
             let codeGen = CodeGen(
                 context: context, llvmContext: llvmContext!, target: config.target
