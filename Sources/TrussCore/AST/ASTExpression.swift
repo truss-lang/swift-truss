@@ -840,6 +840,7 @@ public extension AST {
         public let right: Expression
         public let kind: Kind
         public var staticIsResult: StaticIsResult? = nil
+        public var staticAsResult: StaticAsResult? = nil
         public init(
             _ left: Expression, _ token: Token, _ right: Expression, _ kind: Kind,
             sourceRange: SourceRange
@@ -866,6 +867,11 @@ public extension AST {
         public enum StaticIsResult {
             case StaticTrue
             case StaticFalse
+        }
+
+        public enum StaticAsResult {
+            case Upcast
+            case Numeric
         }
     }
 

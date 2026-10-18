@@ -1528,26 +1528,30 @@ public final class TIREmitter: AST.Visitor {
             guard let target = castExpression.right.ty else {
                 fatalError("type lowering: an 'as' cast requires a resolved target type")
             }
-            if isStaticUpcast(castExpression.left.ty, to: target) {
+            switch castExpression.staticAsResult {
+            case .Upcast:
                 return builder.buildUpcast(value: value, to: lowerType(target).id).result
-            }
-            guard let source = primitiveType(of: castExpression.left.ty),
-                  let targetPrimitive = primitiveType(of: target)
-            else {
+            case .Numeric:
+                guard let source = primitiveType(of: castExpression.left.ty),
+                      let targetPrimitive = primitiveType(of: target)
+                else {
+                    fatalError("unreachable")
+                }
+                guard let op = numericCastOp(from: source, to: targetPrimitive) else {
+                    return value
+                }
+                return builder.buildNumericCast(value: value, op: op, to: lowerType(target).id).result
+            case nil:
                 fatalError(
-                    "type lowering: cannot cast '\(typeText(of: castExpression.left.ty))'"
-                        + " to '\(typeText(of: target))' with 'as'"
+                    "type lowering: unsupported 'as' cast from"
+                        + " '\(typeText(of: castExpression.left.ty))' to '\(typeText(of: target))'"
                 )
             }
-            guard let op = numericCastOp(from: source, to: targetPrimitive) else {
-                return value
-            }
-            return builder.buildNumericCast(value: value, op: op, to: lowerType(target).id).result
         case .AsExclamation:
             guard let target = castExpression.right.ty else {
                 fatalError("type lowering: an 'as!' cast requires a resolved target type")
             }
-            if isStaticUpcast(castExpression.left.ty, to: target) {
+            if case .Upcast = castExpression.staticAsResult {
                 return builder.buildUpcast(value: value, to: lowerType(target).id).result
             }
             guard let check = emitIsInstanceCheck(value: value, target: target) else {
@@ -2124,48 +2128,6 @@ public final class TIREmitter: AST.Visitor {
             }
             return source.kind == .Signed ? .SExt : .ZExt
         }
-    }
-
-    private func isStaticUpcast(
-        _ sourceType: TrussType.TrussType?, to target: TrussType.TrussType
-    ) -> Bool {
-        guard let sourceClass = nominalClassType(of: sourceType),
-              let targetClass = nominalClassType(of: target)
-        else {
-            return false
-        }
-        var current: TrussType.ClassType? = sourceClass
-        while let classType = current {
-            guard classType.id != targetClass.id else {
-                return true
-            }
-            current = superclassClassType(of: classType)
-        }
-        return false
-    }
-
-    private func nominalClassType(of type: TrussType.TrussType?) -> TrussType.ClassType? {
-        guard let type else {
-            return nil
-        }
-        switch type {
-        case let classType as TrussType.ClassType:
-            return classType
-        case let generic as TrussType.GenericInstantiation:
-            return generic.base as? TrussType.ClassType
-        default:
-            return nil
-        }
-    }
-
-    private func superclassClassType(of type: TrussType.ClassType) -> TrussType.ClassType? {
-        guard let symbol = type.symbol as? Symbol.ClassSymbol,
-              let superclass = symbol.superclass,
-              let typeId = superclass.typeId
-        else {
-            return nil
-        }
-        return gen.context.typeTable[typeId] as? TrussType.ClassType
     }
 
     private func typeText(of type: TrussType.TrussType?) -> String {

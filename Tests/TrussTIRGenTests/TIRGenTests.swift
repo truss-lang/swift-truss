@@ -275,3 +275,33 @@ func methodAndAccessorBlocksCarryTheirDeclarationRanges() throws {
         }
     }
 }
+
+@Test
+func staticAsClassificationDrivesCastLowering() throws {
+    let (_, module) = runTIRGen(
+        """
+        typealias Int32 = Builtin.Int32
+        typealias Int64 = Builtin.Int64
+        class Animal { init() {} }
+        class Dog: Animal { init() {} }
+        func upcastNow(d: Dog) -> Animal { return d as Animal }
+        func widenNow(i: Int32) -> Int64 { return i as Int64 }
+        func forcedUpNow(d: Dog) -> Animal { return d as! Animal }
+        func forcedDownNow(a: Animal) -> Dog { return a as! Dog }
+        """,
+        filepath: sourceFile
+    )
+    let upcast = try #require(function(named: "upcastNow", in: module))
+    #expect(upcast.basicBlocks.flatMap(\.instructions).contains { $0 is TIR.Upcast })
+
+    let widen = try #require(function(named: "widenNow", in: module))
+    #expect(widen.basicBlocks.flatMap(\.instructions).contains { $0 is TIR.NumericCast })
+
+    let forcedUp = try #require(function(named: "forcedUpNow", in: module))
+    #expect(forcedUp.basicBlocks.flatMap(\.instructions).contains { $0 is TIR.Upcast })
+
+    let forcedDown = try #require(function(named: "forcedDownNow", in: module))
+    let downInstructions = forcedDown.basicBlocks.flatMap(\.instructions)
+    #expect(downInstructions.contains { $0 is TIR.IsInstance })
+    #expect(!downInstructions.contains { $0 is TIR.Upcast })
+}

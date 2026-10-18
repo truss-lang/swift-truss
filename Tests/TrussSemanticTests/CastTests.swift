@@ -114,3 +114,65 @@ func unrelatedStructsWithAsStillMismatch() {
     let messages = context.diagnosticEngine.diagnostics.map(\.message)
     #expect(messages == ["expected 'T', found 'S'"])
 }
+
+@Test
+func staticUpcastWithAsIsRecorded() {
+    let (_, programs) = runFullChecks(
+        ["""
+        class Animal {}
+        class Dog: Animal {}
+        func up(d: Dog) -> Animal {
+            return d as Animal
+        }
+        """],
+        installBuiltin: true
+    )
+    let dump = AST.Dumper().dump(programs[0])
+    #expect(dump.contains("asStatic=upcast"))
+}
+
+@Test
+func staticNumericWithAsIsRecorded() {
+    let (_, programs) = runFullChecks(
+        ["""
+        func widen(i: Builtin.Int32) -> Builtin.Int64 {
+            return i as Builtin.Int64
+        }
+        """],
+        installBuiltin: true
+    )
+    let dump = AST.Dumper().dump(programs[0])
+    #expect(dump.contains("asStatic=numeric"))
+}
+
+@Test
+func staticUpcastWithForcedAsIsRecorded() {
+    let (_, programs) = runFullChecks(
+        ["""
+        class Animal {}
+        class Dog: Animal {}
+        func up(d: Dog) -> Animal {
+            return d as! Animal
+        }
+        """],
+        installBuiltin: true
+    )
+    let dump = AST.Dumper().dump(programs[0])
+    #expect(dump.contains("asStatic=upcast"))
+}
+
+@Test
+func protocolCoercionWithAsHasNoStaticResult() {
+    let (_, programs) = runFullChecks(
+        ["""
+        protocol P {}
+        struct S: P {}
+        func box(s: S) -> P {
+            return s as P
+        }
+        """],
+        installBuiltin: true
+    )
+    let dump = AST.Dumper().dump(programs[0])
+    #expect(!dump.contains("asStatic="))
+}

@@ -1772,6 +1772,7 @@ extension AST {
                 sourceRange: castExpression.sourceRange
             )
             newCastExpression.staticIsResult = castExpression.staticIsResult
+            newCastExpression.staticAsResult = castExpression.staticAsResult
             return newCastExpression
         }
 

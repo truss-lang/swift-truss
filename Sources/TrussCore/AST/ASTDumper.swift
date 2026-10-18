@@ -108,6 +108,14 @@ public extension AST {
             }
         }
 
+        private func staticAsText(_ result: Cast.StaticAsResult?) -> String {
+            switch result {
+            case .Upcast: " asStatic=upcast"
+            case .Numeric: " asStatic=numeric"
+            case nil: ""
+            }
+        }
+
         private func typeText(_ ty: TrussType.TrussType) -> String {
             switch ty {
             case is TrussType.VoidType: return "VoidType"
@@ -1737,8 +1745,9 @@ public extension AST {
             var children: [() -> Void] = [{ self.visit(castExpression.left) }]
             children.append { self.visit(castExpression.right) }
             let staticIsSuffix = staticIsText(castExpression.staticIsResult)
+            let staticAsSuffix = staticAsText(castExpression.staticAsResult)
             dumpNode(
-                "CastExpression \(kindText)" + tyText(castExpression.ty) + staticIsSuffix,
+                "CastExpression \(kindText)" + tyText(castExpression.ty) + staticIsSuffix + staticAsSuffix,
                 children: children
             )
             return nil

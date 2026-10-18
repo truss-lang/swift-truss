@@ -2081,6 +2081,29 @@ public final class TypeChecker: AST.Visitor {
         builtinPrimitiveKind(of: actual) != nil && builtinPrimitiveKind(of: target) != nil
     }
 
+    private func staticAsResult(
+        of source: TrussType.TrussType, to target: TrussType.TrussType
+    ) -> AST.Cast.StaticAsResult? {
+        if isStaticUpcast(source, to: target) {
+            return .Upcast
+        }
+        return canConvertNumeric(source, to: target) ? .Numeric : nil
+    }
+
+    private func isStaticUpcast(
+        _ source: TrussType.TrussType, to target: TrussType.TrussType
+    ) -> Bool {
+        guard let sourceClass = nominalBase(of: source) as? TrussType.ClassType,
+              let targetClass = nominalBase(of: target) as? TrussType.ClassType
+        else {
+            return false
+        }
+        if sourceClass.id == targetClass.id {
+            return true
+        }
+        return superclassChain(of: sourceClass).contains { $0.id == targetClass.id }
+    }
+
     private func satisfiesConformance(
         _ genericParam: TrussType.GenericParamType, to required: TrussType.ProtocolType
     ) -> Bool {
@@ -2838,8 +2861,15 @@ public final class TypeChecker: AST.Visitor {
                         emitMismatch(at: token, expected: target, found: leftType)
                     }
                 }
+                if let leftType {
+                    castExpression.staticAsResult = staticAsResult(of: leftType, to: target)
+                }
                 expression.ty = target
             case .AsExclamation:
+                if let leftType {
+                    castExpression.staticAsResult =
+                        isStaticUpcast(leftType, to: target) ? .Upcast : nil
+                }
                 expression.ty = target
             case .AsBitCast:
                 expression.ty = target
