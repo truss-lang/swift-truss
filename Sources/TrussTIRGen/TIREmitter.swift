@@ -737,12 +737,25 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         let type = lowerType(integerLiteral.ty)
-        return at(
-            builder.buildIntegerLiteral(
-                value: UInt64(integerLiteral.value),
-                ty: type.id
-            )
-        )
+        if let primitive = type as? TIRType.PrimitiveType {
+            if primitive.kind == .Float {
+                return at(
+                    builder.buildFloatLiteral(
+                        value: Double(integerLiteral.value),
+                        ty: type.id
+                    )
+                )
+            } else {
+                return at(
+                    builder.buildIntegerLiteral(
+                        value: UInt64(integerLiteral.value),
+                        ty: type.id
+                    )
+                )
+            }
+        } else {
+            fatalError()
+        }
     }
 
     @discardableResult

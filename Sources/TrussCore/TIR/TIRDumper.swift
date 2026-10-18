@@ -390,7 +390,7 @@ public extension TIR {
                     arith.op.rawValue + " " + valueText(arith.lhs) + ", " + valueText(arith.rhs)
                 )
             case let alloc as AllocStack:
-                return definition(alloc.result, "alloca " + typeText(alloc.allocatedType))
+                return definition(alloc.result, "allocstack " + typeText(alloc.allocatedType))
             case let dealloc as DeallocStack:
                 return "deallocstack " + valueText(dealloc.value)
             case let alloc as AllocHeap:

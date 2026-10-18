@@ -75,6 +75,7 @@ public extension TIR {
             self.ownershipMode = ownershipMode
         }
 
+        @discardableResult
         public func verify(_ module: Module) -> [Failure] {
             failures.removeAll()
             failureKeys.removeAll()
@@ -778,7 +779,7 @@ public extension TIR {
             )
             for block in blocks {
                 let state = (flow.entries[ObjectIdentifier(block)] ?? flow.initial).copy()
-                for (index, instruction) in block.instructions.enumerated() {
+                for instruction in block.instructions {
                     let site = Site(
                         function: function, block: block,
                         range: instructionRange(instruction, in: block, function: function)
@@ -1057,7 +1058,7 @@ public extension TIR {
                         continue
                     }
                     let outgoing = state.copy()
-                    for (index, instruction) in block.instructions.enumerated() {
+                    for instruction in block.instructions {
                         transferOwnership(
                             instruction, state: outgoing, slots: slots, takenLoads: takenLoads
                         )
@@ -1730,7 +1731,7 @@ public extension TIR {
                         continue
                     }
                     let holding = matching.filter { (state.tokens[$0] ?? nil) != 0 }
-                    for key in holding {
+                    for _ in holding {
                         record(
                             .Ownership,
                             "deinitializer '\(function.name)' in \(site.location) still holds a reference in field \(name) of '\(classType.displayText)' at this exit",

@@ -917,7 +917,7 @@ func allocationResultWithoutPointerTypeIsReported() {
     harness.builder.buildReturn()
     expectSingleFailure(
         harness.verify(), kind: .TypeConsistency,
-        message: "alloca result in block 'entry' of function 'main' has type i32, expected a pointer to type i32"
+        message: "allocstack result in block 'entry' of function 'main' has type i32, expected a pointer to type i32"
     )
 }
 
@@ -934,7 +934,7 @@ func allocationResultPointingToOtherTypeIsReported() {
     harness.builder.buildReturn()
     expectSingleFailure(
         harness.verify(), kind: .TypeConsistency,
-        message: "alloca result in block 'entry' of function 'main' points to type i8 but the instruction allocates type i32"
+        message: "allocstack result in block 'entry' of function 'main' points to type i8 but the instruction allocates type i32"
     )
 }
 

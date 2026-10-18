@@ -15,6 +15,7 @@ public final class ImportProcessor: AST.Visitor {
         self.context = context
     }
 
+    @discardableResult
     public override func visitProgram(_ program: AST.Program, additional: Any? = nil) -> Any? {
         let packageSymbol = program.packageSymbol!
         let lastScope = currentScope
@@ -25,6 +26,7 @@ public final class ImportProcessor: AST.Visitor {
         return nil
     }
 
+    @discardableResult
     public override func visitImport(_ importStatement: AST.Import, additional: Any? = nil) -> Any? {
         process(importStatement.node, namespace: nil, atRoot: true, into: currentScope!, pathParts: [])
         return nil
