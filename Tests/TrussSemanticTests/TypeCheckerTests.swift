@@ -18,28 +18,6 @@ infix operator >: Cmp
 infix operator >=: Cmp
 precedencegroup Assignment { assignment: true }
 infix operator =: Assignment
-
-#[builtin]
-func + <T>(lhs: T*, rhs: Int) -> T*
-#[builtin]
-func + <T>(lhs: Int, rhs: T*) -> T*
-#[builtin]
-func - <T>(lhs: T*, rhs: Int) -> T*
-#[builtin]
-func - <T>(lhs: T*, rhs: T*) -> Int
-#[builtin]
-func == <T>(lhs: T*, rhs: T*) -> Bool
-#[builtin]
-func != <T>(lhs: T*, rhs: T*) -> Bool
-#[builtin]
-func < <T>(lhs: T*, rhs: T*) -> Bool
-#[builtin]
-func <= <T>(lhs: T*, rhs: T*) -> Bool
-#[builtin]
-func > <T>(lhs: T*, rhs: T*) -> Bool
-#[builtin]
-func >= <T>(lhs: T*, rhs: T*) -> Bool
-
 """
 
 @Test

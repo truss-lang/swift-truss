@@ -20,7 +20,7 @@ public final class AttributeChecker: AST.Visitor {
             checkAllow(attribute, scope: scope, context: context)
         },
         "cname": { _, _, _ in },
-        "builtin": { _, _, _ in },
+        "main": { _, _, _ in },
     ]
 
     private func checkAttributes(_ attributes: [AST.Attribute], scope: SourceRange) {
