@@ -370,6 +370,7 @@ public extension AST {
             _ object: Expression, _ token: Token, _ member: Token, isOptional: Bool = false,
             sourceRange: SourceRange
         ) {
+            object.isLeftValue = true
             self.object = object
             self.token = token
             self.member = member

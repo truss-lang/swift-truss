@@ -336,3 +336,29 @@ func slotsAreAddressedAndLanguagePointersAreConverted() throws {
     #expect(toPointer.first?.result.ty == module.registry.pointerType(pointee: allocation.allocatedType).id)
     #expect(TIR.Verifier(context: context).verify(module).isEmpty)
 }
+
+@Test
+func subscriptAssignmentCallsSetter() throws {
+    let source = """
+    precedencegroup Assignment { assignment: true }
+    infix operator =: Assignment
+    struct Buffer {
+        var x: Builtin.Int32
+        subscript(i: Builtin.Int32) -> Builtin.Int32 {
+            get { return x }
+            set { }
+        }
+    }
+    func use() {
+        var b: Buffer
+        b[0] = 42
+    }
+    """
+    let (_, module) = runTIRGen(source)
+    let use = try #require(function(named: "use", in: module))
+    let calls = use.basicBlocks.flatMap(\.instructions).compactMap { $0 as? TIR.Call }
+    let setterCall = try #require(
+        calls.first { ($0.callee as? TIR.FunctionRef)?.name.contains("subscriptSetter") == true }
+    )
+    #expect(setterCall.arguments.count == 3)
+}

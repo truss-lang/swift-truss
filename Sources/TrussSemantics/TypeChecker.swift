@@ -1470,6 +1470,7 @@ public final class TypeChecker: AST.Visitor {
         ) {
             subscriptExpression.symbol = candidates.first { $0.setter === resolved.symbol }
             subscriptExpression.ty = resolved.type.returnType
+            subscriptExpression.isLeftValue = true
         }
     }
 
@@ -2449,7 +2450,7 @@ public final class TypeChecker: AST.Visitor {
             return expression.ty
 
         case let memberAccess as AST.MemberAccess:
-            _ = infer(memberAccess.object, at: token)
+            infer(memberAccess.object, at: token)
             let objectType = memberAccess.object.ty
             if let caseSymbol = memberAccess.symbol as? Symbol.CaseSymbol,
                let memberOf = caseSymbol.memberOf,
