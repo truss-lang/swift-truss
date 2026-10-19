@@ -100,6 +100,17 @@ public extension AST {
             return " ty:" + typeText(ty)
         }
 
+        private func flagsText(_ expression: Expression) -> String {
+            var text = ""
+            if expression.isLeftValue {
+                text += " lvalue"
+            }
+            if expression.willBeCalled {
+                text += " willBeCalled"
+            }
+            return text
+        }
+
         private func staticIsText(_ result: Cast.StaticIsResult?) -> String {
             switch result {
             case .StaticTrue: " isStatic=true"
@@ -930,7 +941,10 @@ public extension AST {
                     "Body", children: [{ self.visit(quantifierExpr.body) }]
                 )
             }
-            dumpNode("Quantifier \(quantifierExpr.keyword.value)", children: children)
+            dumpNode(
+                "Quantifier \(quantifierExpr.keyword.value)" + flagsText(quantifierExpr),
+                children: children
+            )
             return nil
         }
 
@@ -942,7 +956,7 @@ public extension AST {
                 { self.visit(implyExpr.lhs) },
                 { self.visit(implyExpr.rhs) },
             ]
-            dumpNode("Imply =>", children: children)
+            dumpNode("Imply =>" + flagsText(implyExpr), children: children)
             return nil
         }
 
@@ -954,7 +968,7 @@ public extension AST {
                 { self.visit(propConjunction.lhs) },
                 { self.visit(propConjunction.rhs) },
             ]
-            dumpNode("PropConjunction &&", children: children)
+            dumpNode("PropConjunction &&" + flagsText(propConjunction), children: children)
             return nil
         }
 
@@ -966,7 +980,7 @@ public extension AST {
                 { self.visit(propDisjunction.lhs) },
                 { self.visit(propDisjunction.rhs) },
             ]
-            dumpNode("PropDisjunction ||", children: children)
+            dumpNode("PropDisjunction ||" + flagsText(propDisjunction), children: children)
             return nil
         }
 
@@ -977,7 +991,7 @@ public extension AST {
             let children: [() -> Void] = [
                 { self.visit(propNegation.operand) },
             ]
-            dumpNode("PropNegation !", children: children)
+            dumpNode("PropNegation !" + flagsText(propNegation), children: children)
             return nil
         }
 
@@ -989,7 +1003,10 @@ public extension AST {
                 { self.visit(propEquality.lhs) },
                 { self.visit(propEquality.rhs) },
             ]
-            dumpNode("PropEquality \(propEquality.op.value)", children: children)
+            dumpNode(
+                "PropEquality \(propEquality.op.value)" + flagsText(propEquality),
+                children: children
+            )
             return nil
         }
 
@@ -1186,7 +1203,7 @@ public extension AST {
         public override func visitErrorExpression(
             _ errorExpression: ErrorExpression, additional: Any? = nil
         ) -> Any? {
-            dumpNode("ErrorExpression" + tyText(errorExpression.ty))
+            dumpNode("ErrorExpression" + tyText(errorExpression.ty) + flagsText(errorExpression))
             return nil
         }
 
@@ -1195,7 +1212,8 @@ public extension AST {
             _ parentheticalExpression: Parenthetical, additional: Any? = nil
         ) -> Any? {
             dumpNode(
-                "ParentheticalExpression" + tyText(parentheticalExpression.ty),
+                "ParentheticalExpression" + tyText(parentheticalExpression.ty)
+                    + flagsText(parentheticalExpression),
                 children: [{ self.visit(parentheticalExpression.inner) }]
             )
             return nil
@@ -1207,7 +1225,7 @@ public extension AST {
         {
             dumpNode(
                 "Variable \(variable.name.value)" + tyText(variable.ty) + symText(variable.symbol)
-                    + overloadsText(variable.overloads)
+                    + overloadsText(variable.overloads) + flagsText(variable)
             )
             return nil
         }
@@ -1220,7 +1238,10 @@ public extension AST {
             for argument in genericApplication.genericArguments {
                 children.append { self.dumpNode("Argument", children: [{ self.visit(argument) }]) }
             }
-            dumpNode("GenericApplication" + tyText(genericApplication.ty), children: children)
+            dumpNode(
+                "GenericApplication" + tyText(genericApplication.ty)
+                    + flagsText(genericApplication), children: children
+            )
             return nil
         }
 
@@ -1228,7 +1249,10 @@ public extension AST {
         public override func visitIntegerLiteral(
             _ integerLiteral: IntegerLiteral, additional: Any? = nil
         ) -> Any? {
-            dumpNode("IntegerLiteral \(integerLiteral.token.value)" + tyText(integerLiteral.ty))
+            dumpNode(
+                "IntegerLiteral \(integerLiteral.token.value)" + tyText(integerLiteral.ty)
+                    + flagsText(integerLiteral)
+            )
             return nil
         }
 
@@ -1236,7 +1260,10 @@ public extension AST {
         public override func visitFloatLiteral(
             _ floatLiteral: FloatLiteral, additional: Any? = nil
         ) -> Any? {
-            dumpNode("FloatLiteral \(floatLiteral.token.value)" + tyText(floatLiteral.ty))
+            dumpNode(
+                "FloatLiteral \(floatLiteral.token.value)" + tyText(floatLiteral.ty)
+                    + flagsText(floatLiteral)
+            )
             return nil
         }
 
@@ -1247,7 +1274,7 @@ public extension AST {
             let rawMarker = stringLiteral.token.isRaw ? " [raw]" : ""
             dumpNode(
                 "StringLiteral \"\(escapeString(stringLiteral.token.value))\"" + rawMarker
-                    + tyText(stringLiteral.ty)
+                    + tyText(stringLiteral.ty) + flagsText(stringLiteral)
             )
             return nil
         }
@@ -1256,7 +1283,10 @@ public extension AST {
         public override func visitCharLiteral(
             _ charLiteral: CharLiteral, additional: Any? = nil
         ) -> Any? {
-            dumpNode("CharLiteral \(charLiteral.token.value)" + tyText(charLiteral.ty))
+            dumpNode(
+                "CharLiteral \(charLiteral.token.value)" + tyText(charLiteral.ty)
+                    + flagsText(charLiteral)
+            )
             return nil
         }
 
@@ -1264,7 +1294,10 @@ public extension AST {
         public override func visitBoolLiteral(
             _ boolLiteral: BoolLiteral, additional: Any? = nil
         ) -> Any? {
-            dumpNode("BoolLiteral \(boolLiteral.token.value)" + tyText(boolLiteral.ty))
+            dumpNode(
+                "BoolLiteral \(boolLiteral.token.value)" + tyText(boolLiteral.ty)
+                    + flagsText(boolLiteral)
+            )
             return nil
         }
 
@@ -1272,7 +1305,7 @@ public extension AST {
         public override func visitNullLiteral(
             _ nullLiteral: NullLiteral, additional: Any? = nil
         ) -> Any? {
-            dumpNode("NullLiteral" + tyText(nullLiteral.ty))
+            dumpNode("NullLiteral" + tyText(nullLiteral.ty) + flagsText(nullLiteral))
             return nil
         }
 
@@ -1280,7 +1313,9 @@ public extension AST {
         public override func visitNullptrLiteral(
             _ nullPointerLiteral: NullptrLiteral, additional: Any? = nil
         ) -> Any? {
-            dumpNode("NullPointerLiteral" + tyText(nullPointerLiteral.ty))
+            dumpNode(
+                "NullPointerLiteral" + tyText(nullPointerLiteral.ty) + flagsText(nullPointerLiteral)
+            )
             return nil
         }
 
@@ -1288,7 +1323,7 @@ public extension AST {
         public override func visitVoidLiteral(
             _ voidLiteral: VoidLiteral, additional: Any? = nil
         ) -> Any? {
-            dumpNode("VoidLiteral" + tyText(voidLiteral.ty))
+            dumpNode("VoidLiteral" + tyText(voidLiteral.ty) + flagsText(voidLiteral))
             return nil
         }
 
@@ -1310,7 +1345,7 @@ public extension AST {
                     }
                 }
             }
-            dumpNode("If" + tyText(ifExpression.ty), children: children)
+            dumpNode("If" + tyText(ifExpression.ty) + flagsText(ifExpression), children: children)
             return nil
         }
 
@@ -1338,7 +1373,7 @@ public extension AST {
                     self.dumpNode("Case", children: caseChildren)
                 }
             }
-            dumpNode("Match" + tyText(matchExpression.ty), children: children)
+            dumpNode("Match" + tyText(matchExpression.ty) + flagsText(matchExpression), children: children)
             return nil
         }
 
@@ -1368,7 +1403,7 @@ public extension AST {
                     self.dumpNode("Finally", children: self.statementNodes(finallyBody))
                 }
             }
-            dumpNode("Do" + tyText(doExpression.ty), children: children)
+            dumpNode("Do" + tyText(doExpression.ty) + flagsText(doExpression), children: children)
             return nil
         }
 
@@ -1399,7 +1434,7 @@ public extension AST {
                     self.dumpNode(text, children: [{ self.visitClosure(closure) }])
                 }
             }
-            dumpNode("Call" + tyText(call.ty), children: children)
+            dumpNode("Call" + tyText(call.ty) + flagsText(call), children: children)
             return nil
         }
 
@@ -1413,7 +1448,7 @@ public extension AST {
             }
             dumpNode(
                 text + tyText(memberAccess.ty) + symText(memberAccess.symbol)
-                    + overloadsText(memberAccess.overloads),
+                    + overloadsText(memberAccess.overloads) + flagsText(memberAccess),
                 children: [{ self.visit(memberAccess.object) }]
             )
             return nil
@@ -1423,7 +1458,9 @@ public extension AST {
         public override func visitSelfType(
             _ selfTypeExpression: SelfType, additional: Any? = nil
         ) -> Any? {
-            dumpNode("SelfTypeExpression" + tyText(selfTypeExpression.ty))
+            dumpNode(
+                "SelfTypeExpression" + tyText(selfTypeExpression.ty) + flagsText(selfTypeExpression)
+            )
             return nil
         }
 
@@ -1431,7 +1468,10 @@ public extension AST {
         public override func visitSelfExpression(
             _ selfExpression: SelfExpression, additional: Any? = nil
         ) -> Any? {
-            dumpNode("SelfExpression" + tyText(selfExpression.ty) + symText(selfExpression.symbol))
+            dumpNode(
+                "SelfExpression" + tyText(selfExpression.ty) + symText(selfExpression.symbol)
+                    + flagsText(selfExpression)
+            )
             return nil
         }
 
@@ -1441,6 +1481,7 @@ public extension AST {
         ) -> Any? {
             dumpNode(
                 "SuperExpression" + tyText(superExpression.ty) + symText(superExpression.symbol)
+                    + flagsText(superExpression)
             )
             return nil
         }
@@ -1452,7 +1493,7 @@ public extension AST {
             dumpNode(
                 "ImplicitMemberAccess \(implicitMemberAccess.name.value)"
                     + tyText(implicitMemberAccess.ty) + symText(implicitMemberAccess.symbol)
-                    + overloadsText(implicitMemberAccess.overloads)
+                    + overloadsText(implicitMemberAccess.overloads) + flagsText(implicitMemberAccess)
             )
             return nil
         }
@@ -1491,7 +1532,9 @@ public extension AST {
                 }
             }
             children.append(contentsOf: statementNodes(closure.body))
-            dumpNode("Closure" + tyText(closure.ty), children: children)
+            dumpNode(
+                "Closure" + tyText(closure.ty) + flagsText(closure), children: children
+            )
             return nil
         }
 
@@ -1520,7 +1563,9 @@ public extension AST {
                 children.append(contentsOf: throwsClauseNodes(throwsClause))
             }
             children.append { self.visit(closureType.returnType) }
-            dumpNode(text + tyText(closureType.ty), children: children)
+            dumpNode(
+                text + tyText(closureType.ty) + flagsText(closureType), children: children
+            )
             return nil
         }
 
@@ -1529,7 +1574,7 @@ public extension AST {
             _ optionalType: OptionalType, additional: Any? = nil
         ) -> Any? {
             dumpNode(
-                "OptionalType ?" + tyText(optionalType.ty),
+                "OptionalType ?" + tyText(optionalType.ty) + flagsText(optionalType),
                 children: [{ self.visit(optionalType.wrappedType) }]
             )
             return nil
@@ -1541,7 +1586,7 @@ public extension AST {
         ) -> Any? {
             let suffix = pointerType.isNonnull ? "*!" : "*"
             dumpNode(
-                "PointerType \(suffix)" + tyText(pointerType.ty),
+                "PointerType \(suffix)" + tyText(pointerType.ty) + flagsText(pointerType),
                 children: [{ self.visit(pointerType.wrappedType) }]
             )
             return nil
@@ -1552,7 +1597,7 @@ public extension AST {
             _ variadicType: VariadicType, additional: Any? = nil
         ) -> Any? {
             dumpNode(
-                "VariadicType ..." + tyText(variadicType.ty),
+                "VariadicType ..." + tyText(variadicType.ty) + flagsText(variadicType),
                 children: [{ self.visit(variadicType.base) }]
             )
             return nil
@@ -1563,7 +1608,7 @@ public extension AST {
             -> Any?
         {
             dumpNode(
-                "SomeType some" + tyText(someType.ty),
+                "SomeType some" + tyText(someType.ty) + flagsText(someType),
                 children: [{ self.visit(someType.wrappedType) }]
             )
             return nil
@@ -1572,7 +1617,8 @@ public extension AST {
         @discardableResult
         public override func visitAnyType(_ anyType: AnyType, additional: Any? = nil) -> Any? {
             dumpNode(
-                "AnyType any" + tyText(anyType.ty), children: [{ self.visit(anyType.wrappedType) }]
+                "AnyType any" + tyText(anyType.ty) + flagsText(anyType),
+                children: [{ self.visit(anyType.wrappedType) }]
             )
             return nil
         }
@@ -1582,7 +1628,8 @@ public extension AST {
             _ protocolCompositionType: ProtocolCompositionType, additional: Any? = nil
         ) -> Any? {
             dumpNode(
-                "ProtocolCompositionType &" + tyText(protocolCompositionType.ty),
+                "ProtocolCompositionType &" + tyText(protocolCompositionType.ty)
+                    + flagsText(protocolCompositionType),
                 children: protocolCompositionType.types.map { type in
                     { self.visit(type) }
                 }
@@ -1604,7 +1651,9 @@ public extension AST {
                     self.dumpNode(text, children: [{ self.visit(element.value) }])
                 }
             }
-            dumpNode("TupleExpression" + tyText(tuple.ty), children: children)
+            dumpNode(
+                "TupleExpression" + tyText(tuple.ty) + flagsText(tuple), children: children
+            )
             return nil
         }
 
@@ -1612,7 +1661,10 @@ public extension AST {
         public override func visitIsPattern(_ isPattern: IsPattern, additional: Any? = nil)
             -> Any?
         {
-            dumpNode("IsPattern is", children: [{ self.visit(isPattern.typeExpression) }])
+            dumpNode(
+                "IsPattern is" + flagsText(isPattern),
+                children: [{ self.visit(isPattern.typeExpression) }]
+            )
             return nil
         }
 
@@ -1622,7 +1674,7 @@ public extension AST {
         {
             var children: [() -> Void] = [{ self.visit(asPattern.pattern) }]
             children.append { self.visit(asPattern.typeExpression) }
-            dumpNode("AsPattern as", children: children)
+            dumpNode("AsPattern as" + flagsText(asPattern), children: children)
             return nil
         }
 
@@ -1637,7 +1689,7 @@ public extension AST {
                 text += sequentialExpression.ops.map(\.value).joined(separator: " ")
             }
             dumpNode(
-                text + tyText(sequentialExpression.ty),
+                text + tyText(sequentialExpression.ty) + flagsText(sequentialExpression),
                 children: sequentialExpression.operands.map { operand in
                     { self.visit(operand) }
                 }
@@ -1649,7 +1701,10 @@ public extension AST {
         public override func visitBinary(_ binary: Binary, additional: Any? = nil) -> Any? {
             var children: [() -> Void] = [{ self.visit(binary.left) }]
             children.append { self.visit(binary.right) }
-            dumpNode("Binary \(binary.operatorToken.value)" + tyText(binary.ty), children: children)
+            dumpNode(
+                "Binary \(binary.operatorToken.value)" + tyText(binary.ty) + flagsText(binary),
+                children: children
+            )
             return nil
         }
 
@@ -1658,7 +1713,8 @@ public extension AST {
             -> Any?
         {
             dumpNode(
-                "Prefix \(prefixExpression.operatorToken.value)" + tyText(prefixExpression.ty),
+                "Prefix \(prefixExpression.operatorToken.value)" + tyText(prefixExpression.ty)
+                    + flagsText(prefixExpression),
                 children: [{ self.visit(prefixExpression.expression) }]
             )
             return nil
@@ -1671,7 +1727,8 @@ public extension AST {
             -> Any?
         {
             dumpNode(
-                "Postfix \(postfixExpression.operatorToken.value)" + tyText(postfixExpression.ty),
+                "Postfix \(postfixExpression.operatorToken.value)" + tyText(postfixExpression.ty)
+                    + flagsText(postfixExpression),
                 children: [{ self.visit(postfixExpression.expression) }]
             )
             return nil
@@ -1682,7 +1739,7 @@ public extension AST {
             _ dereference: Dereference, additional: Any? = nil
         ) -> Any? {
             dumpNode(
-                "Dereference *" + tyText(dereference.ty),
+                "Dereference *" + tyText(dereference.ty) + flagsText(dereference),
                 children: [{ self.visit(dereference.expression) }]
             )
             return nil
@@ -1693,7 +1750,7 @@ public extension AST {
             _ addressOf: AddressOf, additional: Any? = nil
         ) -> Any? {
             dumpNode(
-                "AddressOf &" + tyText(addressOf.ty),
+                "AddressOf &" + tyText(addressOf.ty) + flagsText(addressOf),
                 children: [{ self.visit(addressOf.expression) }]
             )
             return nil
@@ -1704,7 +1761,7 @@ public extension AST {
             _ arrayLiteral: ArrayLiteral, additional: Any? = nil
         ) -> Any? {
             dumpNode(
-                "ArrayLiteral" + tyText(arrayLiteral.ty),
+                "ArrayLiteral" + tyText(arrayLiteral.ty) + flagsText(arrayLiteral),
                 children: arrayLiteral.elements.map { element in
                     { self.visit(element) }
                 }
@@ -1726,7 +1783,10 @@ public extension AST {
                     self.dumpNode("Entry", children: entryChildren)
                 }
             }
-            dumpNode("DictionaryLiteral" + tyText(dictionaryLiteral.ty), children: children)
+            dumpNode(
+                "DictionaryLiteral" + tyText(dictionaryLiteral.ty) + flagsText(dictionaryLiteral),
+                children: children
+            )
             return nil
         }
 
@@ -1747,7 +1807,8 @@ public extension AST {
             let staticIsSuffix = staticIsText(castExpression.staticIsResult)
             let staticAsSuffix = staticAsText(castExpression.staticAsResult)
             dumpNode(
-                "CastExpression \(kindText)" + tyText(castExpression.ty) + staticIsSuffix + staticAsSuffix,
+                "CastExpression \(kindText)" + tyText(castExpression.ty) + staticIsSuffix
+                    + staticAsSuffix + flagsText(castExpression),
                 children: children
             )
             return nil
@@ -1764,7 +1825,7 @@ public extension AST {
                 case .TryExclamation: "try!"
                 }
             dumpNode(
-                "TryExpression \(kindText)" + tyText(tryExpression.ty),
+                "TryExpression \(kindText)" + tyText(tryExpression.ty) + flagsText(tryExpression),
                 children: [{ self.visit(tryExpression.expression) }]
             )
             return nil
@@ -1775,7 +1836,7 @@ public extension AST {
             _ awaitExpression: Await, additional: Any? = nil
         ) -> Any? {
             dumpNode(
-                "AwaitExpression await" + tyText(awaitExpression.ty),
+                "AwaitExpression await" + tyText(awaitExpression.ty) + flagsText(awaitExpression),
                 children: [{ self.visit(awaitExpression.expression) }]
             )
             return nil
@@ -1797,7 +1858,9 @@ public extension AST {
                     self.dumpNode(text, children: [{ self.visit(argument.value) }])
                 }
             }
-            dumpNode("Subscript" + tyText(subscriptExpr.ty), children: children)
+            dumpNode(
+                "Subscript" + tyText(subscriptExpr.ty) + flagsText(subscriptExpr), children: children
+            )
             return nil
         }
 
@@ -1806,7 +1869,7 @@ public extension AST {
             _ forceUnwrap: ForceUnwrap, additional: Any? = nil
         ) -> Any? {
             dumpNode(
-                "ForceUnwrapExpression !" + tyText(forceUnwrap.ty),
+                "ForceUnwrapExpression !" + tyText(forceUnwrap.ty) + flagsText(forceUnwrap),
                 children: [{ self.visit(forceUnwrap.expression) }]
             )
             return nil
@@ -1822,7 +1885,8 @@ public extension AST {
             }
             children.append { self.visit(optionalBinding.value) }
             dumpNode(
-                "OptionalBinding \(optionalBinding.name.value)" + tyText(optionalBinding.ty),
+                "OptionalBinding \(optionalBinding.name.value)" + tyText(optionalBinding.ty)
+                    + flagsText(optionalBinding),
                 children: children
             )
             return nil
@@ -1836,7 +1900,9 @@ public extension AST {
                 { self.dumpNode("Pattern", children: [{ self.visit(caseMatch.pattern) }]) },
             ]
             children.append { self.visit(caseMatch.subject) }
-            dumpNode("CaseMatch" + tyText(caseMatch.ty), children: children)
+            dumpNode(
+                "CaseMatch" + tyText(caseMatch.ty) + flagsText(caseMatch), children: children
+            )
             return nil
         }
 
@@ -1852,7 +1918,8 @@ public extension AST {
                 children.append { self.visit(subpattern) }
             }
             dumpNode(
-                "BindingPattern \(bindingPattern.name.value)" + tyText(bindingPattern.ty),
+                "BindingPattern \(bindingPattern.name.value)" + tyText(bindingPattern.ty)
+                    + flagsText(bindingPattern),
                 children: children
             )
             return nil
@@ -1862,7 +1929,7 @@ public extension AST {
         public override func visitWildcardPattern(
             _ wildcardPattern: WildcardPattern, additional: Any? = nil
         ) -> Any? {
-            dumpNode("WildcardPattern _" + tyText(wildcardPattern.ty))
+            dumpNode("WildcardPattern _" + tyText(wildcardPattern.ty) + flagsText(wildcardPattern))
             return nil
         }
 
@@ -1870,7 +1937,10 @@ public extension AST {
         public override func visitShorthandArgument(
             _ shorthandArgument: ShorthandArgument, additional: Any? = nil
         ) -> Any? {
-            dumpNode("ShorthandArgument $\(shorthandArgument.index)" + tyText(shorthandArgument.ty))
+            dumpNode(
+                "ShorthandArgument $\(shorthandArgument.index)" + tyText(shorthandArgument.ty)
+                    + flagsText(shorthandArgument)
+            )
             return nil
         }
 
@@ -1907,7 +1977,10 @@ public extension AST {
                     )
                 }
             }
-            dumpNode("KeyPathExpression" + tyText(keyPathExpression.ty), children: children)
+            dumpNode(
+                "KeyPathExpression" + tyText(keyPathExpression.ty) + flagsText(keyPathExpression),
+                children: children
+            )
             return nil
         }
 
@@ -1916,7 +1989,7 @@ public extension AST {
             _ sizeofExpression: SizeofExpression, additional: Any? = nil
         ) -> Any? {
             dumpNode(
-                "SizeofExpression" + tyText(sizeofExpression.ty),
+                "SizeofExpression" + tyText(sizeofExpression.ty) + flagsText(sizeofExpression),
                 children: [{ self.visit(sizeofExpression.type) }]
             )
             return nil
@@ -1940,7 +2013,10 @@ public extension AST {
                     }
                 }
             }
-            dumpNode("StringInterpolation" + tyText(interpolation.ty), children: children)
+            dumpNode(
+                "StringInterpolation" + tyText(interpolation.ty) + flagsText(interpolation),
+                children: children
+            )
             return nil
         }
     }

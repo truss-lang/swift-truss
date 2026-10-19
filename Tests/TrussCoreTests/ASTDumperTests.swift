@@ -376,7 +376,7 @@ func dumpOverloadsSemantics() {
             `-FunctionDecl g sym:g#6
               `-ExpressionStatement
                 `-Call ty:VoidType
-                  |-Variable f ty:Function((a:ErrorType, b:ErrorType) -> VoidType) sym:f#3 overloads:2 [f(a:, b: =), f(xs: ...)]
+                  |-Variable f ty:Function((a:ErrorType, b:ErrorType) -> VoidType) sym:f#3 overloads:2 [f(a:, b: =), f(xs: ...)] willBeCalled
                   `-Argument label:a
                     `-IntegerLiteral 1
             """
@@ -520,11 +520,148 @@ func dumpPointerSemantics() {
           | |   `-Variable Int ty:StructType(Int)#0 sym:Int#1
           | `-Initializer
           |   `-AddressOf & ty:Pointer(StructType(Int)#0!)
-          |     `-Variable v ty:StructType(Int)#0 sym:v#2
+          |     `-Variable v ty:StructType(Int)#0 sym:v#2 lvalue
           `-VariableDecl x sym:x#4
             `-Initializer
               `-Dereference * ty:StructType(Int)#0
                 `-Variable p ty:Pointer(StructType(Int)#0) sym:p#3
+        """
+    )
+}
+
+@Test
+func dumpAssignmentLeftValueSemantics() {
+    #expect(
+        dumpProgram(
+            """
+            func f() {
+                var a = 1
+                a = 2
+            }
+            """,
+            semantic: true
+        ) == """
+        Program "main"
+        `-FunctionDecl f sym:f#2
+          |-VariableDecl a sym:a#1
+          | `-Initializer
+          |   `-IntegerLiteral 1
+          `-ExpressionStatement
+            `-Binary =
+              |-Variable a sym:a#1 lvalue
+              `-IntegerLiteral 2
+        """
+    )
+}
+
+@Test
+func dumpMemberAssignmentLeftValueSemantics() {
+    #expect(
+        dumpProgram(
+            """
+            struct S {
+                var x = 1
+                func f() {
+                    self.x = 2
+                }
+            }
+            """,
+            semantic: true
+        ) == """
+        Program "main"
+        `-StructDecl S sym:S#1
+          |-VariableDecl x sym:x#2
+          | `-Initializer
+          |   `-IntegerLiteral 1
+          `-FunctionDecl f sym:f#4
+            `-ExpressionStatement
+              `-Binary = ty:ErrorType
+                |-MemberAccess x ty:ErrorType sym:x#2 lvalue
+                | `-SelfExpression ty:StructType(S)#0 sym:self#3 lvalue
+                `-IntegerLiteral 2
+        """
+    )
+}
+
+@Test
+func dumpSubscriptAssignmentLeftValueSemantics() {
+    #expect(
+        dumpProgram(
+            """
+            struct S {
+                var x = 1
+                init() {
+                    x = 0
+                }
+                subscript(i: Int) -> Int {
+                    get { x }
+                    set { x = newValue }
+                }
+            }
+            func f() {
+                var s = S()
+                s[0] = 2
+            }
+            """,
+            semantic: true
+        ) == """
+        Program "main"
+        |-StructDecl S sym:S#1
+        | |-VariableDecl x sym:x#2
+        | | `-Initializer
+        | |   `-IntegerLiteral 1
+        | |-InitDecl sym:init#4
+        | | `-ExpressionStatement
+        | |   `-Binary =
+        | |     |-Variable x sym:x#2 lvalue
+        | |     `-IntegerLiteral 0
+        | `-SubscriptDecl sym:subscript#11
+        |   |-Parameter i label:i
+        |   | `-Variable Int ty:ErrorType
+        |   |-ReturnType
+        |   | `-Variable Int ty:ErrorType
+        |   |-Accessor get
+        |   | `-ExpressionStatement
+        |   |   `-Variable x sym:x#2
+        |   `-Accessor set
+        |     `-ExpressionStatement
+        |       `-Binary =
+        |         |-Variable x sym:x#2 lvalue
+        |         `-Variable newValue ty:ErrorType sym:newValue#6
+        `-FunctionDecl f sym:f#13
+          |-VariableDecl s sym:s#12
+          | `-Initializer
+          |   `-Call ty:Generic(StructType(S)#0<>)
+          |     `-Variable S ty:Function(() -> StructType(S)#0) sym:init#4 willBeCalled
+          `-ExpressionStatement
+            `-Binary = ty:VoidType
+              |-Subscript ty:VoidType lvalue
+              | |-Variable s ty:Generic(StructType(S)#0<>) sym:s#12
+              | `-Argument
+              |   `-IntegerLiteral 0
+              `-IntegerLiteral 2
+        """
+    )
+}
+
+@Test
+func dumpCallCalleeWillBeCalledSemantics() {
+    #expect(
+        dumpProgram(
+            """
+            func g() {}
+            func f() {
+                g()
+            }
+            """,
+            semantic: true
+        ) == """
+        Program "main"
+        |-FunctionDecl g sym:g#1
+        `-FunctionDecl f sym:f#2
+          `-ExpressionStatement
+            `-Call ty:VoidType
+              `-Variable g ty:Function(() -> VoidType) sym:g#1 overloads:1 [g()] willBeCalled
         """
     )
 }
