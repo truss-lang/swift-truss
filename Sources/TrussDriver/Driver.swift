@@ -215,8 +215,10 @@ public final class Driver {
             let unusedChecker = UnusedDeclarationChecker(context: context)
             unusedChecker.checkAll(programs)
         }
+        let needsTIR = config.dumpTIR || config.dumpLLVMIR || config.outputPath != nil
+        let needsCodeGen = config.dumpLLVMIR || config.outputPath != nil
         let tirModules: [TIR.Module]
-        if !context.diagnosticEngine.hasErrors {
+        if needsTIR, !context.diagnosticEngine.hasErrors {
             let tirGen = TIRGen(context: context)
             tirModules = tirGen.generateAll(programs)
         } else {
@@ -235,7 +237,7 @@ public final class Driver {
         }
         let llvmContext: LLVMSwiftBinding.Context?
         let llvmModules: [LLVMSwiftBinding.Module]
-        if !context.diagnosticEngine.hasErrors {
+        if needsCodeGen, !context.diagnosticEngine.hasErrors {
             llvmContext = .init()
             let codeGen = CodeGen(
                 context: context, llvmContext: llvmContext!, target: config.target
