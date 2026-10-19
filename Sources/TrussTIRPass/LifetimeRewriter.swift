@@ -61,7 +61,15 @@ final class LifetimeRewriter: TIR.Rewriter {
     private func slotDischarge(
         slot: TIR.Value, destroying: Bool, anchor: TIR.Instruction
     ) -> [TIR.Instruction] {
-        guard let pointee = (registry.types[slot.ty] as? TIRType.PointerType)?.pointee else {
+        let pointee: Id.TIRTypeId? = switch registry.types[slot.ty] {
+        case let address as TIRType.AddressType:
+            address.pointee
+        case let pointer as TIRType.PointerType:
+            pointer.pointee
+        default:
+            nil
+        }
+        guard let pointee else {
             return []
         }
         let load = TIR.Load(ptr: slot, ty: pointee, name: freshName())

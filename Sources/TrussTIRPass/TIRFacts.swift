@@ -125,6 +125,10 @@ enum TIRFacts {
             [i.result]
         case let i as TIR.ProjectCell:
             [i.result]
+        case let i as TIR.AddressToPointer:
+            [i.result]
+        case let i as TIR.PointerToAddress:
+            [i.result]
         case let i as TIR.StructValue:
             [i.result]
         case let i as TIR.TupleValue:
@@ -204,8 +208,8 @@ enum TIRFacts {
         if let classType = ty as? TIRType.ClassType {
             return classType
         }
-        if let pointer = ty as? TIRType.PointerType {
-            return registry.types[pointer.pointee] as? TIRType.ClassType
+        if let pointee = pointee(of: id, registry: registry) {
+            return registry.types[pointee] as? TIRType.ClassType
         }
         return nil
     }
@@ -217,10 +221,21 @@ enum TIRFacts {
         if let structType = ty as? TIRType.StructType {
             return structType
         }
-        if let pointer = ty as? TIRType.PointerType {
-            return registry.types[pointer.pointee] as? TIRType.StructType
+        if let pointee = pointee(of: id, registry: registry) {
+            return registry.types[pointee] as? TIRType.StructType
         }
         return nil
+    }
+
+    private static func pointee(of id: Id.TIRTypeId, registry: TIR.Registry) -> Id.TIRTypeId? {
+        switch registry.types[id] {
+        case let address as TIRType.AddressType:
+            address.pointee
+        case let pointer as TIRType.PointerType:
+            pointer.pointee
+        default:
+            nil
+        }
     }
 
     static func needsTeardown(_ id: Id.TIRTypeId, registry: TIR.Registry) -> Bool {

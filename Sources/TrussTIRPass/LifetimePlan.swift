@@ -196,14 +196,21 @@ final class LifetimePlan {
     }
 
     private func isSlotType(_ id: Id.TIRTypeId) -> Bool {
-        guard let pointer = registry.types[id] as? TIRType.PointerType else {
+        guard let pointee = pointee(of: id) else {
             return false
         }
-        return TIRFacts.isReferenceValue(pointer.pointee, registry: registry)
+        return TIRFacts.isReferenceValue(pointee, registry: registry)
     }
 
     private func pointee(of id: Id.TIRTypeId) -> Id.TIRTypeId? {
-        (registry.types[id] as? TIRType.PointerType)?.pointee
+        switch registry.types[id] {
+        case let address as TIRType.AddressType:
+            address.pointee
+        case let pointer as TIRType.PointerType:
+            pointer.pointee
+        default:
+            nil
+        }
     }
 
     private func computeSlots() {
