@@ -112,36 +112,22 @@ public final class TIREmitter: AST.Visitor {
         return result
     }
 
-    private func backfillSourceRanges(in function: TIR.Function) {
-        let fallback = isKnown(function.sourceRange) ? function.sourceRange : currentRange
-        for block in function.basicBlocks {
-            if !isKnown(block.sourceRange) {
-                block.sourceRange = fallback
-            }
-            for instruction in block.instructions where !isKnown(instruction.sourceRange) {
-                instruction.sourceRange = fallback
-            }
-        }
-    }
-
     private func visitExpression(_ expression: AST.Expression) -> TIR.Value {
         guard let v = visit(expression) as? TIR.Value else {
             fatalError("unreachable: an expression must lower to a TIR value")
         }
-        if expression.isLeftValue {
-            if let wrapper = v as? TIR.LeftValueWrapper {
-                return wrapper.innerValue
-            } else {
-                guard let builder else {
-                    fatalError("unreachable")
-                }
-                let tmp = builder.buildAllocStack(allocatedType: v.ty).result
-                builder.buildStore(value: v, to: tmp)
-                return tmp
-            }
-        } else {
+        guard expression.isLeftValue else {
             return v
         }
+        if isAddressType(v.ty) || v is TIR.PropertyBinding || v is TIR.SubscriptBinding {
+            return v
+        }
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let tmp = builder.buildAllocStack(allocatedType: v.ty).result
+        builder.buildStore(value: v, to: tmp)
+        return tmp
     }
 
     @discardableResult
@@ -209,7 +195,7 @@ public final class TIREmitter: AST.Visitor {
             guard let initializer = property.initializer else {
                 continue
             }
-            let value = rvalue(of: visitExpression(initializer), of: initializer)
+            let value = visitExpression(initializer)
             let slot = propertyValue(
                 of: property.symbol, obj: selfValue, sourceRange: initializer.sourceRange
             )
@@ -383,7 +369,6 @@ public final class TIREmitter: AST.Visitor {
         }
 
         body()
-        backfillSourceRanges(in: fn)
 
         currentFunction = lastFunction
         labelMap = lastLabelMap
@@ -434,12 +419,11 @@ public final class TIREmitter: AST.Visitor {
                 initializerFunction.sourceRange = variableDecl.sourceRange
 
                 newBlock("entry")
-                let v = rvalue(of: visitExpression(initializer), of: initializer)
+                let v = visitExpression(initializer)
                 let addr = at(builder.buildGlobalAddr(global: global))
                 at(builder.buildStore(value: v, to: addr))
                 at(builder.buildReturn())
 
-                backfillSourceRanges(in: initializerFunction)
                 builder.insertPoint = lastInsertPoint
                 currentFunction = lastFunction
             }
@@ -453,7 +437,7 @@ public final class TIREmitter: AST.Visitor {
                 bindLocal(variableDecl.name.value, alloc.result)
                 if let initializer = variableDecl.initializer {
                     builder.buildStore(
-                        value: rvalue(of: visitExpression(initializer), of: initializer), to: alloc.result
+                        value: visitExpression(initializer), to: alloc.result
                     )
                 }
             } else {
@@ -464,7 +448,7 @@ public final class TIREmitter: AST.Visitor {
                 bindLocal(variableDecl.name.value, alloc.result)
                 if let initializer = variableDecl.initializer {
                     builder.buildStore(
-                        value: rvalue(of: visitExpression(initializer), of: initializer), to: alloc.result
+                        value: visitExpression(initializer), to: alloc.result
                     )
                 }
             }
@@ -540,7 +524,7 @@ public final class TIREmitter: AST.Visitor {
         let cond = visitExpression(whileStatement.condition)
         at(
             builder.buildConditionalBranch(
-                condition: rvalue(of: cond, as: booleanTypeId), trueBranch: thenBlock,
+                condition: cond, trueBranch: thenBlock,
                 falseBranch: nextBlock
             )
         )
@@ -595,7 +579,7 @@ public final class TIREmitter: AST.Visitor {
         let cond = visitExpression(repeatWhile.condition)
         at(
             builder.buildConditionalBranch(
-                condition: rvalue(of: cond, as: booleanTypeId), trueBranch: bodyBlock,
+                condition: cond, trueBranch: bodyBlock,
                 falseBranch: nextBlock
             )
         )
@@ -644,7 +628,7 @@ public final class TIREmitter: AST.Visitor {
         let cond = visitExpression(guardStatement.condition)
         at(
             builder.buildConditionalBranch(
-                condition: rvalue(of: cond, as: booleanTypeId), trueBranch: trueBlock,
+                condition: cond, trueBranch: trueBlock,
                 falseBranch: falseBlock
             )
         )
@@ -829,7 +813,7 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         let elements = tuple.elements.map {
-            rvalue(of: visitExpression($0.value), of: $0.value)
+            visitExpression($0.value)
         }
         let elementsType: TIRType.TIRType = if let ty = tuple.ty {
             lowerType(ty)
@@ -905,7 +889,7 @@ public final class TIREmitter: AST.Visitor {
         case is Symbol.SelfSymbol:
             let v = getSelf()
             if variable.isLeftValue {
-                return wrapLeftValue(v)
+                return v
             } else {
                 let inst = builder.buildLoad(ptr: v)
                 return inst.result
@@ -915,13 +899,13 @@ public final class TIREmitter: AST.Visitor {
             case .Global, .StaticProperty:
                 let addr = at(builder.buildGlobalAddr(global: gen.globalsBySymbol[variableSymbol.id]!))
                 if variable.isLeftValue {
-                    return wrapLeftValue(addr)
+                    return addr
                 }
                 return builder.buildLoad(ptr: addr).result
             case .Local:
                 let addr = lookupLocal(variable.name.value)!
                 if variable.isLeftValue {
-                    return wrapLeftValue(addr)
+                    return addr
                 }
                 return builder.buildLoad(ptr: addr).result
             case .Property:
@@ -972,15 +956,13 @@ public final class TIREmitter: AST.Visitor {
                     } else {
                         nil
                     }
-                    return wrapLeftValue(
-                        builder.buildPropertyBinding(
-                            object: selfValue,
-                            slot: slot,
-                            getter: getter,
-                            setter: setter,
-                            willSetter: willSetter,
-                            didSetter: didSetter
-                        )
+                    return builder.buildPropertyBinding(
+                        object: selfValue,
+                        slot: slot,
+                        getter: getter,
+                        setter: setter,
+                        willSetter: willSetter,
+                        didSetter: didSetter
                     )
                 } else {
                     if let getterSymbol = variableSymbol.accessors[.Get] {
@@ -1035,7 +1017,7 @@ public final class TIREmitter: AST.Visitor {
                     )
 
                 case .Method:
-                    let obj = receiverAddress(of: memberAccess.object)
+                    let obj = visitExpression(memberAccess.object)
                     let method = functionValue(of: functionSymbol, obj: obj, sourceRange: memberAccess.sourceRange)
                     return builder.buildObjectBinding(
                         object: obj,
@@ -1057,9 +1039,7 @@ public final class TIREmitter: AST.Visitor {
             case .Global, .StaticProperty:
                 addr = at(builder.buildGlobalAddr(global: gen.globalsBySymbol[variableSymbol.id]!))
             case .Property:
-                let v = rvalue(of: visitExpression(memberAccess.object), of: memberAccess.object)
-                let obj = builder.buildAllocStack(allocatedType: lowerType(memberAccess.object.ty!).id).result
-                builder.buildStore(value: v, to: obj)
+                let obj = visitExpression(memberAccess.object)
                 if memberAccess.isLeftValue {
                     let getter: TIR.Value? = if let getterSymbol = variableSymbol.accessors[.Get] {
                         functionValue(
@@ -1106,15 +1086,13 @@ public final class TIREmitter: AST.Visitor {
                     } else {
                         nil
                     }
-                    return wrapLeftValue(
-                        builder.buildPropertyBinding(
-                            object: obj,
-                            slot: slot,
-                            getter: getter,
-                            setter: setter,
-                            willSetter: willSetter,
-                            didSetter: didSetter
-                        )
+                    return builder.buildPropertyBinding(
+                        object: obj,
+                        slot: slot,
+                        getter: getter,
+                        setter: setter,
+                        willSetter: willSetter,
+                        didSetter: didSetter
                     )
                 } else {
                     if let getterSymbol = variableSymbol.accessors[.Get] {
@@ -1140,7 +1118,7 @@ public final class TIREmitter: AST.Visitor {
                 fatalError("unreachable")
             }
             if memberAccess.isLeftValue {
-                return wrapLeftValue(addr)
+                return addr
             }
             let load = builder.buildLoad(ptr: addr)
             return load.result
@@ -1200,7 +1178,7 @@ public final class TIREmitter: AST.Visitor {
             }
             let addr = at(builder.buildGlobalAddr(global: gen.globalsBySymbol[variableSymbol.id]!))
             if implicitMemberAccess.isLeftValue {
-                return wrapLeftValue(addr)
+                return addr
             }
             let load = builder.buildLoad(ptr: addr)
             return load.result
@@ -1227,7 +1205,7 @@ public final class TIREmitter: AST.Visitor {
         }
         if let arith = builtinArithInfo(of: call.callee) {
             let arguments: [TIR.Value] = call.arguments.compactMap {
-                rvalue(of: visitExpression($0.value), of: $0.value)
+                visitExpression($0.value)
             }
             return emitBuiltinArith(arith, arguments: arguments)
         }
@@ -1244,7 +1222,10 @@ public final class TIREmitter: AST.Visitor {
                 selfParameter = visitExpression(inPlace)
             } else if ty is TIRType.ClassType {
                 let alloc = builder.buildAllocHeap(allocatedType: construction.objectTy)
-                selfParameter = alloc.result
+                let slot = builder.buildAllocStack(allocatedType: alloc.result.ty)
+                builder.buildStore(value: alloc.result, to: slot.result)
+                selfParameter = slot.result
+                needLoad = true
             } else {
                 let alloc = builder.buildAllocStack(allocatedType: construction.objectTy)
                 selfParameter = alloc.result
@@ -1258,7 +1239,7 @@ public final class TIREmitter: AST.Visitor {
             selfParameter = nil
         }
         let arguments = [selfParameter].compactMap { $0 } + call.arguments.map {
-            rvalue(of: visitExpression($0.value), of: $0.value)
+            visitExpression($0.value)
         }
         let inst = builder.buildCall(callee: callee, arguments: arguments)
         if needLoad {
@@ -1274,7 +1255,7 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         let left = visitExpression(binary.left)
-        let right = rvalue(of: visitExpression(binary.right), of: binary.right)
+        let right = visitExpression(binary.right)
         if binary.operatorToken.kind == .Operator(.Assign) {
             switch left {
             case let propertyBinding as TIR.PropertyBinding:
@@ -1314,7 +1295,7 @@ public final class TIREmitter: AST.Visitor {
             let f = functionRefValue(symbol, at: binary.sourceRange)
             let inst = builder.buildCall(
                 callee: f,
-                arguments: [rvalue(of: left, of: binary.left), right]
+                arguments: [left, right]
             )
             return inst.result
         }
@@ -1327,12 +1308,12 @@ public final class TIREmitter: AST.Visitor {
         }
         if symbol.isBuiltin {
             if let arith = arithOp(named: builtinOpName(of: symbol)) {
-                let operand = rvalue(of: visitExpression(prefix.expression), of: prefix.expression)
+                let operand = visitExpression(prefix.expression)
                 return builder.buildUnaryArith(op: arith, operand: operand).result
             }
         }
         let callee = functionRefValue(symbol, at: prefix.sourceRange)
-        let operand = rvalue(of: visitExpression(prefix.expression), of: prefix.expression)
+        let operand = visitExpression(prefix.expression)
         return builder.buildCall(callee: callee, arguments: [operand]).result
     }
 
@@ -1342,7 +1323,7 @@ public final class TIREmitter: AST.Visitor {
             return nil
         }
         let callee = functionRefValue(symbol, at: postfix.sourceRange)
-        let operand = rvalue(of: visitExpression(postfix.expression), of: postfix.expression)
+        let operand = visitExpression(postfix.expression)
         return builder.buildCall(callee: callee, arguments: [operand]).result
     }
 
@@ -1353,18 +1334,16 @@ public final class TIREmitter: AST.Visitor {
         }
         let obj = visitExpression(subscriptExpr.base)
         let args = [obj] + subscriptExpr.arguments.map {
-            rvalue(of: visitExpression($0.value), of: $0.value)
+            visitExpression($0.value)
         }
         if subscriptExpr.isLeftValue {
             let getter = functionValue(of: symbol.getter, obj: obj, sourceRange: subscriptExpr.sourceRange)
             let setter = functionValue(of: symbol.setter!, obj: obj, sourceRange: subscriptExpr.sourceRange)
-            return wrapLeftValue(
-                builder.buildSubscriptBinding(
-                    object: obj,
-                    arguments: args,
-                    getter: getter,
-                    setter: setter
-                )
+            return builder.buildSubscriptBinding(
+                object: obj,
+                arguments: args,
+                getter: getter,
+                setter: setter
             )
         } else {
             let getter = functionValue(of: symbol.getter, obj: obj, sourceRange: subscriptExpr.sourceRange)
@@ -1385,7 +1364,7 @@ public final class TIREmitter: AST.Visitor {
         let cond = visitExpression(ifExpression.condition)
         at(
             builder.buildConditionalBranch(
-                condition: rvalue(of: cond, as: booleanTypeId),
+                condition: cond,
                 trueBranch: thenBlock,
                 falseBranch: elseBlock ?? resultBlock
             )
@@ -1399,7 +1378,7 @@ public final class TIREmitter: AST.Visitor {
         emitDomainExit(thenDomain) {
             if let v, !isVoid {
                 thenReachesResult = buildBranchIfOpen(
-                    to: resultBlock, arguments: [rvalue(of: v, as: resultType)]
+                    to: resultBlock, arguments: [v]
                 )
             } else {
                 thenReachesResult = buildBranchIfOpen(to: resultBlock)
@@ -1423,7 +1402,7 @@ public final class TIREmitter: AST.Visitor {
             emitDomainExit(elseDomain) {
                 if let v2, !isVoid {
                     elseReachesResult = buildBranchIfOpen(
-                        to: resultBlock, arguments: [rvalue(of: v2, as: resultType)]
+                        to: resultBlock, arguments: [v2]
                     )
                 } else {
                     elseReachesResult = buildBranchIfOpen(to: resultBlock)
@@ -1449,18 +1428,30 @@ public final class TIREmitter: AST.Visitor {
         guard let builder else {
             fatalError("unreachable")
         }
-        let v = visitExpression(dereference.expression)
-        if dereference.isLeftValue {
-            return wrapLeftValue(v)
+        let value = visitExpression(dereference.expression)
+        let address: TIR.Value = if isAddressType(value.ty) {
+            value
         } else {
-            let load = builder.buildLoad(ptr: v)
+            at(builder.buildPointerToAddress(pointer: value)).result
+        }
+        if dereference.isLeftValue {
+            return address
+        } else {
+            let load = builder.buildLoad(ptr: address)
             return load.result
         }
     }
 
     @discardableResult
     public override func visitAddressOf(_ addressOf: AST.AddressOf, additional: Any? = nil) -> Any? {
-        visit(addressOf.expression, additional: additional)
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let address = visitExpression(addressOf.expression)
+        guard isAddressType(address.ty) else {
+            return address
+        }
+        return at(builder.buildAddressToPointer(address: address)).result
     }
 
     @discardableResult
@@ -1470,7 +1461,7 @@ public final class TIREmitter: AST.Visitor {
         }
         let v = getSelf()
         if selfExpression.isLeftValue {
-            return wrapLeftValue(v)
+            return v
         } else {
             let inst = builder.buildLoad(ptr: v)
             return inst.result
@@ -1487,7 +1478,7 @@ public final class TIREmitter: AST.Visitor {
         }
         let v = getSelf()
         if superExpression.isLeftValue {
-            return wrapLeftValue(v)
+            return v
         } else {
             let inst = builder.buildLoad(ptr: v)
             return inst.result
@@ -1515,7 +1506,7 @@ public final class TIREmitter: AST.Visitor {
         guard let builder else {
             fatalError("unreachable")
         }
-        let value = rvalue(of: visitExpression(castExpression.left), of: castExpression.left)
+        let value = visitExpression(castExpression.left)
         switch castExpression.kind {
         case .Is:
             switch castExpression.staticIsResult {
@@ -1709,61 +1700,19 @@ public final class TIREmitter: AST.Visitor {
         gen.registry.primitiveType(kind: .Bool, bitWidth: 1).id
     }
 
-    private func pointeeType(of typeId: Id.TIRTypeId) -> Id.TIRTypeId? {
-        (gen.registry.type(typeId) as? TIRType.PointerType)?.pointee
-    }
-
-    private func rvalue(of value: TIR.Value, as expected: Id.TIRTypeId) -> TIR.Value {
-        guard let builder, let pointee = pointeeType(of: value.ty), pointee == expected else {
-            return value
-        }
-        return builder.buildLoad(ptr: value).result
-    }
-
-    private func rvalue(of value: TIR.Value, of expression: AST.Expression) -> TIR.Value {
-        guard let ty = expression.ty else {
-            return value
-        }
-        return rvalue(of: value, as: lowerType(ty).id)
-    }
-
-    private func receiverAddress(of expression: AST.Expression) -> TIR.Value {
-        guard let builder else {
-            fatalError("unreachable")
-        }
-        let value = storageAddress(of: expression) ?? visitExpression(expression)
-        if let ty = expression.ty, pointeeType(of: value.ty) == lowerType(ty).id {
-            return value
-        }
-        let rvalue = rvalue(of: value, of: expression)
-        guard pointeeType(of: rvalue.ty) == nil else {
-            return rvalue
-        }
-        let slot = at(builder.buildAllocStack(allocatedType: rvalue.ty)).result
-        at(builder.buildStore(value: rvalue, to: slot))
-        return slot
-    }
-
-    private func storageAddress(of expression: AST.Expression) -> TIR.Value? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
-        if expression is AST.SelfExpression {
-            return getSelf()
-        }
-        guard let variable = expression as? AST.Variable,
-              let symbol = variable.symbol as? Symbol.VariableSymbol
-        else {
-            return nil
-        }
-        switch symbol.kind {
-        case .Local:
-            return lookupLocal(variable.name.value)
-        case .Global, .StaticProperty:
-            return at(builder.buildGlobalAddr(global: gen.globalsBySymbol[symbol.id]!))
+    private func addressPointee(of typeId: Id.TIRTypeId) -> Id.TIRTypeId? {
+        switch gen.registry.types[typeId] {
+        case let address as TIRType.AddressType:
+            address.pointee
+        case let pointer as TIRType.PointerType:
+            pointer.pointee
         default:
-            return nil
+            nil
         }
+    }
+
+    private func isAddressType(_ typeId: Id.TIRTypeId) -> Bool {
+        gen.registry.types[typeId] is TIRType.AddressType
     }
 
     private func implicitReturnValue(in function: TIR.Function) -> TIR.Value? {
@@ -1783,7 +1732,7 @@ public final class TIREmitter: AST.Visitor {
         guard !(gen.registry.type(function.returnType) is TIRType.VoidType) else {
             return nil
         }
-        return rvalue(of: value, as: function.returnType)
+        return value
     }
 
     private func emitReturn(_ value: TIR.Value? = nil) {
@@ -1875,13 +1824,6 @@ public final class TIREmitter: AST.Visitor {
             emitDomainExit(domain, finish: finish)
         }
         deferDomainStack.removeLast()
-    }
-
-    private func wrapLeftValue(_ value: TIR.Value) -> TIR.LeftValueWrapper {
-        guard let builder else {
-            fatalError("unreachable")
-        }
-        return builder.buildLeftValueWrapper(value: value)
     }
 
     private func functionRefValue(_ symbol: Symbol.FunctionSymbol, at _: SourceRange) -> TIR.FunctionRef {
@@ -2197,22 +2139,6 @@ public final class TIREmitter: AST.Visitor {
 }
 
 public extension TIR {
-    class LeftValueWrapper: Value {
-        public let value: Value
-        public init(value: Value) {
-            self.value = value
-            super.init(ty: value.ty, name: "")
-        }
-
-        public var innerValue: Value {
-            if let wrapper = value as? LeftValueWrapper {
-                wrapper.innerValue
-            } else {
-                value
-            }
-        }
-    }
-
     class ObjectConstruction: Value {
         public let initializer: FunctionRef
         public let objectTy: Id.TIRTypeId
@@ -2281,11 +2207,6 @@ public extension TIR {
 }
 
 public extension TIR.Builder {
-    @discardableResult
-    func buildLeftValueWrapper(value: TIR.Value) -> TIR.LeftValueWrapper {
-        TIR.LeftValueWrapper(value: value)
-    }
-
     @discardableResult
     func buildObjectConstruction(
         initializer: TIR.FunctionRef, objectTy: Id.TIRTypeId, functionTy: Id.TIRTypeId

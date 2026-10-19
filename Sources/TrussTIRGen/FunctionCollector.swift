@@ -186,12 +186,12 @@ final class FunctionCollector {
             modulePath: gen.modulePathStack
         )
         let ownerSymbol = symbol.memberOf.flatMap { context.id2Symbol[$0] } as? Symbol.NominalTypeSymbol
-        let initReturnTypeLowered: TIRType.TIRType
-        if let ownerSymbol, let typeId = ownerSymbol.typeId, let type = context.typeTable[typeId] {
-            let lowered = gen.typeLower.lower(type)
-            initReturnTypeLowered = gen.registry.pointerType(pointee: lowered.id)
+        let initReturnTypeLowered: TIRType.TIRType = if let ownerSymbol, let typeId = ownerSymbol.typeId,
+                                                        let type = context.typeTable[typeId]
+        {
+            gen.registry.addressType(pointee: gen.typeLower.lower(type).id)
         } else {
-            initReturnTypeLowered = gen.registry.voidType()
+            gen.registry.voidType()
         }
         createFunction(
             symbol, name: name, returnType: initReturnTypeLowered,
@@ -288,7 +288,7 @@ final class FunctionCollector {
            let owner = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol,
            let typeId = owner.typeId, let type = context.typeTable[typeId]
         {
-            let selfType = gen.registry.pointerType(pointee: gen.typeLower.lower(type).id)
+            let selfType = gen.registry.addressType(pointee: gen.typeLower.lower(type).id)
             tirParameters.append(TIR.Parameter(ty: selfType.id, name: "self"))
             selfKind = symbol?.kind
         }
@@ -351,7 +351,7 @@ final class FunctionCollector {
         else {
             return
         }
-        let selfType = gen.registry.pointerType(pointee: gen.typeLower.lower(ownerType).id)
+        let selfType = gen.registry.addressType(pointee: gen.typeLower.lower(ownerType).id)
         let valueType = symbol.type.map { gen.typeLower.lower($0) }
             ?? (decl.initializer?.ty).map { gen.typeLower.lower($0) }
             ?? gen.registry.voidType()
