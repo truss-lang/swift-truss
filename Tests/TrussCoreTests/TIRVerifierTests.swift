@@ -416,7 +416,7 @@ func globalReferenceOutsideRegistryIsReported() {
     let function = harness.addFunction(returnType: harness.void)
     harness.addEntry(function)
     let address = TIR.GlobalAddr(
-        globalId: Id.TIRGlobalId(4096), ty: harness.registry.pointerType(pointee: harness.i32).id, name: "ghost"
+        globalId: Id.TIRGlobalId(4096), ty: harness.registry.addressType(pointee: harness.i32).id, name: "ghost"
     )
     harness.builder.buildStore(
         value: harness.builder.buildIntegerLiteral(value: 1, ty: harness.i32), to: address
@@ -917,7 +917,7 @@ func allocationResultWithoutPointerTypeIsReported() {
     harness.builder.buildReturn()
     expectSingleFailure(
         harness.verify(), kind: .TypeConsistency,
-        message: "allocstack result in block 'entry' of function 'main' has type i32, expected a pointer to type i32"
+        message: "alloca result in block 'entry' of function 'main' has type i32, expected an address of type i32"
     )
 }
 
@@ -928,13 +928,13 @@ func allocationResultPointingToOtherTypeIsReported() {
     let entry = harness.addEntry(function)
     let allocation = TIR.AllocStack(registry: harness.registry, allocatedType: harness.i32, name: "0")
     allocation.result = TIR.InstructionResult(
-        ty: harness.registry.pointerType(pointee: harness.i8).id, name: "0"
+        ty: harness.registry.addressType(pointee: harness.i8).id, name: "0"
     )
     entry.instructions.append(allocation)
     harness.builder.buildReturn()
     expectSingleFailure(
         harness.verify(), kind: .TypeConsistency,
-        message: "allocstack result in block 'entry' of function 'main' points to type i8 but the instruction allocates type i32"
+        message: "alloca result in block 'entry' of function 'main' points to type i8 but the instruction allocates type i32"
     )
 }
 
@@ -987,7 +987,7 @@ func elementAddressBaseWithoutAggregateTypeIsReported() {
     harness.builder.buildReturn()
     expectSingleFailure(
         harness.verify(), kind: .TypeConsistency,
-        message: "struct element address base in block 'entry' of function 'main' has type *i32, expected a pointer to a struct, class or tuple"
+        message: "struct element address base in block 'entry' of function 'main' has type addr i32, expected an address or pointer to a struct, class or tuple"
     )
 }
 
@@ -1174,4 +1174,32 @@ func branchArgumentCountMismatchReportsTheBranchingBlockRange() {
 func emptyModuleHasNoFailures() {
     let harness = Harness()
     expectNoFailures(harness.verify())
+}
+
+@Test
+func loadThroughAPointerValueIsReported() {
+    let harness = Harness()
+    let function = harness.addFunction(returnType: harness.void)
+    let entry = harness.addEntry(function)
+    let heap = harness.builder.buildAllocHeap(allocatedType: harness.i32)
+    entry.instructions.append(TIR.Load(ptr: heap.result, ty: harness.i32, name: "0"))
+    harness.builder.buildReturn()
+    expectSingleFailure(
+        harness.verify(), kind: .TypeConsistency,
+        containing: "load pointer in block 'entry' of function 'main' has pointer type *i32, expected an address type"
+    )
+}
+
+@Test
+func addressToPointerOfAPointerValueIsReported() {
+    let harness = Harness()
+    let function = harness.addFunction(returnType: harness.void)
+    let entry = harness.addEntry(function)
+    let heap = harness.builder.buildAllocHeap(allocatedType: harness.i32)
+    entry.instructions.append(TIR.AddressToPointer(registry: harness.registry, address: heap.result, name: "0"))
+    harness.builder.buildReturn()
+    expectSingleFailure(
+        harness.verify(), kind: .TypeConsistency,
+        containing: "address to pointer in block 'entry' of function 'main' operates on type *i32, expected an address type"
+    )
 }

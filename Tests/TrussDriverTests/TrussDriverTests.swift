@@ -564,6 +564,32 @@ func driverEmitsRunnableExecutable() throws {
 }
 
 @Test(.enabled(if: hasSystemCompiler()))
+func driverRunsPointerDereference() throws {
+    let output = try tempOutput("ptr")
+    let source = """
+    precedencegroup Assign {
+        assignment: true
+    }
+    infix operator = : Assign
+    typealias Int32 = Builtin.Int32
+    #[cname("main")]
+    func main() -> Int32 {
+        var x: Int32 = 1
+        let p: Int32* = &x
+        *p = 7
+        return x
+    }
+    """
+    let result = Driver(config: DriverConfig(outputPath: output, emitKind: .Executable)).runString(source)
+    #expect(!result.hasErrors)
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: output)
+    try process.run()
+    process.waitUntilExit()
+    #expect(process.terminationStatus == 7)
+}
+
+@Test(.enabled(if: hasSystemCompiler()))
 func driverEmitsMergedMultiFileExecutable() throws {
     let helper = try writeTemp(
         "helper.truss",

@@ -305,3 +305,34 @@ func staticAsClassificationDrivesCastLowering() throws {
     #expect(downInstructions.contains { $0 is TIR.IsInstance })
     #expect(!downInstructions.contains { $0 is TIR.Upcast })
 }
+
+private let pointerSource = """
+precedencegroup AssignmentPrecedence {
+    associativity: right
+    assignment: true
+}
+infix operator = : AssignmentPrecedence
+typealias Int32 = Builtin.Int32
+
+func write() -> Int32 {
+    var x: Int32 = 1
+    let p: Int32* = &x
+    *p = 2
+    return x
+}
+"""
+
+@Test
+func slotsAreAddressedAndLanguagePointersAreConverted() throws {
+    let (context, module) = runTIRGen(pointerSource, filepath: sourceFile)
+    #expect(!context.diagnosticEngine.hasErrors)
+    let all = instructions(of: module)
+    let toPointer = all.compactMap { $0 as? TIR.AddressToPointer }
+    let toAddress = all.compactMap { $0 as? TIR.PointerToAddress }
+    #expect(toPointer.count == 1)
+    #expect(toAddress.count == 1)
+    let allocation = try #require(all.compactMap { $0 as? TIR.AllocStack }.first)
+    #expect(module.registry.type(allocation.result.ty) is TIRType.AddressType)
+    #expect(toPointer.first?.result.ty == module.registry.pointerType(pointee: allocation.allocatedType).id)
+    #expect(TIR.Verifier(context: context).verify(module).isEmpty)
+}

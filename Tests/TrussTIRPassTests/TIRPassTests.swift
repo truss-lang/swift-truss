@@ -326,7 +326,7 @@ func structFieldStoreHoldsTheTokenAndTeardownDischargesIt() throws {
     let module = TIR.Module(registry: registry)
     let nodeType = registry.classType(name: "Node")
     let nodePointer = registry.pointerType(pointee: nodeType.id)
-    let pointerPointer = registry.pointerType(pointee: nodePointer.id)
+    let pointerPointer = registry.addressType(pointee: nodePointer.id)
     let holderType = registry.structType(name: "Holder")
     holderType.fields = [(name: "child", type: nodePointer.id)]
     let function = module.addFunction(
@@ -364,7 +364,7 @@ func structFieldTeardownOfADeinitializedClassIsDestroyed() throws {
     let registry = TIR.Registry()
     let module = TIR.Module(registry: registry)
     let nodePointer = registry.pointerType(pointee: registry.classType(name: "Node").id)
-    let pointerPointer = registry.pointerType(pointee: nodePointer.id)
+    let pointerPointer = registry.addressType(pointee: nodePointer.id)
     _ = classWithMetadata(
         registry, module: module, name: "Node", hasDeinitializer: true, pointer: nodePointer.id
     )
@@ -440,7 +440,7 @@ func nestedStructFieldTeardownReachesTheLeafSlot() throws {
     let module = TIR.Module(registry: registry)
     let nodeType = registry.classType(name: "Node")
     let nodePointer = registry.pointerType(pointee: nodeType.id)
-    let pointerPointer = registry.pointerType(pointee: nodePointer.id)
+    let pointerPointer = registry.addressType(pointee: nodePointer.id)
     let innerType = registry.structType(name: "Inner")
     innerType.fields = [(name: "child", type: nodePointer.id)]
     let outerType = registry.structType(name: "Outer")
@@ -535,7 +535,7 @@ func ownResultFromABorrowIsRetained() throws {
     let module = TIR.Module(registry: registry)
     let nodeType = registry.classType(name: "Node")
     let nodePointer = registry.pointerType(pointee: nodeType.id)
-    let pointerPointer = registry.pointerType(pointee: nodePointer.id)
+    let pointerPointer = registry.addressType(pointee: nodePointer.id)
     let function = module.addFunction(
         name: "borrowResult", parameters: [TIR.Parameter(ty: pointerPointer.id, name: "n")],
         returnType: nodePointer.id, isVariadic: false, isExtern: false, callingConvention: nil
@@ -558,7 +558,7 @@ func globalStoreTransfersOwnershipIntoTheSlot() throws {
     let module = TIR.Module(registry: registry)
     let nodeType = registry.classType(name: "Node")
     let nodePointer = registry.pointerType(pointee: nodeType.id)
-    let pointerPointer = registry.pointerType(pointee: nodePointer.id)
+    let pointerPointer = registry.addressType(pointee: nodePointer.id)
     let global = module.addGlobal(name: "g", type: nodePointer.id, isExtern: false, hasInitializer: false)
     let function = module.addFunction(
         name: "f", parameters: [TIR.Parameter(ty: pointerPointer.id, name: "n")],
@@ -884,7 +884,7 @@ func globalSlotsAreKeyedByGlobalIdentity() throws {
     let module = TIR.Module(registry: registry)
     let nodeType = registry.classType(name: "Node")
     let nodePointer = registry.pointerType(pointee: nodeType.id)
-    let pointerPointer = registry.pointerType(pointee: nodePointer.id)
+    let pointerPointer = registry.addressType(pointee: nodePointer.id)
     let global = module.addGlobal(
         name: "g", type: nodePointer.id, isExtern: false, hasInitializer: false
     )
@@ -1945,7 +1945,7 @@ func castOfABorrowedValueIsRetainedAtTheTransferSite() throws {
     let registry = TIR.Registry()
     let module = TIR.Module(registry: registry)
     let nodePointer = registry.pointerType(pointee: registry.classType(name: "Node").id).id
-    let pointerPointer = registry.pointerType(pointee: nodePointer).id
+    let pointerPointer = registry.addressType(pointee: nodePointer).id
     let parameter = TIR.Parameter(ty: pointerPointer, name: "slot")
     let function = module.addFunction(
         name: "borrowCast", parameters: [parameter], returnType: nodePointer,
