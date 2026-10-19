@@ -213,9 +213,12 @@ public extension TIR {
             guard let insertPoint else {
                 fatalError("no insert point")
             }
-            let ty = if let pointerType = registry.types[ptr.ty] as? TIRType.PointerType {
+            let ty = switch registry.types[ptr.ty] {
+            case let addressType as TIRType.AddressType:
+                addressType.pointee
+            case let pointerType as TIRType.PointerType:
                 pointerType.pointee
-            } else {
+            default:
                 ptr.ty
             }
             let instruction = Load(ptr: ptr, ty: ty, name: freshName(name))
@@ -246,9 +249,33 @@ public extension TIR {
         @discardableResult
         public func buildGlobalAddr(global: GlobalVariable, name: String? = nil) -> GlobalAddr {
             GlobalAddr(
-                globalId: global.id, ty: registry.pointerType(pointee: global.type).id,
+                globalId: global.id, ty: registry.addressType(pointee: global.type).id,
                 name: name ?? global.name
             )
+        }
+
+        @discardableResult
+        public func buildAddressToPointer(address: Value, name: String? = nil) -> AddressToPointer {
+            guard let insertPoint else {
+                fatalError("no insert point")
+            }
+            let instruction = AddressToPointer(
+                registry: registry, address: address, name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
+        }
+
+        @discardableResult
+        public func buildPointerToAddress(pointer: Value, name: String? = nil) -> PointerToAddress {
+            guard let insertPoint else {
+                fatalError("no insert point")
+            }
+            let instruction = PointerToAddress(
+                registry: registry, pointer: pointer, name: freshName(name)
+            )
+            insertPoint.instructions.append(instruction)
+            return instruction
         }
 
         @discardableResult

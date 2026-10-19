@@ -4,7 +4,7 @@ public extension TIR {
         public var result: Value
         public init(registry: TIR.Registry, allocatedType: Id.TIRTypeId, name: String) {
             self.allocatedType = allocatedType
-            let ty = registry.pointerType(pointee: allocatedType).id
+            let ty = registry.addressType(pointee: allocatedType).id
             result = InstructionResult(ty: ty, name: name)
         }
 
@@ -29,8 +29,7 @@ public extension TIR {
         public var result: Value
         public init(registry: TIR.Registry, allocatedType: Id.TIRTypeId, name: String) {
             self.allocatedType = allocatedType
-            let ty = registry.pointerType(pointee: allocatedType).id
-            result = InstructionResult(ty: ty, name: name)
+            result = InstructionResult(ty: allocatedType, name: name)
         }
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
@@ -54,7 +53,7 @@ public extension TIR {
         public var result: Value
         public init(registry: TIR.Registry, allocatedType: Id.TIRTypeId, name: String) {
             self.allocatedType = allocatedType
-            let ty = registry.pointerType(pointee: allocatedType).id
+            let ty = registry.addressType(pointee: allocatedType).id
             result = InstructionResult(ty: ty, name: name)
         }
 
@@ -119,7 +118,7 @@ public extension TIR {
         public init(registry: Registry, base: Value, index: Int, name: String) {
             self.base = base
             self.index = index
-            let ty = registry.elementPointerType(base: base.ty, at: index)
+            let ty = registry.elementAddressType(base: base.ty, at: index)
             result = InstructionResult(ty: ty, name: name)
         }
 
@@ -135,7 +134,7 @@ public extension TIR {
         public init(registry: Registry, base: Value, index: Int, name: String) {
             self.base = base
             self.index = index
-            let ty = registry.elementPointerType(base: base.ty, at: index)
+            let ty = registry.elementAddressType(base: base.ty, at: index)
             result = InstructionResult(ty: ty, name: name)
         }
 
@@ -151,7 +150,7 @@ public extension TIR {
         public init(registry: Registry, base: Value, index: Int, name: String) {
             self.base = base
             self.index = index
-            let ty = registry.elementPointerType(base: base.ty, at: index)
+            let ty = registry.elementAddressType(base: base.ty, at: index)
             result = InstructionResult(ty: ty, name: name)
         }
 
@@ -170,6 +169,42 @@ public extension TIR {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitProjectCell(self, additional: additional)
+        }
+    }
+
+    final class AddressToPointer: Instruction {
+        public let address: Value
+        public var result: Value
+        public init(registry: Registry, address: Value, name: String) {
+            self.address = address
+            let ty = if let addressType = registry.type(address.ty) as? TIRType.AddressType {
+                registry.pointerType(pointee: addressType.pointee).id
+            } else {
+                address.ty
+            }
+            result = InstructionResult(ty: ty, name: name)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitAddressToPointer(self, additional: additional)
+        }
+    }
+
+    final class PointerToAddress: Instruction {
+        public let pointer: Value
+        public var result: Value
+        public init(registry: Registry, pointer: Value, name: String) {
+            self.pointer = pointer
+            let ty = if let pointerType = registry.type(pointer.ty) as? TIRType.PointerType {
+                registry.addressType(pointee: pointerType.pointee).id
+            } else {
+                pointer.ty
+            }
+            result = InstructionResult(ty: ty, name: name)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitPointerToAddress(self, additional: additional)
         }
     }
 }

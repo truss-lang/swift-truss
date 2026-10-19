@@ -28,6 +28,10 @@ extension TIR {
                 [i.result]
             case let i as ProjectCell:
                 [i.result]
+            case let i as AddressToPointer:
+                [i.result]
+            case let i as PointerToAddress:
+                [i.result]
             case let i as StructValue:
                 [i.result]
             case let i as TupleValue:
@@ -113,6 +117,10 @@ extension TIR {
                 [i.base]
             case let i as ProjectCell:
                 [i.cell]
+            case let i as AddressToPointer:
+                [i.address]
+            case let i as PointerToAddress:
+                [i.pointer]
             case let i as StructValue:
                 i.fields
             case let i as TupleValue:
@@ -327,6 +335,20 @@ extension TIR {
 
         @discardableResult
         open func visitProjectCell(_ instruction: ProjectCell, additional: Any? = nil) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitAddressToPointer(
+            _ instruction: AddressToPointer, additional: Any? = nil
+        ) -> Any? {
+            nil
+        }
+
+        @discardableResult
+        open func visitPointerToAddress(
+            _ instruction: PointerToAddress, additional: Any? = nil
+        ) -> Any? {
             nil
         }
 

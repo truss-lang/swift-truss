@@ -230,6 +230,21 @@ public extension TIR {
             }
         }
 
+        public func addressType(pointee: Id.TIRTypeId) -> TIRType.AddressType {
+            let key = AddressKey(pointee: pointee)
+            if let cached = typeCache[key] {
+                return cached as! TIRType.AddressType
+            } else {
+                let ty = TIRType.AddressType(
+                    id: nextTypeId,
+                    pointee: pointee
+                )
+                types[ty.id] = ty
+                typeCache[key] = ty
+                return ty
+            }
+        }
+
         public func functionType(
             parameters: [Id.TIRTypeId],
             returnType: Id.TIRTypeId,
@@ -322,13 +337,16 @@ public extension TIR {
             }
         }
 
-        public func elementPointerType(base: Id.TIRTypeId, at index: Int) -> Id.TIRTypeId {
+        public func elementAddressType(base: Id.TIRTypeId, at index: Int) -> Id.TIRTypeId {
             guard let baseTy = types[base] else {
                 return base
             }
-            let aggregate: TIRType.TIRType = if let pointerType = baseTy as? TIRType.PointerType {
+            let aggregate: TIRType.TIRType = switch baseTy {
+            case let pointerType as TIRType.PointerType:
                 types[pointerType.pointee] ?? baseTy
-            } else {
+            case let addressType as TIRType.AddressType:
+                types[addressType.pointee] ?? baseTy
+            default:
                 baseTy
             }
             let elementType: Id.TIRTypeId =
@@ -342,7 +360,7 @@ public extension TIR {
                 default:
                     base
                 }
-            return pointerType(pointee: elementType).id
+            return addressType(pointee: elementType).id
         }
 
         private func normalizedParameterOwnership(
@@ -360,6 +378,10 @@ public extension TIR {
         }
 
         private struct PointerKey: Hashable, Equatable {
+            let pointee: Id.TIRTypeId
+        }
+
+        private struct AddressKey: Hashable, Equatable {
             let pointee: Id.TIRTypeId
         }
 

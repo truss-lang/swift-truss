@@ -66,6 +66,25 @@ public enum TIRType {
         }
     }
 
+    public final class AddressType: TIRType {
+        public let pointee: Id.TIRTypeId
+        public init(id: Id.TIRTypeId, pointee: Id.TIRTypeId) {
+            self.pointee = pointee
+            super.init(id: id)
+        }
+
+        public override func isEqual(to other: TIRType) -> Bool {
+            guard let other = other as? AddressType else {
+                return false
+            }
+            return pointee == other.pointee
+        }
+
+        public override func hash(into hasher: inout Hasher) {
+            hasher.combine(pointee)
+        }
+    }
+
     public final class MetadataType: TIRType {
         public override init(id: Id.TIRTypeId) {
             super.init(id: id)

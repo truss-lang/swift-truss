@@ -385,6 +385,14 @@ extension TIR {
                 return ProjectCell(
                     registry: registry, cell: operands[0], name: resultName(of: i.result)
                 )
+            case let i as AddressToPointer:
+                return AddressToPointer(
+                    registry: registry, address: operands[0], name: resultName(of: i.result)
+                )
+            case let i as PointerToAddress:
+                return PointerToAddress(
+                    registry: registry, pointer: operands[0], name: resultName(of: i.result)
+                )
             case let i as StructValue:
                 return StructValue(fields: operands, ty: remap(type: i.result.ty), name: resultName(of: i.result))
             case let i as TupleValue:

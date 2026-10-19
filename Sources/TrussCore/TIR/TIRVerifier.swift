@@ -299,6 +299,8 @@ public extension TIR {
                 return primitiveName(primitive)
             case let pointer as TIRType.PointerType:
                 return "*" + pointeeName(pointer.pointee, visited: nested)
+            case let address as TIRType.AddressType:
+                return "addr " + pointeeName(address.pointee, visited: nested)
             case is TIRType.MetadataType:
                 return "meta"
             case let nominal as TIRType.NominalType:
@@ -879,10 +881,21 @@ public extension TIR {
         }
 
         private func isSlot(_ id: Id.TIRTypeId) -> Bool {
-            guard let pointer = currentRegistry.types[id] as? TIRType.PointerType else {
+            guard let pointee = addressPointee(of: id) else {
                 return false
             }
-            return containsReferenceLeaf(pointer.pointee)
+            return containsReferenceLeaf(pointee)
+        }
+
+        private func addressPointee(of id: Id.TIRTypeId) -> Id.TIRTypeId? {
+            switch currentRegistry.types[id] {
+            case let address as TIRType.AddressType:
+                address.pointee
+            case let pointer as TIRType.PointerType:
+                pointer.pointee
+            default:
+                nil
+            }
         }
 
         private func containsReferenceLeaf(_ id: Id.TIRTypeId) -> Bool {
@@ -1827,10 +1840,10 @@ public extension TIR {
             if let classType = currentRegistry.types[id] as? TIRType.ClassType {
                 return classType
             }
-            guard let pointer = currentRegistry.types[id] as? TIRType.PointerType else {
+            guard let pointee = addressPointee(of: id) else {
                 return nil
             }
-            return currentRegistry.types[pointer.pointee] as? TIRType.ClassType
+            return currentRegistry.types[pointee] as? TIRType.ClassType
         }
 
         private func classNeedsTeardown(
@@ -2088,11 +2101,41 @@ public extension TIR {
             case let i as TryCall:
                 verifyCallee(i.callee, arguments: i.arguments, result: i.result, opName: "try call", at: site)
             case let i as AllocStack:
-                verifyAllocation(result: i.result, allocatedType: i.allocatedType, opName: "alloca", at: site)
+                verifyAllocation(
+                    result: i.result, allocatedType: i.allocatedType,
+                    opName: "stack alloc", at: site
+                )
             case let i as AllocHeap:
-                verifyAllocation(result: i.result, allocatedType: i.allocatedType, opName: "heap alloc", at: site)
+                resolveType(i.allocatedType, at: site.range)
+                let ty = resolveType(i.result.ty, at: site.range)!
+                if ty.id != i.allocatedType {
+                    record(
+                        .TypeConsistency,
+                        "heap alloc result in \(site.location) is type \(typeName(ty.id)) but the instruction allocates type \(typeName(i.allocatedType))",
+                        at: site.range
+                    )
+                }
             case let i as AllocCell:
-                verifyAllocation(result: i.result, allocatedType: i.allocatedType, opName: "cell alloc", at: site)
+                verifyAllocation(
+                    result: i.result, allocatedType: i.allocatedType,
+                    opName: "cell alloc", at: site
+                )
+            case let i as AddressToPointer:
+                verifyAddressConversion(
+                    i.address,
+                    result: i.result,
+                    toAddress: false,
+                    opName: "address to pointer",
+                    at: site
+                )
+            case let i as PointerToAddress:
+                verifyAddressConversion(
+                    i.pointer,
+                    result: i.result,
+                    toAddress: true,
+                    opName: "pointer to address",
+                    at: site
+                )
             case let i as Upcast:
                 verifyCast(result: i.result, targetType: i.targetType, opName: "upcast", at: site)
             case let i as UncheckedRefCast:
@@ -2102,11 +2145,20 @@ public extension TIR {
             case let i as BitCast:
                 verifyCast(result: i.result, targetType: i.targetType, opName: "bit cast", at: site)
             case let i as StructElementAddr:
-                verifyElementAddress(base: i.base, index: i.index, opName: "struct element address", at: site)
+                verifyElementAddress(
+                    base: i.base, result: i.result, index: i.index,
+                    opName: "struct element address", at: site
+                )
             case let i as TupleElementAddr:
-                verifyElementAddress(base: i.base, index: i.index, opName: "tuple element address", at: site)
+                verifyElementAddress(
+                    base: i.base, result: i.result, index: i.index,
+                    opName: "tuple element address", at: site
+                )
             case let i as ClassElementAddr:
-                verifyElementAddress(base: i.base, index: i.index, opName: "class element address", at: site)
+                verifyElementAddress(
+                    base: i.base, result: i.result, index: i.index,
+                    opName: "class element address", at: site
+                )
             case let i as EnumValue:
                 verifyEnumValue(i, at: site)
             case let i as ExtractPayload:
@@ -2167,6 +2219,9 @@ public extension TIR {
             guard let pointee = pointeeType(of: instruction.ptr.ty, opName: "load pointer", at: site) else {
                 return
             }
+            verifyAddressOperand(
+                instruction.ptr, opName: "load pointer", allowClassReference: true, at: site
+            )
             if instruction.result.ty != pointee {
                 record(
                     .TypeConsistency,
@@ -2180,6 +2235,9 @@ public extension TIR {
             guard let pointee = pointeeType(of: instruction.ptr.ty, opName: "store pointer", at: site) else {
                 return
             }
+            verifyAddressOperand(
+                instruction.ptr, opName: "store pointer", allowClassReference: false, at: site
+            )
             if instruction.value.ty != pointee {
                 record(
                     .TypeConsistency,
@@ -2193,15 +2251,46 @@ public extension TIR {
             guard let ty = resolveType(id, at: site.range) else {
                 return nil
             }
-            guard let pointer = ty as? TIRType.PointerType else {
+            switch ty {
+            case let address as TIRType.AddressType:
+                return address.pointee
+            case let pointer as TIRType.PointerType:
+                return pointer.pointee
+            default:
                 record(
                     .TypeConsistency,
-                    "\(opName) in \(site.location) has type \(typeName(id)), expected a pointer type",
+                    "\(opName) in \(site.location) has type \(typeName(id)), expected an address or pointer type",
                     at: site.range
                 )
                 return nil
             }
-            return pointer.pointee
+        }
+
+        private func verifyAddressOperand(
+            _ value: Value, opName: String, allowClassReference: Bool, at site: Site
+        ) {
+            guard let ty = resolveType(value.ty, at: site.range) else {
+                return
+            }
+            switch ty {
+            case is TIRType.AddressType:
+                return
+            case let pointer as TIRType.PointerType:
+                if allowClassReference, currentRegistry.types[pointer.pointee] is TIRType.ClassType {
+                    return
+                }
+                record(
+                    .TypeConsistency,
+                    "\(opName) in \(site.location) has pointer type \(typeName(value.ty)), expected an address type",
+                    at: site.range
+                )
+            default:
+                record(
+                    .TypeConsistency,
+                    "\(opName) in \(site.location) has type \(typeName(value.ty)), expected an address type",
+                    at: site.range
+                )
+            }
         }
 
         private func verifyCallee(
@@ -2283,18 +2372,19 @@ public extension TIR {
             guard let ty = resolveType(result.ty, at: site.range) else {
                 return
             }
-            guard let pointer = ty as? TIRType.PointerType else {
+            let pointee = (ty as? TIRType.AddressType)?.pointee
+            guard let pointee else {
                 record(
                     .TypeConsistency,
-                    "\(opName) result in \(site.location) has type \(typeName(result.ty)), expected a pointer to type \(typeName(allocatedType))",
+                    "\(opName) result in \(site.location) has type \(typeName(result.ty)), expected an address of type \(typeName(allocatedType))",
                     at: site.range
                 )
                 return
             }
-            if pointer.pointee != allocatedType {
+            if pointee != allocatedType {
                 record(
                     .TypeConsistency,
-                    "\(opName) result in \(site.location) points to type \(typeName(pointer.pointee)) but the instruction allocates type \(typeName(allocatedType))",
+                    "\(opName) result in \(site.location) points to type \(typeName(pointee)) but the instruction allocates type \(typeName(allocatedType))",
                     at: site.range
                 )
             }
@@ -2311,11 +2401,47 @@ public extension TIR {
             }
         }
 
-        private func verifyElementAddress(base: Value, index: Int, opName: String, at site: Site) {
+        private func verifyAddressConversion(
+            _ operand: Value, result: Value, toAddress: Bool, opName: String, at site: Site
+        ) {
+            guard let operandType = resolveType(operand.ty, at: site.range) else {
+                return
+            }
+            let pointee: Id.TIRTypeId? = if toAddress {
+                (operandType as? TIRType.PointerType)?.pointee
+            } else {
+                (operandType as? TIRType.AddressType)?.pointee
+            }
+            guard let pointee else {
+                record(
+                    .TypeConsistency,
+                    "\(opName) in \(site.location) operates on type \(typeName(operand.ty)), expected "
+                        + (toAddress ? "a pointer type" : "an address type"),
+                    at: site.range
+                )
+                return
+            }
+            let expected = if toAddress {
+                currentRegistry.addressType(pointee: pointee).id
+            } else {
+                currentRegistry.pointerType(pointee: pointee).id
+            }
+            if result.ty != expected {
+                record(
+                    .TypeConsistency,
+                    "\(opName) result in \(site.location) has type \(typeName(result.ty)) but the conversion produces type \(typeName(expected))",
+                    at: site.range
+                )
+            }
+        }
+
+        private func verifyElementAddress(
+            base: Value, result: Value, index: Int, opName: String, at site: Site
+        ) {
             guard let baseType = resolveType(base.ty, at: site.range) else {
                 return
             }
-            let aggregateId = (baseType as? TIRType.PointerType)?.pointee ?? base.ty
+            let aggregateId = addressPointee(of: base.ty) ?? base.ty
             guard let aggregate = resolveType(aggregateId, at: site.range) else {
                 return
             }
@@ -2332,10 +2458,30 @@ public extension TIR {
             guard let elementCount else {
                 record(
                     .TypeConsistency,
-                    "\(opName) base in \(site.location) has type \(typeName(base.ty)), expected a pointer to a struct, class or tuple",
+                    "\(opName) base in \(site.location) has type \(typeName(base.ty)), expected an address or pointer to a struct, class or tuple",
                     at: site.range
                 )
                 return
+            }
+            let elementType: Id.TIRTypeId? = switch aggregate {
+            case let structType as TIRType.StructType where structType.fields.indices.contains(index):
+                structType.fields[index].type
+            case let classType as TIRType.ClassType where classType.fields.indices.contains(index):
+                classType.fields[index].type
+            case let tupleType as TIRType.TupleType where tupleType.elements.indices.contains(index):
+                tupleType.elements[index].type
+            default:
+                nil
+            }
+            if let elementType {
+                let expected = currentRegistry.addressType(pointee: elementType).id
+                if result.ty != expected {
+                    record(
+                        .TypeConsistency,
+                        "\(opName) result in \(site.location) has type \(typeName(result.ty)) but the element has type \(typeName(elementType))",
+                        at: site.range
+                    )
+                }
             }
             if index < 0 || index >= elementCount {
                 record(
@@ -2497,6 +2643,8 @@ public extension TIR {
             switch ty {
             case let pointer as TIRType.PointerType:
                 resolveType(pointer.pointee, at: range)
+            case let address as TIRType.AddressType:
+                resolveType(address.pointee, at: range)
             case let function as TIRType.FunctionType:
                 for parameter in function.parameters {
                     resolveType(parameter, at: range)

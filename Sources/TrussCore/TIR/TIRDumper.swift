@@ -198,6 +198,8 @@ public extension TIR {
                 }
             case let pointer as TIRType.PointerType:
                 return "*" + pointeeText(pointer.pointee)
+            case let address as TIRType.AddressType:
+                return "addr " + pointeeText(address.pointee)
             case _ as TIRType.MetadataType:
                 return "meta"
             case let nominal as TIRType.NominalType:
@@ -267,8 +269,15 @@ public extension TIR {
         }
 
         private func fieldText(_ base: Value, _ index: Int) -> String {
-            guard let pointer = registry?.types[base.ty] as? TIRType.PointerType,
-                  let nominal = registry?.types[pointer.pointee]
+            let pointee: Id.TIRTypeId? = switch registry?.types[base.ty] {
+            case let pointer as TIRType.PointerType:
+                pointer.pointee
+            case let address as TIRType.AddressType:
+                address.pointee
+            default:
+                nil
+            }
+            guard let pointee, let nominal = registry?.types[pointee]
             else {
                 return "#" + String(index)
             }
@@ -426,6 +435,10 @@ public extension TIR {
                 )
             case let project as ProjectCell:
                 return definition(project.result, "projectcell " + valueText(project.cell))
+            case let conversion as AddressToPointer:
+                return definition(conversion.result, "addrtoptr " + valueText(conversion.address))
+            case let conversion as PointerToAddress:
+                return definition(conversion.result, "ptrtoaddr " + valueText(conversion.pointer))
             case let structValue as StructValue:
                 return definition(
                     structValue.result,
