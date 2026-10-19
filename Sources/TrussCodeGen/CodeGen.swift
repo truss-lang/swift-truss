@@ -3,6 +3,8 @@ import SwiftBetterDiagnostic
 import TrussCore
 
 public final class CodeGen: TIR.Visitor {
+    private static let ReferenceHeaderSize = 2
+    private static let ReferenceCountIndex = 1
     private let context: TrussCore.Context
     private let llvmContext: LLVMSwiftBinding.Context
     private let targetTriple: String?
@@ -156,9 +158,21 @@ public final class CodeGen: TIR.Visitor {
         if let existing = storageTypeMap[ty] {
             return existing
         }
+        guard let registry, let type = registry.type(ty) else {
+            let fallback: LLVMSwiftBinding.LLVMType = llvmContext.int8
+            typeMap[ty] = fallback
+            return fallback
+        }
         let lowered = lowerToLLVMType(ty)
-        storageTypeMap[ty] = lowered
-        return lowered
+        switch type {
+        case is TIRType.ClassType:
+            let storageType = llvmContext.pointerType()
+            storageTypeMap[ty] = storageType
+            return storageType
+        default:
+            storageTypeMap[ty] = lowered
+            return lowered
+        }
     }
 
     private func lowerToLLVMType(_ ty: Id.TIRTypeId) -> LLVMSwiftBinding.LLVMType {
@@ -193,7 +207,7 @@ public final class CodeGen: TIR.Visitor {
             }
             typeMap[ty] = lowered
             return lowered
-        case is TIRType.PointerType:
+        case is TIRType.PointerType, is TIRType.AddressType:
             let lowered: LLVMSwiftBinding.LLVMType = llvmContext.pointerType()
             typeMap[ty] = lowered
             return lowered
@@ -210,7 +224,19 @@ public final class CodeGen: TIR.Visitor {
         case let structType as TIRType.StructType:
             let named = llvmContext.namedStructType(name: structType.name)
             typeMap[ty] = named
-            let elementTypes = structType.fields.map { lowerToLLVMStorageType($0.type) }
+            let elementTypes: [LLVMType] = if structType.fields.isEmpty {
+                [llvmContext.int8]
+            } else {
+                structType.fields.map { lowerToLLVMStorageType($0.type) }
+            }
+            named.setElementTypes(elementTypes, isPacked: false)
+            return named
+        case let classType as TIRType.ClassType:
+            let named = llvmContext.namedStructType(name: classType.name)
+            typeMap[ty] = named
+            let elementTypes = [llvmContext.pointerType(), llvmContext.int64] + classType.fields.map {
+                lowerToLLVMStorageType($0.type)
+            }
             named.setElementTypes(elementTypes, isPacked: false)
             return named
         /*
@@ -229,6 +255,16 @@ public final class CodeGen: TIR.Visitor {
             typeMap[ty] = lowered
             return lowered
         }
+    }
+
+    private func sizeOf(_ ty: LLVMType) -> LLVMSwiftBinding.ConstantInt {
+        guard let dataLayout else {
+            fatalError("unreachable")
+        }
+        return llvmContext.constantInt(
+            dataLayout.abiSizeOfType(ty),
+            type: llvmContext.int64
+        )
     }
 
     private func reachableBlocks(_ function: TIR.Function) -> [TIR.BasicBlock] {
@@ -288,11 +324,92 @@ public final class CodeGen: TIR.Visitor {
     }
 
     @discardableResult
+    public override func visitAllocHeap(_ instruction: TIR.AllocHeap, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let ty = lowerToLLVMType(instruction.allocatedType)
+        let built = builder.buildCall(
+            mallocFunction,
+            [sizeOf(ty)],
+            name: instruction.result.name
+        )
+        let rcPtr = builder.buildStructGEP(
+            ty,
+            built,
+            index: UInt32(Self.ReferenceCountIndex)
+        )
+        builder.buildStore(llvmContext.constantInt(1, type: llvmContext.int64), to: rcPtr)
+        valueMap[ObjectIdentifier(instruction.result)] = built
+        return nil
+    }
+
+    @discardableResult
+    public override func visitDeallocHeap(_ instruction: TIR.DeallocHeap, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let ptr = llvmValue(instruction.value)!
+        builder.buildCall(freeFunction, [ptr])
+        return nil
+    }
+
+    @discardableResult
+    public override func visitRetain(_ instruction: TIR.Retain, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let ty = lowerToLLVMType(instruction.value.ty)
+        let value = llvmValue(instruction.value)!
+        let rcPtr = builder.buildGEP(
+            ty,
+            value,
+            indices: [llvmContext.constantInt(UInt64(Self.ReferenceCountIndex), type: llvmContext.int64)]
+        )
+        let v = builder.buildLoad(llvmContext.int64, rcPtr)
+        let newV = builder.buildAdd(v, llvmContext.constantInt(1, type: llvmContext.int64))
+        builder.buildStore(newV, to: rcPtr)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitRelease(_ instruction: TIR.Release, additional: Any? = nil) -> Any? {
+        guard let builder, let currentFunction else {
+            fatalError("unreachable")
+        }
+        let ty = lowerToLLVMType(instruction.value.ty)
+        let value = llvmValue(instruction.value)!
+        let rcPtr = builder.buildGEP(
+            ty,
+            value,
+            indices: [llvmContext.constantInt(UInt64(Self.ReferenceCountIndex), type: llvmContext.int64)]
+        )
+        let v = builder.buildLoad(llvmContext.int64, rcPtr)
+        let newV = builder.buildSub(v, llvmContext.constantInt(1, type: llvmContext.int64))
+        builder.buildStore(newV, to: rcPtr)
+
+        let releasingBlock = currentFunction.appendBasicBlock("")
+        let nextBlock = currentFunction.appendBasicBlock("")
+        let cond = builder.buildICmp(.ULE, newV, llvmContext.constantInt(0, type: llvmContext.int64))
+        builder.buildCondBr(cond, then: releasingBlock, else: nextBlock)
+
+        builder.positionAtEnd(of: releasingBlock)
+        // TODO: call deinitializer
+        builder.buildCall(freeFunction, [value])
+        builder.buildBr(nextBlock)
+
+        builder.positionAtEnd(of: nextBlock)
+        currentLLVMBlock = nextBlock
+
+        return nil
+    }
+
+    @discardableResult
     public override func visitLoad(_ instruction: TIR.Load, additional: Any? = nil) -> Any? {
         guard let builder else {
             fatalError("unreachable")
         }
-        let ptr = llvmValue(of: instruction.ptr)!
+        let ptr = llvmValue(instruction.ptr)!
         let built = builder.buildLoad(
             lowerToLLVMStorageType(instruction.result.ty),
             ptr,
@@ -307,8 +424,8 @@ public final class CodeGen: TIR.Visitor {
         guard let builder else {
             fatalError("unreachable")
         }
-        let value = llvmValue(of: instruction.value)!
-        let ptr = llvmValue(of: instruction.ptr)!
+        let value = llvmValue(instruction.value)!
+        let ptr = llvmValue(instruction.ptr)!
         builder.buildStore(value, to: ptr)
         return nil
     }
@@ -319,7 +436,7 @@ public final class CodeGen: TIR.Visitor {
             fatalError("unreachable")
         }
         if let returned = instruction.value {
-            builder.buildRet(llvmValue(of: returned)!)
+            builder.buildRet(llvmValue(returned)!)
         } else {
             builder.buildRetVoid()
         }
@@ -331,8 +448,8 @@ public final class CodeGen: TIR.Visitor {
         guard let builder else {
             fatalError("unreachable")
         }
-        let lhs = llvmValue(of: instruction.lhs)!
-        let rhs = llvmValue(of: instruction.rhs)!
+        let lhs = llvmValue(instruction.lhs)!
+        let rhs = llvmValue(instruction.rhs)!
         let kind = (registry?.type(instruction.lhs.ty) as? TIRType.PrimitiveType)?.kind
         let built: LLVMSwiftBinding.Value = switch instruction.op {
         case .Add:
@@ -390,7 +507,7 @@ public final class CodeGen: TIR.Visitor {
         guard let builder, let registry else {
             fatalError("unreachable")
         }
-        let operand = llvmValue(of: instruction.operand)!
+        let operand = llvmValue(instruction.operand)!
         let kind = (registry.type(instruction.operand.ty) as! TIRType.PrimitiveType).kind
         let built: LLVMSwiftBinding.Value = switch instruction.op {
         case .Neg:
@@ -412,14 +529,52 @@ public final class CodeGen: TIR.Visitor {
         guard let builder else {
             fatalError("unreachable")
         }
-        let callee = llvmValue(of: instruction.callee)!
+        let callee = llvmValue(instruction.callee)!
         let functionType = lowerToLLVMStorageType(instruction.callee.ty) as! LLVMSwiftBinding.FunctionType
-        let arguments = instruction.arguments.compactMap { llvmValue(of: $0) }
+        let arguments = instruction.arguments.compactMap { llvmValue($0) }
         let built = builder.buildCall(callee, type: functionType, arguments)
         if let result = instruction.result {
             built.name = result.name
             valueMap[ObjectIdentifier(result)] = built
         }
+        return nil
+    }
+
+    @discardableResult
+    public override func visitSizeOf(_ instruction: TIR.SizeOf, additional: Any? = nil) -> Any? {
+        guard let dataLayout else {
+            fatalError("unreachable")
+        }
+        let type = lowerToLLVMType(instruction.sizedType)
+        valueMap[ObjectIdentifier(instruction.result)] = llvmContext.constantInt(
+            dataLayout.abiSizeOfType(type),
+            type: llvmContext.int64
+        )
+        return nil
+    }
+
+    @discardableResult
+    public override func visitStructElementAddr(_ instruction: TIR.StructElementAddr, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let base = llvmValue(instruction.base)!
+        let structType = lowerToLLVMType(pointeeType(instruction.base.ty))
+        let address = builder.buildStructGEP(structType, base, index: UInt32(instruction.index))
+        valueMap[ObjectIdentifier(instruction.result)] = address
+        return nil
+    }
+
+    @discardableResult
+    public override func visitClassElementAddr(_ instruction: TIR.ClassElementAddr, additional: Any? = nil) -> Any? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let base = llvmValue(instruction.base)!
+        let obj = builder.buildLoad(llvmContext.pointerType(), base)
+        let structType = lowerToLLVMType(pointeeType(instruction.base.ty))
+        let address = builder.buildStructGEP(structType, obj, index: UInt32(instruction.index + 2))
+        valueMap[ObjectIdentifier(instruction.result)] = address
         return nil
     }
 
@@ -485,7 +640,7 @@ public final class CodeGen: TIR.Visitor {
         }
     }
 
-    private func llvmValue(of value: TIR.Value) -> LLVMSwiftBinding.Value? {
+    private func llvmValue(_ value: TIR.Value) -> LLVMSwiftBinding.Value? {
         let key = ObjectIdentifier(value)
         if let existing = valueMap[key] {
             return existing
@@ -532,5 +687,63 @@ public final class CodeGen: TIR.Visitor {
         let declared = createFunctionDecl(function)
         functionMap[functionId] = declared
         return declared
+    }
+
+    private func pointeeType(_ ty: Id.TIRTypeId) -> Id.TIRTypeId {
+        guard let registry else {
+            fatalError("unreachable")
+        }
+        switch registry.type(ty) {
+        case let pointer as TIRType.PointerType:
+            return pointer.pointee
+        case let address as TIRType.AddressType:
+            return address.pointee
+        default:
+            return ty
+        }
+    }
+
+    @discardableResult
+    public override func visitAddressToPointer(
+        _ instruction: TIR.AddressToPointer, additional: Any? = nil
+    ) -> Any? {
+        valueMap[ObjectIdentifier(instruction.result)] = llvmValue(instruction.address)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitPointerToAddress(
+        _ instruction: TIR.PointerToAddress, additional: Any? = nil
+    ) -> Any? {
+        valueMap[ObjectIdentifier(instruction.result)] = llvmValue(instruction.pointer)
+        return nil
+    }
+
+    private var mallocFunction: LLVMSwiftBinding.Function {
+        guard let module else {
+            fatalError("unreachable")
+        }
+        if let f = module.function(named: "malloc") {
+            return f
+        }
+        let functionType = llvmContext.functionType(
+            returnType: llvmContext.pointerType(),
+            parameterTypes: [llvmContext.int64]
+        )
+        return module.addFunction("malloc", type: functionType)
+    }
+
+    private var freeFunction: LLVMSwiftBinding.Function {
+        guard let module else {
+            fatalError("unreachable")
+        }
+        if let f = module.function(named: "free") {
+            return f
+        }
+        let functionType = llvmContext.functionType(
+            returnType: llvmContext.void,
+            parameterTypes: [llvmContext.pointerType()]
+        )
+        return module.addFunction("free", type: functionType)
     }
 }
