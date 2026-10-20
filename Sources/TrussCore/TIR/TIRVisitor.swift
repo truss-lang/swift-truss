@@ -197,293 +197,293 @@ extension TIR {
 
         @discardableResult
         open func visitBlockArgument(
-            _ argument: BlockArgument, additional: Any? = nil
+            _ blockArgument: BlockArgument, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitIntegerLiteral(
-            _ literal: IntegerLiteral, additional: Any? = nil
+            _ integerLiteral: IntegerLiteral, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitFloatLiteral(_ literal: FloatLiteral, additional: Any? = nil) -> Any? {
+        open func visitFloatLiteral(_ floatLiteral: FloatLiteral, additional: Any? = nil) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitCharLiteral(_ literal: CharLiteral, additional: Any? = nil) -> Any? {
+        open func visitCharLiteral(_ charLiteral: CharLiteral, additional: Any? = nil) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitBoolLiteral(_ literal: BoolLiteral, additional: Any? = nil) -> Any? {
+        open func visitBoolLiteral(_ boolLiteral: BoolLiteral, additional: Any? = nil) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitStringLiteral(_ literal: StringLiteral, additional: Any? = nil) -> Any? {
+        open func visitStringLiteral(_ stringLiteral: StringLiteral, additional: Any? = nil) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitNullptrLiteral(_ literal: NullptrLiteral, additional: Any? = nil) -> Any? {
+        open func visitNullptrLiteral(_ nullptrLiteral: NullptrLiteral, additional: Any? = nil) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitVoidLiteral(_ literal: VoidLiteral, additional: Any? = nil) -> Any? {
+        open func visitVoidLiteral(_ voidLiteral: VoidLiteral, additional: Any? = nil) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitReturn(_ instruction: Return, additional: Any? = nil) -> Any? { nil }
+        open func visitReturn(_ returnInstruction: Return, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitBranch(_ instruction: Branch, additional: Any? = nil) -> Any? { nil }
+        open func visitBranch(_ branch: Branch, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
         open func visitConditionalBranch(
-            _ instruction: ConditionalBranch, additional: Any? = nil
+            _ conditionalBranch: ConditionalBranch, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitUnreachable(_ instruction: Unreachable, additional: Any? = nil) -> Any? { nil }
+        open func visitUnreachable(_ unreachableInstruction: Unreachable, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitPhi(_ instruction: Phi, additional: Any? = nil) -> Any? { nil }
+        open func visitPhi(_ phi: Phi, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitSwitchEnum(_ instruction: SwitchEnum, additional: Any? = nil) -> Any? { nil }
+        open func visitSwitchEnum(_ switchEnum: SwitchEnum, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
         open func visitExtractPayload(
-            _ instruction: ExtractPayload, additional: Any? = nil
+            _ extractPayload: ExtractPayload, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitUnaryArith(_ instruction: UnaryArith, additional: Any? = nil) -> Any? { nil }
+        open func visitUnaryArith(_ unaryArith: UnaryArith, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitBinaryArith(_ instruction: BinaryArith, additional: Any? = nil) -> Any? { nil }
+        open func visitBinaryArith(_ binaryArith: BinaryArith, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitGlobalAddr(_ value: GlobalAddr, additional: Any? = nil) -> Any? { nil }
+        open func visitGlobalAddr(_ globalAddr: GlobalAddr, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitAllocStack(_ instruction: AllocStack, additional: Any? = nil) -> Any? { nil }
+        open func visitAllocStack(_ allocStack: AllocStack, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
         open func visitDeallocStack(
-            _ instruction: DeallocStack, additional: Any? = nil
+            _ deallocStack: DeallocStack, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitAllocHeap(_ instruction: AllocHeap, additional: Any? = nil) -> Any? { nil }
+        open func visitAllocHeap(_ allocHeap: AllocHeap, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitDeallocHeap(_ instruction: DeallocHeap, additional: Any? = nil) -> Any? {
+        open func visitDeallocHeap(_ deallocHeap: DeallocHeap, additional: Any? = nil) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitAllocCell(_ instruction: AllocCell, additional: Any? = nil) -> Any? { nil }
+        open func visitAllocCell(_ allocCell: AllocCell, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitDeallocCell(_ instruction: DeallocCell, additional: Any? = nil) -> Any? {
+        open func visitDeallocCell(_ deallocCell: DeallocCell, additional: Any? = nil) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitLoad(_ instruction: Load, additional: Any? = nil) -> Any? { nil }
+        open func visitLoad(_ loadInstruction: Load, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitStore(_ instruction: Store, additional: Any? = nil) -> Any? { nil }
+        open func visitStore(_ storeInstruction: Store, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitSizeOf(_ instruction: SizeOf, additional: Any? = nil) -> Any? { nil }
+        open func visitSizeOf(_ sizeOfInstruction: SizeOf, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
         open func visitStructElementAddr(
-            _ instruction: StructElementAddr, additional: Any? = nil
+            _ structElementAddr: StructElementAddr, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitTupleElementAddr(
-            _ instruction: TupleElementAddr, additional: Any? = nil
+            _ tupleElementAddr: TupleElementAddr, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitClassElementAddr(
-            _ instruction: ClassElementAddr, additional: Any? = nil
+            _ classElementAddr: ClassElementAddr, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitProjectCell(_ instruction: ProjectCell, additional: Any? = nil) -> Any? {
+        open func visitProjectCell(_ projectCell: ProjectCell, additional: Any? = nil) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitAddressToPointer(
-            _ instruction: AddressToPointer, additional: Any? = nil
+            _ addressToPointer: AddressToPointer, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitPointerToAddress(
-            _ instruction: PointerToAddress, additional: Any? = nil
+            _ pointerToAddress: PointerToAddress, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitStructValue(_ instruction: StructValue, additional: Any? = nil) -> Any? {
+        open func visitStructValue(_ structValue: StructValue, additional: Any? = nil) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitTupleValue(_ instruction: TupleValue, additional: Any? = nil) -> Any? {
+        open func visitTupleValue(_ tupleValue: TupleValue, additional: Any? = nil) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitEnumValue(_ instruction: EnumValue, additional: Any? = nil) -> Any? { nil }
+        open func visitEnumValue(_ enumValue: EnumValue, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitCall(_ instruction: Call, additional: Any? = nil) -> Any? { nil }
+        open func visitCall(_ call: Call, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitFunctionRef(_ instruction: FunctionRef, additional: Any? = nil) -> Any? { nil }
+        open func visitFunctionRef(_ functionRef: FunctionRef, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitTryCall(_ instruction: TryCall, additional: Any? = nil) -> Any? { nil }
+        open func visitTryCall(_ tryCall: TryCall, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitClosure(_ instruction: Closure, additional: Any? = nil) -> Any? { nil }
+        open func visitClosure(_ closure: Closure, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitUpcast(_ instruction: Upcast, additional: Any? = nil) -> Any? { nil }
+        open func visitUpcast(_ upcast: Upcast, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
         open func visitUncheckedRefCast(
-            _ instruction: UncheckedRefCast, additional: Any? = nil
+            _ uncheckedRefCast: UncheckedRefCast, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitNumericCast(_ instruction: NumericCast, additional: Any? = nil) -> Any? { nil }
+        open func visitNumericCast(_ numericCast: NumericCast, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitBitCast(_ instruction: BitCast, additional: Any? = nil) -> Any? { nil }
+        open func visitBitCast(_ bitCast: BitCast, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
         open func visitTypeMetadata(
-            _ instruction: TypeMetadata, additional: Any? = nil
+            _ typeMetadata: TypeMetadata, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitTypeMetadataConstant(
-            _ instruction: TypeMetadataConstant, additional: Any? = nil
+            _ typeMetadataConstant: TypeMetadataConstant, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitIsInstance(
-            _ instruction: IsInstance, additional: Any? = nil
+            _ isInstance: IsInstance, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitSuperclass(
-            _ instruction: Superclass, additional: Any? = nil
+            _ superClassInstruction: Superclass, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
-        open func visitTrap(_ instruction: Trap, additional: Any? = nil) -> Any? { nil }
+        open func visitTrap(_ trap: Trap, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitRetain(_ instruction: Retain, additional: Any? = nil) -> Any? { nil }
+        open func visitRetain(_ retainInstruction: Retain, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitRelease(_ instruction: Release, additional: Any? = nil) -> Any? { nil }
+        open func visitRelease(_ releaseInstruction: Release, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitCopy(_ instruction: Copy, additional: Any? = nil) -> Any? { nil }
+        open func visitCopy(_ copyInstruction: Copy, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitDestroy(_ instruction: Destroy, additional: Any? = nil) -> Any? { nil }
+        open func visitDestroy(_ destroyInstruction: Destroy, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
-        open func visitInlineAsm(_ instruction: InlineAsm, additional: Any? = nil) -> Any? { nil }
+        open func visitInlineAsm(_ inlineAsm: InlineAsm, additional: Any? = nil) -> Any? { nil }
 
         @discardableResult
         open func visitBuildExistential(
-            _ instruction: BuildExistential, additional: Any? = nil
+            _ buildExistential: BuildExistential, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitOpenExistential(
-            _ instruction: OpenExistential, additional: Any? = nil
+            _ openExistential: OpenExistential, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitWitnessMethod(
-            _ instruction: WitnessMethod, additional: Any? = nil
+            _ witnessMethod: WitnessMethod, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitOpaqueWitnessMethod(
-            _ instruction: OpaqueWitnessMethod, additional: Any? = nil
+            _ opaqueWitnessMethod: OpaqueWitnessMethod, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitVirtualMethod(
-            _ instruction: VirtualMethod, additional: Any? = nil
+            _ virtualMethod: VirtualMethod, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitExistentialCopy(
-            _ instruction: ExistentialCopy, additional: Any? = nil
+            _ existentialCopy: ExistentialCopy, additional: Any? = nil
         ) -> Any? {
             nil
         }
 
         @discardableResult
         open func visitExistentialDestroy(
-            _ instruction: ExistentialDestroy, additional: Any? = nil
+            _ existentialDestroy: ExistentialDestroy, additional: Any? = nil
         ) -> Any? {
             nil
         }
