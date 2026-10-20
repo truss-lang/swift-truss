@@ -126,6 +126,37 @@ public enum TrussType {
         }
     }
 
+    public final class ClosureType: TrussType {
+        public struct Parameter {
+            public let label: String?
+            public let type: TrussType
+            public init(label: String?, type: TrussType) {
+                self.label = label
+                self.type = type
+            }
+        }
+
+        public let selfType: TrussType?
+        public let parameters: [Parameter]
+        public let isVariadic: Bool
+        public let isAsync: Bool
+        public let isThrowing: Bool
+        public let throwsTypes: [TrussType]
+        public let returnType: TrussType
+        public init(
+            selfType: TrussType? = nil, parameters: [Parameter], isVariadic: Bool = false, isAsync: Bool = false,
+            isThrowing: Bool = false, throwsTypes: [TrussType] = [], returnType: TrussType = VoidType.INSTANCE
+        ) {
+            self.selfType = selfType
+            self.parameters = parameters
+            self.isVariadic = isVariadic
+            self.isAsync = isAsync
+            self.isThrowing = isThrowing
+            self.throwsTypes = throwsTypes
+            self.returnType = returnType
+        }
+    }
+
     public final class CompositionType: TrussType {
         public let members: [TrussType]
         public init(_ members: [TrussType]) {

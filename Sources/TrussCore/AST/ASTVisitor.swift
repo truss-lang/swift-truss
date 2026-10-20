@@ -666,6 +666,21 @@ extension AST {
         }
 
         @discardableResult
+        open func visitFunctionType(
+            _ functionType: AST.FunctionType, additional: Any? = nil
+        ) -> Any? {
+            for parameter in functionType.parameters {
+                visit(parameter.type, additional: additional)
+            }
+            if let types = functionType.throwsClause?.types {
+                for type in types {
+                    visit(type, additional: additional)
+                }
+            }
+            return visit(functionType.returnType, additional: additional)
+        }
+
+        @discardableResult
         open func visitOptionalType(_ optionalType: AST.OptionalType, additional: Any? = nil)
             -> Any?
         {

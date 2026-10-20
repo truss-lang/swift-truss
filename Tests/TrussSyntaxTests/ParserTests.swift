@@ -8667,3 +8667,97 @@ func parseCastAsBitCastExpression() {
     let right = cast!.right as? AST.Variable
     #expect(right!.name.value == "Int32")
 }
+
+// MARK: - Function Types
+
+@Test
+func parseFunctionTypeInVariableAnnotation() throws {
+    let body = parseBlockStatements("func main() { let f: func(x: Int32) -> Int32 = g }")
+    try #require(body.count == 1)
+    let vd = try #require(body[0] as? AST.VariableDecl)
+    let functionType = try #require(vd.typeExpression as? AST.FunctionType)
+    #expect(functionType.funcToken.value == "func")
+    try #require(functionType.parameters.count == 1)
+    #expect(functionType.parameters[0].label?.value == "x")
+    let parameterType = try #require(functionType.parameters[0].type as? AST.Variable)
+    #expect(parameterType.name.value == "Int32")
+    let returnType = try #require(functionType.returnType as? AST.Variable)
+    #expect(returnType.name.value == "Int32")
+}
+
+@Test
+func parseFunctionTypeInValuePosition() throws {
+    let body = parseBlockStatements("func main() { let f = func(x: Int32) -> Void }")
+    try #require(body.count == 1)
+    let vd = try #require(body[0] as? AST.VariableDecl)
+    let functionType = try #require(vd.initializer as? AST.FunctionType)
+    #expect(functionType.funcToken.value == "func")
+    try #require(functionType.parameters.count == 1)
+    #expect(functionType.parameters[0].label?.value == "x")
+}
+
+@Test
+func parseFunctionTypeAsExpressionStatement() throws {
+    let expression = firstExpression("func(x: Int32) -> Void")
+    #expect(expression is AST.FunctionType)
+}
+
+@Test
+func parseFunctionTypeInFunctionReturnType() throws {
+    let statements = parseStatements("func make() -> func(x: Int32) -> Int32")
+    try #require(statements.count == 1)
+    let decl = try #require(statements[0] as? AST.FunctionDecl)
+    let functionType = try #require(decl.returnTypeExpression as? AST.FunctionType)
+    try #require(functionType.parameters.count == 1)
+    #expect(functionType.parameters[0].label?.value == "x")
+}
+
+@Test
+func parseFunctionTypeInFunctionParameter() throws {
+    let statements = parseStatements("func apply(f: func(x: Int32) -> Int32) {}")
+    try #require(statements.count == 1)
+    let decl = try #require(statements[0] as? AST.FunctionDecl)
+    try #require(decl.parameters.count == 1)
+    let functionType = try #require(decl.parameters[0].type as? AST.FunctionType)
+    try #require(functionType.parameters.count == 1)
+    #expect(functionType.parameters[0].label?.value == "x")
+}
+
+@Test
+func parseFunctionTypeEmptyParameters() throws {
+    let body = parseBlockStatements("func main() { let f: func() -> Int32 = g }")
+    try #require(body.count == 1)
+    let vd = try #require(body[0] as? AST.VariableDecl)
+    let functionType = try #require(vd.typeExpression as? AST.FunctionType)
+    #expect(functionType.parameters.isEmpty)
+}
+
+@Test
+func parseFunctionTypeParameterLabels() throws {
+    let body = parseBlockStatements("func main() { let f: func(a: Int32, b: String) -> Bool = g }")
+    try #require(body.count == 1)
+    let vd = try #require(body[0] as? AST.VariableDecl)
+    let functionType = try #require(vd.typeExpression as? AST.FunctionType)
+    try #require(functionType.parameters.count == 2)
+    #expect(functionType.parameters[0].label?.value == "a")
+    #expect(functionType.parameters[1].label?.value == "b")
+}
+
+@Test
+func parseFunctionTypeAsyncThrows() throws {
+    let body = parseBlockStatements("func main() { let f: func(x: Int32) async throws -> Int32 = g }")
+    try #require(body.count == 1)
+    let vd = try #require(body[0] as? AST.VariableDecl)
+    let functionType = try #require(vd.typeExpression as? AST.FunctionType)
+    #expect(functionType.asyncToken != nil)
+    #expect(functionType.throwsClause != nil)
+}
+
+@Test
+func parseClosureTypeStillClosureType() throws {
+    let body = parseBlockStatements("func main() { let f: (x: Int32) -> Void = g }")
+    try #require(body.count == 1)
+    let vd = try #require(body[0] as? AST.VariableDecl)
+    #expect(vd.typeExpression is AST.ClosureType)
+    #expect(!(vd.typeExpression is AST.FunctionType))
+}

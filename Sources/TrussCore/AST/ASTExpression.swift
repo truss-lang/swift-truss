@@ -566,6 +566,40 @@ public extension AST {
         }
     }
 
+    final class FunctionType: Expression {
+        public let funcToken: Token
+        public let parameters: [Parameter]
+        public let asyncToken: Token?
+        public let throwsClause: ThrowsClause?
+        public let returnType: Expression
+        public init(
+            _ funcToken: Token, _ parameters: [Parameter], _ asyncToken: Token?,
+            _ throwsClause: ThrowsClause?, _ returnType: Expression, sourceRange: SourceRange
+        ) {
+            self.funcToken = funcToken
+            self.parameters = parameters
+            self.asyncToken = asyncToken
+            self.throwsClause = throwsClause
+            self.returnType = returnType
+            super.init(sourceRange)
+        }
+
+        public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
+            visitor.visitFunctionType(self, additional: additional)
+        }
+
+        public struct Parameter {
+            public let label: Token?
+            public let type: Expression
+            public let sourceRange: SourceRange
+            public init(label: Token?, type: Expression, sourceRange: SourceRange) {
+                self.label = label
+                self.type = type
+                self.sourceRange = sourceRange
+            }
+        }
+    }
+
     final class OptionalType: Expression {
         public let wrappedType: Expression
         public let token: Token

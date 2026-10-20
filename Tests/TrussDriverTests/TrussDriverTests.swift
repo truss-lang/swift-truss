@@ -169,7 +169,7 @@ func driverTypeCheckerStructuralAnnotations() throws {
         .run(files: [file])
     #expect(!result.hasErrors)
     #expect(result.stdout.contains("ty:Optional(StructType(S)"))
-    #expect(result.stdout.contains("ty:Function((StructType(S)"))
+    #expect(result.stdout.contains("ClosureType ty:(StructType(S)#1) -> StructType(S)#1"))
     #expect(result.stdout.contains("ty:Composition(ProtocolType(P)"))
 }
 

@@ -2368,7 +2368,11 @@ public final class Parser {
         case let .Keyword(kind):
             switch kind {
             case .Extern: return parseExtern(modifiers, attributes)
-            case .Func: return parseFunctionDecl(modifiers, attributes)
+            case .Func:
+                if peek2?.kind == .Separator(.OpenParen), let expr = parseExpression() {
+                    return AST.ExpressionStatement(expr)
+                }
+                return parseFunctionDecl(modifiers, attributes)
             case .Let: return parseVariableDecl(modifiers, attributes, inFunctionContext: true)
             case .Var: return parseVariableDecl(modifiers, attributes, inFunctionContext: true)
             case .Async:
@@ -4280,6 +4284,12 @@ public final class Parser {
                 expression = parseTryExpression(token, excepts, isCondition)
             case .Await:
                 expression = parseAwaitExpression(token, excepts, isCondition)
+            case .Func where peek2?.kind == .Separator(.OpenParen):
+                index += 1
+                expression = parseFunctionTypeSyntax(
+                    funcToken: token, excepts: excepts, isCondition: isCondition,
+                    isTypeContext: isTypeContext
+                )
             default:
                 return nil
             }
@@ -5558,6 +5568,39 @@ public final class Parser {
         default:
             nil
         }
+    }
+
+    private func parseFunctionTypeSyntax(
+        funcToken: Token, excepts: [OperatorKind]?, isCondition: Bool, isTypeContext: Bool
+    ) -> AST.Expression {
+        guard
+            let parsed = parseExpression(
+                excepts: excepts, isCondition: isCondition, isTypeContext: isTypeContext
+            )
+        else {
+            emitError("expected parameter list after 'func'", at: locationAfter(funcToken))
+            return errorExpression(from: funcToken, to: funcToken)
+        }
+        guard let closureType = parsed as? AST.ClosureType else {
+            emitError(
+                "expected '->' after function type parameters",
+                at: last ?? funcToken
+            )
+            return errorExpression(from: funcToken, to: parsed.sourceRange.end)
+        }
+        let parameters = closureType.parameters.map { parameter in
+            AST.FunctionType.Parameter(
+                label: parameter.label, type: parameter.type, sourceRange: parameter.sourceRange
+            )
+        }
+        return AST.FunctionType(
+            funcToken, parameters, closureType.asyncToken, closureType.throwsClause,
+            closureType.returnType,
+            sourceRange: SourceRange(
+                start: funcToken.sourceRange(in: buffer).start,
+                end: closureType.sourceRange.end
+            )
+        )
     }
 
     private func parseClosureType(

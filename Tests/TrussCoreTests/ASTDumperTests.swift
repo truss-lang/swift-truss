@@ -376,7 +376,7 @@ func dumpOverloadsSemantics() {
             `-FunctionDecl g sym:g#6
               `-ExpressionStatement
                 `-Call ty:VoidType
-                  |-Variable f ty:Function((a:ErrorType, b:ErrorType) -> VoidType) sym:f#3 overloads:2 [f(a:, b: =), f(xs: ...)] willBeCalled
+                  |-Variable f ty:func(a: ErrorType, b: ErrorType) -> VoidType sym:f#3 overloads:2 [f(a:, b: =), f(xs: ...)] willBeCalled
                   `-Argument label:a
                     `-IntegerLiteral 1
             """
@@ -632,7 +632,7 @@ func dumpSubscriptAssignmentLeftValueSemantics() {
           |-VariableDecl s sym:s#12
           | `-Initializer
           |   `-Call ty:Generic(StructType(S)#0<>)
-          |     `-Variable S ty:Function(() -> StructType(S)#0) sym:init#4 willBeCalled
+          |     `-Variable S ty:StructType(S)#0.func() -> StructType(S)#0 sym:init#4 willBeCalled
           `-ExpressionStatement
             `-Binary = ty:VoidType
               |-Subscript ty:VoidType lvalue
@@ -661,7 +661,82 @@ func dumpCallCalleeWillBeCalledSemantics() {
         `-FunctionDecl f sym:f#2
           `-ExpressionStatement
             `-Call ty:VoidType
-              `-Variable g ty:Function(() -> VoidType) sym:g#1 overloads:1 [g()] willBeCalled
+              `-Variable g ty:func() -> VoidType sym:g#1 overloads:1 [g()] willBeCalled
         """
     )
+}
+
+@Test
+func dumpFunctionTypeSyntax() {
+    #expect(
+        dumpProgram("let f: func(x: Int) -> Void")
+            == """
+            Program "main"
+            `-VariableDecl f
+              `-Type
+                `-FunctionType
+                  |-Parameter label:x
+                  | `-Variable Int
+                  `-Variable Void
+            """
+    )
+}
+
+@Test
+func dumpClosureTypeSyntax() {
+    #expect(
+        dumpProgram("let f: (x: Int) -> Void")
+            == """
+            Program "main"
+            `-VariableDecl f
+              `-Type
+                `-ClosureType
+                  |-Parameter label:x
+                  | `-Variable Int
+                  `-Variable Void
+            """
+    )
+}
+
+@Test
+func dumpFunctionAndClosureTypeText() {
+    #expect(
+        dumpProgram(
+            """
+            struct S {}
+            let f: func(x: S) -> S
+            let c: (x: S) -> S
+            """,
+            semantic: true
+        ) == """
+        Program "main"
+        |-StructDecl S sym:S#1
+        |-VariableDecl f sym:f#2
+        | `-Type
+        |   `-FunctionType ty:func(x: StructType(S)#0) -> StructType(S)#0
+        |     |-Parameter label:x
+        |     | `-Variable S ty:StructType(S)#0 sym:S#1
+        |     `-Variable S ty:StructType(S)#0 sym:S#1
+        `-VariableDecl c sym:c#3
+          `-Type
+            `-ClosureType ty:(x: StructType(S)#0) -> StructType(S)#0
+              |-Parameter label:x
+              | `-Variable S ty:StructType(S)#0 sym:S#1
+              `-Variable S ty:StructType(S)#0 sym:S#1
+        """
+    )
+}
+
+@Test
+func dumpVariadicFunctionAndClosureTypeText() {
+    let dump = dumpProgram(
+        """
+        struct S {}
+        let f: func(x: S...) -> S
+        let c: (x: S...) -> S
+        """,
+        semantic: true
+    )
+    #expect(dump.contains("FunctionType ty:func(x: StructType(S)#0...) -> StructType(S)#0"))
+    #expect(dump.contains("ClosureType ty:(x: StructType(S)#0...) -> StructType(S)#0"))
 }

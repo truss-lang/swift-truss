@@ -116,14 +116,27 @@ func tupleAnnotationWithLabels() throws {
 }
 
 @Test
-func functionTypeAnnotation() throws {
+func closureTypeAnnotation() throws {
     let (_, programs) = runTypeChecker(["struct S {}\nlet f: (S) async throws -> S"])
+    let variableDecl = programs[0].statements[1] as! AST.VariableDecl
+    let closure = try #require(variableDecl.symbol?.type as? TrussType.ClosureType)
+    #expect(closure.parameters.count == 1)
+    #expect(closure.isAsync)
+    #expect(closure.isThrowing)
+    #expect(closure.returnType is TrussType.StructType)
+}
+
+@Test
+func functionTypeAnnotation() throws {
+    let (_, programs) = runTypeChecker(["struct S {}\nlet f: func(x: S) async throws -> S"])
     let variableDecl = programs[0].statements[1] as! AST.VariableDecl
     let function = try #require(variableDecl.symbol?.type as? TrussType.FunctionType)
     #expect(function.parameters.count == 1)
+    #expect(function.parameters[0].label == "x")
     #expect(function.isAsync)
     #expect(function.isThrowing)
     #expect(function.returnType is TrussType.StructType)
+    #expect(!(variableDecl.symbol?.type is TrussType.ClosureType))
 }
 
 @Test
@@ -258,10 +271,10 @@ func closureLiteralFunctionType() throws {
     let (_, programs) = runTypeChecker(["struct S {}\nlet cl = { (x: S) -> S in x }"])
     let variableDecl = programs[0].statements[1] as! AST.VariableDecl
     let closure = try #require(variableDecl.initializer as? AST.Closure)
-    let function = try #require(closure.ty as? TrussType.FunctionType)
-    #expect(function.parameters.count == 1)
-    #expect(function.parameters[0].type is TrussType.StructType)
-    #expect(function.returnType is TrussType.StructType)
+    let closureType = try #require(closure.ty as? TrussType.ClosureType)
+    #expect(closureType.parameters.count == 1)
+    #expect(closureType.parameters[0].type is TrussType.StructType)
+    #expect(closureType.returnType is TrussType.StructType)
 }
 
 @Test
@@ -524,10 +537,12 @@ func closureParameterFromExpectedType() throws {
     let (context, programs) = runTypeChecker(["struct S { init() {} }\nlet f: (S) -> S = { x in x }"])
     #expect(!context.diagnosticEngine.hasErrors)
     let variableDecl = programs[0].statements[1] as! AST.VariableDecl
-    let function = try #require(variableDecl.symbol?.type as? TrussType.FunctionType)
-    #expect(function.parameters.count == 1)
-    #expect(function.parameters[0].type is TrussType.StructType)
-    #expect(function.returnType is TrussType.StructType)
+    let closureType = try #require(variableDecl.symbol?.type as? TrussType.ClosureType)
+    #expect(closureType.parameters.count == 1)
+    #expect(closureType.parameters[0].type is TrussType.StructType)
+    #expect(closureType.returnType is TrussType.StructType)
+    let closure = try #require(variableDecl.initializer as? AST.Closure)
+    #expect(closure.ty is TrussType.ClosureType)
 }
 
 @Test
@@ -2600,9 +2615,591 @@ func operatorReferenceInValuePosition() throws {
     let source =
         "precedencegroup Additive {}\ninfix operator +: Additive\n"
             + "struct S {}\nfunc +(lhs: S, rhs: S) -> S { lhs }\n"
-            + "func apply(f: (lhs: S, rhs: S) -> S) {}\n"
-            + "func main() {\nvar s: S\nlet f: (lhs: S, rhs: S) -> S = (+)\napply(+)\n}\n"
+            + "func applyClosure(f: (lhs: S, rhs: S) -> S) {}\n"
+            + "func applyFunction(f: func(lhs: S, rhs: S) -> S) {}\n"
+            + "func main() {\nvar s: S\n"
+            + "let c: (lhs: S, rhs: S) -> S = (+)\n"
+            + "let f: func(lhs: S, rhs: S) -> S = (+)\n"
+            + "applyClosure(+)\napplyFunction(+)\n}\n"
     let (context, programs) = runTypeChecker([source])
     #expect(programs.count == 1)
     #expect(context.diagnosticEngine.diagnostics.isEmpty)
+}
+
+@Test
+func closureTypeSyntaxEvaluatesToClosureType() throws {
+    let (_, programs) = runTypeChecker(["struct S {}\nlet f: (x: S) -> S"])
+    let variableDecl = programs[0].statements[1] as! AST.VariableDecl
+    let type = try #require(variableDecl.symbol?.type)
+    #expect(type is TrussType.ClosureType)
+    #expect(!(type is TrussType.FunctionType))
+    let closureType = try #require(type as? TrussType.ClosureType)
+    #expect(closureType.parameters.count == 1)
+    #expect(closureType.parameters[0].label == "x")
+}
+
+@Test
+func functionTypeSyntaxEvaluatesToFunctionType() throws {
+    let (_, programs) = runTypeChecker(["struct S {}\nlet f: func(x: S) -> S"])
+    let variableDecl = programs[0].statements[1] as! AST.VariableDecl
+    let type = try #require(variableDecl.symbol?.type)
+    #expect(type is TrussType.FunctionType)
+    #expect(!(type is TrussType.ClosureType))
+    let functionType = try #require(type as? TrussType.FunctionType)
+    #expect(functionType.parameters.count == 1)
+    #expect(functionType.selfType == nil)
+}
+
+@Test
+func declaredFunctionValueHasFunctionType() throws {
+    let (_, programs) = runTypeChecker(["struct S {}\nfunc f(x: S) -> S { x }\nlet g = f"])
+    let variableDecl = programs[0].statements[2] as! AST.VariableDecl
+    let type = try #require(variableDecl.symbol?.type)
+    #expect(type is TrussType.FunctionType)
+    #expect(!(type is TrussType.ClosureType))
+}
+
+@Test
+func closureLiteralWithoutContextInfersClosureType() throws {
+    let (_, programs) = runTypeChecker(["struct S {}\nlet f = { (x: S) -> S in x }"])
+    let variableDecl = programs[0].statements[1] as! AST.VariableDecl
+    let type = try #require(variableDecl.symbol?.type)
+    #expect(type is TrussType.ClosureType)
+    #expect(!(type is TrussType.FunctionType))
+}
+
+@Test
+func closureLiteralCheckedAgainstFunctionTypeKeepsFunctionType() throws {
+    let (context, programs) = runTypeChecker(["struct S {}\nlet f: func(x: S) -> S = { x in x }"])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let variableDecl = programs[0].statements[1] as! AST.VariableDecl
+    #expect(variableDecl.symbol?.type is TrussType.FunctionType)
+    let closure = try #require(variableDecl.initializer as? AST.Closure)
+    #expect(closure.ty is TrussType.FunctionType)
+}
+
+@Test
+func variadicClosureTypeSyntaxUsesIsVariadic() throws {
+    let (_, programs) = runTypeChecker(["struct S {}\nlet f: (xs: S...) -> Void"])
+    let variableDecl = programs[0].statements[1] as! AST.VariableDecl
+    let closureType = try #require(variableDecl.symbol?.type as? TrussType.ClosureType)
+    #expect(closureType.isVariadic)
+    #expect(closureType.parameters.count == 1)
+    #expect(closureType.parameters[0].type is TrussType.StructType)
+    #expect(!(closureType.parameters[0].type is TrussType.VariadicType))
+}
+
+@Test
+func variadicFunctionTypeSyntaxUsesIsVariadic() throws {
+    let (_, programs) = runTypeChecker(["struct S {}\nlet f: func(xs: S...) -> Void"])
+    let variableDecl = programs[0].statements[1] as! AST.VariableDecl
+    let functionType = try #require(variableDecl.symbol?.type as? TrussType.FunctionType)
+    #expect(functionType.isVariadic)
+    #expect(functionType.parameters.count == 1)
+    #expect(functionType.parameters[0].type is TrussType.StructType)
+    #expect(!(functionType.parameters[0].type is TrussType.VariadicType))
+}
+
+@Test
+func variadicSurvivesGenericSubstitution() throws {
+    let source = "struct S {}\nstruct Box<T> { var f: func(xs: T...) -> Void }\n"
+        + "func main() {\n    var b: Box<S>\n    let g = b.f\n}"
+    let (_, programs) = runTypeChecker([source])
+    let functionDecl = programs[0].statements[2] as! AST.FunctionDecl
+    let body = try #require(functionDecl.body)
+    let statements: [AST.Statement] = if case let .Block(block) = body {
+        block
+    } else {
+        []
+    }
+    let variableDecl = try #require(statements[1] as? AST.VariableDecl)
+    let functionType = try #require(variableDecl.symbol?.type as? TrussType.FunctionType)
+    #expect(functionType.isVariadic)
+    #expect(functionType.parameters.count == 1)
+    #expect(functionType.parameters[0].type is TrussType.StructType)
+}
+
+@Test
+func functionTypeSyntaxAcceptsDeclaredFunctionValue() throws {
+    let (context, programs) = runTypeChecker([
+        "struct S {}\nfunc f(x: S) -> S { x }\nlet g: func(x: S) -> S = f",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let variableDecl = programs[0].statements[2] as! AST.VariableDecl
+    #expect(variableDecl.symbol?.type is TrussType.FunctionType)
+}
+
+@Test
+func functionTypeAnnotationAcceptsVariadicDeclaredFunction() throws {
+    let (context, _) = runTypeChecker([
+        "struct S {}\nfunc f(xs: S...) -> Void {}\nlet g: func(xs: S...) -> Void = f",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func functionToClosureConversionInAssignmentArgumentAndReturn() {
+    let source = """
+    struct Int { init() {} }
+    func id(x: Int) -> Int { x }
+    func apply(f: (Int) -> Int) {}
+    func make() -> (Int) -> Int { return id }
+    func main() {
+        let copy: (Int) -> Int = id
+        apply(f: id)
+        let made = make()
+        let value = copy(Int())
+    }
+    """
+    let (context, _) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func closureToFunctionConversionIsRejected() {
+    let source = """
+    struct Int { init() {} }
+    func id(x: Int) -> Int { x }
+    let c: (Int) -> Int = id
+    let bad: func(x: Int) -> Int = c
+    """
+    let (context, _) = runTypeChecker([source])
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(messages.contains("expected 'func(x: Int) -> Int', found '(Int) -> Int'"))
+}
+
+@Test
+func nonCapturingClosureLiteralAsFunctionTypeIsAccepted() throws {
+    let source = """
+    struct Int { init() {} }
+    let f: func(x: Int) -> Int = { (x: Int) -> Int in x }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let variableDecl = programs[0].statements[1] as! AST.VariableDecl
+    #expect(variableDecl.symbol?.type is TrussType.FunctionType)
+    let closure = try #require(variableDecl.initializer as? AST.Closure)
+    #expect(closure.ty is TrussType.FunctionType)
+}
+
+@Test
+func capturingClosureLiteralAsFunctionTypeIsRejected() {
+    let source = """
+    struct Int { init() {} }
+    func main() {
+        var outer: Int
+        let f: func(x: Int) -> Int = { (x: Int) -> Int in outer }
+    }
+    """
+    let (context, _) = runTypeChecker([source])
+    let diagnostics = context.diagnosticEngine.diagnostics
+    #expect(diagnostics.contains { diagnostic in
+        diagnostic.message
+            == "closure captures outer and cannot be converted to function type "
+            + "'func(x: Int) -> Int'"
+            && diagnostic.notes.contains {
+                $0.message == "consider using the closure type '(x: Int) -> Int' instead"
+            }
+    })
+}
+
+@Test
+func contextualClosureArgumentCheckedAgainstFunctionType() throws {
+    let source = """
+    struct Int { init() {} }
+    func consume(f: func(x: Int) -> Int) {}
+    func main() {
+        consume(f: { (x: Int) -> Int in x })
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let mainDecl = programs[0].statements[2] as! AST.FunctionDecl
+    let body = try #require(mainDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let statement = try #require(statements.first as? AST.ExpressionStatement)
+    let call = try #require(statement.expression as? AST.Call)
+    let closure = try #require(call.arguments.first?.value as? AST.Closure)
+    #expect(closure.ty is TrussType.FunctionType)
+}
+
+@Test
+func mixedFunctionAndClosureJoinConvergesToClosureType() throws {
+    let source = """
+    struct Int { init() {} }
+    func id(x: Int) -> Int { x }
+    let f: func(x: Int) -> Int = id
+    let g: (Int) -> Int = { (x: Int) -> Int in x }
+    let h = if true { f } else { g }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let variableDecl = programs[0].statements[4] as! AST.VariableDecl
+    let type = try #require(variableDecl.symbol?.type)
+    #expect(type is TrussType.ClosureType)
+    #expect(!(type is TrussType.FunctionType))
+}
+
+@Test
+func directCallOfClosureValueChecksArgumentCount() {
+    let source = """
+    struct Int { init() {} }
+    func id(x: Int) -> Int { x }
+    let f: (Int) -> Int = id
+    let r = f(Int(), Int())
+    """
+    let (context, _) = runTypeChecker([source])
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(messages.contains("expected 1 argument, found 2"))
+}
+
+@Test
+func directCallOfClosureValueChecksArgumentType() {
+    let source = """
+    struct Int { init() {} }
+    struct Other { init() {} }
+    func id(x: Int) -> Int { x }
+    let f: (Int) -> Int = id
+    var o: Other
+    let r = f(o)
+    """
+    let (context, _) = runTypeChecker([source])
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(messages.contains("expected 'Int', found 'Other'"))
+}
+
+@Test
+func directCallOfClosureValueChecksArgumentLabels() {
+    let source = """
+    struct Int { init() {} }
+    func id(x: Int) -> Int { x }
+    let f: (Int) -> Int = id
+    let r = f(y: Int())
+    """
+    let (context, _) = runTypeChecker([source])
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(messages.contains("unexpected argument label 'y'"))
+}
+
+@Test
+func directCallOfFunctionValueUsesReturnType() throws {
+    let source = """
+    struct Int { init() {} }
+    func id(x: Int) -> Int { x }
+    let f: (Int) -> Int = id
+    let r = f(Int())
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let variableDecl = programs[0].statements[3] as! AST.VariableDecl
+    let type = try #require(variableDecl.symbol?.type)
+    #expect(type is TrussType.StructType)
+}
+
+@Test
+func directCallOfThrowingClosureValueRequiresTry() {
+    let source = """
+    struct Int { init() {} }
+    func boom() throws {}
+    let t: () throws -> Void = boom
+    func main() {
+        t()
+    }
+    """
+    let (context, _) = runTypeChecker([source])
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(messages.contains("call to throwing function must be tried"))
+}
+
+@Test
+func directCallOfThrowingClosureValueInsideTryIsAllowed() {
+    let source = """
+    struct Int { init() {} }
+    func boom() throws {}
+    let t: () throws -> Void = boom
+    func main() {
+        try t()
+    }
+    """
+    let (context, _) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func functionTypeTextUsesFuncPrefixWithSelfType() {
+    let source = """
+    struct Int { init() {} }
+    struct S {
+        func m(x: Int) -> Int { x }
+        func n() {
+            let bad: () -> Void = self.m
+        }
+    }
+    """
+    let (context, _) = runTypeChecker([source])
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(messages.contains("expected '() -> Void', found 'S.func(x: Int) -> Int'"))
+}
+
+@Test
+func closureTypeTextUsesClosureSyntaxWithoutFuncPrefix() {
+    let source = """
+    struct Int { init() {} }
+    func id(x: Int) -> Int { x }
+    let c: (Int) -> Int = id
+    let bad: func(x: Int) -> Int = c
+    """
+    let (context, _) = runTypeChecker([source])
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(messages.contains { $0.contains("found '(Int) -> Int'") })
+}
+
+@Test
+func closureTypeTextRendersVariadicParameter() {
+    let source = """
+    struct Int { init() {} }
+    struct Other { init() {} }
+    let f: (x: Int...) -> Int = Other()
+    """
+    let (context, _) = runTypeChecker([source])
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(messages.contains("expected '(x: Int...) -> Int', found 'Other<>'"))
+}
+
+@Test
+func valueCallChecksNonCapturingClosureLiteralAgainstFunctionParameter() throws {
+    let source = """
+    struct Int { init() {} }
+    func consume(f: func(x: Int) -> Int) -> Int { return 1 }
+    let g: func(f: func(x: Int) -> Int) -> Int = consume
+    func main() -> Int {
+        return g(f: { (x: Int) -> Int in x })
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let closure = try #require(closureLiteralArgument(in: programs[0]))
+    #expect(closure.ty is TrussType.FunctionType)
+}
+
+@Test
+func valueCallRejectsCapturingClosureLiteralAgainstFunctionParameter() {
+    let source = """
+    struct Int { init() {} }
+    func consume(f: func(x: Int) -> Int) -> Int { return 1 }
+    let g: func(f: func(x: Int) -> Int) -> Int = consume
+    func main() -> Int {
+        var outer: Int
+        return g(f: { (x: Int) -> Int in outer })
+    }
+    """
+    let (context, _) = runTypeChecker([source])
+    let diagnostics = context.diagnosticEngine.diagnostics
+    #expect(diagnostics.contains { diagnostic in
+        diagnostic.message
+            == "closure captures outer and cannot be converted to function type "
+            + "'func(x: Int) -> Int'"
+            && diagnostic.notes.contains {
+                $0.message == "consider using the closure type '(x: Int) -> Int' instead"
+            }
+    })
+}
+
+@Test
+func valueCallChecksLabeledClosureLiteralAgainstNilLabelParameter() throws {
+    let source = """
+    struct Int { init() {} }
+    func consume(f: (Int) -> Int) -> Int { return 1 }
+    let g: func(f: (Int) -> Int) -> Int = consume
+    func main() -> Int {
+        return g(f: { (a x: Int) -> Int in x })
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let closure = try #require(closureLiteralArgument(in: programs[0]))
+    #expect(closure.ty is TrussType.ClosureType)
+}
+
+@Test
+func closureArgumentIsTypedByTheSelectedCandidateOnly() throws {
+    let source = """
+    struct A { init() {} }
+    struct B { init() {} }
+    func consume(f: (a: A) -> A) {}
+    func consume(f: (b: B) -> B) {}
+    func main() {
+        consume(f: { (b x: B) -> B in x })
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let mainDecl = try #require(
+        programs[0].statements.compactMap { $0 as? AST.FunctionDecl }
+            .first { $0.name.value == "main" }
+    )
+    let body = try #require(mainDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let call = try #require(statements.first as? AST.ExpressionStatement)
+    let expression = try #require(call.expression as? AST.Call)
+    let closure = try #require(expression.arguments.first?.value as? AST.Closure)
+    let closureType = try #require(closure.ty as? TrussType.ClosureType)
+    #expect(closureType.parameters.first?.type is TrussType.StructType)
+    let parameterType = try #require(closureType.parameters.first?.type as? TrussType.StructType)
+    #expect(parameterType.name == "B")
+    let signatureParameter = try #require(closure.signature?.parameters.first)
+    let symbolType = try #require(signatureParameter.symbol?.type as? TrussType.StructType)
+    #expect(symbolType.name == "B")
+    #expect(
+        AST.Expression.resolvedFunctionSymbol(of: expression.callee)?
+            .functionType?.parameters.first?.type is TrussType.ClosureType
+    )
+}
+
+@Test
+func fixedArityFunctionIsRejectedByVariadicClosureType() {
+    let source = """
+    struct Int { init() {} }
+    func id(x: Int) -> Int { x }
+    let bad: (Int...) -> Int = id
+    """
+    let (context, _) = runTypeChecker([source])
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(!messages.isEmpty)
+}
+
+@Test
+func variadicFunctionConvertsToVariadicClosureType() {
+    let source = """
+    struct Int { init() {} }
+    func f(xs: Int...) -> Int { return Int() }
+    let g: (Int...) -> Int = f
+    """
+    let (context, _) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func variadicClosureTypeDoesNotAcceptFixedArityClosureValue() {
+    let source = """
+    struct Int { init() {} }
+    func f(xs: Int...) -> Int { return Int() }
+    func apply(f: (Int) -> Int) -> Int { return Int() }
+    let variadicClosure: (Int...) -> Int = f
+    let bad = apply(f: variadicClosure)
+    """
+    let (context, _) = runTypeChecker([source])
+    #expect(context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func captureSuggestionKeepsCallableEffects() {
+    let source = """
+    struct Int { init() {} }
+    func main() {
+        var outer: Int
+        let f: func(x: Int) throws -> Int = { (x: Int) -> Int in outer }
+    }
+    """
+    let (context, _) = runTypeChecker([source])
+    let diagnostics = context.diagnosticEngine.diagnostics
+    #expect(diagnostics.contains { diagnostic in
+        diagnostic.notes.contains {
+            $0.message == "consider using the closure type '(x: Int) throws -> Int' instead"
+        }
+    })
+}
+
+private func closureLiteralArgument(in program: AST.Program) -> AST.Closure? {
+    for statement in program.statements {
+        guard let functionDecl = statement as? AST.FunctionDecl,
+              case let .Block(body) = functionDecl.body
+        else {
+            continue
+        }
+        for statement in body {
+            let call: AST.Call? =
+                if let expressionStatement = statement as? AST.ExpressionStatement {
+                    expressionStatement.expression as? AST.Call
+                } else if let returnStatement = statement as? AST.Return {
+                    returnStatement.value as? AST.Call
+                } else {
+                    nil
+                }
+            if let closure = call?.arguments.first?.value as? AST.Closure {
+                return closure
+            }
+        }
+    }
+    return nil
+}
+
+@Test
+func declaredCallAcceptsLabeledLiteralForNilLabelParameter() {
+    let source = """
+    struct Int { init() {} }
+    func consume(f: (Int) -> Int) {}
+    func main() {
+        consume(f: { (x: Int) -> Int in x })
+    }
+    """
+    let (context, _) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func declaredCallRejectsMismatchedLabeledLiteral() {
+    let source = """
+    struct Int { init() {} }
+    func consume(f: (x: Int) -> Int) {}
+    func main() {
+        consume(f: { (y: Int) -> Int in y })
+    }
+    """
+    let (context, _) = runTypeChecker([source])
+    #expect(context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func selectedCandidateControlsConvertedArgumentTyping() throws {
+    let source = """
+    struct Int { init() {} }
+    func id(x: Int) -> Int { x }
+    func consume(f: (x: Int) -> Int) -> Int { return 1 }
+    func consume(f: (Int) -> Int) -> Void {}
+    func main() {
+        let r: Int = consume(f: id)
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let mainDecl = try #require(
+        programs[0].statements.compactMap { $0 as? AST.FunctionDecl }
+            .first { $0.name.value == "main" }
+    )
+    let body = try #require(mainDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let variableDecl = try #require(statements.first as? AST.VariableDecl)
+    let call = try #require(variableDecl.initializer as? AST.Call)
+    let argument = try #require(call.arguments.first?.value)
+    let argumentType = try #require(argument.ty as? TrussType.ClosureType)
+    #expect(argumentType.parameters.first?.label == "x")
+    let callee = try #require(
+        AST.Expression.resolvedFunctionSymbol(of: call.callee)?.functionType
+    )
+    #expect(callee.returnType is TrussType.StructType)
 }

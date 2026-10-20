@@ -1152,6 +1152,34 @@ public final class SourcePrinter: AST.Visitor {
     }
 
     @discardableResult
+    public override func visitFunctionType(
+        _ functionType: AST.FunctionType, additional: Any? = nil
+    ) -> Any? {
+        state.write("func(")
+        for (index, parameter) in functionType.parameters.enumerated() {
+            if index > 0 {
+                state.write(", ")
+            }
+            if let label = parameter.label {
+                state.write(label.value)
+                state.write(": ")
+            }
+            visit(parameter.type)
+        }
+        state.write(")")
+        if functionType.asyncToken != nil {
+            state.write(" async")
+        }
+        if let throwsClause = functionType.throwsClause {
+            state.write(" ")
+            state.write(throwsClauseText(throwsClause))
+        }
+        state.write(" -> ")
+        visit(functionType.returnType)
+        return nil
+    }
+
+    @discardableResult
     public override func visitOptionalType(_ optionalType: AST.OptionalType, additional: Any? = nil)
         -> Any?
     {

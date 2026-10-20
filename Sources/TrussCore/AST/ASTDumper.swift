@@ -152,26 +152,21 @@ public extension AST {
                     return typeText(element.type)
                 }.joined(separator: ", ") + "])"
             case let function as TrussType.FunctionType:
-                var text = "Function(("
-                text += function.parameters.map { parameter in
-                    let type = typeText(parameter.type)
-                    if let label = parameter.label {
-                        return "\(label):\(type)"
-                    }
-                    return type
-                }.joined(separator: ", ")
-                text += ")"
-                if function.isAsync {
-                    text += " async"
-                }
-                if function.isThrowing {
-                    text += " throws"
-                    if !function.throwsTypes.isEmpty {
-                        text += "(" + function.throwsTypes.map(typeText).joined(separator: ", ") + ")"
-                    }
-                }
-                text += " -> " + typeText(function.returnType) + ")"
-                return text
+                return functionLikeText(
+                    parameters: function.parameters.map { (label: $0.label, type: $0.type) },
+                    selfType: function.selfType, isFunction: true,
+                    isVariadic: function.isVariadic,
+                    isAsync: function.isAsync, isThrowing: function.isThrowing,
+                    throwsTypes: function.throwsTypes, returnType: function.returnType
+                )
+            case let closure as TrussType.ClosureType:
+                return functionLikeText(
+                    parameters: closure.parameters.map { (label: $0.label, type: $0.type) },
+                    selfType: closure.selfType, isFunction: false,
+                    isVariadic: closure.isVariadic,
+                    isAsync: closure.isAsync, isThrowing: closure.isThrowing,
+                    throwsTypes: closure.throwsTypes, returnType: closure.returnType
+                )
             case let composition as TrussType.CompositionType:
                 return "Composition("
                     + composition.members.map(typeText).joined(separator: " & ") + ")"
@@ -194,6 +189,38 @@ public extension AST {
                 return "GenericParam(\(genericParam.name))"
             default: return "?"
             }
+        }
+
+        private func functionLikeText(
+            parameters: [(label: String?, type: TrussType.TrussType)],
+            selfType: TrussType.TrussType?, isFunction: Bool, isVariadic: Bool,
+            isAsync: Bool, isThrowing: Bool, throwsTypes: [TrussType.TrussType],
+            returnType: TrussType.TrussType
+        ) -> String {
+            let selfText = selfType.map { typeText($0) + "." } ?? ""
+            var text = selfText + (isFunction ? "func(" : "(")
+            text += parameters.enumerated().map { index, parameter in
+                var type = typeText(parameter.type)
+                if isVariadic, index == parameters.count - 1 {
+                    type += "..."
+                }
+                if let label = parameter.label {
+                    return "\(label): \(type)"
+                }
+                return type
+            }.joined(separator: ", ")
+            text += ")"
+            if isAsync {
+                text += " async"
+            }
+            if isThrowing {
+                text += " throws"
+                if !throwsTypes.isEmpty {
+                    text += "(" + throwsTypes.map(typeText).joined(separator: ", ") + ")"
+                }
+            }
+            text += " -> " + typeText(returnType)
+            return text
         }
 
         private func nominalKind(_ type: TrussType.NominalType) -> String {
@@ -1565,6 +1592,37 @@ public extension AST {
             children.append { self.visit(closureType.returnType) }
             dumpNode(
                 text + tyText(closureType.ty) + flagsText(closureType), children: children
+            )
+            return nil
+        }
+
+        @discardableResult
+        public override func visitFunctionType(
+            _ functionType: AST.FunctionType, additional: Any? = nil
+        ) -> Any? {
+            var text = "FunctionType"
+            if functionType.asyncToken != nil {
+                text += " async"
+            }
+            if let throwsClause = functionType.throwsClause {
+                text += throwsText(throwsClause)
+            }
+            var children: [() -> Void] = []
+            for parameter in functionType.parameters {
+                var parameterText = "Parameter"
+                if let label = parameter.label {
+                    parameterText += " label:\(label.value)"
+                }
+                children.append {
+                    self.dumpNode(parameterText, children: [{ self.visit(parameter.type) }])
+                }
+            }
+            if let throwsClause = functionType.throwsClause {
+                children.append(contentsOf: throwsClauseNodes(throwsClause))
+            }
+            children.append { self.visit(functionType.returnType) }
+            dumpNode(
+                text + tyText(functionType.ty) + flagsText(functionType), children: children
             )
             return nil
         }

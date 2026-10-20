@@ -1493,6 +1493,35 @@ extension AST {
         }
 
         @discardableResult
+        open override func visitFunctionType(
+            _ functionType: AST.FunctionType, additional: Any? = nil
+        ) -> Any? {
+            var changed = false
+            let parameters = functionType.parameters.map { parameter -> AST.FunctionType.Parameter in
+                let newType = rewrite(parameter.type)
+                if newType === parameter.type {
+                    return parameter
+                }
+                changed = true
+                return AST.FunctionType.Parameter(
+                    label: parameter.label, type: newType, sourceRange: parameter.sourceRange
+                )
+            }
+            let throwsClause = rewriteThrowsClause(functionType.throwsClause)
+            let returnType = rewrite(functionType.returnType)
+            if !changed,
+               throwsClauseUnchanged(functionType.throwsClause, throwsClause),
+               returnType === functionType.returnType
+            {
+                return functionType
+            }
+            return AST.FunctionType(
+                functionType.funcToken, parameters, functionType.asyncToken, throwsClause,
+                returnType, sourceRange: functionType.sourceRange
+            )
+        }
+
+        @discardableResult
         open override func visitOptionalType(
             _ optionalType: AST.OptionalType, additional: Any? = nil
         ) -> Any? {

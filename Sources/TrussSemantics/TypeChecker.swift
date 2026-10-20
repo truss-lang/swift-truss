@@ -759,17 +759,65 @@ public final class TypeChecker: AST.Visitor {
         throwsClause: AST.ThrowsClause?,
         returnType: TrussType.TrussType
     ) -> TrussType.FunctionType {
+        functionType(
+            selfType: selfType, labels: labels, parameterTypes: parameterTypes,
+            isVariadic: varargToken != nil, asyncToken: asyncToken,
+            throwsClause: throwsClause, returnType: returnType
+        )
+    }
+
+    private func functionType(
+        selfType: TrussType.TrussType? = nil, labels: [String?],
+        parameterTypes: [TrussType.TrussType], isVariadic: Bool,
+        asyncToken: Token?, throwsClause: AST.ThrowsClause?,
+        returnType: TrussType.TrussType
+    ) -> TrussType.FunctionType {
         TrussType.FunctionType(
             selfType: selfType,
             parameters: zip(labels, parameterTypes).map { label, type in
                 TrussType.FunctionType.Parameter(label: label, type: type)
             },
-            isVariadic: varargToken != nil,
+            isVariadic: isVariadic,
             isAsync: asyncToken != nil,
             isThrowing: throwsClause != nil,
             throwsTypes: (throwsClause?.types ?? []).map(evaluate),
             returnType: returnType
         )
+    }
+
+    private func makeClosureType(
+        selfType: TrussType.TrussType? = nil, labels: [String?],
+        parameterTypes: [TrussType.TrussType], isVariadic: Bool = false,
+        asyncToken: Token?, throwsClause: AST.ThrowsClause?,
+        returnType: TrussType.TrussType
+    ) -> TrussType.ClosureType {
+        TrussType.ClosureType(
+            selfType: selfType,
+            parameters: zip(labels, parameterTypes).map { label, type in
+                TrussType.ClosureType.Parameter(label: label, type: type)
+            },
+            isVariadic: isVariadic,
+            isAsync: asyncToken != nil,
+            isThrowing: throwsClause != nil,
+            throwsTypes: (throwsClause?.types ?? []).map(evaluate),
+            returnType: returnType
+        )
+    }
+
+    private func evaluateTypeSyntaxParameterTypes(
+        _ types: [AST.Expression]
+    ) -> (types: [TrussType.TrussType], isVariadic: Bool, failed: Bool) {
+        var evaluated: [TrussType.TrussType] = []
+        var isVariadic = false
+        for type in types {
+            if let variadic = type as? AST.VariadicType {
+                isVariadic = true
+                evaluated.append(evaluate(variadic.base))
+            } else {
+                evaluated.append(evaluate(type))
+            }
+        }
+        return (evaluated, isVariadic, evaluated.contains { $0 is TrussType.ErrorType })
     }
 
     private func evaluate(_ expression: AST.Expression) -> TrussType.TrussType {
@@ -808,26 +856,36 @@ public final class TypeChecker: AST.Visitor {
                 base is TrussType.ErrorType
                     ? TrussType.ErrorType.INSTANCE : TrussType.VariadicType(base)
         case let closureType as AST.ClosureType:
-            var parameters: [TrussType.TrussType] = []
-            var failed = false
-            for parameter in closureType.parameters {
-                let type = evaluate(parameter.type)
-                if type is TrussType.ErrorType {
-                    failed = true
-                    break
-                }
-                parameters.append(type)
-            }
+            let parameters = evaluateTypeSyntaxParameterTypes(
+                closureType.parameters.map(\.type)
+            )
             let returnType = evaluate(closureType.returnType)
-            if failed || returnType is TrussType.ErrorType {
+            if parameters.failed || returnType is TrussType.ErrorType {
+                result = TrussType.ErrorType.INSTANCE
+            } else {
+                result = makeClosureType(
+                    labels: closureType.parameters.map { $0.label?.value },
+                    parameterTypes: parameters.types,
+                    isVariadic: parameters.isVariadic,
+                    asyncToken: closureType.asyncToken,
+                    throwsClause: closureType.throwsClause,
+                    returnType: returnType
+                )
+            }
+        case let functionTypeSyntax as AST.FunctionType:
+            let parameters = evaluateTypeSyntaxParameterTypes(
+                functionTypeSyntax.parameters.map(\.type)
+            )
+            let returnType = evaluate(functionTypeSyntax.returnType)
+            if parameters.failed || returnType is TrussType.ErrorType {
                 result = TrussType.ErrorType.INSTANCE
             } else {
                 result = functionType(
-                    labels: closureType.parameters.map { $0.label?.value },
-                    parameterTypes: parameters,
-                    varargToken: nil,
-                    asyncToken: closureType.asyncToken,
-                    throwsClause: closureType.throwsClause,
+                    labels: functionTypeSyntax.parameters.map { $0.label?.value },
+                    parameterTypes: parameters.types,
+                    isVariadic: parameters.isVariadic,
+                    asyncToken: functionTypeSyntax.asyncToken,
+                    throwsClause: functionTypeSyntax.throwsClause,
                     returnType: returnType
                 )
             }
@@ -1568,11 +1626,29 @@ public final class TypeChecker: AST.Visitor {
         case let forall as TrussType.ForallType:
             return "forall " + forall.parameters.map(\.name).joined(separator: ", ")
         case let function as TrussType.FunctionType:
-            let params = function.parameters.map { p in
-                (p.label.map { "\($0):" } ?? "") + typeText(p.type)
-            }.joined(separator: ", ")
+            let params = callableParametersText(
+                parameters: function.parameters.map { (label: $0.label, type: $0.type) },
+                isVariadic: function.isVariadic
+            )
             let selfText = function.selfType.map { typeText($0) + "." } ?? ""
-            return selfText + "(" + params + ") -> " + typeText(function.returnType)
+            return selfText + "func(" + params + ") -> " + typeText(function.returnType)
+        case let closure as TrussType.ClosureType:
+            let params = callableParametersText(
+                parameters: closure.parameters.map { (label: $0.label, type: $0.type) },
+                isVariadic: closure.isVariadic
+            )
+            let selfText = closure.selfType.map { typeText($0) + "." } ?? ""
+            var text = selfText + "(" + params + ")"
+            if closure.isAsync {
+                text += " async"
+            }
+            if closure.isThrowing {
+                text += " throws"
+                if !closure.throwsTypes.isEmpty {
+                    text += "(" + closure.throwsTypes.map(typeText).joined(separator: ", ") + ")"
+                }
+            }
+            return text + " -> " + typeText(closure.returnType)
         case let composition as TrussType.CompositionType:
             return composition.members.map { typeText($0) }.joined(separator: " & ")
         case let tuple as TrussType.TupleType:
@@ -1585,6 +1661,18 @@ public final class TypeChecker: AST.Visitor {
         default:
             return "unknown"
         }
+    }
+
+    private func callableParametersText(
+        parameters: [(label: String?, type: TrussType.TrussType)], isVariadic: Bool
+    ) -> String {
+        parameters.enumerated().map { index, parameter in
+            var text = (parameter.label.map { "\($0): " } ?? "") + typeText(parameter.type)
+            if isVariadic, index == parameters.count - 1 {
+                text += "..."
+            }
+            return text
+        }.joined(separator: ", ")
     }
 
     private func parameterSignatureText(_ function: Symbol.FunctionSymbol) -> String {
@@ -1660,6 +1748,10 @@ public final class TypeChecker: AST.Visitor {
             (function.selfType.map { isResolved($0) } ?? true)
                 && function.parameters.allSatisfy { isResolved($0.type) }
                 && isResolved(function.returnType)
+        case let closure as TrussType.ClosureType:
+            (closure.selfType.map { isResolved($0) } ?? true)
+                && closure.parameters.allSatisfy { isResolved($0.type) }
+                && isResolved(closure.returnType)
         case let instantiation as TrussType.GenericInstantiation:
             isResolved(instantiation.base)
                 && instantiation.arguments.allSatisfy { isResolved($0) }
@@ -1745,6 +1837,14 @@ public final class TypeChecker: AST.Visitor {
         }
     }
 
+    private func unifyParameterType(
+        _ a: TrussType.TrussType, _ b: TrussType.TrussType, at token: Token
+    ) -> Bool {
+        let left = (resolve(a) as? TrussType.VariadicType)?.base ?? a
+        let right = (resolve(b) as? TrussType.VariadicType)?.base ?? b
+        return unify(left, right, at: token)
+    }
+
     private func unify(
         _ a: TrussType.TrussType, _ b: TrussType.TrussType, at token: Token
     ) -> Bool {
@@ -1805,12 +1905,36 @@ public final class TypeChecker: AST.Visitor {
             return true
         case let (l as TrussType.FunctionType, r as TrussType.FunctionType):
             guard l.parameters.count == r.parameters.count, l.isAsync == r.isAsync,
-                  l.isThrowing == r.isThrowing, l.throwsTypes.count == r.throwsTypes.count
+                  l.isThrowing == r.isThrowing,
+                  l.throwsTypes.count == r.throwsTypes.count
             else {
                 return false
             }
             for (lp, rp) in zip(l.parameters, r.parameters) {
-                guard lp.label == rp.label, unify(lp.type, rp.type, at: token) else {
+                guard lp.label == rp.label,
+                      unifyParameterType(lp.type, rp.type, at: token)
+                else {
+                    return false
+                }
+            }
+            for (lt, rt) in zip(l.throwsTypes, r.throwsTypes) {
+                guard unify(lt, rt, at: token) else {
+                    return false
+                }
+            }
+            return unify(l.returnType, r.returnType, at: token)
+        case let (l as TrussType.ClosureType, r as TrussType.ClosureType):
+            guard l.parameters.count == r.parameters.count, l.isAsync == r.isAsync,
+                  l.isThrowing == r.isThrowing,
+                  l.isVariadic == r.isVariadic,
+                  l.throwsTypes.count == r.throwsTypes.count
+            else {
+                return false
+            }
+            for (lp, rp) in zip(l.parameters, r.parameters) {
+                guard lp.label == rp.label,
+                      unifyParameterType(lp.type, rp.type, at: token)
+                else {
                     return false
                 }
             }
@@ -1885,6 +2009,11 @@ public final class TypeChecker: AST.Visitor {
                 || function.parameters.contains { occurs(variable, in: $0.type) }
                 || occurs(variable, in: function.returnType)
                 || function.throwsTypes.contains { occurs(variable, in: $0) }
+        case let closure as TrussType.ClosureType:
+            return (closure.selfType.map { occurs(variable, in: $0) } ?? false)
+                || closure.parameters.contains { occurs(variable, in: $0.type) }
+                || occurs(variable, in: closure.returnType)
+                || closure.throwsTypes.contains { occurs(variable, in: $0) }
         case let variadic as TrussType.VariadicType:
             return occurs(variable, in: variadic.base)
         case let composition as TrussType.CompositionType:
@@ -1938,10 +2067,26 @@ public final class TypeChecker: AST.Visitor {
                         type: replacingGenericParam(parameter.type, replace)
                     )
                 },
+                isVariadic: function.isVariadic,
                 isAsync: function.isAsync,
                 isThrowing: function.isThrowing,
                 throwsTypes: function.throwsTypes.map { replacingGenericParam($0, replace) },
                 returnType: replacingGenericParam(function.returnType, replace)
+            )
+        case let closure as TrussType.ClosureType:
+            TrussType.ClosureType(
+                selfType: closure.selfType.map { replacingGenericParam($0, replace) },
+                parameters: closure.parameters.map { parameter in
+                    TrussType.ClosureType.Parameter(
+                        label: parameter.label,
+                        type: replacingGenericParam(parameter.type, replace)
+                    )
+                },
+                isVariadic: closure.isVariadic,
+                isAsync: closure.isAsync,
+                isThrowing: closure.isThrowing,
+                throwsTypes: closure.throwsTypes.map { replacingGenericParam($0, replace) },
+                returnType: replacingGenericParam(closure.returnType, replace)
             )
         case let variadic as TrussType.VariadicType:
             TrussType.VariadicType(replacingGenericParam(variadic.base, replace))
@@ -2002,6 +2147,11 @@ public final class TypeChecker: AST.Visitor {
         if actual is TrussType.NeverType {
             return true
         }
+        if let function = actual as? TrussType.FunctionType,
+           let closure = expected as? TrussType.ClosureType
+        {
+            return canConvertFunctionToClosure(function, closure, at: token)
+        }
         if let expectedPointer = expected as? TrussType.PointerType,
            let actualPointer = actual as? TrussType.PointerType,
            !expectedPointer.isNonnull, actualPointer.isNonnull
@@ -2054,6 +2204,45 @@ public final class TypeChecker: AST.Visitor {
             }
         }
         return false
+    }
+
+    private func canConvertFunctionToClosure(
+        _ function: TrussType.FunctionType, _ closure: TrussType.ClosureType, at token: Token
+    ) -> Bool {
+        guard function.parameters.count == closure.parameters.count,
+              function.isAsync == closure.isAsync,
+              function.isThrowing == closure.isThrowing,
+              function.throwsTypes.count == closure.throwsTypes.count,
+              callableIsVariadic(
+                  parameters: function.parameters.map { (label: $0.label, type: $0.type) },
+                  isVariadic: function.isVariadic
+              ) == closure.isVariadic
+        else {
+            return false
+        }
+        for (functionParameter, closureParameter) in zip(
+            function.parameters, closure.parameters
+        ) {
+            if let label = closureParameter.label, label != functionParameter.label {
+                return false
+            }
+            guard unifyParameterType(functionParameter.type, closureParameter.type, at: token)
+            else {
+                return false
+            }
+        }
+        for (functionThrow, closureThrow) in zip(function.throwsTypes, closure.throwsTypes) {
+            guard unify(functionThrow, closureThrow, at: token) else {
+                return false
+            }
+        }
+        return unify(function.returnType, closure.returnType, at: token)
+    }
+
+    private func callableIsVariadic(
+        parameters: [(label: String?, type: TrussType.TrussType)], isVariadic: Bool
+    ) -> Bool {
+        isVariadic || parameters.contains { $0.type is TrussType.VariadicType }
     }
 
     private func canCast(
@@ -2157,6 +2346,45 @@ public final class TypeChecker: AST.Visitor {
         )
     }
 
+    private func emitClosureCapture(
+        _ closure: AST.Closure, expected: TrussType.FunctionType, at token: Token
+    ) {
+        let captured = closure.freeVariables.map(\.name).joined(separator: ", ")
+        let suggestion = closureTypeText(of: expected)
+        let note = Diagnostic(
+            severity: .note,
+            message: "consider using the closure type '\(suggestion)' instead",
+            range: token.sourceRange(in: context.sourceTable[token.id]!.stringSourceBuffer)
+        )
+        context.emitError(
+            "closure captures \(captured) and cannot be converted to function type "
+                + "'\(typeText(expected))'",
+            at: token, notes: [note]
+        )
+    }
+
+    private func closureTypeText(of function: TrussType.FunctionType) -> String {
+        typeText(
+            TrussType.ClosureType(
+                selfType: function.selfType,
+                parameters: function.parameters.map {
+                    TrussType.ClosureType.Parameter(
+                        label: $0.label,
+                        type: ($0.type as? TrussType.VariadicType)?.base ?? $0.type
+                    )
+                },
+                isVariadic: callableIsVariadic(
+                    parameters: function.parameters.map { (label: $0.label, type: $0.type) },
+                    isVariadic: function.isVariadic
+                ),
+                isAsync: function.isAsync,
+                isThrowing: function.isThrowing,
+                throwsTypes: function.throwsTypes,
+                returnType: function.returnType
+            )
+        )
+    }
+
     private func emitWrongTypeArgumentCount(expected: Int, got: Int, at token: Token) {
         context.emitError(
             "wrong number of type arguments: expected \(expected), got \(got)", at: token
@@ -2205,6 +2433,7 @@ public final class TypeChecker: AST.Visitor {
             if let symbol = variable.symbol {
                 expression.ty = narrowedPointerTypes[symbol.id] ?? valueType(of: symbol)
             } else if variable.overloads?.count == 1, let overload = variable.overloads?.first {
+                variable.symbol = overload
                 expression.ty = overload.forallType ?? overload.functionType
             } else if let overloads = variable.overloads, overloads.count > 1 {
                 emitAmbiguous(at: variable.name, name: variable.name.value)
@@ -2438,8 +2667,8 @@ public final class TypeChecker: AST.Visitor {
                 returnType: freshTypeVariable()
             )
             check(call.callee, callType, at: token)
-            if let functionType = call.callee.ty.map({ resolve($0) }) as? TrussType.FunctionType {
-                call.ty = wrapConstructionResult(call, functionType.returnType)
+            if let returnType = callResultType(of: call.callee) {
+                call.ty = wrapConstructionResult(call, returnType)
             }
             checkUntriedThrowingCall(call, at: token)
             if let member = call.callee as? AST.MemberAccess, member.isOptional,
@@ -2539,24 +2768,23 @@ public final class TypeChecker: AST.Visitor {
                         } else {
                             TrussType.VoidType.INSTANCE
                         }
-                    let functionType = functionType(
+                    let inferredType = makeClosureType(
                         labels: signature.parameters.map { $0.label?.value },
                         parameterTypes: parameterTypes,
-                        varargToken: nil,
                         asyncToken: signature.asyncToken,
                         throwsClause: signature.throwsClause,
                         returnType: returnType
                     )
                     closureParameterTypes.append(parameterTypes)
                     withFunctionReturnType(returnType) {
-                        withFunctionThrows(signature.throwsClause != nil, functionType.throwsTypes) {
+                        withFunctionThrows(signature.throwsClause != nil, inferredType.throwsTypes) {
                             for statement in closure.body {
                                 visit(statement)
                             }
                         }
                     }
                     closureParameterTypes.removeLast()
-                    expression.ty = functionType
+                    expression.ty = inferredType
                 }
             } else {
                 emitMissingAnnotation(at: syntheticToken(for: closure), kind: "closure", name: "")
@@ -3075,7 +3303,7 @@ public final class TypeChecker: AST.Visitor {
             }
 
         case let variable as AST.Variable:
-            if let functionType = expected as? TrussType.FunctionType,
+            if expected is TrussType.FunctionType || expected is TrussType.ClosureType,
                let overloads = variable.overloads,
                !overloads.isEmpty
             {
@@ -3100,7 +3328,7 @@ public final class TypeChecker: AST.Visitor {
                     } else {
                         return false
                     }
-                    var ok = canCoerce(ty, to: functionType, at: token)
+                    var ok = canCoerce(ty, to: expected, at: token)
                     if ok, !genericParameters.isEmpty {
                         let (passed, failure) = checkGenericConstraints(
                             of: genericParameters, mapping: typeMapping, at: token
@@ -3124,7 +3352,8 @@ public final class TypeChecker: AST.Visitor {
                 case 1:
                     let f = matched[0]
                     variable.symbol = f
-                    variable.ty = f.functionType
+                    variable.ty =
+                        expected is TrussType.ClosureType ? expected : f.functionType
                 default:
                     emitAmbiguous(at: token, name: variable.name.value)
                 }
@@ -3181,8 +3410,8 @@ public final class TypeChecker: AST.Visitor {
                 returnType: expected
             )
             check(call.callee, callType, at: token)
-            if let functionType = call.callee.ty.map({ resolve($0) }) as? TrussType.FunctionType {
-                call.ty = wrapConstructionResult(call, functionType.returnType)
+            if let returnType = callResultType(of: call.callee) {
+                call.ty = wrapConstructionResult(call, returnType)
             }
             checkUntriedThrowingCall(call, at: token)
             if let ty = call.ty {
@@ -3225,6 +3454,15 @@ public final class TypeChecker: AST.Visitor {
             }
 
         case let closure as AST.Closure:
+            if let closureType = expected as? TrussType.ClosureType {
+                checkClosure(
+                    closure, parameterTypes: closureType.parameters.map(\.type),
+                    returnType: closureType.returnType, isThrowing: closureType.isThrowing,
+                    throwsTypes: closureType.throwsTypes, at: token
+                )
+                expression.ty = closureType
+                return
+            }
             guard let functionType = expected as? TrussType.FunctionType else {
                 if let actual = infer(expression, at: token) {
                     if !canCoerce(actual, to: expected, at: token) {
@@ -3233,31 +3471,16 @@ public final class TypeChecker: AST.Visitor {
                 }
                 return
             }
-            let parameterTypes = functionType.parameters.map(\.type)
-            withScope(closure.scope!) {
-                if let signature = closure.signature {
-                    for (index, parameter) in signature.parameters.enumerated() {
-                        guard index < parameterTypes.count else {
-                            break
-                        }
-                        parameter.symbol?.type = parameterTypes[index]
-                    }
-                }
-                closureParameterTypes.append(parameterTypes)
-                withFunctionReturnType(functionType.returnType) {
-                    withFunctionThrows(functionType.isThrowing, functionType.throwsTypes) {
-                        for statement in closure.body.dropLast() {
-                            visit(statement)
-                        }
-                        if let lastStatement = closure.body.last as? AST.ExpressionStatement {
-                            check(lastStatement.expression, functionType.returnType, at: token)
-                        } else if let lastStatement = closure.body.last {
-                            visit(lastStatement)
-                        }
-                    }
-                }
-                closureParameterTypes.removeLast()
+            if !closure.freeVariables.isEmpty {
+                emitClosureCapture(
+                    closure, expected: functionType, at: syntheticToken(for: closure)
+                )
             }
+            checkClosure(
+                closure, parameterTypes: functionType.parameters.map(\.type),
+                returnType: functionType.returnType, isThrowing: functionType.isThrowing,
+                throwsTypes: functionType.throwsTypes, at: token
+            )
             expression.ty = functionType
 
         case let tuple as AST.Tuple:
@@ -3296,6 +3519,37 @@ public final class TypeChecker: AST.Visitor {
                     emitMismatch(at: token, expected: expected, found: actual)
                 }
             }
+        }
+    }
+
+    private func checkClosure(
+        _ closure: AST.Closure, parameterTypes: [TrussType.TrussType],
+        returnType: TrussType.TrussType, isThrowing: Bool,
+        throwsTypes: [TrussType.TrussType], at token: Token
+    ) {
+        withScope(closure.scope!) {
+            if let signature = closure.signature {
+                for (index, parameter) in signature.parameters.enumerated() {
+                    guard index < parameterTypes.count else {
+                        break
+                    }
+                    parameter.symbol?.type = parameterTypes[index]
+                }
+            }
+            closureParameterTypes.append(parameterTypes)
+            withFunctionReturnType(returnType) {
+                withFunctionThrows(isThrowing, throwsTypes) {
+                    for statement in closure.body.dropLast() {
+                        visit(statement)
+                    }
+                    if let lastStatement = closure.body.last as? AST.ExpressionStatement {
+                        check(lastStatement.expression, returnType, at: token)
+                    } else if let lastStatement = closure.body.last {
+                        visit(lastStatement)
+                    }
+                }
+            }
+            closureParameterTypes.removeLast()
         }
     }
 
@@ -3455,8 +3709,8 @@ public final class TypeChecker: AST.Visitor {
         guard tryContextDepth == 0 else {
             return
         }
-        guard let functionType = call.callee.ty.map({ resolve($0) }) as? TrussType.FunctionType,
-              functionType.isThrowing
+        guard let calleeType = call.callee.ty.map({ resolve($0) }),
+              callableSignature(of: calleeType)?.isThrowing == true
         else {
             return
         }
@@ -3649,12 +3903,188 @@ public final class TypeChecker: AST.Visitor {
         }
     }
 
+    private struct CallableSignature {
+        let parameters: [(label: String?, type: TrussType.TrussType)]
+        let isVariadic: Bool
+        let isThrowing: Bool
+        let throwsTypes: [TrussType.TrussType]
+        let returnType: TrussType.TrussType
+    }
+
+    private func callableSignature(of type: TrussType.TrussType) -> CallableSignature? {
+        if let function = type as? TrussType.FunctionType {
+            return CallableSignature(
+                parameters: function.parameters.map { (label: $0.label, type: $0.type) },
+                isVariadic: function.isVariadic, isThrowing: function.isThrowing,
+                throwsTypes: function.throwsTypes, returnType: function.returnType
+            )
+        }
+        if let closure = type as? TrussType.ClosureType {
+            return CallableSignature(
+                parameters: closure.parameters.map { (label: $0.label, type: $0.type) },
+                isVariadic: closure.isVariadic, isThrowing: closure.isThrowing,
+                throwsTypes: closure.throwsTypes, returnType: closure.returnType
+            )
+        }
+        return nil
+    }
+
+    private func callResultType(of callee: AST.Expression) -> TrussType.TrussType? {
+        callee.ty.map { resolve($0) }.flatMap { callableSignature(of: $0)?.returnType }
+    }
+
+    private func checkValueCall(
+        _ callType: TrussType.CallType, signature: CallableSignature, at token: Token
+    ) {
+        let arguments = callType.arguments + callType.trailingClosures.map { label, closure in
+            AST.LabeledArgument(label: label, value: closure, sourceRange: closure.sourceRange)
+        }
+        guard let mapping = mapValueCallArguments(arguments, signature: signature, at: token)
+        else {
+            return
+        }
+        for (index, argument) in arguments.enumerated() {
+            let parameterType = signature.parameters[mapping[index]].type
+            if argument.value is AST.Closure,
+               parameterType is TrussType.FunctionType || parameterType is TrussType.ClosureType
+            {
+                check(argument.value, parameterType, at: token)
+                continue
+            }
+            if let actual = infer(argument.value, at: token) {
+                if !canCoerce(actual, to: parameterType, at: token) {
+                    emitMismatch(
+                        at: argument.label ?? syntheticToken(for: argument.value),
+                        expected: parameterType, found: actual
+                    )
+                } else if parameterType is TrussType.ClosureType,
+                          actual is TrussType.FunctionType
+                {
+                    argument.value.ty = parameterType
+                }
+            } else {
+                check(argument.value, parameterType, at: token)
+            }
+        }
+    }
+
+    private func closureLiteralMatches(
+        _ closure: AST.Closure, parameterType: TrussType.TrussType
+    ) -> Bool {
+        guard let signature = closure.signature,
+              let callable = callableSignature(of: parameterType)
+        else {
+            return true
+        }
+        if callable.isVariadic {
+            guard signature.parameters.count >= max(callable.parameters.count - 1, 0) else {
+                return false
+            }
+        } else if signature.parameters.count != callable.parameters.count {
+            return false
+        }
+        for (index, parameter) in signature.parameters.enumerated() {
+            guard index < callable.parameters.count,
+                  let label = parameter.label?.value,
+                  let expectedLabel = callable.parameters[index].label
+            else {
+                continue
+            }
+            guard expectedLabel == label else {
+                return false
+            }
+        }
+        return true
+    }
+
+    private func mapValueCallArguments(
+        _ arguments: [AST.LabeledArgument], signature: CallableSignature, at token: Token
+    ) -> [Int]? {
+        let parameters = signature.parameters
+        let variadicIndex: Int? =
+            if signature.isVariadic, !parameters.isEmpty {
+                parameters.count - 1
+            } else {
+                nil
+            }
+        if signature.isVariadic {
+            let minimum = max(parameters.count - 1, 0)
+            guard arguments.count >= minimum else {
+                let noun = minimum == 1 ? "argument" : "arguments"
+                context.emitError(
+                    "expected at least \(minimum) \(noun), found \(arguments.count)",
+                    at: token
+                )
+                return nil
+            }
+        } else if arguments.count != parameters.count {
+            let noun = parameters.count == 1 ? "argument" : "arguments"
+            context.emitError(
+                "expected \(parameters.count) \(noun), found \(arguments.count)", at: token
+            )
+            return nil
+        }
+        var used = [Bool](repeating: false, count: parameters.count)
+        var mapping: [Int] = []
+        for argument in arguments {
+            if let label = argument.label?.value {
+                var found: Int?
+                for (index, parameter) in parameters.enumerated()
+                    where parameter.label == label
+                {
+                    if !used[index] || index == variadicIndex {
+                        found = index
+                        break
+                    }
+                }
+                guard let index = found else {
+                    context.emitError(
+                        "unexpected argument label '\(label)'", at: argument.label!
+                    )
+                    return nil
+                }
+                used[index] = true
+                mapping.append(index)
+            } else {
+                var found: Int?
+                for (index, isUsed) in used.enumerated() where !isUsed {
+                    found = index
+                    break
+                }
+                if found == nil, let variadicIndex {
+                    found = variadicIndex
+                }
+                guard let index = found else {
+                    context.emitError("too many arguments", at: token)
+                    return nil
+                }
+                used[index] = true
+                mapping.append(index)
+            }
+        }
+        for (index, isUsed) in used.enumerated()
+            where !isUsed && index != variadicIndex
+        {
+            context.emitError(
+                "missing argument for parameter '\(parameters[index].label ?? "\(index + 1)")'",
+                at: token
+            )
+            return nil
+        }
+        return mapping
+    }
+
     private func checkCallTypeForCallee(
         _ callee: AST.Expression, callType: TrussType.CallType, at token: Token
     ) {
         let candidates = calleeOverloads(callee)
         guard !candidates.isEmpty else {
             _ = infer(callee, at: token)
+            if let calleeType = callee.ty.map({ resolve($0) }),
+               let signature = callableSignature(of: calleeType)
+            {
+                checkValueCall(callType, signature: signature, at: token)
+            }
             return
         }
         if let resolved = resolveOverloads(
@@ -3983,11 +4413,15 @@ public final class TypeChecker: AST.Visitor {
         }
         var matched: [(Symbol.FunctionSymbol, TrussType.FunctionType)] = []
         var constraintFailure: String? = nil
+        var captureRejection: (closure: AST.Closure, expected: TrussType.FunctionType)? = nil
         for candidate in candidates {
             var typeMapping: [String: TrussType.TypeVariableType] = [:]
             var genericParameters: [Symbol.GenericParamSymbol] = []
             var bindingSnapshots: [(TrussType.TypeVariableType, TrussType.TrussType?)] = []
             for argument in allArguments {
+                if argument.value is AST.Closure {
+                    continue
+                }
                 if let actual = infer(argument.value, at: token) {
                     collectTypeVariables(actual, into: &bindingSnapshots)
                 }
@@ -4027,6 +4461,25 @@ public final class TypeChecker: AST.Visitor {
                     continue
                 }
                 let parameterType = ty.parameters[parameterIndex].type
+                if let closure = argument.value as? AST.Closure,
+                   parameterType is TrussType.FunctionType
+                   || parameterType is TrussType.ClosureType
+                {
+                    guard closureLiteralMatches(closure, parameterType: parameterType) else {
+                        ok = false
+                        break
+                    }
+                    if let functionType = parameterType as? TrussType.FunctionType,
+                       !closure.freeVariables.isEmpty
+                    {
+                        if captureRejection == nil {
+                            captureRejection = (closure, functionType)
+                        }
+                        ok = false
+                        break
+                    }
+                    continue
+                }
                 if let actual = infer(argument.value, at: token) {
                     if !canCoerce(actual, to: parameterType, at: token) {
                         ok = false
@@ -4079,7 +4532,12 @@ public final class TypeChecker: AST.Visitor {
         switch matched.count {
         case 0:
             if reportErrors {
-                if let constraintFailure {
+                if let captureRejection {
+                    emitClosureCapture(
+                        captureRejection.closure, expected: captureRejection.expected,
+                        at: syntheticToken(for: captureRejection.closure)
+                    )
+                } else if let constraintFailure {
                     context.emitError(constraintFailure, at: token)
                 } else {
                     emitNoExactMatch(at: token, name: name, candidates: candidates)
@@ -4087,12 +4545,47 @@ public final class TypeChecker: AST.Visitor {
             }
             return nil
         case 1:
+            finalizeSelectedCallArguments(
+                allArguments, symbol: matched[0].0, type: matched[0].1, at: token
+            )
             return matched[0]
         default:
             if reportErrors {
                 emitAmbiguous(at: token, name: name)
             }
             return nil
+        }
+    }
+
+    private func finalizeSelectedCallArguments(
+        _ arguments: [AST.LabeledArgument], symbol: Symbol.FunctionSymbol,
+        type: TrussType.FunctionType, at token: Token
+    ) {
+        guard let mapping = mapArguments(arguments, to: symbol.signature) else {
+            return
+        }
+        for (index, argument) in arguments.enumerated() {
+            let parameterIndex = mapping[index]
+            guard parameterIndex < type.parameters.count else {
+                continue
+            }
+            let parameterType = type.parameters[parameterIndex].type
+            if let closure = argument.value as? AST.Closure {
+                guard parameterType is TrussType.FunctionType
+                    || parameterType is TrussType.ClosureType
+                else {
+                    continue
+                }
+                check(closure, parameterType, at: token)
+                continue
+            }
+            guard parameterType is TrussType.ClosureType,
+                  let actual = argument.value.ty.map({ resolve($0) }),
+                  actual is TrussType.FunctionType
+            else {
+                continue
+            }
+            argument.value.ty = parameterType
         }
     }
 
@@ -4392,6 +4885,11 @@ public final class TypeChecker: AST.Visitor {
                 collectTypeVariables(parameter.type, into: &snapshots)
             }
             collectTypeVariables(function.returnType, into: &snapshots)
+        case let closure as TrussType.ClosureType:
+            for parameter in closure.parameters {
+                collectTypeVariables(parameter.type, into: &snapshots)
+            }
+            collectTypeVariables(closure.returnType, into: &snapshots)
         case let generic as TrussType.GenericInstantiation:
             for argument in generic.arguments {
                 collectTypeVariables(argument, into: &snapshots)
