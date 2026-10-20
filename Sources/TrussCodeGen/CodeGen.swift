@@ -8,10 +8,10 @@ public final class CodeGen: TIR.Visitor {
     private let context: TrussCore.Context
     private let llvmContext: LLVMSwiftBinding.Context
     private let targetTriple: String?
+    private let builder: LLVMSwiftBinding.Builder
     private var module: LLVMSwiftBinding.Module?
     private var registry: TIR.Registry?
     private var dataLayout: LLVMSwiftBinding.DataLayout?
-    private var builder: LLVMSwiftBinding.Builder?
     private var currentFunction: LLVMSwiftBinding.Function?
     private var currentLLVMBlock: LLVMSwiftBinding.BasicBlock?
     private var typeMap: [Id.TIRTypeId: LLVMSwiftBinding.LLVMType] = [:]
@@ -21,21 +21,7 @@ public final class CodeGen: TIR.Visitor {
     private var globalMap: [Id.TIRGlobalId: LLVMSwiftBinding.GlobalVariable] = [:]
     private var valueMap: [ObjectIdentifier: LLVMSwiftBinding.Value] = [:]
     private var blockMap: [ObjectIdentifier: LLVMSwiftBinding.BasicBlock] = [:]
-    private var blockParamPhi: [ObjectIdentifier: [LLVMSwiftBinding.PHINode]] = [:]
-    private var blockArgEdges: [ObjectIdentifier: [BlockArgEdge]] = [:]
-    private var pendingPhiIncoming: [PendingIncoming] = []
-
-    private struct BlockArgEdge {
-        let target: TIR.BasicBlock
-        let args: [TIR.Value]
-        let from: LLVMSwiftBinding.BasicBlock
-    }
-
-    private struct PendingIncoming {
-        let phi: LLVMSwiftBinding.PHINode
-        let value: TIR.Value
-        let block: TIR.BasicBlock
-    }
+    private var blockEndingMap: [ObjectIdentifier: LLVMSwiftBinding.BasicBlock] = [:]
 
     public init(
         context: TrussCore.Context, llvmContext: LLVMSwiftBinding.Context,
@@ -61,6 +47,7 @@ public final class CodeGen: TIR.Visitor {
         registry = mod.registry
         dataLayout = LLVMSwiftBinding.DataLayout(string: llvmModule.dataLayout.string)
         typeMap = [:]
+        storageTypeMap = [:]
         signatureTypeMap = [:]
         valueMap = [:]
         globalMap = mod.globals.reduce(into: [:]) {
@@ -120,9 +107,6 @@ public final class CodeGen: TIR.Visitor {
     }
 
     private func emitFunctionBody(_ function: TIR.Function) {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         let blocks = reachableBlocks(function)
         let llvmFunction = functionMap[function.id]!
         guard !blocks.isEmpty else {
@@ -150,6 +134,7 @@ public final class CodeGen: TIR.Visitor {
             for instruction in block.instructions {
                 visit(instruction)
             }
+            blockEndingMap[ObjectIdentifier(block)] = currentLLVMBlock
         }
 
         currentFunction = nil
@@ -333,9 +318,6 @@ public final class CodeGen: TIR.Visitor {
 
     @discardableResult
     public override func visitAllocStack(_ instruction: TIR.AllocStack, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         let built = builder.buildAlloca(
             lowerToLLVMStorageType(instruction.allocatedType),
             name: instruction.result.name
@@ -352,9 +334,6 @@ public final class CodeGen: TIR.Visitor {
 
     @discardableResult
     public override func visitAllocHeap(_ instruction: TIR.AllocHeap, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         let ty = lowerToLLVMType(instruction.allocatedType)
         let built = builder.buildCall(
             mallocFunction,
@@ -373,9 +352,6 @@ public final class CodeGen: TIR.Visitor {
 
     @discardableResult
     public override func visitDeallocHeap(_ instruction: TIR.DeallocHeap, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         let ptr = llvmValue(instruction.value)!
         builder.buildCall(freeFunction, [ptr])
         return nil
@@ -383,9 +359,6 @@ public final class CodeGen: TIR.Visitor {
 
     @discardableResult
     public override func visitRetain(_ instruction: TIR.Retain, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         let ty = lowerToLLVMType(instruction.value.ty)
         let value = llvmValue(instruction.value)!
         let rcPtr = builder.buildGEP(
@@ -401,7 +374,7 @@ public final class CodeGen: TIR.Visitor {
 
     @discardableResult
     public override func visitRelease(_ instruction: TIR.Release, additional: Any? = nil) -> Any? {
-        guard let builder, let currentFunction else {
+        guard let currentFunction else {
             fatalError("unreachable")
         }
         let ty = lowerToLLVMType(instruction.value.ty)
@@ -433,9 +406,6 @@ public final class CodeGen: TIR.Visitor {
 
     @discardableResult
     public override func visitLoad(_ instruction: TIR.Load, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         let ptr = llvmValue(instruction.ptr)!
         let built = builder.buildLoad(
             lowerToLLVMStorageType(instruction.result.ty),
@@ -448,9 +418,6 @@ public final class CodeGen: TIR.Visitor {
 
     @discardableResult
     public override func visitStore(_ instruction: TIR.Store, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         let value = llvmValue(instruction.value)!
         let ptr = llvmValue(instruction.ptr)!
         builder.buildStore(value, to: ptr)
@@ -459,9 +426,6 @@ public final class CodeGen: TIR.Visitor {
 
     @discardableResult
     public override func visitReturn(_ instruction: TIR.Return, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         if let returned = instruction.value {
             builder.buildRet(llvmValue(returned)!)
         } else {
@@ -471,10 +435,35 @@ public final class CodeGen: TIR.Visitor {
     }
 
     @discardableResult
+    public override func visitBranch(_ branch: TIR.Branch, additional: Any? = nil) -> Any? {
+        builder.buildBr(blockMap[ObjectIdentifier(branch.target)]!)
+        return nil
+    }
+
+    @discardableResult
+    public override func visitConditionalBranch(
+        _ conditionalBranch: TIR.ConditionalBranch,
+        additional: Any? = nil
+    ) -> Any? {
+        let cond = llvmValue(conditionalBranch.condition)!
+        builder.buildCondBr(
+            cond,
+            then: blockMap[ObjectIdentifier(conditionalBranch.trueBranch)]!,
+            else: blockMap[ObjectIdentifier(conditionalBranch.falseBranch)]!
+        )
+        return nil
+    }
+
+    @discardableResult
+    public override func visitPhi(_ phi: TIR.Phi, additional: Any? = nil) -> Any? {
+        let built = builder.buildPhi(lowerToLLVMStorageType(phi.result.ty))
+        valueMap[ObjectIdentifier(phi.result)] = built
+        // TODO: fill incomings
+        return nil
+    }
+
+    @discardableResult
     public override func visitBinaryArith(_ instruction: TIR.BinaryArith, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         let lhs = llvmValue(instruction.lhs)!
         let rhs = llvmValue(instruction.rhs)!
         let kind = (registry?.type(instruction.lhs.ty) as? TIRType.PrimitiveType)?.kind
@@ -531,7 +520,7 @@ public final class CodeGen: TIR.Visitor {
     public override func visitUnaryArith(
         _ instruction: TIR.UnaryArith, additional: Any? = nil
     ) -> Any? {
-        guard let builder, let registry else {
+        guard let registry else {
             fatalError("unreachable")
         }
         let operand = llvmValue(instruction.operand)!
@@ -553,9 +542,6 @@ public final class CodeGen: TIR.Visitor {
 
     @discardableResult
     public override func visitCall(_ instruction: TIR.Call, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         let callee = llvmValue(instruction.callee)!
         let functionType = callSignatureLLVMType(instruction.callee.ty)
         let arguments = instruction.arguments.compactMap { llvmValue($0) }
@@ -582,9 +568,6 @@ public final class CodeGen: TIR.Visitor {
 
     @discardableResult
     public override func visitStructElementAddr(_ instruction: TIR.StructElementAddr, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         let base = llvmValue(instruction.base)!
         let structType = lowerToLLVMType(pointeeType(instruction.base.ty))
         let address = builder.buildStructGEP(structType, base, index: UInt32(instruction.index))
@@ -594,9 +577,6 @@ public final class CodeGen: TIR.Visitor {
 
     @discardableResult
     public override func visitClassElementAddr(_ instruction: TIR.ClassElementAddr, additional: Any? = nil) -> Any? {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         let base = llvmValue(instruction.base)!
         let obj = builder.buildLoad(llvmContext.pointerType(), base)
         let structType = lowerToLLVMType(pointeeType(instruction.base.ty))
@@ -610,9 +590,6 @@ public final class CodeGen: TIR.Visitor {
         rhs: LLVMSwiftBinding.Value, kind: TIRType.PrimitiveKind?,
         predicate: LLVMSwiftBinding.IntPredicate?
     ) -> LLVMSwiftBinding.Value {
-        guard let builder else {
-            fatalError("unreachable")
-        }
         switch kind {
         case .Float:
             return builder.buildFCmp(realPredicate(for: instruction.op), lhs, rhs)
@@ -676,15 +653,23 @@ public final class CodeGen: TIR.Visitor {
         case let literal as TIR.IntegerLiteral:
             let type = lowerToLLVMStorageType(literal.ty) as! LLVMSwiftBinding.IntegerType
             return llvmContext.constantInt(literal.value, type: type)
+        case let literal as TIR.FloatLiteral:
+            let type = lowerToLLVMStorageType(literal.ty) as! LLVMSwiftBinding.FloatType
+            return llvmContext.constantFP(literal.value, type: type)
+        case let literal as TIR.CharLiteral:
+            let packed = String(literal.value).utf8.reduce(UInt32(0)) {
+                ($0 << 8) | UInt32($1)
+            }
+            return llvmContext.constantInt(
+                signed: Int64(packed),
+                type: llvmContext.int32
+            )
+        case let literal as TIR.BoolLiteral:
+            return llvmContext.constantInt(literal.value ? 1 : 0, type: llvmContext.int1)
+        case let literal as TIR.NullptrLiteral:
+            let type = lowerToLLVMStorageType(literal.ty)
+            return llvmContext.constantNull(type)
         /*
-         case let literal as TIR.FloatLiteral:
-             return materialize(literal)
-         case let literal as TIR.CharLiteral:
-             return materialize(literal)
-         case let literal as TIR.BoolLiteral:
-             return materialize(literal)
-         case let literal as TIR.NullptrLiteral:
-             return materialize(literal)
          case let literal as TIR.StringLiteral:
              unsupported("string literal", at: literal.sourceRange)
              return nil
