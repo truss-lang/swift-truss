@@ -277,6 +277,38 @@ public extension TIR {
             }
         }
 
+        public func closureType(
+            parameters: [Id.TIRTypeId],
+            returnType: Id.TIRTypeId,
+            isVariadic: Bool,
+            parameterOwnership: [Ownership]? = nil,
+            resultOwnership: Ownership = .Owned
+        ) -> TIRType.ClosureType {
+            let ownership = normalizedParameterOwnership(parameterOwnership, count: parameters.count)
+            let key = ClosureTypeKey(
+                parameters: parameters,
+                returnType: returnType,
+                isVariadic: isVariadic,
+                parameterOwnership: ownership,
+                resultOwnership: resultOwnership
+            )
+            if let cached = typeCache[key] {
+                return cached as! TIRType.ClosureType
+            } else {
+                let ty = TIRType.ClosureType(
+                    id: nextTypeId,
+                    parameters: parameters,
+                    returnType: returnType,
+                    isVariadic: isVariadic,
+                    parameterOwnership: ownership,
+                    resultOwnership: resultOwnership
+                )
+                types[ty.id] = ty
+                typeCache[key] = ty
+                return ty
+            }
+        }
+
         public func structType(name: String, displayName: String? = nil) -> TIRType.StructType {
             if let cached = typeCache[name] {
                 return cached as! TIRType.StructType
@@ -386,6 +418,14 @@ public extension TIR {
         }
 
         private struct FunctionTypeKey: Hashable, Equatable {
+            let parameters: [Id.TIRTypeId]
+            let returnType: Id.TIRTypeId
+            let isVariadic: Bool
+            let parameterOwnership: [Ownership]
+            let resultOwnership: Ownership
+        }
+
+        private struct ClosureTypeKey: Hashable, Equatable {
             let parameters: [Id.TIRTypeId]
             let returnType: Id.TIRTypeId
             let isVariadic: Bool

@@ -29,6 +29,9 @@ public extension TIR {
             if let functionType = registry.types[callee.ty] as? TIRType.FunctionType {
                 return functionType.returnType
             }
+            if let closureType = registry.types[callee.ty] as? TIRType.ClosureType {
+                return closureType.returnType
+            }
             return voidType()
         }
 
@@ -404,8 +407,15 @@ public extension TIR {
 
         @discardableResult
         public func buildFunctionRef(function: TIR.Function, name: String? = nil) -> FunctionRef {
+            buildFunctionRef(function: function, ty: function.ty, name: name)
+        }
+
+        @discardableResult
+        public func buildFunctionRef(
+            function: TIR.Function, ty: Id.TIRTypeId, name: String? = nil
+        ) -> FunctionRef {
             FunctionRef(
-                functionId: function.id, ty: function.ty, name: name ?? function.name
+                functionId: function.id, ty: ty, name: name ?? function.name
             )
         }
 

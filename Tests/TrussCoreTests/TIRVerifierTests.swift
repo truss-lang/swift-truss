@@ -1203,3 +1203,53 @@ func addressToPointerOfAPointerValueIsReported() {
         containing: "address to pointer in block 'entry' of function 'main' operates on type *i32, expected an address type"
     )
 }
+
+@Test
+func closureCalleeIsAcceptedAndProducesItsReturnType() {
+    let harness = Harness()
+    let closureType = harness.registry.closureType(
+        parameters: [harness.i32], returnType: harness.i32, isVariadic: false
+    )
+    let function = harness.addFunction(
+        parameters: [TIR.Parameter(ty: closureType.id, name: "body")], returnType: harness.i32
+    )
+    harness.addEntry(function)
+    let call = harness.builder.buildCall(
+        callee: function.parameters[0],
+        arguments: [harness.builder.buildIntegerLiteral(value: 1, ty: harness.i32)]
+    )
+    harness.builder.buildReturn(call.result)
+    expectNoFailures(harness.verify())
+}
+
+@Test
+func calleeTypeNameRendersClosureTypeBehindPointer() {
+    let harness = Harness()
+    let closureType = harness.registry.closureType(
+        parameters: [harness.i32], returnType: harness.i32, isVariadic: false
+    )
+    let closurePointer = harness.registry.pointerType(pointee: closureType.id).id
+    let function = harness.addFunction(
+        parameters: [TIR.Parameter(ty: closurePointer, name: "body")], returnType: harness.void
+    )
+    let entry = harness.addEntry(function)
+    entry.instructions.append(
+        TIR.Call(callee: function.parameters[0], arguments: [], ty: harness.void, name: "0", hasResult: false)
+    )
+    harness.builder.buildReturn()
+    expectSingleFailure(
+        harness.verify(), kind: .TypeConsistency,
+        message: "call callee in block 'entry' of function 'main' has type *closure(i32)->i32, expected a function type"
+    )
+}
+
+@Test
+func closureTypeReferencesAreWalked() {
+    let harness = Harness()
+    harness.registry.closureType(
+        parameters: [Id.TIRTypeId(4096)], returnType: harness.void, isVariadic: false
+    )
+    expectSingleFailure(
+        harness.verify(), kind: .Registry, containing: "type#4096 is not in registry.types"
+    )
+}

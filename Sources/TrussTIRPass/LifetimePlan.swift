@@ -489,8 +489,30 @@ final class LifetimePlan {
         }
     }
 
+    private struct CallableOwnership {
+        let parameterOwnership: [TIR.Ownership]
+        let resultOwnership: TIR.Ownership
+    }
+
+    private func callableOwnership(of id: Id.TIRTypeId) -> CallableOwnership? {
+        switch registry.types[id] {
+        case let function as TIRType.FunctionType:
+            CallableOwnership(
+                parameterOwnership: function.parameterOwnership,
+                resultOwnership: function.resultOwnership
+            )
+        case let closure as TIRType.ClosureType:
+            CallableOwnership(
+                parameterOwnership: closure.parameterOwnership,
+                resultOwnership: closure.resultOwnership
+            )
+        default:
+            nil
+        }
+    }
+
     private func hasOwnedResult(_ callee: TIR.Value) -> Bool {
-        guard let signature = registry.types[callee.ty] as? TIRType.FunctionType else {
+        guard let signature = callableOwnership(of: callee.ty) else {
             return false
         }
         return signature.resultOwnership == .Owned
@@ -667,7 +689,7 @@ final class LifetimePlan {
     private func applyingOwnedArguments(
         callee: TIR.Value, arguments: [TIR.Value], to state: CarrierState
     ) -> CarrierState {
-        guard let signature = registry.types[callee.ty] as? TIRType.FunctionType else {
+        guard let signature = callableOwnership(of: callee.ty) else {
             return state
         }
         var next = state
@@ -797,7 +819,7 @@ final class LifetimePlan {
                 default:
                     continue
                 }
-                guard let signature = registry.types[callee.ty] as? TIRType.FunctionType else {
+                guard let signature = callableOwnership(of: callee.ty) else {
                     continue
                 }
                 for (index, argument) in arguments.enumerated() {
@@ -1107,16 +1129,16 @@ final class LifetimePlan {
     }
 
     private func parameterOwnership(at index: Int) -> TIR.Ownership {
-        guard let functionType = registry.types[function.ty] as? TIRType.FunctionType,
-              functionType.parameterOwnership.indices.contains(index)
+        guard let signature = callableOwnership(of: function.ty),
+              signature.parameterOwnership.indices.contains(index)
         else {
             return .Owned
         }
-        return functionType.parameterOwnership[index]
+        return signature.parameterOwnership[index]
     }
 
     private func resultOwnership() -> TIR.Ownership {
-        (registry.types[function.ty] as? TIRType.FunctionType)?.resultOwnership ?? .Owned
+        callableOwnership(of: function.ty)?.resultOwnership ?? .Owned
     }
 
     private struct CarrierState: Equatable {

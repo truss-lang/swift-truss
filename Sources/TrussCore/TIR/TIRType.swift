@@ -174,6 +174,29 @@ public enum TIRType {
         }
     }
 
+    public final class ClosureType: TIRType {
+        public let parameters: [Id.TIRTypeId]
+        public let returnType: Id.TIRTypeId
+        public let isVariadic: Bool
+        public let parameterOwnership: [TIR.Ownership]
+        public let resultOwnership: TIR.Ownership
+        public init(
+            id: Id.TIRTypeId,
+            parameters: [Id.TIRTypeId],
+            returnType: Id.TIRTypeId,
+            isVariadic: Bool,
+            parameterOwnership: [TIR.Ownership],
+            resultOwnership: TIR.Ownership
+        ) {
+            self.parameters = parameters
+            self.returnType = returnType
+            self.isVariadic = isVariadic
+            self.parameterOwnership = parameterOwnership
+            self.resultOwnership = resultOwnership
+            super.init(id: id)
+        }
+    }
+
     public final class ExistentialType: TIRType {
         public let protocols: [Id.TIRProtocolId]
         public let name: String

@@ -16,6 +16,7 @@ public final class CodeGen: TIR.Visitor {
     private var currentLLVMBlock: LLVMSwiftBinding.BasicBlock?
     private var typeMap: [Id.TIRTypeId: LLVMSwiftBinding.LLVMType] = [:]
     private var storageTypeMap: [Id.TIRTypeId: LLVMSwiftBinding.LLVMType] = [:]
+    private var signatureTypeMap: [Id.TIRTypeId: LLVMSwiftBinding.FunctionType] = [:]
     private var functionMap: [Id.TIRFunctionId: LLVMSwiftBinding.Function] = [:]
     private var globalMap: [Id.TIRGlobalId: LLVMSwiftBinding.GlobalVariable] = [:]
     private var valueMap: [ObjectIdentifier: LLVMSwiftBinding.Value] = [:]
@@ -60,6 +61,7 @@ public final class CodeGen: TIR.Visitor {
         registry = mod.registry
         dataLayout = LLVMSwiftBinding.DataLayout(string: llvmModule.dataLayout.string)
         typeMap = [:]
+        signatureTypeMap = [:]
         valueMap = [:]
         globalMap = mod.globals.reduce(into: [:]) {
             $0[$1.id] = lowerGlobal($1)
@@ -211,14 +213,8 @@ public final class CodeGen: TIR.Visitor {
             let lowered: LLVMSwiftBinding.LLVMType = llvmContext.pointerType()
             typeMap[ty] = lowered
             return lowered
-        case let functionType as TIRType.FunctionType:
-            let returnType = lowerToLLVMStorageType(functionType.returnType)
-            let parameterTypes = functionType.parameters.map { lowerToLLVMStorageType($0) }
-            let lowered = llvmContext.functionType(
-                returnType: returnType,
-                parameterTypes: parameterTypes,
-                isVariadic: functionType.isVariadic
-            )
+        case is TIRType.FunctionType, is TIRType.ClosureType:
+            let lowered: LLVMSwiftBinding.LLVMType = llvmContext.pointerType()
             typeMap[ty] = lowered
             return lowered
         case let structType as TIRType.StructType:
@@ -255,6 +251,37 @@ public final class CodeGen: TIR.Visitor {
             typeMap[ty] = lowered
             return lowered
         }
+    }
+
+    private func callSignatureLLVMType(_ ty: Id.TIRTypeId) -> LLVMSwiftBinding.FunctionType {
+        if let existing = signatureTypeMap[ty] {
+            return existing
+        }
+        guard let registry, let type = registry.type(ty) else {
+            fatalError("call signature requested for an unregistered callee type")
+        }
+        let parameters: [Id.TIRTypeId]
+        let returnType: Id.TIRTypeId
+        let isVariadic: Bool
+        switch type {
+        case let functionType as TIRType.FunctionType:
+            parameters = functionType.parameters
+            returnType = functionType.returnType
+            isVariadic = functionType.isVariadic
+        case let closureType as TIRType.ClosureType:
+            parameters = closureType.parameters
+            returnType = closureType.returnType
+            isVariadic = closureType.isVariadic
+        default:
+            fatalError("call signature requested for non-callable callee type")
+        }
+        let lowered = llvmContext.functionType(
+            returnType: lowerToLLVMStorageType(returnType),
+            parameterTypes: parameters.map { lowerToLLVMStorageType($0) },
+            isVariadic: isVariadic
+        )
+        signatureTypeMap[ty] = lowered
+        return lowered
     }
 
     private func sizeOf(_ ty: LLVMType) -> LLVMSwiftBinding.ConstantInt {
@@ -530,7 +557,7 @@ public final class CodeGen: TIR.Visitor {
             fatalError("unreachable")
         }
         let callee = llvmValue(instruction.callee)!
-        let functionType = lowerToLLVMStorageType(instruction.callee.ty) as! LLVMSwiftBinding.FunctionType
+        let functionType = callSignatureLLVMType(instruction.callee.ty)
         let arguments = instruction.arguments.compactMap { llvmValue($0) }
         let built = builder.buildCall(callee, type: functionType, arguments)
         if let result = instruction.result {

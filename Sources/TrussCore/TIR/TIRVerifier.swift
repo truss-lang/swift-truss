@@ -317,6 +317,13 @@ public extension TIR {
                 }
                 return "fn(" + parameters
                     .joined(separator: ",") + ")->" + typeName(function.returnType, visited: nested)
+            case let closure as TIRType.ClosureType:
+                var parameters = closure.parameters.map { typeName($0, visited: nested) }
+                if closure.isVariadic {
+                    parameters.append("...")
+                }
+                return "closure(" + parameters
+                    .joined(separator: ",") + ")->" + typeName(closure.returnType, visited: nested)
             case let existential as TIRType.ExistentialType:
                 return "any " + existential.name
             default:
@@ -661,13 +668,51 @@ public extension TIR {
             return structType.fields.contains { isReferenceValue($0.type) }
         }
 
+        private struct CallableSignature {
+            let parameters: [Id.TIRTypeId]
+            let returnType: Id.TIRTypeId
+            let isVariadic: Bool
+            let parameterOwnership: [TIR.Ownership]
+            let resultOwnership: TIR.Ownership
+        }
+
+        private func callableSignature(of ty: TIRType.TIRType) -> CallableSignature? {
+            switch ty {
+            case let function as TIRType.FunctionType:
+                CallableSignature(
+                    parameters: function.parameters,
+                    returnType: function.returnType,
+                    isVariadic: function.isVariadic,
+                    parameterOwnership: function.parameterOwnership,
+                    resultOwnership: function.resultOwnership
+                )
+            case let closure as TIRType.ClosureType:
+                CallableSignature(
+                    parameters: closure.parameters,
+                    returnType: closure.returnType,
+                    isVariadic: closure.isVariadic,
+                    parameterOwnership: closure.parameterOwnership,
+                    resultOwnership: closure.resultOwnership
+                )
+            default:
+                nil
+            }
+        }
+
+        private func callableSignature(for id: Id.TIRTypeId) -> CallableSignature? {
+            guard let ty = currentRegistry.types[id] else {
+                return nil
+            }
+            return callableSignature(of: ty)
+        }
+
         private func seedOwnedResult(
             _ result: Value?, callee: Value, state: OwnershipState
         ) {
             guard let result, isReferenceValue(result.ty) else {
                 return
             }
-            guard let signature = currentRegistry.types[callee.ty] as? TIRType.FunctionType,
+            guard let signature = callableSignature(for: callee.ty),
                   signature.resultOwnership == .Owned
             else {
                 return
@@ -678,7 +723,7 @@ public extension TIR {
         private func consumeCallArguments(
             callee: Value, arguments: [Value], state: OwnershipState
         ) {
-            guard let signature = currentRegistry.types[callee.ty] as? TIRType.FunctionType else {
+            guard let signature = callableSignature(for: callee.ty) else {
                 return
             }
             for (index, argument) in arguments.enumerated() {
@@ -1461,7 +1506,7 @@ public extension TIR {
         private func passesOwnedArgument(
             _ callee: Value, _ arguments: [Value], family: Set<ObjectIdentifier>
         ) -> Bool {
-            guard let signature = currentRegistry.types[callee.ty] as? TIRType.FunctionType else {
+            guard let signature = callableSignature(for: callee.ty) else {
                 return false
             }
             for (index, argument) in arguments.enumerated() {
@@ -1688,7 +1733,7 @@ public extension TIR {
             default:
                 return
             }
-            guard let signature = currentRegistry.types[callee.ty] as? TIRType.FunctionType else {
+            guard let signature = callableSignature(for: callee.ty) else {
                 return
             }
             for (index, argument) in arguments.enumerated() {
@@ -2299,7 +2344,7 @@ public extension TIR {
             guard let ty = resolveType(callee.ty, at: site.range) else {
                 return
             }
-            guard let functionType = ty as? TIRType.FunctionType else {
+            guard let signature = callableSignature(of: ty) else {
                 record(
                     .TypeConsistency,
                     "\(opName) callee in \(site.location) has type \(typeName(callee.ty)), expected a function type",
@@ -2307,8 +2352,8 @@ public extension TIR {
                 )
                 return
             }
-            verifyCallArguments(arguments, functionType: functionType, opName: opName, at: site)
-            if isVoidType(functionType.returnType) {
+            verifyCallArguments(arguments, signature: signature, opName: opName, at: site)
+            if isVoidType(signature.returnType) {
                 if result != nil {
                     record(
                         .TypeConsistency,
@@ -2317,27 +2362,27 @@ public extension TIR {
                     )
                 }
             } else if let result {
-                if result.ty != functionType.returnType {
+                if result.ty != signature.returnType {
                     record(
                         .TypeConsistency,
-                        "\(opName) result in \(site.location) has type \(typeName(result.ty)) but the callee returns type \(typeName(functionType.returnType))",
+                        "\(opName) result in \(site.location) has type \(typeName(result.ty)) but the callee returns type \(typeName(signature.returnType))",
                         at: site.range
                     )
                 }
             } else {
                 record(
                     .TypeConsistency,
-                    "\(opName) in \(site.location) calls a function returning type \(typeName(functionType.returnType)) but produces no result",
+                    "\(opName) in \(site.location) calls a function returning type \(typeName(signature.returnType)) but produces no result",
                     at: site.range
                 )
             }
         }
 
         private func verifyCallArguments(
-            _ arguments: [Value], functionType: TIRType.FunctionType, opName: String, at site: Site
+            _ arguments: [Value], signature: CallableSignature, opName: String, at site: Site
         ) {
-            let parameters = functionType.parameters
-            if functionType.isVariadic {
+            let parameters = signature.parameters
+            if signature.isVariadic {
                 if arguments.count < parameters.count {
                     record(
                         .TypeConsistency,
@@ -2650,6 +2695,11 @@ public extension TIR {
                     resolveType(parameter, at: range)
                 }
                 resolveType(function.returnType, at: range)
+            case let closure as TIRType.ClosureType:
+                for parameter in closure.parameters {
+                    resolveType(parameter, at: range)
+                }
+                resolveType(closure.returnType, at: range)
             case let structType as TIRType.StructType:
                 for field in structType.fields {
                     resolveType(field.type, at: range)

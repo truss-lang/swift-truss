@@ -213,6 +213,12 @@ final class TypeLower {
                 returnType: lower(function.returnType).id,
                 isVariadic: function.isVariadic
             )
+        case let closure as TrussType.ClosureType:
+            return registry.closureType(
+                parameters: closure.parameters.map { lower($0.type).id },
+                returnType: lower(closure.returnType).id,
+                isVariadic: closure.isVariadic
+            )
         case let composition as TrussType.CompositionType:
             var protocolIds: [Id.TIRProtocolId] = []
             var seen = Set<Id.ASTTypeId>()

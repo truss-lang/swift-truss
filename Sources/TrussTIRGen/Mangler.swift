@@ -61,6 +61,9 @@ final class Mangler {
             for parameter in function.parameters {
                 result += typeName(parameter.type, modulePath: modulePath)
             }
+            if function.isVariadic {
+                result += "V"
+            }
             result += "R"
             result += typeName(function.returnType, modulePath: modulePath)
             if function.isAsync {
@@ -72,6 +75,29 @@ final class Mangler {
             if !function.throwsTypes.isEmpty {
                 result += "E"
                 for throwsType in function.throwsTypes {
+                    result += typeName(throwsType, modulePath: modulePath)
+                }
+            }
+            return result
+        case let closure as TrussType.ClosureType:
+            var result = "K"
+            for parameter in closure.parameters {
+                result += typeName(parameter.type, modulePath: modulePath)
+            }
+            if closure.isVariadic {
+                result += "V"
+            }
+            result += "R"
+            result += typeName(closure.returnType, modulePath: modulePath)
+            if closure.isAsync {
+                result += "A"
+            }
+            if closure.isThrowing {
+                result += "T"
+            }
+            if !closure.throwsTypes.isEmpty {
+                result += "E"
+                for throwsType in closure.throwsTypes {
                     result += typeName(throwsType, modulePath: modulePath)
                 }
             }

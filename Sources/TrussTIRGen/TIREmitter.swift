@@ -865,7 +865,12 @@ public final class TIREmitter: AST.Visitor {
                     return ref
                 }
             } else {
-                let ref = functionRefValue(functionSymbol, at: variable.sourceRange)
+                let ref = functionRefValue(
+                    functionSymbol, at: variable.sourceRange,
+                    ty: variable.ty.flatMap {
+                        $0 is TrussType.ClosureType ? lowerType($0).id : nil
+                    }
+                )
                 return builder.buildClosure(function: ref, captures: []).result
             }
         case let nominal as Symbol.NominalTypeSymbol:
@@ -1826,7 +1831,9 @@ public final class TIREmitter: AST.Visitor {
         deferDomainStack.removeLast()
     }
 
-    private func functionRefValue(_ symbol: Symbol.FunctionSymbol, at _: SourceRange) -> TIR.FunctionRef {
+    private func functionRefValue(
+        _ symbol: Symbol.FunctionSymbol, at _: SourceRange, ty: Id.TIRTypeId? = nil
+    ) -> TIR.FunctionRef {
         guard let builder else {
             fatalError()
         }
@@ -1853,7 +1860,7 @@ public final class TIREmitter: AST.Visitor {
             )
             gen.functionsBySymbol[symbol.id] = function
         }
-        return at(builder.buildFunctionRef(function: function))
+        return at(builder.buildFunctionRef(function: function, ty: ty ?? function.ty))
     }
 
     private func getSelf() -> TIR.Value {

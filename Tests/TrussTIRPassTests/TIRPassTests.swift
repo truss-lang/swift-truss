@@ -2322,3 +2322,35 @@ func splittableEdgeDischargesReportNoFailures() throws {
     #expect(result.failures.isEmpty)
     #expect(strictFailures(context, module).isEmpty)
 }
+
+@Test
+func closureCalleeOwnershipFollowsItsSignature() throws {
+    let context = Context()
+    let registry = TIR.Registry()
+    let module = TIR.Module(registry: registry)
+    let nodeType = registry.classType(name: "Node")
+    let nodePointer = registry.pointerType(pointee: nodeType.id)
+    let slot = registry.addressType(pointee: nodePointer.id)
+    let closureType = registry.closureType(
+        parameters: [nodePointer.id], returnType: nodePointer.id, isVariadic: false
+    )
+    let function = module.addFunction(
+        name: "callClosure",
+        parameters: [
+            TIR.Parameter(ty: closureType.id, name: "body"),
+            TIR.Parameter(ty: slot.id, name: "slot"),
+        ],
+        returnType: nodePointer.id, isVariadic: false, isExtern: false, callingConvention: nil
+    )
+    let entry = function.addBasicBlock(name: "entry")
+    let builder = TIR.Builder(registry: registry)
+    builder.insertPoint = entry
+    let borrowed = builder.buildLoad(ptr: function.parameters[1], name: "borrowed").result
+    let call = builder.buildCall(callee: function.parameters[0], arguments: [borrowed])
+    builder.buildReturn(call.result)
+    let result = TIRPass().run(on: module)
+    let lowered = try #require(module.functions.first { $0.name == "callClosure" })
+    #expect(retains(of: borrowed, in: lowered).count == 1)
+    #expect(result.failures.isEmpty)
+    #expect(strictFailures(context, module).isEmpty)
+}

@@ -132,14 +132,35 @@ public extension TIR {
         }
 
         private func signatureText(_ typeId: Id.TIRTypeId) -> String {
-            guard let functionType = registry?.types[typeId] as? TIRType.FunctionType else {
+            guard let ty = registry?.types[typeId] else {
                 return "(" + typeText(typeId) + ")"
             }
-            var parameters = functionType.parameters.map { typeText($0) }
-            if functionType.isVariadic {
-                parameters.append("...")
+            switch ty {
+            case let functionType as TIRType.FunctionType:
+                return signatureText(
+                    parameters: functionType.parameters,
+                    returnType: functionType.returnType,
+                    isVariadic: functionType.isVariadic
+                )
+            case let closureType as TIRType.ClosureType:
+                return signatureText(
+                    parameters: closureType.parameters,
+                    returnType: closureType.returnType,
+                    isVariadic: closureType.isVariadic
+                )
+            default:
+                return "(" + typeText(typeId) + ")"
             }
-            return "(" + parameters.joined(separator: ",") + ")->" + typeText(functionType.returnType)
+        }
+
+        private func signatureText(
+            parameters: [Id.TIRTypeId], returnType: Id.TIRTypeId, isVariadic: Bool
+        ) -> String {
+            var parts = parameters.map { typeText($0) }
+            if isVariadic {
+                parts.append("...")
+            }
+            return "(" + parts.joined(separator: ",") + ")->" + typeText(returnType)
         }
 
         private func globalText(_ global: TIR.GlobalVariable) -> String {
@@ -215,6 +236,12 @@ public extension TIR {
                     parameters.append("...")
                 }
                 return "fn(" + parameters.joined(separator: ",") + ")->" + typeText(function.returnType)
+            case let closure as TIRType.ClosureType:
+                var parameters = closure.parameters.map { typeText($0) }
+                if closure.isVariadic {
+                    parameters.append("...")
+                }
+                return "closure(" + parameters.joined(separator: ",") + ")->" + typeText(closure.returnType)
             case let existential as TIRType.ExistentialType:
                 return "any " + existential.name
             default:
@@ -307,10 +334,17 @@ public extension TIR {
         }
 
         private func calleeReturnTypeText(_ callee: Value) -> String {
-            guard let functionType = registry?.types[callee.ty] as? TIRType.FunctionType else {
+            guard let ty = registry?.types[callee.ty] else {
                 return "void"
             }
-            return typeText(functionType.returnType)
+            switch ty {
+            case let functionType as TIRType.FunctionType:
+                return typeText(functionType.returnType)
+            case let closureType as TIRType.ClosureType:
+                return typeText(closureType.returnType)
+            default:
+                return "void"
+            }
         }
 
         private func quoted(_ text: String) -> String {
