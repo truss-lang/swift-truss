@@ -1127,6 +1127,21 @@ public final class TIREmitter: AST.Visitor {
             }
             let load = builder.buildLoad(ptr: addr)
             return load.result
+        case let caseSymbol as Symbol.CaseSymbol:
+            guard let parentId = caseSymbol.memberOf,
+                  let parent = context.id2Symbol[parentId] as? Symbol.NominalTypeSymbol,
+                  let parentType = parent.typeId.flatMap({ context.typeTable[$0] }),
+                  let enumType = gen.registry.types[gen.typeLower.lower(parentType).id] as? TIRType.EnumType,
+                  let tag = enumType.cases.firstIndex(where: { $0.name == caseSymbol.name })
+            else {
+                fatalError()
+            }
+            if caseSymbol.associatedTypes.isEmpty {
+                return builder.buildEnumValue(caseIndex: tag, payload: nil, ty: enumType.id).result
+            } else {
+                // TODO: build enum value with associated values
+                fatalError()
+            }
         default:
             guard let memberOf = symbol.memberOf,
                   let nominalTypeSymbol = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol
@@ -1187,6 +1202,21 @@ public final class TIREmitter: AST.Visitor {
             }
             let load = builder.buildLoad(ptr: addr)
             return load.result
+        case let caseSymbol as Symbol.CaseSymbol:
+            guard let parentId = caseSymbol.memberOf,
+                  let parent = context.id2Symbol[parentId] as? Symbol.NominalTypeSymbol,
+                  let parentType = parent.typeId.flatMap({ context.typeTable[$0] }),
+                  let enumType = gen.registry.types[gen.typeLower.lower(parentType).id] as? TIRType.EnumType,
+                  let tag = enumType.cases.firstIndex(where: { $0.name == caseSymbol.name })
+            else {
+                fatalError()
+            }
+            if caseSymbol.associatedTypes.isEmpty {
+                return builder.buildEnumValue(caseIndex: tag, payload: nil, ty: enumType.id).result
+            } else {
+                // TODO: build enum value with associated values
+                fatalError()
+            }
         default:
             guard let memberOf = symbol.memberOf,
                   let nominalTypeSymbol = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol
