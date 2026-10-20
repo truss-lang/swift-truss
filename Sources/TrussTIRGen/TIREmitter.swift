@@ -1217,7 +1217,6 @@ public final class TIREmitter: AST.Visitor {
         let calleeValue = visitExpression(call.callee)
         let callee: TIR.Value
         let selfParameter: TIR.Value?
-        var needLoad = false
         if let construction = calleeValue as? TIR.ObjectConstruction {
             callee = construction.initializer
             guard let ty = gen.registry.type(construction.objectTy) else {
@@ -1230,11 +1229,9 @@ public final class TIREmitter: AST.Visitor {
                 let slot = builder.buildAllocStack(allocatedType: alloc.result.ty)
                 builder.buildStore(value: alloc.result, to: slot.result)
                 selfParameter = slot.result
-                needLoad = true
             } else {
                 let alloc = builder.buildAllocStack(allocatedType: construction.objectTy)
                 selfParameter = alloc.result
-                needLoad = true
             }
         } else if let binding = calleeValue as? TIR.ObjectBinding {
             callee = binding.method
@@ -1247,8 +1244,12 @@ public final class TIREmitter: AST.Visitor {
             visitExpression($0.value)
         }
         let inst = builder.buildCall(callee: callee, arguments: arguments)
-        if needLoad {
-            return builder.buildLoad(ptr: inst.result!).result
+        if calleeValue is TIR.ObjectConstruction {
+            if call.isLeftValue {
+                return inst.result
+            } else {
+                return builder.buildLoad(ptr: inst.result!).result
+            }
         } else {
             return inst.result
         }
