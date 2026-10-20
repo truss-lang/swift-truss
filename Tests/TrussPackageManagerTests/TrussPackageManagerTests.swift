@@ -144,6 +144,94 @@ struct ModuleInterfaceCodecTests {
     }
 
     @Test
+    func roundTripClosureTypeRef() throws {
+        let closure = InterfaceClosureType(
+            parameters: [
+                InterfaceTupleElement(label: "a", type: .Builtin("Int64")),
+                InterfaceTupleElement(label: nil, type: .Builtin("Bool")),
+            ],
+            isVariadic: true,
+            isAsync: true,
+            isThrowing: true,
+            throwsTypes: [.Nominal("E", [])],
+            returnType: .Builtin("Int64")
+        )
+        let interface = ModuleInterface(
+            name: "M",
+            root: InterfaceScope(
+                types: [
+                    .Nominal(InterfaceNominal(
+                        kind: .StructType, name: "S",
+                        conformances: [], superclass: nil,
+                        scope: InterfaceScope(
+                            values: [
+                                .Variable(InterfaceVariable(
+                                    name: "handler", isMutable: false,
+                                    type: .Function(InterfaceFunctionType(
+                                        parameters: [InterfaceTupleElement(label: nil, type: .Closure(closure))],
+                                        returnType: .Void
+                                    ))
+                                )),
+                            ]
+                        )
+                    )),
+                ],
+                values: [
+                    .Variable(InterfaceVariable(name: "top", isMutable: false, type: .Closure(closure))),
+                ]
+            )
+        )
+        let bytes = TrussPackageEncoder(interface: interface).encode()
+        let decoded = try TrussPackageDecoder().decode(bytes)
+        #expect(canonicalize(decoded.interface) == canonicalize(interface))
+        #expect(ModuleInterfaceDumper().dump(interface).contains("var top: (Int64, Bool...) -> Int64"))
+
+        let loaded = InterfaceLoader(context: Context()).makeTypeRef(.Closure(closure))
+        let closureType = try #require(loaded as? TrussType.ClosureType)
+        #expect(closureType.parameters.count == 2)
+        #expect(closureType.parameters.map(\.label) == ["a", nil])
+        #expect(closureType.isVariadic)
+        #expect(closureType.isAsync)
+        #expect(closureType.isThrowing)
+        #expect(closureType.throwsTypes.count == 1)
+        #expect(closureType.throwsTypes[0] is TrussType.StructType)
+        #expect(closureType.returnType is TrussType.BuiltinType)
+    }
+
+    @Test
+    func extractorProducesClosureTypeRef() {
+        let closure = TrussType.ClosureType(
+            parameters: [TrussType.ClosureType.Parameter(label: "a", type: TrussType.BuiltinType("Int64"))],
+            isAsync: true,
+            isThrowing: true,
+            throwsTypes: [TrussType.BuiltinType("Bool")],
+            returnType: TrussType.BuiltinType("Int64")
+        )
+        let ref = InterfaceExtractor(context: Context()).typeRef(closure)
+        #expect(ref == .Closure(InterfaceClosureType(
+            parameters: [InterfaceTupleElement(label: "a", type: .Builtin("Int64"))],
+            isAsync: true,
+            isThrowing: true,
+            throwsTypes: [.Builtin("Bool")],
+            returnType: .Builtin("Int64")
+        )))
+    }
+
+    @Test
+    func rejectsMismatchedVersion() throws {
+        #expect(TrussPackageFormat.version == 1)
+        var stale = TrussPackageEncoder(interface: ModuleInterface(name: "M", root: InterfaceScope())).encode()
+        stale[4] = 0
+        stale[5] = 0
+        stale[6] = 0
+        stale[7] = 0
+        do {
+            _ = try TrussPackageDecoder().decode(stale)
+            Issue.record("expected badVersion")
+        } catch TrussPackageCodecError.BadVersion {}
+    }
+
+    @Test
     func roundTripEnumCases() throws {
         let interface = ModuleInterface(
             name: "M",

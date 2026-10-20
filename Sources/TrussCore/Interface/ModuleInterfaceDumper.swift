@@ -123,12 +123,27 @@ public struct ModuleInterfaceDumper {
         case let .Tuple(els):
             "(\(els.map { ($0.label.map { "\($0): " } ?? "") + typeText($0.type) }.joined(separator: ", ")))"
         case let .Function(f):
-            "(\(f.parameters.map { typeText($0.type) }.joined(separator: ", "))) -> \(typeText(f.returnType))"
+            callableText(parameters: f.parameters, isVariadic: f.isVariadic, returnType: f.returnType)
+        case let .Closure(c):
+            callableText(parameters: c.parameters, isVariadic: c.isVariadic, returnType: c.returnType)
         case let .Composition(m): m.map(typeText).joined(separator: " & ")
         case let .Variadic(b): "\(typeText(b))..."
         case let .GenericParam(n): n
         case let .Forall(ps, b): "<\(ps.joined(separator: ", "))> \(typeText(b))"
         case let .TypeVariable(i): "T\(i)"
         }
+    }
+
+    private func callableText(
+        parameters: [InterfaceTupleElement], isVariadic: Bool, returnType: InterfaceTypeRef
+    ) -> String {
+        let parts = parameters.enumerated().map { index, parameter -> String in
+            var text = typeText(parameter.type)
+            if isVariadic, index == parameters.count - 1 {
+                text += "..."
+            }
+            return text
+        }
+        return "(" + parts.joined(separator: ", ") + ") -> " + typeText(returnType)
     }
 }

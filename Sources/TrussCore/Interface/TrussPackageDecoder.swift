@@ -98,6 +98,31 @@ public struct TrussPackageDecoder {
                 returnType: ret
             ))
         case .Composition: return try .Composition(decodeRefs(&reader))
+        case .Closure:
+            let isVar = try reader.bool()
+            let isAsync = try reader.bool()
+            let isThrow = try reader.bool()
+            let throwCount = try Int(reader.u32())
+            var throwsTypes: [InterfaceTypeRef] = []
+            for _ in 0 ..< throwCount {
+                try throwsTypes.append(decodeRef(&reader))
+            }
+            let paramCount = try Int(reader.u32())
+            var params: [InterfaceTupleElement] = []
+            for _ in 0 ..< paramCount {
+                let l = try reader.stringOpt()
+                let t = try decodeRef(&reader)
+                params.append(InterfaceTupleElement(label: l, type: t))
+            }
+            let ret = try decodeRef(&reader)
+            return .Closure(InterfaceClosureType(
+                parameters: params,
+                isVariadic: isVar,
+                isAsync: isAsync,
+                isThrowing: isThrow,
+                throwsTypes: throwsTypes,
+                returnType: ret
+            ))
         case .Variadic: return try .Variadic(decodeRef(&reader))
         case .GenericParam: return try .GenericParam(reader.string())
         case .Forall:

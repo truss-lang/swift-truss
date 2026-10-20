@@ -59,6 +59,7 @@ public enum InterfaceTypeRefCode: UInt8 {
     case GenericParam = 10
     case Forall = 11
     case TypeVariable = 12
+    case Closure = 13
 }
 
 public enum InterfaceTypeDeclCode: UInt8 {
@@ -225,6 +226,30 @@ public struct InterfaceFunctionType: Equatable, Hashable {
     }
 }
 
+public struct InterfaceClosureType: Equatable, Hashable {
+    public var parameters: [InterfaceTupleElement]
+    public var isVariadic: Bool
+    public var isAsync: Bool
+    public var isThrowing: Bool
+    public var throwsTypes: [InterfaceTypeRef]
+    public var returnType: InterfaceTypeRef
+    public init(
+        parameters: [InterfaceTupleElement],
+        isVariadic: Bool = false,
+        isAsync: Bool = false,
+        isThrowing: Bool = false,
+        throwsTypes: [InterfaceTypeRef] = [],
+        returnType: InterfaceTypeRef
+    ) {
+        self.parameters = parameters
+        self.isVariadic = isVariadic
+        self.isAsync = isAsync
+        self.isThrowing = isThrowing
+        self.throwsTypes = throwsTypes
+        self.returnType = returnType
+    }
+}
+
 public indirect enum InterfaceTypeRef: Equatable, Hashable {
     case Void
     case Never
@@ -234,6 +259,7 @@ public indirect enum InterfaceTypeRef: Equatable, Hashable {
     case Pointer(InterfaceTypeRef, Bool)
     case Tuple([InterfaceTupleElement])
     case Function(InterfaceFunctionType)
+    case Closure(InterfaceClosureType)
     case Composition([InterfaceTypeRef])
     case Variadic(InterfaceTypeRef)
     case GenericParam(String)

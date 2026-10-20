@@ -242,6 +242,15 @@ public struct InterfaceLoader {
                 isVariadic: f.isVariadic, isAsync: f.isAsync, isThrowing: f.isThrowing,
                 throwsTypes: f.throwsTypes.map(makeTypeRef), returnType: makeTypeRef(f.returnType)
             )
+        case let .Closure(c):
+            return TrussType.ClosureType(
+                parameters: c.parameters.map { TrussType.ClosureType.Parameter(
+                    label: $0.label,
+                    type: makeTypeRef($0.type)
+                ) },
+                isVariadic: c.isVariadic, isAsync: c.isAsync, isThrowing: c.isThrowing,
+                throwsTypes: c.throwsTypes.map(makeTypeRef), returnType: makeTypeRef(c.returnType)
+            )
         case let .Composition(m): return TrussType.CompositionType(m.map(makeTypeRef))
         case let .Variadic(b): return TrussType.VariadicType(makeTypeRef(b))
         case let .GenericParam(n): return TrussType.GenericParamType(n)

@@ -80,6 +80,7 @@ public final class TrussPackageEncoder {
         case let .Pointer(p, _): [p]
         case let .Tuple(els): els.map(\.type)
         case let .Function(f): f.parameters.map(\.type) + f.throwsTypes + [f.returnType]
+        case let .Closure(c): c.parameters.map(\.type) + c.throwsTypes + [c.returnType]
         case let .Composition(m): m
         case let .Variadic(b): [b]
         case let .Forall(_, b): [b]
@@ -112,6 +113,17 @@ public final class TrussPackageEncoder {
                 w.stringOpt(p.label); encodeRef(p.type, w)
             }
             encodeRef(f.returnType, w)
+        case let .Closure(c):
+            w.u8(InterfaceTypeRefCode.Closure.rawValue)
+            w.bool(c.isVariadic); w.bool(c.isAsync); w.bool(c.isThrowing)
+            w.u32(UInt32(c.throwsTypes.count)); for x in c.throwsTypes {
+                encodeRef(x, w)
+            }
+            w.u32(UInt32(c.parameters.count))
+            for p in c.parameters {
+                w.stringOpt(p.label); encodeRef(p.type, w)
+            }
+            encodeRef(c.returnType, w)
         case let .Composition(m): w.u8(InterfaceTypeRefCode.Composition.rawValue); encodeRefs(m, w)
         case let .Variadic(b): w.u8(InterfaceTypeRefCode.Variadic.rawValue); encodeRef(b, w)
         case let .GenericParam(n): w.u8(InterfaceTypeRefCode.GenericParam.rawValue); w.string(n)

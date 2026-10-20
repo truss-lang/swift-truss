@@ -166,6 +166,12 @@ public struct InterfaceExtractor {
                 isVariadic: f.isVariadic, isAsync: f.isAsync, isThrowing: f.isThrowing,
                 throwsTypes: f.throwsTypes.map(typeRef), returnType: typeRef(f.returnType)
             ))
+        case let c as TrussType.ClosureType:
+            .Closure(InterfaceClosureType(
+                parameters: c.parameters.map { InterfaceTupleElement(label: $0.label, type: typeRef($0.type)) },
+                isVariadic: c.isVariadic, isAsync: c.isAsync, isThrowing: c.isThrowing,
+                throwsTypes: c.throwsTypes.map(typeRef), returnType: typeRef(c.returnType)
+            ))
         case let n as TrussType.NominalType:
             .Nominal(n.name, [])
         case let gi as TrussType.GenericInstantiation:
