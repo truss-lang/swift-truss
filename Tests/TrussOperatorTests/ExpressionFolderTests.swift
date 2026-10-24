@@ -1,6 +1,8 @@
 import Testing
 import TrussCore
 import TrussOperator
+import TrussSemantics
+import TrussSyntax
 
 func firstBodyExpression(_ program: AST.Program) -> AST.Expression {
     var statements = program.statements
@@ -295,6 +297,36 @@ func parentheticalInnerFolds() {
 }
 
 @Test
+func parentheticalSurvivesFolding() {
+    let (context, _, programs) = runFolded([
+        "struct S {}\nfunc id(_ x: S) -> S { x }\nfunc main() {\n"
+            + "    let f: (S) -> S = ((id))\n    (f)\n}",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    #expect(AST.Dumper().dump(programs[0]).contains("ParentheticalExpression"))
+}
+
+@Test
+func parentheticalFunctionReferenceKeepsOverloads() throws {
+    let (context, _, programs) = runFolded([
+        "struct S {}\nfunc id(_ x: S) -> S { x }\nfunc main() {\n    let f = (id)\n}",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let funcDecl = programs[0].statements.first {
+        ($0 as? AST.FunctionDecl)?.name.value == "main"
+    } as! AST.FunctionDecl
+    guard case let .Block(statements) = funcDecl.body else {
+        Issue.record("main has no block body")
+        return
+    }
+    let variableDecl = statements[0] as! AST.VariableDecl
+    let parenthetical = try #require(variableDecl.initializer as? AST.Parenthetical)
+    let initializer = try #require(parenthetical.inner as? AST.Variable)
+    #expect(initializer.name.value == "id")
+    #expect(initializer.overloads?.count == 1)
+}
+
+@Test
 func ifConditionFolds() {
     let (context, _, programs) = runFolded([
         "precedencegroup A {} precedencegroup B { higherThan: A } infix operator +: A "
@@ -491,4 +523,264 @@ func singleComparisonNotMisFolded() {
     let root = binary(firstBodyExpression(programs[0]), op: "<")
     #expect(variable(root?.left, "a"))
     #expect(variable(root?.right, "b"))
+}
+
+func parameterType(_ program: AST.Program, function: String) -> AST.Expression? {
+    let funcDecl = program.statements.first {
+        ($0 as? AST.FunctionDecl)?.name.value == function
+    } as? AST.FunctionDecl
+    return funcDecl?.parameters.first?.type
+}
+
+func runFoldedTyped(_ sources: [String]) -> (Context, [AST.Program]) {
+    let context = Context()
+    Builtin.install(context: context)
+    var programs: [AST.Program] = []
+    for source in sources {
+        let src = Source(id: context.nextSourceId, filepath: "<test>", content: source)
+        context.register(source: src)
+        let lexerResult = Lexer(input: CharStream(content: source, id: src.id)).parse()
+        let preprocessed = Preprocessor(context: context).process(
+            lexerResult, config: PreprocessorConfig()
+        )
+        programs.append(Parser(context: context, packageName: "main", preprocessed).parse())
+    }
+    for program in programs {
+        TrussSemantics.DeclCollector(context: context).visitProgram(program)
+        Enter(context: context).visitProgram(program)
+    }
+    let merger = MergePass(context: context)
+    for program in programs {
+        merger.visitProgram(program)
+    }
+    merger.resolvePending()
+    for program in programs {
+        NameResolver(context: context).visitProgram(program)
+    }
+    let table = OperatorTable()
+    for program in programs {
+        TrussOperator.DeclCollector(table: table, context: context).visitProgram(program)
+    }
+    PrecedenceResolver(table: table, context: context).resolve()
+    let folder = ExpressionFolder(context: context, table: table)
+    let folded: [AST.Program] = programs.map { folder.rewrite($0) }
+    for program in folded {
+        TypeBuilder(context: context).visitProgram(program)
+    }
+    TypeChecker(context: context).checkAll(folded)
+    return (context, folded)
+}
+
+@Test
+func genericApplicationWithClosureTypeArgument() {
+    let (context, _, programs) = runFolded([
+        "struct Box<T> { let v: T } "
+            + "func take(_ c: Box<(Int32) -> Int32>) -> Int32 { return 1 }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let application = parameterType(programs[0], function: "take") as? AST.GenericApplication
+    #expect(variable(application?.base, "Box"))
+    #expect(application?.genericArguments.count == 1)
+    let closure = application?.genericArguments.first as? AST.ClosureType
+    #expect(closure?.parameters.count == 1)
+    #expect(variable(closure?.parameters.first?.type, "Int32"))
+    #expect(variable(closure?.returnType, "Int32"))
+}
+
+@Test
+func genericApplicationWithFunctionTypeArgument() {
+    let (context, _, programs) = runFolded([
+        "struct Box<T> { let v: T } "
+            + "func take(_ c: Box<func() -> Void>) -> Void { }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let application = parameterType(programs[0], function: "take") as? AST.GenericApplication
+    #expect(variable(application?.base, "Box"))
+    #expect(application?.genericArguments.count == 1)
+    let functionType = application?.genericArguments.first as? AST.FunctionType
+    #expect(functionType?.parameters.count == 0)
+    #expect(variable(functionType?.returnType, "Void"))
+}
+
+@Test
+func genericApplicationWithClosureTypeAsLastArgument() {
+    let (context, _, programs) = runFolded([
+        "struct Pair<A, B> { let a: A let b: B } "
+            + "func take(_ p: Pair<Int32, (Int32) -> Int32>) -> Int32 { return 1 }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let application = parameterType(programs[0], function: "take") as? AST.GenericApplication
+    #expect(variable(application?.base, "Pair"))
+    #expect(application?.genericArguments.count == 2)
+    #expect(variable(application?.genericArguments[0], "Int32"))
+    let closure = application?.genericArguments[1] as? AST.ClosureType
+    #expect(variable(closure?.returnType, "Int32"))
+}
+
+@Test
+func genericApplicationWithNestedClosureTypeArgument() {
+    let (context, _, programs) = runFolded([
+        "struct Box<T> { let v: T } "
+            + "func take(_ c: Box<Box<(Int32) -> Int32>>) -> Int32 { return 1 }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let outer = parameterType(programs[0], function: "take") as? AST.GenericApplication
+    #expect(variable(outer?.base, "Box"))
+    let inner = outer?.genericArguments.first as? AST.GenericApplication
+    #expect(variable(inner?.base, "Box"))
+    let closure = inner?.genericArguments.first as? AST.ClosureType
+    #expect(variable(closure?.returnType, "Int32"))
+}
+
+@Test
+func genericApplicationWithClosureTypeEffects() {
+    let (context, _, programs) = runFolded([
+        "struct Box<T> { let v: T } "
+            + "func takeAsync(_ c: Box<(Int32) async -> Int32>) -> Int32 { return 1 } "
+            + "func takeThrows(_ c: Box<(Int32) throws -> Int32>) -> Int32 { return 1 }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let asyncApplication = parameterType(programs[0], function: "takeAsync") as? AST.GenericApplication
+    let asyncClosure = asyncApplication?.genericArguments.first as? AST.ClosureType
+    #expect(asyncClosure?.asyncToken != nil)
+    #expect(asyncClosure?.throwsClause == nil)
+    let throwsApplication = parameterType(programs[0], function: "takeThrows") as? AST.GenericApplication
+    let throwsClosure = throwsApplication?.genericArguments.first as? AST.ClosureType
+    #expect(throwsClosure?.asyncToken == nil)
+    #expect(throwsClosure?.throwsClause != nil)
+}
+
+@Test
+func genericApplicationWithCurriedClosureTypeArgument() {
+    let (context, _, programs) = runFolded([
+        "struct Box<T> { let v: T } "
+            + "func take(_ c: Box<(Int32) -> (Int32) -> Int32>) -> Int32 { return 1 }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let application = parameterType(programs[0], function: "take") as? AST.GenericApplication
+    let outerClosure = application?.genericArguments.first as? AST.ClosureType
+    let innerClosure = outerClosure?.returnType as? AST.ClosureType
+    #expect(innerClosure?.parameters.count == 1)
+    #expect(variable(innerClosure?.returnType, "Int32"))
+}
+
+@Test
+func genericApplicationWithClosureTypeArgumentInstantiatesClosureType() {
+    let (context, programs) = runFoldedTyped([
+        "typealias Int32 = Builtin.Int32 struct Box<T> { let v: T } "
+            + "func take(_ c: Box<(Int32) -> Int32>) -> Int32 { return 1 }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let parameter = parameterType(programs[0], function: "take")
+    let instantiation = parameter?.ty as? TrussType.GenericInstantiation
+    #expect(instantiation?.base.name == "Box")
+    #expect(instantiation?.arguments.count == 1)
+    let closure = instantiation?.arguments.first as? TrussType.ClosureType
+    #expect(closure?.parameters.count == 1)
+    #expect((closure?.parameters.first?.type as? TrussType.BuiltinType)?.name == "Int32")
+    #expect((closure?.returnType as? TrussType.BuiltinType)?.name == "Int32")
+    let dump = AST.Dumper().dump(programs[0])
+    #expect(dump.contains("ty:Generic(StructType(Box)"))
+    #expect(dump.contains("(Builtin.Int32) -> Builtin.Int32"))
+    #expect(!dump.contains("SequentialExpression"))
+}
+
+@Test
+func genericApplicationWithFunctionTypeArgumentInstantiatesFunctionType() {
+    let (context, programs) = runFoldedTyped([
+        "struct Box<T> { let v: T } "
+            + "func take(_ c: Box<func() -> Void>) -> Void { }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let parameter = parameterType(programs[0], function: "take")
+    let instantiation = parameter?.ty as? TrussType.GenericInstantiation
+    #expect(instantiation?.base.name == "Box")
+    let functionType = instantiation?.arguments.first as? TrussType.FunctionType
+    #expect(functionType?.parameters.count == 0)
+}
+
+@Test
+func existingGenericApplicationsKeepTheirShape() {
+    let (context, _, programs) = runFolded([
+        "struct Box<T> { let v: T }\nstruct Pair<A, B> { let a: A let b: B }\n"
+            + "func single(_ c: Box<Int32>) -> Int32 { return 1 }\n"
+            + "func tuple(_ c: Box<(Int32, Int32)>) -> Int32 { return 1 }\n"
+            + "func nested(_ c: Box<Box<Int32>>) -> Int32 { return 1 }\n"
+            + "func closureFirst(_ p: Pair<(Int32) -> Int32, Int32>) -> Int32 { return 1 }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let single = parameterType(programs[0], function: "single") as? AST.GenericApplication
+    #expect(variable(single?.base, "Box"))
+    #expect(variable(single?.genericArguments.first, "Int32"))
+    let tuple = parameterType(programs[0], function: "tuple") as? AST.GenericApplication
+    #expect((tuple?.genericArguments.first as? AST.Tuple) != nil)
+    let nested = parameterType(programs[0], function: "nested") as? AST.GenericApplication
+    #expect((nested?.genericArguments.first as? AST.GenericApplication) != nil)
+    let closureFirst = parameterType(programs[0], function: "closureFirst") as? AST.GenericApplication
+    #expect((closureFirst?.genericArguments[0] as? AST.ClosureType) != nil)
+    #expect(variable(closureFirst?.genericArguments[1], "Int32"))
+}
+
+@Test
+func typeSymbolComparisonWithoutCloserStillFoldsAsBinary() {
+    let (context, _, programs) = runFolded([
+        "struct A {} struct B {} precedencegroup P { associativity: left } "
+            + "infix operator <: P func main() { A < B }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let root = binary(firstBodyExpression(programs[0]), op: "<")
+    #expect(variable(root?.left, "A"))
+    #expect(variable(root?.right, "B"))
+}
+
+@Test
+func genericApplicationWithNestedGenericClosureReturnTypeFolds() {
+    let (context, _, programs) = runFolded([
+        "struct Box<T> { let v: T }\n"
+            + "func take(_ c: Box<(Int32) -> Box<Int32>>) -> Int32 { return 1 }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let outer = parameterType(programs[0], function: "take") as? AST.GenericApplication
+    #expect(variable(outer?.base, "Box"))
+    let closure = outer?.genericArguments.first as? AST.ClosureType
+    let inner = closure?.returnType as? AST.GenericApplication
+    #expect(variable(inner?.base, "Box"))
+    #expect(variable(inner?.genericArguments.first, "Int32"))
+}
+
+@Test
+func shiftOperatorsStayBinary() {
+    let (context, _, programs) = runFolded([
+        "precedencegroup S { associativity: none } infix operator <<: S infix operator >>: S\n"
+            + "func main() {\n    a << b\n    a >> c\n}",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let leftShift = binary(bodyExpression(programs[0], at: 0), op: "<<")
+    #expect(variable(leftShift?.left, "a"))
+    #expect(variable(leftShift?.right, "b"))
+    let rightShift = binary(bodyExpression(programs[0], at: 1), op: ">>")
+    #expect(variable(rightShift?.left, "a"))
+    #expect(variable(rightShift?.right, "c"))
+}
+
+@Test
+func protocolCompositionStaysComposition() {
+    let (context, _, programs) = runFolded([
+        "protocol P {}\nprotocol Q {}\n"
+            + "func take(_ c: some P & Q) -> Int32 { return 1 }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let someType = parameterType(programs[0], function: "take") as? AST.SomeType
+    let composition = someType?.wrappedType as? AST.ProtocolCompositionType
+    #expect(composition?.types.count == 2)
+}
+
+@Test
+func explicitGenericCallStaysGenericApplication() {
+    let (context, _, programs) = runFolded([
+        "func main() { id<Int32>(1) }\nfunc id<T>(_ x: T) -> T { return x }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let call = firstBodyExpression(programs[0]) as? AST.Call
+    #expect((call?.callee as? AST.GenericApplication) != nil)
 }

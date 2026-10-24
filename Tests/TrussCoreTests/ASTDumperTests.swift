@@ -740,3 +740,267 @@ func dumpVariadicFunctionAndClosureTypeText() {
     #expect(dump.contains("FunctionType ty:func(x: StructType(S)#0...) -> StructType(S)#0"))
     #expect(dump.contains("ClosureType ty:(x: StructType(S)#0...) -> StructType(S)#0"))
 }
+
+private let foldedOperatorPrelude = """
+precedencegroup ExponentiationPrecedence {
+    higherThan: MultiplicationPrecedence
+    associativity: right
+}
+precedencegroup MultiplicationPrecedence {
+    higherThan: AdditionPrecedence
+    associativity: left
+}
+precedencegroup AdditionPrecedence {
+    higherThan: AssignmentPrecedence
+    associativity: left
+}
+precedencegroup AssignmentPrecedence {
+    associativity: right
+    assignment: true
+}
+infix operator ^ : ExponentiationPrecedence
+infix operator * : MultiplicationPrecedence
+infix operator + : AdditionPrecedence
+infix operator - : AdditionPrecedence
+infix operator = : AssignmentPrecedence
+prefix operator -
+postfix operator ++
+typealias Int = Builtin.Int32
+func ^ (lhs: Int, rhs: Int) -> Int { return lhs }
+func * (lhs: Int, rhs: Int) -> Int { return lhs }
+func + (lhs: Int, rhs: Int) -> Int { return lhs }
+func - (lhs: Int, rhs: Int) -> Int { return lhs }
+func = (lhs: Int, rhs: Int) -> Int { return lhs }
+func - (prefixValue: Int) -> Int { return prefixValue }
+func ++ (postfixValue: Int) -> Int { return postfixValue }
+func id(_ value: Int) -> Int { return value }
+"""
+
+private func foldedFunctionSource(_ body: String) -> String {
+    foldedOperatorPrelude + "\nfunc f(a: Int, b: Int, c: Int) {\n" + body + "\n}\n"
+}
+
+private func foldedSource(_ source: String) -> String {
+    SourcePrinter().print(parseProgram(source, semantic: true))
+}
+
+private func foldedDump(_ source: String) -> String {
+    AST.Dumper().dump(parseProgram(source, semantic: true))
+}
+
+private func assertFoldedRoundTrip(_ source: String) {
+    let printed = foldedSource(source)
+    let reparsed = foldedDump(printed)
+    #expect(
+        reparsed == foldedDump(source),
+        "folded round-trip failed for:\n\(source)\nprinted:\n\(printed)"
+    )
+    #expect(foldedSource(printed) == printed, "folded printing is not idempotent:\n\(printed)")
+}
+
+@Test
+func foldedSourceKeepsLowerPrecedenceLeftOperandParenthesized() {
+    let source = foldedFunctionSource("    let x = (1 + 2) * 3")
+    let printed = foldedSource(source)
+    #expect(printed.contains("let x = (1 + 2) * 3"))
+    assertFoldedRoundTrip(source)
+}
+
+@Test
+func foldedSourceKeepsLowerPrecedenceRightOperandParenthesized() {
+    let source = foldedFunctionSource("    let x = 1 - (2 - 3)\n    let y = 1 - 2 - 3")
+    let printed = foldedSource(source)
+    #expect(printed.contains("let x = 1 - (2 - 3)"))
+    #expect(printed.contains("let y = 1 - 2 - 3"))
+    assertFoldedRoundTrip(source)
+}
+
+@Test
+func foldedSourceKeepsRightAssociativeOperandParenthesized() {
+    let source = foldedFunctionSource("    let x = a ^ b ^ c\n    let y = (a ^ b) ^ c")
+    let printed = foldedSource(source)
+    #expect(printed.contains("let x = a ^ b ^ c"))
+    #expect(printed.contains("let y = (a ^ b) ^ c"))
+    assertFoldedRoundTrip(source)
+}
+
+@Test
+func foldedSourceKeepsAssignmentOperandParenthesized() {
+    let source = foldedFunctionSource("    a = b = c")
+    #expect(foldedSource(source).contains("a = b = c"))
+    assertFoldedRoundTrip(source)
+
+    let leftNested = foldedFunctionSource("    (a = b) = c")
+    #expect(foldedSource(leftNested).contains("(a = b) = c"))
+    assertFoldedRoundTrip(leftNested)
+}
+
+@Test
+func foldedSourceKeepsPrefixAndPostfixOperandsGrouped() {
+    let source = foldedFunctionSource(
+        "    let x = -(a + b)\n    let y = -a * b\n    let z = (a + b)++\n    let w = a++ * b"
+    )
+    let printed = foldedSource(source)
+    #expect(printed.contains("let x = -(a + b)"))
+    #expect(printed.contains("let y = -a * b"))
+    #expect(printed.contains("let z = (a + b)++"))
+    #expect(printed.contains("let w = a++ * b"))
+    assertFoldedRoundTrip(source)
+}
+
+@Test
+func foldedSourceSeparatesAdjacentPrefixAndPostfixOperators() {
+    let source = foldedFunctionSource("    let x = - -a\n    let y = a! !")
+    let printed = foldedSource(source)
+    #expect(printed.contains("let x = - -a"))
+    #expect(printed.contains("let y = a! !"))
+    assertFoldedRoundTrip(source)
+}
+
+@Test
+func foldedSourceKeepsParenthesizedFunctionReference() {
+    let source = foldedFunctionSource("    let x: (Int) -> Int = (id)\n    return")
+    let printed = foldedSource(source)
+    #expect(printed.contains("let x: (Int) -> Int = (id)"))
+    assertFoldedRoundTrip(source)
+}
+
+@Test
+func foldedSourceKeepsGroupedOperandsInsideClosureBody() {
+    let source = foldedFunctionSource("    let x = { (y: Int) -> Int in (y + 1) * 2 }")
+    let printed = foldedSource(source)
+    #expect(printed.contains("in (y + 1) * 2"))
+    assertFoldedRoundTrip(source)
+}
+
+@Test
+func foldedSourceKeepsGroupedOperandsInMemberAccessAndSubscript() {
+    let source = """
+    precedencegroup AdditionPrecedence {
+        higherThan: AssignmentPrecedence
+        associativity: left
+    }
+    precedencegroup AssignmentPrecedence {
+        associativity: right
+        assignment: true
+    }
+    infix operator + : AdditionPrecedence
+    infix operator = : AssignmentPrecedence
+    typealias Int = Builtin.Int32
+    struct S {
+        let x: Int
+        subscript(i: Int) -> Int {
+            return i
+        }
+    }
+    func + (lhs: S, rhs: S) -> S { return lhs }
+    func f(a: S, b: S) {
+        let m = (a + b).x
+        let s = (a + b)[1]
+    }
+    """
+    let printed = foldedSource(source)
+    #expect(printed.contains("let m = (a + b).x"))
+    #expect(printed.contains("let s = (a + b)[1]"))
+    assertFoldedRoundTrip(source)
+}
+
+@Test
+func foldedSourceParenthesizesOperatorReferences() {
+    let source = foldedFunctionSource(
+        "    let g: (Int, Int) -> Int = (+)\n"
+            + "    let h: (Int, Int) -> Int = (-)\n"
+            + "    let i: (Int) -> Int = (++)\n"
+            + "    let r = (+)(a, b)"
+    )
+    let printed = foldedSource(source)
+    #expect(printed.contains("let g: (Int, Int) -> Int = (+)"))
+    #expect(printed.contains("let h: (Int, Int) -> Int = (-)"))
+    #expect(printed.contains("let i: (Int) -> Int = (++)"))
+    #expect(printed.contains("let r = (+)(a, b)"))
+    #expect(!printed.contains("= +"))
+    assertFoldedRoundTrip(source)
+}
+
+@Test
+func foldedSourceKeepsMemberOperatorReferenceUnparenthesized() {
+    let source = """
+    precedencegroup AdditionPrecedence {
+        higherThan: AssignmentPrecedence
+        associativity: left
+    }
+    precedencegroup AssignmentPrecedence {
+        associativity: right
+        assignment: true
+    }
+    infix operator + : AdditionPrecedence
+    infix operator = : AssignmentPrecedence
+    typealias Int = Builtin.Int32
+    struct S {
+        let v: Int
+        func +(rhs: S) -> S { return rhs }
+    }
+    func f(s: S) {
+        let m = s.+
+    }
+    """
+    let printed = foldedSource(source)
+    #expect(printed.contains("let m = s.+"))
+    #expect(!printed.contains("s.(+)"))
+    assertFoldedRoundTrip(source)
+}
+
+private let closureCallPrelude = """
+typealias Int32 = Builtin.Int32
+func take(body: () -> Void) { return }
+func take1(body: (Int32) -> Void) { return }
+func take2(a: Int32, body: () -> Void) { return }
+"""
+
+private func closureFunctionSource(_ body: String) -> String {
+    closureCallPrelude + "\nfunc f() {\n" + body + "\n}\n"
+}
+
+private func braceCount(_ text: String, _ brace: Character) -> Int {
+    text.filter { $0 == brace }.count
+}
+
+@Test
+func foldedSourcePrintsBalancedTrailingClosures() {
+    let source = closureFunctionSource(
+        "    take { }\n"
+            + "    take {\n        let x = 1\n        return\n    }\n"
+            + "    take1 { (y: Int32) in return }\n"
+            + "    take2(a: 1) { }"
+    )
+    let printed = foldedSource(source)
+    #expect(printed.contains("take() { }"))
+    #expect(printed.contains("take2(a: 1) { }"))
+    #expect(printed.contains("take1() { (y: Int32) in"))
+    #expect(printed.contains("let x = 1"))
+    #expect(!printed.contains("{ {"))
+    #expect(braceCount(printed, "{") == braceCount(printed, "}"))
+    assertFoldedRoundTrip(source)
+}
+
+@Test
+func foldedSourcePrintsBalancedStandaloneClosures() {
+    let source = closureFunctionSource(
+        "    let g: () -> Void = { }\n"
+            + "    let h: () -> Int32 = { 1 }\n"
+            + "    let i: () -> Int32 = {\n        let x = 1\n        x\n    }\n"
+            + "    let j: (Int32) -> Int32 = { (z: Int32) in z }\n"
+            + "    let y = 1\n"
+            + "    let k: () -> Int32 = { [y] in y }\n"
+            + "    let m: (Int32) -> Void = { (z: Int32) in }"
+    )
+    let printed = foldedSource(source)
+    #expect(printed.contains("let g: () -> Void = { }"))
+    #expect(printed.contains("let h: () -> Int32 = { 1 }"))
+    #expect(printed.contains("let j: (Int32) -> Int32 = { (z: Int32) in z }"))
+    #expect(printed.contains("let k: () -> Int32 = { [y] in y }"))
+    #expect(printed.contains("let m: (Int32) -> Void = { (z: Int32) in }"))
+    #expect(!printed.contains("{ {"))
+    #expect(braceCount(printed, "{") == braceCount(printed, "}"))
+    assertFoldedRoundTrip(source)
+}

@@ -5,6 +5,7 @@ public final class Parser {
     private let context: Context
     private let packageName: String
     private let lexerResult: LexerResult
+    private var tokens: [Token]
     private let source: Source
     private var index: Int = 0
     private var inPatternContext: Bool = false
@@ -12,40 +13,40 @@ public final class Parser {
     private var castDepth = 0
     private var buffer: SourceBuffer { source.stringSourceBuffer }
     public var last: Token? {
-        if index - 1 < lexerResult.tokens.count {
-            lexerResult.tokens[index - 1]
+        if index - 1 < tokens.count {
+            tokens[index - 1]
         } else {
             nil
         }
     }
 
     public var peek: Token? {
-        if index < lexerResult.tokens.count {
-            lexerResult.tokens[index]
+        if index < tokens.count {
+            tokens[index]
         } else {
             nil
         }
     }
 
     public var peek2: Token? {
-        if (index + 1) < lexerResult.tokens.count {
-            lexerResult.tokens[index + 1]
+        if (index + 1) < tokens.count {
+            tokens[index + 1]
         } else {
             nil
         }
     }
 
     public var peek3: Token? {
-        if (index + 2) < lexerResult.tokens.count {
-            lexerResult.tokens[index + 2]
+        if (index + 2) < tokens.count {
+            tokens[index + 2]
         } else {
             nil
         }
     }
 
     public var next: Token? {
-        if index < lexerResult.tokens.count {
-            let t = lexerResult.tokens[index]
+        if index < tokens.count {
+            let t = tokens[index]
             index += 1
             return t
         } else {
@@ -53,10 +54,34 @@ public final class Parser {
         }
     }
 
+    private func splitCloser(_ token: Token, levels: Int) -> Token {
+        let consumedValue = String(token.value.prefix(levels))
+        let remainderValue = String(token.value.dropFirst(levels))
+        let consumed = Token(
+            value: consumedValue, kind: .Operator(operatorTable[consumedValue]),
+            pos: Position(
+                pos: token.pos.pos, line: token.pos.line, col: token.pos.col, len: levels
+            ),
+            id: token.id, isUnterminated: token.isUnterminated, isRaw: token.isRaw,
+            expansion: token.expansion
+        )
+        tokens[index] = Token(
+            value: remainderValue, kind: .Operator(operatorTable[remainderValue]),
+            pos: Position(
+                pos: token.pos.pos + levels, line: token.pos.line,
+                col: token.pos.col + levels, len: token.pos.len - levels
+            ),
+            id: token.id, isUnterminated: token.isUnterminated, isRaw: token.isRaw,
+            expansion: token.expansion
+        )
+        return consumed
+    }
+
     public init(context: Context, packageName: String, _ lexerResult: LexerResult) {
         self.context = context
         self.packageName = packageName
         self.lexerResult = lexerResult
+        tokens = lexerResult.tokens
         source = context.sourceTable[lexerResult.id]!
     }
 
@@ -3691,12 +3716,13 @@ public final class Parser {
     }
 
     private func parseExpression(
-        excepts: [OperatorKind]? = nil, isCondition: Bool = false, isTypeContext: Bool = false
+        excepts: [OperatorKind]? = nil, isCondition: Bool = false, isTypeContext: Bool = false,
+        angleBase: Int = 0
     ) -> AST.Expression? {
         var ops: [Token] = []
         var operands: [AST.Expression] = []
         var lastIsExpression = false
-        var angleDepth = 0
+        var angleDepth = angleBase
         var justClosedAngle = false
         _loop: while let token = peek {
             switch token.kind {
@@ -3705,7 +3731,9 @@ public final class Parser {
                 justClosedAngle = false
                 let callee = operands.removeLast()
                 let callResult = parseCall(callee)
-                let postfixed = parsePostfix(callResult, excepts: excepts, isTypeContext: isTypeContext)
+                let postfixed = parsePostfix(
+                    callResult, excepts: excepts, isTypeContext: isTypeContext, angleBase: angleDepth
+                )
                 operands.append(postfixed)
                 lastIsExpression = true
             case .Separator(.OpenParen) where justClosedAngle:
@@ -3721,7 +3749,9 @@ public final class Parser {
                 ops = []
                 operands = []
                 let callResult = parseCall(callee)
-                let postfixed = parsePostfix(callResult, excepts: excepts, isTypeContext: isTypeContext)
+                let postfixed = parsePostfix(
+                    callResult, excepts: excepts, isTypeContext: isTypeContext, angleBase: angleDepth
+                )
                 operands.append(postfixed)
                 lastIsExpression = true
             case .Separator(.OpenBracket) where lastIsExpression:
@@ -3729,7 +3759,9 @@ public final class Parser {
                 justClosedAngle = false
                 let base = operands.removeLast()
                 let subscriptResult = parseSubscript(base)
-                let postfixed = parsePostfix(subscriptResult, excepts: excepts, isTypeContext: isTypeContext)
+                let postfixed = parsePostfix(
+                    subscriptResult, excepts: excepts, isTypeContext: isTypeContext, angleBase: angleDepth
+                )
                 operands.append(postfixed)
                 lastIsExpression = true
             case .Operator(.Dot) where lastIsExpression,
@@ -3757,7 +3789,9 @@ public final class Parser {
                         end: member.sourceRange(in: buffer).end
                     )
                 )
-                let postfixed = parsePostfix(memberAccess, excepts: excepts, isTypeContext: isTypeContext)
+                let postfixed = parsePostfix(
+                    memberAccess, excepts: excepts, isTypeContext: isTypeContext, angleBase: angleDepth
+                )
                 operands.append(postfixed)
                 lastIsExpression = true
                 justClosedAngle = false
@@ -3796,10 +3830,12 @@ public final class Parser {
                         end: member.sourceRange(in: buffer).end
                     )
                 )
-                let postfixed = parsePostfix(memberAccess, excepts: excepts, isTypeContext: isTypeContext)
+                let postfixed = parsePostfix(
+                    memberAccess, excepts: excepts, isTypeContext: isTypeContext, angleBase: angleDepth
+                )
                 operands.append(postfixed)
                 lastIsExpression = true
-            case .Separator(.Comma) where angleDepth > 0:
+            case .Separator(.Comma) where angleDepth > angleBase:
                 ops.append(token)
                 index += 1
                 lastIsExpression = false
@@ -3821,14 +3857,17 @@ public final class Parser {
                         end: endToken.sourceRange(in: buffer).end
                     )
                 )
-                let postfixed = parsePostfix(pointer, excepts: excepts, isTypeContext: isTypeContext)
+                let postfixed = parsePostfix(
+                    pointer, excepts: excepts, isTypeContext: isTypeContext, angleBase: angleDepth
+                )
                 operands.append(postfixed)
                 lastIsExpression = true
                 justClosedAngle = false
             case .Operator(.Multiply) where !lastIsExpression && ops.isEmpty && !isTypeContext:
                 guard
                     let operand = parseUnaryExpression(
-                        excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                        excepts, isCondition: isCondition, isTypeContext: isTypeContext,
+                        angleBase: angleDepth
                     )
                 else {
                     break _loop
@@ -3839,7 +3878,8 @@ public final class Parser {
             case .Operator(.BitAnd) where !lastIsExpression && ops.isEmpty && !isTypeContext:
                 guard
                     let operand = parseUnaryExpression(
-                        excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                        excepts, isCondition: isCondition, isTypeContext: isTypeContext,
+                        angleBase: angleDepth
                     )
                 else {
                     break _loop
@@ -3856,7 +3896,9 @@ public final class Parser {
                         end: token.sourceRange(in: buffer).end
                     )
                 )
-                let postfixed = parsePostfix(optional, excepts: excepts, isTypeContext: isTypeContext)
+                let postfixed = parsePostfix(
+                    optional, excepts: excepts, isTypeContext: isTypeContext, angleBase: angleDepth
+                )
                 operands.append(postfixed)
                 index += 1
                 lastIsExpression = true
@@ -3882,7 +3924,7 @@ public final class Parser {
                 suppressTrailingClosures = true
                 castDepth += 1
                 let right =
-                    parseExpression(excepts: excepts, isTypeContext: true)
+                    parseExpression(excepts: excepts, isTypeContext: true, angleBase: angleDepth)
                         ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
                 castDepth -= 1
                 suppressTrailingClosures = false
@@ -3904,12 +3946,15 @@ public final class Parser {
                             )
                         )
                     }
-                let postfixed = parsePostfix(result, excepts: excepts, isTypeContext: isTypeContext)
+                let postfixed = parsePostfix(
+                    result, excepts: excepts, isTypeContext: isTypeContext, angleBase: angleDepth
+                )
                 operands.append(postfixed)
                 lastIsExpression = true
             case .Operator(.Dollar) where !lastIsExpression:
                 if let expr = parsePrimary(
-                    excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                    excepts, isCondition: isCondition, isTypeContext: isTypeContext,
+                    angleBase: angleDepth
                 ) {
                     operands.append(expr)
                     lastIsExpression = true
@@ -3918,7 +3963,8 @@ public final class Parser {
                 }
             case .Operator(.Backslash) where !lastIsExpression:
                 if let expr = parsePrimary(
-                    excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                    excepts, isCondition: isCondition, isTypeContext: isTypeContext,
+                    angleBase: angleDepth
                 ) {
                     operands.append(expr)
                     lastIsExpression = true
@@ -3978,7 +4024,9 @@ public final class Parser {
                     callee: callee, arguments: args, trailingClosures: trailing,
                     inPlace: place, sourceRange: range
                 )
-                let postfixed = parsePostfix(call, excepts: excepts, isTypeContext: isTypeContext)
+                let postfixed = parsePostfix(
+                    call, excepts: excepts, isTypeContext: isTypeContext, angleBase: angleDepth
+                )
                 operands.append(postfixed)
                 lastIsExpression = true
                 if stoppedUnlabeled {
@@ -3993,7 +4041,9 @@ public final class Parser {
                         end: token.sourceRange(in: buffer).end
                     )
                 )
-                let postfixed = parsePostfix(variadic, excepts: excepts, isTypeContext: isTypeContext)
+                let postfixed = parsePostfix(
+                    variadic, excepts: excepts, isTypeContext: isTypeContext, angleBase: angleDepth
+                )
                 operands.append(postfixed)
                 index += 1
                 lastIsExpression = true
@@ -4011,6 +4061,15 @@ public final class Parser {
                 lastIsExpression = true
                 justClosedAngle = false
             case let .Operator(kind) where kind != .Dot:
+                if let kind, angleBase > 0, let levels = kind.genericCloseLevels,
+                   levels > angleDepth - angleBase
+                {
+                    if angleDepth > angleBase {
+                        ops.append(splitCloser(token, levels: angleDepth - angleBase))
+                        angleDepth = angleBase
+                    }
+                    break _loop
+                }
                 if let excepts, let kind, excepts.contains(kind) {
                     break _loop
                 }
@@ -4065,7 +4124,8 @@ public final class Parser {
                 }
                 if !lastIsExpression, !(justClosedAngle && peek?.kind == .Separator(.OpenBrace)),
                    let expr = parsePrimary(
-                       excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                       excepts, isCondition: isCondition, isTypeContext: isTypeContext,
+                       angleBase: angleDepth
                    )
                 {
                     operands.append(expr)
@@ -4103,7 +4163,8 @@ public final class Parser {
     }
 
     private func parsePrimary(
-        _ excepts: [OperatorKind]?, isCondition: Bool = false, isTypeContext: Bool = false
+        _ excepts: [OperatorKind]?, isCondition: Bool = false, isTypeContext: Bool = false,
+        angleBase: Int = 0
     )
         -> AST.Expression?
     {
@@ -4288,7 +4349,7 @@ public final class Parser {
                 index += 1
                 expression = parseFunctionTypeSyntax(
                     funcToken: token, excepts: excepts, isCondition: isCondition,
-                    isTypeContext: isTypeContext
+                    isTypeContext: isTypeContext, angleBase: angleBase
                 )
             default:
                 return nil
@@ -4458,7 +4519,9 @@ public final class Parser {
             }
         default: return nil
         }
-        return parsePostfix(expression, excepts: excepts, isTypeContext: isTypeContext)
+        return parsePostfix(
+            expression, excepts: excepts, isTypeContext: isTypeContext, angleBase: angleBase
+        )
     }
 
     private func parseSizeofExpression() -> AST.Expression {
@@ -4493,7 +4556,7 @@ public final class Parser {
     }
 
     private func parseUnaryExpression(
-        _ excepts: [OperatorKind]?, isCondition: Bool, isTypeContext: Bool
+        _ excepts: [OperatorKind]?, isCondition: Bool, isTypeContext: Bool, angleBase: Int = 0
     ) -> AST.Expression? {
         guard let token = peek else {
             return nil
@@ -4503,7 +4566,8 @@ public final class Parser {
             index += 1
             guard
                 let operand = parseUnaryExpression(
-                    excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                    excepts, isCondition: isCondition, isTypeContext: isTypeContext,
+                    angleBase: angleBase
                 )
             else {
                 emitError("expected expression after '*'", at: locationAfter(token))
@@ -4523,7 +4587,8 @@ public final class Parser {
             index += 1
             guard
                 let operand = parseUnaryExpression(
-                    excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                    excepts, isCondition: isCondition, isTypeContext: isTypeContext,
+                    angleBase: angleBase
                 )
             else {
                 emitError("expected expression after '&'", at: locationAfter(token))
@@ -4542,7 +4607,8 @@ public final class Parser {
         default:
             guard
                 let primary = parsePrimary(
-                    excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                    excepts, isCondition: isCondition, isTypeContext: isTypeContext,
+                    angleBase: angleBase
                 )
             else {
                 return nil
@@ -4818,7 +4884,8 @@ public final class Parser {
     }
 
     private func parsePostfix(
-        _ expression: AST.Expression, excepts: [OperatorKind]?, isTypeContext: Bool = false
+        _ expression: AST.Expression, excepts: [OperatorKind]?, isTypeContext: Bool = false,
+        angleBase: Int = 0
     )
         -> AST.Expression
     {
@@ -4835,7 +4902,8 @@ public final class Parser {
                         break _loop
                     }
                     expression = parseClosureType(
-                        parameters, nil, nil, excepts, startRange: expression.sourceRange
+                        parameters, nil, nil, excepts, angleBase: angleBase,
+                        startRange: expression.sourceRange
                     )
                 default: break _loop
                 }
@@ -4862,7 +4930,7 @@ public final class Parser {
                     }
                     expression = parseClosureType(
                         parameters, asyncToken, throwsClause, excepts,
-                        startRange: expression.sourceRange
+                        angleBase: angleBase, startRange: expression.sourceRange
                     )
                 default: break _loop
                 }
@@ -5571,11 +5639,13 @@ public final class Parser {
     }
 
     private func parseFunctionTypeSyntax(
-        funcToken: Token, excepts: [OperatorKind]?, isCondition: Bool, isTypeContext: Bool
+        funcToken: Token, excepts: [OperatorKind]?, isCondition: Bool, isTypeContext: Bool,
+        angleBase: Int = 0
     ) -> AST.Expression {
         guard
             let parsed = parseExpression(
-                excepts: excepts, isCondition: isCondition, isTypeContext: isTypeContext
+                excepts: excepts, isCondition: isCondition, isTypeContext: isTypeContext,
+                angleBase: angleBase
             )
         else {
             emitError("expected parameter list after 'func'", at: locationAfter(funcToken))
@@ -5605,7 +5675,7 @@ public final class Parser {
 
     private func parseClosureType(
         _ parameters: [AST.ClosureType.Parameter], _ asyncToken: Token?,
-        _ throwsClause: AST.ThrowsClause?, _ excepts: [OperatorKind]?,
+        _ throwsClause: AST.ThrowsClause?, _ excepts: [OperatorKind]?, angleBase: Int = 0,
         startRange: SourceRange
     ) -> AST.ClosureType {
         let token = next!
@@ -5616,7 +5686,7 @@ public final class Parser {
             )
         }
         let returnTypeExpression =
-            parseExpression(excepts: excepts, isTypeContext: true)
+            parseExpression(excepts: excepts, isTypeContext: true, angleBase: angleBase)
                 ?? AST.ErrorExpression(SourceRange(location: locationAfter(token)))
         return AST.ClosureType(
             parameters, asyncToken, throwsClause, returnTypeExpression,

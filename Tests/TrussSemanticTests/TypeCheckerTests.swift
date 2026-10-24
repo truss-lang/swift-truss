@@ -492,7 +492,7 @@ func genericFunctionImplicitInstantiation() throws {
     ) =
         runTypeChecker(
             [
-                "struct S { init() {} }\nfunc id<T>(x: T) -> T { x }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet a = id(s)",
+                "struct S { init() {} }\nfunc id<T>(x: T) -> T { x }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet a = id(x: s)",
             ]
         )
     #expect(!context.diagnosticEngine.hasErrors)
@@ -508,7 +508,7 @@ func genericFunctionExplicitInstantiation() throws {
     ) =
         runTypeChecker(
             [
-                "struct S { init() {} }\nfunc id<T>(x: T) -> T { x }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet a = id<S>(s)",
+                "struct S { init() {} }\nfunc id<T>(x: T) -> T { x }\nfunc makeS() -> S { S() }\nlet s = makeS()\nlet a = id<S>(x: s)",
             ]
         )
     #expect(!context.diagnosticEngine.hasErrors)
@@ -3202,4 +3202,534 @@ func selectedCandidateControlsConvertedArgumentTyping() throws {
         AST.Expression.resolvedFunctionSymbol(of: call.callee)?.functionType
     )
     #expect(callee.returnType is TrussType.StructType)
+}
+
+@Test
+func declaredCallRequiresArgumentLabels() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct Int { init() {} }\nfunc f(a: Int, b: Int) -> Int { a }\nlet r = f(1, 2)",
+        ]
+    )
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(messages.contains("no exact matches in call to 'f'"))
+}
+
+@Test
+func declaredCallRequiresPartialLabels() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct Int { init() {} }\nfunc f(a: Int, b: Int) -> Int { a }\nlet r = f(a: Int(), 2)",
+        ]
+    )
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(messages.contains("no exact matches in call to 'f'"))
+}
+
+@Test
+func underscoreParameterBindsUnlabeledArgument() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct Int { init() {} }\nfunc f(a: Int, _ b: Int) -> Int { a }\n"
+                + "let r = f(a: Int(), Int())",
+        ]
+    )
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func labeledParameterRejectsUnlabeledArgument() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct Int { init() {} }\nfunc f(a: Int, _ b: Int) -> Int { a }\n"
+                + "let r = f(Int(), Int())",
+        ]
+    )
+    #expect(context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func initializerCallRequiresArgumentLabels() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct Int { init() {} }\nstruct S { init(a: Int, b: Int) {} }\nlet s = S(Int(), Int())",
+        ]
+    )
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(messages.contains("no exact matches in call to 'init'"))
+}
+
+@Test
+func methodCallRequiresArgumentLabels() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct Int { init() {} }\n"
+                + "struct S {\n    init() {}\n    func add(a: Int, b: Int) -> Int { a }\n}\n"
+                + "func use() {\n    let s = S()\n    let r = s.add(Int(), Int())\n}",
+        ]
+    )
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(messages.contains("no exact matches in call to 'add'"))
+}
+
+@Test
+func functionValueCallRequiresArgumentLabels() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct Int { init() {} }\nfunc f(a: Int, b: Int) -> Int { a }\n"
+                + "let h = f\nlet r = h(Int(), Int())",
+        ]
+    )
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(messages.contains("missing argument label 'a' in call to 'h'"))
+}
+
+@Test
+func functionValueCallAcceptsLabels() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct Int { init() {} }\nfunc f(a: Int, b: Int) -> Int { a }\n"
+                + "let h = f\nlet r = h(a: Int(), b: Int())",
+        ]
+    )
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func labelledClosureTypeValueCallRequiresArgumentLabels() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct Int { init() {} }\nfunc f(a: Int, b: Int) -> Int { a }\n"
+                + "let g: (a: Int, b: Int) -> Int = f\nlet r = g(Int(), Int())",
+        ]
+    )
+    #expect(context.diagnosticEngine.hasErrors)
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(messages.contains("missing argument label 'a' in call to 'g'"))
+}
+
+@Test
+func subscriptArgumentsStayPositional() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct Int { init() {} }\n"
+                + "struct S {\n    init() {}\n    subscript(i: Int) -> Int { i }\n}\n"
+                + "func use() {\n    let s = S()\n    let r = s[Int()]\n}",
+        ]
+    )
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func trailingClosureIgnoresParameterLabel() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct Int { init() {} }\nfunc f(body: () -> Void) {}\nfunc use() {\n    f { }\n}",
+        ]
+    )
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func operatorReferenceArgumentBindsPositionally() {
+    let source = """
+    precedencegroup Additive {}
+    infix operator +: Additive
+    struct S {}
+    func +(lhs: S, rhs: S) -> S { lhs }
+    func applyClosure(f: (lhs: S, rhs: S) -> S) {}
+    func main() {
+    var s: S
+    applyClosure(+)
+    }
+    """
+    let (context, _) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func memberOperatorCallAcceptsPositionalArgument() {
+    let (context, _) = runTypeChecker(
+        [
+            "struct S { func +(rhs: S) -> S { self } }\nfunc main() {\nvar s: S\nlet a: S = s.+(s)\n}",
+        ]
+    )
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func outOfOrderLabelledArgumentsRecordMapping() throws {
+    let (context, programs) = runTypeChecker(
+        [
+            "struct Int { init() {} }\nfunc f(a: Int, b: Int) -> Int { a }\n"
+                + "let r = f(b: Int(), a: Int())",
+        ]
+    )
+    #expect(!context.diagnosticEngine.hasErrors)
+    let variableDecl = try #require(programs[0].statements[2] as? AST.VariableDecl)
+    let call = try #require(variableDecl.initializer as? AST.Call)
+    #expect(call.argumentMapping == [1, 0])
+}
+
+@Test
+func inOrderLabelledArgumentsRecordIdentityMapping() throws {
+    let (context, programs) = runTypeChecker(
+        [
+            "struct Int { init() {} }\nfunc f(a: Int, b: Int) -> Int { a }\n"
+                + "let r = f(a: Int(), b: Int())",
+        ]
+    )
+    #expect(!context.diagnosticEngine.hasErrors)
+    let variableDecl = try #require(programs[0].statements[2] as? AST.VariableDecl)
+    let call = try #require(variableDecl.initializer as? AST.Call)
+    #expect(call.argumentMapping == [0, 1])
+}
+
+private let genericClosurePrelude = """
+precedencegroup AssignmentPrecedence { assignment: true }
+infix operator =: AssignmentPrecedence
+struct Int { init() {} }
+struct Box<T> {
+    let v: T
+    init(v: T) {
+        self.v = v
+    }
+}
+func id(x: Int) -> Int { x }
+"""
+
+private func resolvedTestType(_ type: TrussType.TrussType?) -> TrussType.TrussType? {
+    guard let type else {
+        return nil
+    }
+    guard let variable = type as? TrussType.TypeVariableType, let binding = variable.binding else {
+        return type
+    }
+    return resolvedTestType(binding)
+}
+
+private func genericInstantiationArgument(of call: AST.Call) -> TrussType.TrussType? {
+    guard let instantiation = resolvedTestType(call.ty) as? TrussType.GenericInstantiation else {
+        return nil
+    }
+    guard let argument = instantiation.arguments.first else {
+        return nil
+    }
+    return resolvedTestType(argument)
+}
+
+@Test
+func explicitClosureGenericArgumentBindsClosureType() throws {
+    let source = genericClosurePrelude + """
+    func main() {
+        let c: Box<(Int) -> Int> = Box<(Int) -> Int>(v: id)
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let mainDecl = try #require(
+        programs[0].statements.compactMap { $0 as? AST.FunctionDecl }
+            .first { $0.name.value == "main" }
+    )
+    let body = try #require(mainDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let variableDecl = try #require(statements.first as? AST.VariableDecl)
+    let call = try #require(variableDecl.initializer as? AST.Call)
+    let argument = try #require(genericInstantiationArgument(of: call))
+    #expect(argument is TrussType.ClosureType)
+    #expect(call.arguments.first?.value.ty is TrussType.ClosureType)
+}
+
+@Test
+func explicitFunctionTypeGenericArgumentBindsFunctionType() throws {
+    let source = """
+    struct Box<T> {
+        let v: T
+        init(v: T) {}
+    }
+    func f() {}
+    func main() {
+        let c: Box<func() -> Void> = Box<func() -> Void>(v: f)
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let mainDecl = try #require(
+        programs[0].statements.compactMap { $0 as? AST.FunctionDecl }
+            .first { $0.name.value == "main" }
+    )
+    let body = try #require(mainDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let variableDecl = try #require(statements.first as? AST.VariableDecl)
+    let call = try #require(variableDecl.initializer as? AST.Call)
+    let argument = try #require(genericInstantiationArgument(of: call))
+    #expect(argument is TrussType.FunctionType)
+}
+
+@Test
+func explicitClosureGenericArgumentRejectsWrongType() {
+    let source = genericClosurePrelude + """
+    func main() {
+        let c: Box<(Int) -> Int> = Box<(Int) -> Int>(v: Int())
+    }
+    """
+    let (context, _) = runTypeChecker([source])
+    #expect(context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func explicitClosureGenericArgumentRejectsMismatchedArity() {
+    let source = genericClosurePrelude + """
+    func main() {
+        let c: Box<(Int, Int) -> Int> = Box<(Int, Int) -> Int>(v: id)
+    }
+    """
+    let (context, _) = runTypeChecker([source])
+    #expect(context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func explicitClosureGenericArgumentOnGenericFunction() throws {
+    let source = genericClosurePrelude + """
+    func apply<T>(v: T) -> T { v }
+    func main() {
+        let c: (Int) -> Int = apply<(Int) -> Int>(v: id)
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let mainDecl = try #require(
+        programs[0].statements.compactMap { $0 as? AST.FunctionDecl }
+            .first { $0.name.value == "main" }
+    )
+    let body = try #require(mainDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let variableDecl = try #require(statements.first as? AST.VariableDecl)
+    let call = try #require(variableDecl.initializer as? AST.Call)
+    #expect(resolvedTestType(call.ty) is TrussType.ClosureType)
+    #expect(call.arguments.first?.value.ty is TrussType.ClosureType)
+}
+
+@Test
+func inferredGenericConstructionKeepsFunctionArgumentType() throws {
+    let source = genericClosurePrelude + """
+    func main() {
+        let c = Box(v: id)
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let mainDecl = try #require(
+        programs[0].statements.compactMap { $0 as? AST.FunctionDecl }
+            .first { $0.name.value == "main" }
+    )
+    let body = try #require(mainDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let variableDecl = try #require(statements.first as? AST.VariableDecl)
+    let call = try #require(variableDecl.initializer as? AST.Call)
+    let argument = try #require(genericInstantiationArgument(of: call))
+    #expect(argument is TrussType.FunctionType)
+}
+
+@Test
+func inferredGenericConstructionInfersLiteralType() throws {
+    let source = genericClosurePrelude + """
+    func main() {
+        let c = Box(v: 1)
+    }
+    """
+    let (context, programs) = runTypeChecker([source], installBuiltin: true)
+    #expect(!context.diagnosticEngine.hasErrors)
+    let mainDecl = try #require(
+        programs[0].statements.compactMap { $0 as? AST.FunctionDecl }
+            .first { $0.name.value == "main" }
+    )
+    let body = try #require(mainDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let variableDecl = try #require(statements.first as? AST.VariableDecl)
+    let call = try #require(variableDecl.initializer as? AST.Call)
+    let argument = try #require(genericInstantiationArgument(of: call))
+    #expect(argument is TrussType.BuiltinType)
+}
+
+private let genericPairPrelude = """
+precedencegroup AssignmentPrecedence { assignment: true }
+infix operator =: AssignmentPrecedence
+struct Int { init() {} }
+struct Pair<A, B> {
+    init(a: A, b: B) {}
+}
+func id(x: Int) -> Int { x }
+"""
+
+private func genericInstantiationArguments(of call: AST.Call) -> [TrussType.TrussType]? {
+    guard let instantiation = resolvedTestType(call.ty) as? TrussType.GenericInstantiation else {
+        return nil
+    }
+    return instantiation.arguments.map { resolvedTestType($0) ?? $0 }
+}
+
+private func firstStatementCall(_ programs: [AST.Program]) -> AST.Call? {
+    guard let mainDecl = programs[0].statements.compactMap({ $0 as? AST.FunctionDecl })
+        .first(where: { $0.name.value == "main" }),
+        let body = mainDecl.body,
+        case let .Block(statements) = body,
+        let variableDecl = statements.first as? AST.VariableDecl
+    else {
+        return nil
+    }
+    return variableDecl.initializer as? AST.Call
+}
+
+@Test
+func explicitClosureGenericArgumentBindsSecondParameter() throws {
+    let source = genericPairPrelude + """
+    func main() {
+        let p: Pair<Int, (Int) -> Int> = Pair<Int, (Int) -> Int>(a: Int(), b: id)
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let call = try #require(firstStatementCall(programs))
+    let arguments = try #require(genericInstantiationArguments(of: call))
+    #expect(arguments.count == 2)
+    #expect(arguments[0] is TrussType.StructType)
+    #expect(arguments[1] is TrussType.ClosureType)
+}
+
+@Test
+func explicitClosureGenericArgumentBindsFirstParameter() throws {
+    let source = genericPairPrelude + """
+    func main() {
+        let p: Pair<(Int) -> Int, Int> = Pair<(Int) -> Int, Int>(a: id, b: Int())
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let call = try #require(firstStatementCall(programs))
+    let arguments = try #require(genericInstantiationArguments(of: call))
+    #expect(arguments.count == 2)
+    #expect(arguments[0] is TrussType.ClosureType)
+    #expect(arguments[1] is TrussType.StructType)
+}
+
+private let genericStoredPropertyPairPrelude = """
+precedencegroup AssignmentPrecedence { assignment: true }
+infix operator =: AssignmentPrecedence
+struct Int { init() {} }
+struct Pair<A, B> {
+    let a: A
+    let b: B
+    init(a: A, b: B) {
+        self.a = a
+        self.b = b
+    }
+}
+func id(x: Int) -> Int { x }
+"""
+
+@Test
+func storedPropertyGenericStructTypeChecks() {
+    let source = genericStoredPropertyPairPrelude + """
+    func use() {
+        let x: Int = Int()
+    }
+    """
+    let (context, _) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func storedPropertyGenericStructBindsForwardSlots() throws {
+    let source = genericStoredPropertyPairPrelude + """
+    func main() {
+        let p: Pair<Int, (Int) -> Int> = Pair<Int, (Int) -> Int>(a: Int(), b: id)
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let call = try #require(firstStatementCall(programs))
+    let arguments = try #require(genericInstantiationArguments(of: call))
+    #expect(arguments.count == 2)
+    #expect(arguments[0] is TrussType.StructType)
+    #expect(arguments[1] is TrussType.ClosureType)
+}
+
+@Test
+func storedPropertyGenericStructBindsReversedSlots() throws {
+    let source = genericStoredPropertyPairPrelude + """
+    func main() {
+        let p: Pair<(Int) -> Int, Int> = Pair<(Int) -> Int, Int>(a: id, b: Int())
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let call = try #require(firstStatementCall(programs))
+    let arguments = try #require(genericInstantiationArguments(of: call))
+    #expect(arguments.count == 2)
+    #expect(arguments[0] is TrussType.ClosureType)
+    #expect(arguments[1] is TrussType.StructType)
+}
+
+@Test
+func parentheticalFunctionReferenceConvertsToClosureType() throws {
+    let (context, programs) = runTypeChecker([
+        "struct S { init() {} }\nfunc id(_ x: S) -> S { x }\nlet f: (S) -> S = (id)",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let variableDecl = programs[0].statements[2] as! AST.VariableDecl
+    let parenthetical = try #require(variableDecl.initializer as? AST.Parenthetical)
+    #expect(parenthetical.ty is TrussType.ClosureType)
+    let inner = try #require(parenthetical.inner as? AST.Variable)
+    #expect(inner.ty is TrussType.ClosureType)
+}
+
+@Test
+func nestedParentheticalFunctionReferenceConvertsToClosureType() throws {
+    let (context, programs) = runTypeChecker([
+        "struct S { init() {} }\nfunc id(_ x: S) -> S { x }\nlet f: (S) -> S = ((id))",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let variableDecl = programs[0].statements[2] as! AST.VariableDecl
+    let outer = try #require(variableDecl.initializer as? AST.Parenthetical)
+    let inner = try #require(outer.inner as? AST.Parenthetical)
+    let leaf = try #require(inner.inner as? AST.Variable)
+    #expect(outer.ty is TrussType.ClosureType)
+    #expect(inner.ty is TrussType.ClosureType)
+    #expect(leaf.ty is TrussType.ClosureType)
+}
+
+@Test
+func parenthesizedFunctionReferenceArgumentConvertsToClosureType() throws {
+    let (context, programs) = runTypeChecker([
+        "struct S { init() {} }\nfunc id(_ x: S) -> S { x }\n"
+            + "func apply(_ f: (S) -> S) -> S { f }\nlet r = apply((id))",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let variableDecl = programs[0].statements[3] as! AST.VariableDecl
+    let call = try #require(variableDecl.initializer as? AST.Call)
+    let argument = try #require(call.arguments.first?.value as? AST.Parenthetical)
+    #expect(argument.ty is TrussType.ClosureType)
+    let leaf = try #require(argument.inner as? AST.Variable)
+    #expect(leaf.ty is TrussType.ClosureType)
 }

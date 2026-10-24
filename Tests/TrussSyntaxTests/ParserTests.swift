@@ -8761,3 +8761,338 @@ func parseClosureTypeStillClosureType() throws {
     #expect(vd.typeExpression is AST.ClosureType)
     #expect(!(vd.typeExpression is AST.FunctionType))
 }
+
+func genericApplicationOperands(_ expr: AST.Expression?) -> [AST.Expression]? {
+    guard let seq = expr as? AST.Sequential, seq.ops.first?.kind == .Operator(.Less) else {
+        return nil
+    }
+    return seq.operands
+}
+
+func genericApplicationOps(_ expr: AST.Expression?) -> [TokenKind]? {
+    (expr as? AST.Sequential)?.ops.map(\.kind)
+}
+
+@Test
+func parseGenericApplicationWithClosureTypeArgument() throws {
+    let expr = firstExpression("Box<(Int32) -> Int32>")
+    let operands = try #require(genericApplicationOperands(expr))
+    try #require(operands.count == 2)
+    #expect((operands[0] as? AST.Variable)?.name.value == "Box")
+    let closure = try #require(operands[1] as? AST.ClosureType)
+    try #require(closure.parameters.count == 1)
+    #expect((closure.parameters[0].type as? AST.Variable)?.name.value == "Int32")
+    #expect((closure.returnType as? AST.Variable)?.name.value == "Int32")
+    #expect(genericApplicationOps(expr) == [.Operator(.Less), .Operator(.Greater)])
+}
+
+@Test
+func parseGenericApplicationWithFunctionTypeArgument() throws {
+    let expr = firstExpression("Box<func() -> Void>")
+    let operands = try #require(genericApplicationOperands(expr))
+    try #require(operands.count == 2)
+    let functionType = try #require(operands[1] as? AST.FunctionType)
+    #expect(functionType.parameters.isEmpty)
+    #expect((functionType.returnType as? AST.Variable)?.name.value == "Void")
+}
+
+@Test
+func parseGenericApplicationWithClosureTypeLastOfTwoArguments() throws {
+    let expr = firstExpression("Pair<Int32, (Int32) -> Int32>")
+    let operands = try #require(genericApplicationOperands(expr))
+    try #require(operands.count == 3)
+    #expect((operands[0] as? AST.Variable)?.name.value == "Pair")
+    #expect((operands[1] as? AST.Variable)?.name.value == "Int32")
+    #expect(operands[2] is AST.ClosureType)
+    #expect(
+        genericApplicationOps(expr)
+            == [.Operator(.Less), .Separator(.Comma), .Operator(.Greater)]
+    )
+}
+
+@Test
+func parseGenericApplicationWithNestedClosureTypeArgument() throws {
+    let expr = firstExpression("Box<Box<(Int32) -> Int32>>")
+    let operands = try #require(genericApplicationOperands(expr))
+    try #require(operands.count == 3)
+    #expect((operands[0] as? AST.Variable)?.name.value == "Box")
+    #expect((operands[1] as? AST.Variable)?.name.value == "Box")
+    #expect(operands[2] is AST.ClosureType)
+    #expect(
+        genericApplicationOps(expr)
+            == [.Operator(.Less), .Operator(.Less), .Operator(.RightShift)]
+    )
+}
+
+@Test
+func parseGenericApplicationWithClosureTypeEffectsArgument() throws {
+    let async = firstExpression("Box<(Int32) async -> Int32>")
+    let asyncOperands = try #require(genericApplicationOperands(async))
+    let asyncClosure = try #require(asyncOperands.last as? AST.ClosureType)
+    #expect(asyncClosure.asyncToken != nil)
+    let throwsExpr = firstExpression("Box<(Int32) throws -> Int32>")
+    let throwsOperands = try #require(genericApplicationOperands(throwsExpr))
+    let throwsClosure = try #require(throwsOperands.last as? AST.ClosureType)
+    #expect(throwsClosure.throwsClause != nil)
+}
+
+@Test
+func parseGenericApplicationWithClosureTypeArgumentThenCall() throws {
+    let expr = firstExpression("Box<(Int32) -> Int32>(v: id)")
+    let call = try #require(expr as? AST.Call)
+    let operands = try #require(genericApplicationOperands(call.callee))
+    try #require(operands.count == 2)
+    #expect((operands[0] as? AST.Variable)?.name.value == "Box")
+    #expect(operands[1] is AST.ClosureType)
+    try #require(call.arguments.count == 1)
+    #expect(call.arguments[0].label?.value == "v")
+    #expect((call.arguments[0].value as? AST.Variable)?.name.value == "id")
+}
+
+@Test
+func parseFunctionReturningGenericApplicationWithClosureTypeArgument() throws {
+    let program = parse("func make() -> Box<(Int32) -> Int32> {\n    return make()\n}")
+    let funcDecl = try #require(program.statements[0] as? AST.FunctionDecl)
+    let operands = try #require(genericApplicationOperands(funcDecl.returnTypeExpression))
+    try #require(operands.count == 2)
+    #expect((operands[0] as? AST.Variable)?.name.value == "Box")
+    #expect(operands[1] is AST.ClosureType)
+    let body = try #require(funcDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("make has no block body")
+        return
+    }
+    try #require(statements.count == 1)
+    #expect(statements[0] is AST.Return)
+}
+
+@Test
+func parseComparisonOperatorsKeepAngleDepth() throws {
+    #expect(genericApplicationOps(firstExpression("a < b")) == [.Operator(.Less)])
+    #expect(
+        genericApplicationOps(firstExpression("a < b > c"))
+            == [.Operator(.Less), .Operator(.Greater)]
+    )
+    #expect(genericApplicationOps(firstExpression("a << b")) == [.Operator(.LeftShift)])
+    #expect(genericApplicationOps(firstExpression("a >> b")) == [.Operator(.RightShift)])
+}
+
+@Test
+func parseNestedGenericRightShiftAfterClosureTypeArgument() throws {
+    let expr = firstExpression("Box<Box<Int32>>")
+    let operands = try #require(genericApplicationOperands(expr))
+    try #require(operands.count == 3)
+    #expect(operands[0] is AST.Variable)
+    #expect(operands[1] is AST.Variable)
+    #expect(operands[2] is AST.Variable)
+    #expect(
+        genericApplicationOps(expr)
+            == [.Operator(.Less), .Operator(.Less), .Operator(.RightShift)]
+    )
+    let call = try #require(firstExpression("id2<Int32>(1)") as? AST.Call)
+    #expect((call.callee as? AST.Sequential)?.ops.count == 2)
+}
+
+@Test
+func parseProtocolCompositionKeepsAngleDepth() throws {
+    let expr = firstExpression("some A & B & C")
+    let someType = try #require(expr as? AST.SomeType)
+    let composition = try #require(someType.wrappedType as? AST.ProtocolCompositionType)
+    #expect(composition.types.count == 3)
+}
+
+func parameterType(_ program: AST.Program, function: String) -> AST.Expression? {
+    let funcDecl = program.statements.first {
+        ($0 as? AST.FunctionDecl)?.name.value == function
+    } as? AST.FunctionDecl
+    return funcDecl?.parameters.first?.type
+}
+
+func closureReturnSequential(_ expression: AST.Expression?) throws -> AST.Sequential {
+    if let closure = expression as? AST.ClosureType {
+        return try #require(closure.returnType as? AST.Sequential)
+    }
+    let sequential = try #require(expression as? AST.Sequential)
+    let closure = try #require(sequential.operands.last as? AST.ClosureType)
+    return try #require(closure.returnType as? AST.Sequential)
+}
+
+@Test
+func parseSharedGenericCloserSplitsIntoNestedGroups() throws {
+    let (program, diagnostics) = parseWithDiagnostics(
+        "func f(c: Box<(Int32) -> Box<Int32>>) { }"
+    )
+    #expect(diagnostics.isEmpty)
+    let outer = try #require(parameterType(program, function: "f") as? AST.Sequential)
+    #expect(outer.ops.map(\.kind) == [.Operator(.Less), .Operator(.Greater)])
+    try #require(outer.operands.count == 2)
+    #expect((outer.operands[0] as? AST.Variable)?.name.value == "Box")
+    let inner = try closureReturnSequential(outer.operands.last)
+    #expect(inner.ops.map(\.kind) == [.Operator(.Less), .Operator(.Greater)])
+    try #require(inner.operands.count == 2)
+    #expect((inner.operands[0] as? AST.Variable)?.name.value == "Box")
+    #expect((inner.operands[1] as? AST.Variable)?.name.value == "Int32")
+}
+
+@Test
+func parseSharedGenericCloserSynthesisesSplitTokenRanges() throws {
+    let (program, diagnostics) = parseWithDiagnostics(
+        "func f(c: Box<(Int32) -> Box<Int32>>) { }"
+    )
+    #expect(diagnostics.isEmpty)
+    let outer = try #require(parameterType(program, function: "f") as? AST.Sequential)
+    let inner = try closureReturnSequential(outer.operands.last)
+    let innerCloser = try #require(inner.ops.last)
+    let outerCloser = try #require(outer.ops.last)
+    #expect(innerCloser.value == ">")
+    #expect(outerCloser.value == ">")
+    #expect(innerCloser.kind == .Operator(.Greater))
+    #expect(outerCloser.kind == .Operator(.Greater))
+    #expect(innerCloser.pos.len == 1)
+    #expect(outerCloser.pos.len == 1)
+    #expect(innerCloser.pos.line == outerCloser.pos.line)
+    #expect(innerCloser.pos.pos + 1 == outerCloser.pos.pos)
+    #expect(innerCloser.pos.col + 1 == outerCloser.pos.col)
+}
+
+@Test
+func parseSharedTripleGenericCloserSplitsIntoNestedGroups() throws {
+    let (program, diagnostics) = parseWithDiagnostics(
+        "func f(c: Box<(Int32) -> Box<Box<Int32>>>) { }"
+    )
+    #expect(diagnostics.isEmpty)
+    let outer = try #require(parameterType(program, function: "f") as? AST.Sequential)
+    #expect(outer.ops.map(\.kind) == [.Operator(.Less), .Operator(.Greater)])
+    let inner = try closureReturnSequential(outer.operands.last)
+    #expect(
+        inner.ops.map(\.kind)
+            == [.Operator(.Less), .Operator(.Less), .Operator(.RightShift)]
+    )
+    let innerCloser = try #require(inner.ops.last)
+    let outerCloser = try #require(outer.ops.last)
+    #expect(innerCloser.value == ">>")
+    #expect(innerCloser.kind == .Operator(.RightShift))
+    #expect(innerCloser.pos.len == 2)
+    #expect(outerCloser.value == ">")
+    #expect(outerCloser.pos.len == 1)
+    #expect(innerCloser.pos.pos + 2 == outerCloser.pos.pos)
+    #expect(innerCloser.pos.col + 2 == outerCloser.pos.col)
+}
+
+@Test
+func parseSharedGenericCloserKeepsSiblingGenericGroupsTogether() throws {
+    let (program, diagnostics) = parseWithDiagnostics(
+        "func f(c: Box<Box<(Int32) -> Box<Int32>>>) { }"
+    )
+    #expect(diagnostics.isEmpty)
+    let outer = try #require(parameterType(program, function: "f") as? AST.Sequential)
+    #expect(
+        outer.ops.map(\.kind)
+            == [.Operator(.Less), .Operator(.Less), .Operator(.RightShift)]
+    )
+    try #require(outer.operands.count == 3)
+    let inner = try closureReturnSequential(outer.operands.last)
+    #expect(inner.ops.map(\.kind) == [.Operator(.Less), .Operator(.Greater)])
+}
+
+@Test
+func parseSharedGenericCloserWithSiblingArguments() throws {
+    let (first, firstDiagnostics) = parseWithDiagnostics(
+        "func f(c: Pair<Box<(Int32) -> Box<Int32>>, Int32>) { }"
+    )
+    #expect(firstDiagnostics.isEmpty)
+    let firstOuter = try #require(parameterType(first, function: "f") as? AST.Sequential)
+    #expect(
+        firstOuter.ops.map(\.kind)
+            == [
+                .Operator(.Less),
+                .Operator(.Less),
+                .Operator(.Greater),
+                .Separator(.Comma),
+                .Operator(.Greater),
+            ]
+    )
+    try #require(firstOuter.operands.count == 4)
+    #expect(firstOuter.operands[2] is AST.ClosureType)
+    #expect((firstOuter.operands[3] as? AST.Variable)?.name.value == "Int32")
+    let firstReturn = try closureReturnSequential(firstOuter.operands[2])
+    #expect(firstReturn.ops.map(\.kind) == [.Operator(.Less), .Operator(.Greater)])
+    let (last, lastDiagnostics) = parseWithDiagnostics(
+        "func f(c: Pair<Int32, Box<(Int32) -> Box<Int32>>>) { }"
+    )
+    #expect(lastDiagnostics.isEmpty)
+    let lastOuter = try #require(parameterType(last, function: "f") as? AST.Sequential)
+    #expect(
+        lastOuter.ops.map(\.kind)
+            == [
+                .Operator(.Less),
+                .Separator(.Comma),
+                .Operator(.Less),
+                .Operator(.RightShift),
+            ]
+    )
+    try #require(lastOuter.operands.count == 4)
+    #expect((lastOuter.operands[1] as? AST.Variable)?.name.value == "Int32")
+    #expect(lastOuter.operands[3] is AST.ClosureType)
+    let lastReturn = try closureReturnSequential(lastOuter.operands[3])
+    #expect(lastReturn.ops.map(\.kind) == [.Operator(.Less), .Operator(.Greater)])
+}
+
+@Test
+func parseSharedGenericCloserThenCall() throws {
+    let expr = firstExpression("Box<(Int32) -> Box<Int32>>(v: id)")
+    let call = try #require(expr as? AST.Call)
+    let callee = try #require(call.callee as? AST.Sequential)
+    #expect(callee.ops.map(\.kind) == [.Operator(.Less), .Operator(.Greater)])
+    let inner = try closureReturnSequential(callee.operands.last)
+    #expect(inner.ops.map(\.kind) == [.Operator(.Less), .Operator(.Greater)])
+    try #require(call.arguments.count == 1)
+    #expect(call.arguments[0].label?.value == "v")
+}
+
+@Test
+func parseFunctionReturningSharedGenericCloserApplication() throws {
+    let program = parse("func make() -> Box<(Int32) -> Box<Int32>> {\n    return make()\n}")
+    let funcDecl = try #require(program.statements.first as? AST.FunctionDecl)
+    let returnType = try #require(funcDecl.returnTypeExpression as? AST.Sequential)
+    #expect(returnType.ops.map(\.kind) == [.Operator(.Less), .Operator(.Greater)])
+    let inner = try closureReturnSequential(returnType.operands.last)
+    #expect(inner.ops.map(\.kind) == [.Operator(.Less), .Operator(.Greater)])
+    let body = try #require(funcDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("make has no block body")
+        return
+    }
+    try #require(statements.count == 1)
+    #expect(statements[0] is AST.Return)
+}
+
+@Test
+func parseCloserSplitKeepsComparisonAndGenericControls() throws {
+    #expect(genericApplicationOps(firstExpression("a > b")) == [.Operator(.Greater)])
+    #expect(
+        genericApplicationOps(firstExpression("a > b > c"))
+            == [.Operator(.Greater), .Operator(.Greater)]
+    )
+    #expect(genericApplicationOps(firstExpression("a >> b")) == [.Operator(.RightShift)])
+    #expect(
+        genericApplicationOps(firstExpression("a >>> b")) == [.Operator(.RightShiftLogical)]
+    )
+    #expect(genericApplicationOps(firstExpression("a << b")) == [.Operator(.LeftShift)])
+    #expect(
+        genericApplicationOps(firstExpression("Box<Int32>"))
+            == [.Operator(.Less), .Operator(.Greater)]
+    )
+    #expect(
+        genericApplicationOps(firstExpression("Box<(Int32)>"))
+            == [.Operator(.Less), .Operator(.Greater)]
+    )
+    #expect(
+        genericApplicationOps(firstExpression("Box<Box<Int32>>"))
+            == [.Operator(.Less), .Operator(.Less), .Operator(.RightShift)]
+    )
+    let call = try #require(firstExpression("id2<Int32>(1)") as? AST.Call)
+    #expect((call.callee as? AST.Sequential)?.ops.count == 2)
+    let composition = try #require(firstExpression("some A & B") as? AST.SomeType)
+    #expect(composition.wrappedType is AST.ProtocolCompositionType)
+}

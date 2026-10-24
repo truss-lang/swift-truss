@@ -1270,9 +1270,14 @@ public final class TIREmitter: AST.Visitor {
             callee = calleeValue
             selfParameter = nil
         }
-        let arguments = [selfParameter].compactMap { $0 } + call.arguments.map {
-            visitExpression($0.value)
+        let evaluatedArguments = call.arguments.map { visitExpression($0.value) }
+        var orderedArguments = evaluatedArguments
+        if let mapping = call.argumentMapping, mapping.count == evaluatedArguments.count,
+           mapping.allSatisfy({ $0 >= 0 && $0 < evaluatedArguments.count })
+        {
+            orderedArguments = mapping.map { evaluatedArguments[$0] }
         }
+        let arguments = [selfParameter].compactMap { $0 } + orderedArguments
         let inst = builder.buildCall(callee: callee, arguments: arguments)
         if calleeValue is TIR.ObjectConstruction {
             if call.isLeftValue {

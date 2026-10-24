@@ -135,10 +135,12 @@ extension AST {
             if !changed {
                 return parameter
             }
-            return AST.FunctionDecl.Parameter(
+            var rewritten = AST.FunctionDecl.Parameter(
                 label: parameter.label, name: parameter.name, type: type,
                 defaultValue: defaultValue, sourceRange: parameter.sourceRange
             )
+            rewritten.symbol = parameter.symbol
+            return rewritten
         }
 
         private func rewriteParameters(
@@ -1383,6 +1385,7 @@ extension AST {
                 callee: callee, arguments: arguments, trailingClosures: trailingClosures,
                 inPlace: inPlace, sourceRange: call.sourceRange
             )
+            newCall.argumentMapping = call.argumentMapping
             return newCall
         }
 

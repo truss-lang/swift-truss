@@ -353,7 +353,7 @@ func driverFunctionCallEndToEnd() throws {
         "generic-fn.truss",
         "struct S {}\n"
             + "func id(x: S) -> S { x }\n"
-            + "func main() {\nvar s: S\nlet a = id(s)\n}\n"
+            + "func main() {\nvar s: S\nlet a = id(x: s)\n}\n"
     )
     let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
     #expect(!result.hasErrors)
@@ -532,7 +532,7 @@ func driverEmitsExternDeclaration() throws {
     }
     #[cname("main")]
     func main() -> Builtin.Int32 {
-        return truss_helper(1)
+        return truss_helper(x: 1)
     }
     """
     let result = Driver(config: DriverConfig(outputPath: output, emitKind: .LLVMIR)).runString(source)
@@ -604,7 +604,7 @@ func driverEmitsMergedMultiFileExecutable() throws {
         """
         #[cname("main")]
         func main() -> Builtin.Int32 {
-            return helper(40)
+            return helper(x: 40)
         }
         """
     )
@@ -617,4 +617,394 @@ func driverEmitsMergedMultiFileExecutable() throws {
     try process.run()
     process.waitUntilExit()
     #expect(process.terminationStatus == 42)
+}
+
+@Test
+func driverParenthesizedFunctionReferenceInLet() {
+    let result = Driver(config: DriverConfig(dumpTIR: true)).runString(
+        """
+        func id(_ x: Builtin.Int32) -> Builtin.Int32 {
+            return x
+        }
+
+        func main() -> Builtin.Int32 {
+            let f: (Builtin.Int32) -> Builtin.Int32 = (id)
+            return f(1)
+        }
+        """
+    )
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("closure(i32)->i32"))
+}
+
+@Test
+func driverParenthesizedOperatorReference() {
+    let result = Driver(config: DriverConfig(dumpTIR: true)).runString(
+        """
+        precedencegroup AdditionPrecedence {
+            associativity: left
+            higherThan: AssignmentPrecedence
+        }
+        precedencegroup AssignmentPrecedence {
+            associativity: right
+            assignment: true
+        }
+        infix operator + : AdditionPrecedence
+
+        func +(lhs: Builtin.Int32, rhs: Builtin.Int32) -> Builtin.Int32 {
+            return Builtin.builtin_add_int32(lhs, rhs)
+        }
+
+        func main() -> Builtin.Int32 {
+            let g: (Builtin.Int32, Builtin.Int32) -> Builtin.Int32 = (+)
+            return g(1, 2)
+        }
+        """
+    )
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("closure(i32,i32)->i32"))
+}
+
+@Test
+func driverParenthesizedFunctionReferenceAsCallArgument() {
+    let result = Driver(config: DriverConfig(dumpTIR: true)).runString(
+        """
+        func id(_ x: Builtin.Int32) -> Builtin.Int32 {
+            return x
+        }
+
+        func apply(_ f: (Builtin.Int32) -> Builtin.Int32, _ v: Builtin.Int32) -> Builtin.Int32 {
+            return f(v)
+        }
+
+        func main() -> Builtin.Int32 {
+            return apply((id), 1)
+        }
+        """
+    )
+    #expect(!result.hasErrors)
+}
+
+@Test
+func driverParenthesizedFunctionReferenceInReturn() {
+    let result = Driver(config: DriverConfig(dumpTIR: true)).runString(
+        """
+        func id(_ x: Builtin.Int32) -> Builtin.Int32 {
+            return x
+        }
+
+        func makeF() -> (Builtin.Int32) -> Builtin.Int32 {
+            return (id)
+        }
+
+        func main() -> Builtin.Int32 {
+            let f = makeF()
+            return f(1)
+        }
+        """
+    )
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("closure(i32)->i32"))
+}
+
+@Test
+func driverParenthesizedFunctionReferenceGlobalInit() {
+    let result = Driver(config: DriverConfig(dumpTIR: true)).runString(
+        """
+        func id(_ x: Builtin.Int32) -> Builtin.Int32 {
+            return x
+        }
+
+        let f: (Builtin.Int32) -> Builtin.Int32 = (id)
+
+        func main() -> Builtin.Int32 {
+            return f(1)
+        }
+        """
+    )
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("global @$t4main_1f : closure(i32)->i32"))
+}
+
+@Test
+func driverParenthesizedFunctionReferenceCallee() {
+    let result = Driver(config: DriverConfig(dumpTIR: true)).runString(
+        """
+        func id(_ x: Builtin.Int32) -> Builtin.Int32 {
+            return x
+        }
+
+        func main() -> Builtin.Int32 {
+            return (id)(1)
+        }
+        """
+    )
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("closure @$t4main_2id"))
+}
+
+@Test
+func driverNestedParenthesizedFunctionReference() {
+    let result = Driver(config: DriverConfig(dumpTIR: true)).runString(
+        """
+        func id(_ x: Builtin.Int32) -> Builtin.Int32 {
+            return x
+        }
+
+        func main() -> Builtin.Int32 {
+            let f: (Builtin.Int32) -> Builtin.Int32 = ((id))
+            let g: (Builtin.Int32) -> Builtin.Int32 = (((id)))
+            return g(f(((id))(1)))
+        }
+        """
+    )
+    #expect(!result.hasErrors)
+}
+
+@Test
+func driverParenthesizedMethodCalleeStillErrors() {
+    let result = Driver(config: DriverConfig(dumpTIR: true)).runString(
+        """
+        struct S {
+            init() {}
+            func add(_ a: Builtin.Int32) -> Builtin.Int32 {
+                return a
+            }
+        }
+
+        func main() -> Builtin.Int32 {
+            let s = S()
+            return (s.add)(1)
+        }
+        """
+    )
+    #expect(result.hasErrors)
+    #expect(result.stderr.contains("passes 1 arguments but the callee declares 2 parameters"))
+}
+
+@Test(.enabled(if: hasSystemCompiler()))
+func driverRunsOutOfOrderLabelledArgumentsInParameterOrder() throws {
+    let output = try tempOutput("labelled-order")
+    let source = """
+    typealias Int32 = Builtin.Int32
+    func pick(a: Int32, b: Int32) -> Int32 {
+        return b
+    }
+    #[cname("main")]
+    func main() -> Int32 {
+        return pick(b: 2, a: 10)
+    }
+    """
+    let result = Driver(config: DriverConfig(outputPath: output, emitKind: .Executable)).runString(source)
+    #expect(!result.hasErrors)
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: output)
+    try process.run()
+    process.waitUntilExit()
+    #expect(process.terminationStatus == 2)
+}
+
+@Test
+func driverRejectsMissingArgumentLabel() throws {
+    let file = try writeTemp(
+        "missing-label.truss",
+        "typealias Int32 = Builtin.Int32\n"
+            + "func pick(a: Int32, b: Int32) -> Int32 { a }\n"
+            + "func main() -> Int32 { return pick(1, 2) }\n"
+    )
+    let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
+    #expect(result.hasErrors)
+    #expect(result.stderr.contains("no exact matches in call to 'pick'"))
+}
+
+@Test
+func driverRejectsMissingArgumentLabelOnFunctionValueCall() throws {
+    let file = try writeTemp(
+        "missing-label-value.truss",
+        "typealias Int32 = Builtin.Int32\n"
+            + "func pick(a: Int32, b: Int32) -> Int32 { a }\n"
+            + "func main() -> Int32 {\n    let h = pick\n    return h(1, 2)\n}\n"
+    )
+    let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
+    #expect(result.hasErrors)
+    #expect(result.stderr.contains("missing argument label 'a' in call to 'h'"))
+}
+
+@Test
+func driverParenthesizedDefaultParameterValue() {
+    let result = Driver(config: DriverConfig(dumpTIR: true)).runString(
+        """
+        func id(_ x: Builtin.Int32) -> Builtin.Int32 {
+            return x
+        }
+
+        func apply(_ f: (Builtin.Int32) -> Builtin.Int32 = (id)) -> Builtin.Int32 {
+            return f(1)
+        }
+
+        func main() -> Builtin.Int32 {
+            return apply(id)
+        }
+        """
+    )
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("closure(i32)->i32"))
+}
+
+@Test
+func driverFoldsFunctionTypeGenericApplicationInReturnType() {
+    let result = Driver(config: DriverConfig(dumpAST: true)).runString(
+        """
+        typealias Int32 = Builtin.Int32
+
+        struct Box<T> {
+            let v: T
+        }
+
+        func make() -> Box<(Int32) -> Int32> {
+            return make()
+        }
+        """
+    )
+    #expect(!result.hasErrors)
+    #expect(!result.stderr.contains("error:"))
+    #expect(result.stdout.contains("FunctionDecl make"))
+    #expect(result.stdout.contains("GenericApplication ty:Generic(StructType(Box)"))
+    #expect(result.stdout.contains("-Return"))
+}
+
+@Test
+func driverFoldsFunctionTypeGenericApplicationInCallPosition() {
+    let result = Driver(config: DriverConfig(dumpAST: true)).runString(
+        """
+        typealias Int32 = Builtin.Int32
+
+        struct Box<T> {
+            let v: T
+        }
+
+        func id(_ x: Int32) -> Int32 {
+            return x
+        }
+
+        func main() -> Int32 {
+            let c = Box<(Int32) -> Int32>(v: id)
+            return 1
+        }
+        """
+    )
+    #expect(!result.hasErrors)
+    #expect(!result.stderr.contains("error:"))
+    #expect(result.stdout.contains("GenericApplication ty:Generic(StructType(Box)"))
+    #expect(result.stdout.contains("willBeCalled"))
+    #expect(result.stdout.contains("Argument label:v"))
+}
+
+private let explicitClosureGenericSource = """
+precedencegroup AssignmentPrecedence {
+    associativity: right
+    assignment: true
+}
+infix operator = : AssignmentPrecedence
+typealias Int32 = Builtin.Int32
+
+struct Box<T> {
+    let v: T
+    init(v: T) {
+        self.v = v
+    }
+}
+
+func id(_ x: Int32) -> Int32 {
+    return x
+}
+
+func main() -> Int32 {
+    let c: Box<(Int32) -> Int32> = Box<(Int32) -> Int32>(v: id)
+    return 1
+}
+"""
+
+@Test
+func driverTypeChecksExplicitClosureGenericArgument() throws {
+    let file = try writeTemp("explicit-closure-generic.truss", explicitClosureGenericSource)
+    let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
+    #expect(!result.hasErrors)
+    #expect(result.stdout.contains("(Builtin.Int32) -> Builtin.Int32"))
+    #expect(result.stdout.contains("Generic(StructType(Box)"))
+}
+
+@Test
+func driverRejectsWrongTypeForExplicitClosureGenericArgument() throws {
+    let source = explicitClosureGenericSource.replacingOccurrences(
+        of: "Box<(Int32) -> Int32>(v: id)", with: "Box<(Int32) -> Int32>(v: 1)"
+    )
+    let file = try writeTemp("explicit-closure-generic-wrong.truss", source)
+    let result = Driver(config: DriverConfig(dumpAST: true)).run(files: [file])
+    #expect(result.hasErrors)
+    #expect(result.stderr.contains("no exact matches in call to 'init'"))
+}
+
+private let boxDeclarationSource = """
+typealias Int32 = Builtin.Int32
+
+struct Box<T> {
+    let v: T
+}
+
+"""
+
+@Test
+func driverFoldsSharedGenericCloserInParameter() {
+    let result = Driver(config: DriverConfig(dumpAST: true)).runString(
+        boxDeclarationSource
+            + "func f(c: Box<(Int32) -> Box<Int32>>) -> Int32 {\n    return 0\n}"
+    )
+    #expect(!result.hasErrors)
+    #expect(!result.stderr.contains("error:"))
+    #expect(result.stdout.contains("GenericApplication ty:Generic(StructType(Box)"))
+    #expect(result.stdout.contains("(Builtin.Int32) -> Generic(StructType(Box)"))
+}
+
+@Test
+func driverFoldsSharedTripleGenericCloserInParameter() {
+    let result = Driver(config: DriverConfig(dumpAST: true)).runString(
+        boxDeclarationSource
+            + "func f(c: Box<(Int32) -> Box<Box<Int32>>>) -> Int32 {\n    return 0\n}"
+    )
+    #expect(!result.hasErrors)
+    #expect(!result.stderr.contains("error:"))
+    #expect(result.stdout.contains("(Builtin.Int32) -> Generic(StructType(Box)"))
+    #expect(result.stdout.contains("<Generic(StructType(Box)"))
+}
+
+@Test
+func driverFoldsSharedGenericCloserInCallPosition() {
+    let result = Driver(config: DriverConfig(dumpAST: true)).runString(
+        boxDeclarationSource
+            + """
+            func f(c: (Int32) -> Box<Int32>) -> Int32 {
+                let b: Box<(Int32) -> Box<Int32>> = Box<(Int32) -> Box<Int32>>(v: c)
+                return 0
+            }
+            """
+    )
+    #expect(!result.hasErrors)
+    #expect(!result.stderr.contains("error:"))
+    #expect(result.stdout.contains("(Builtin.Int32) -> Generic(StructType(Box)"))
+    #expect(result.stdout.contains("willBeCalled"))
+    #expect(result.stdout.contains("Argument label:v"))
+}
+
+@Test
+func driverFoldsSharedGenericCloserInReturnType() {
+    let result = Driver(config: DriverConfig(dumpAST: true)).runString(
+        boxDeclarationSource
+            + "func make() -> Box<(Int32) -> Box<Int32>> {\n    return make()\n}"
+    )
+    #expect(!result.hasErrors)
+    #expect(!result.stderr.contains("error:"))
+    #expect(result.stdout.contains("FunctionDecl make"))
+    #expect(result.stdout.contains("(Builtin.Int32) -> Generic(StructType(Box)"))
+    #expect(result.stdout.contains("-Return"))
 }

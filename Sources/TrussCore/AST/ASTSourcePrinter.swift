@@ -45,6 +45,18 @@ public final class SourcePrinter: AST.Visitor {
         }
     }
 
+    private func appendClosureBody(_ statements: [AST.Statement]) {
+        if statements.isEmpty {
+            state.write(" }")
+            return
+        }
+        state.indent += 1
+        printStatements(statements)
+        state.indent -= 1
+        beginLine()
+        state.write("}")
+    }
+
     private func blockHeader(_ header: String, _ statements: [AST.Statement]) {
         state.write(header)
         appendBlock(statements)
@@ -1014,7 +1026,7 @@ public final class SourcePrinter: AST.Visitor {
 
     @discardableResult
     public override func visitCall(_ call: AST.Call, additional: Any? = nil) -> Any? {
-        visit(call.callee)
+        writePostfixBase(call.callee)
         state.write("(")
         for (index, argument) in call.arguments.enumerated() {
             if index > 0 {
@@ -1044,7 +1056,7 @@ public final class SourcePrinter: AST.Visitor {
     public override func visitMemberAccess(
         _ memberAccess: AST.MemberAccess, additional: Any? = nil
     ) -> Any? {
-        visit(memberAccess.object)
+        writePostfixBase(memberAccess.object)
         state.write(memberAccess.token.value)
         state.write(memberAccess.member.value)
         return nil
@@ -1118,7 +1130,7 @@ public final class SourcePrinter: AST.Visitor {
             visit(statement.expression)
             state.write(" }")
         } else {
-            appendBlock(closure.body)
+            appendClosureBody(closure.body)
         }
         return nil
     }
@@ -1321,16 +1333,88 @@ public final class SourcePrinter: AST.Visitor {
 
     @discardableResult
     public override func visitBinary(_ binary: AST.Binary, additional: Any? = nil) -> Any? {
-        visit(binary.left)
+        writeBinaryOperand(binary.left, in: binary, isRightOperand: false)
         state.write(" " + binary.operatorToken.value + " ")
-        visit(binary.right)
+        writeBinaryOperand(binary.right, in: binary, isRightOperand: true)
         return nil
+    }
+
+    private func writeBinaryOperand(
+        _ expression: AST.Expression, in binary: AST.Binary, isRightOperand: Bool
+    ) {
+        if needsParentheses(expression, in: binary, isRightOperand: isRightOperand) {
+            state.write("(")
+            visit(expression)
+            state.write(")")
+        } else {
+            visit(expression)
+        }
+    }
+
+    private func needsParentheses(
+        _ expression: AST.Expression, in binary: AST.Binary, isRightOperand: Bool
+    ) -> Bool {
+        guard let child = expression as? AST.Binary,
+              let childPrecedence = child.precedence,
+              let parentPrecedence = binary.precedence
+        else {
+            return false
+        }
+        if childPrecedence.rank < parentPrecedence.rank {
+            return true
+        }
+        if childPrecedence.rank > parentPrecedence.rank {
+            return false
+        }
+        if binary.isAssignment || child.isAssignment {
+            return !isRightOperand
+        }
+        switch parentPrecedence.associativity {
+        case .Left: return isRightOperand
+        case .Right: return !isRightOperand
+        case .None: return true
+        }
+    }
+
+    private func writeParenthesized(_ expression: AST.Expression) {
+        state.write("(")
+        visit(expression)
+        state.write(")")
+    }
+
+    private func writePostfixBase(_ expression: AST.Expression) {
+        if expression is AST.Binary || expression is AST.Prefix
+            || expression is AST.Dereference || expression is AST.AddressOf
+        {
+            writeParenthesized(expression)
+        } else {
+            visit(expression)
+        }
+    }
+
+    private func writePostfixSeparator(_ expression: AST.Expression) {
+        if expression is AST.Postfix || expression is AST.ForceUnwrap {
+            state.write(" ")
+        }
+    }
+
+    private func writePrefixOperand(_ expression: AST.Expression) {
+        if expression is AST.Binary {
+            writeParenthesized(expression)
+        } else if expression is AST.Prefix || expression is AST.Dereference
+            || expression is AST.AddressOf
+        {
+            state.write(" ")
+            visit(expression)
+        } else {
+            visit(expression)
+        }
     }
 
     @discardableResult
     public override func visitPrefix(_ prefixExpression: AST.Prefix, additional: Any? = nil) -> Any? {
         state.write(prefixExpression.operatorToken.value)
-        visit(prefixExpression.expression)
+        writePrefixOperand(prefixExpression.expression)
         return nil
     }
 
@@ -1338,7 +1422,8 @@ public final class SourcePrinter: AST.Visitor {
     public override func visitPostfix(_ postfixExpression: AST.Postfix, additional: Any? = nil)
         -> Any?
     {
-        visit(postfixExpression.expression)
+        writePostfixBase(postfixExpression.expression)
+        writePostfixSeparator(postfixExpression.expression)
         state.write(postfixExpression.operatorToken.value)
         return nil
     }
@@ -1348,7 +1433,7 @@ public final class SourcePrinter: AST.Visitor {
         _ dereference: AST.Dereference, additional: Any? = nil
     ) -> Any? {
         state.write("*")
-        visit(dereference.expression)
+        writePrefixOperand(dereference.expression)
         return nil
     }
 
@@ -1357,7 +1442,7 @@ public final class SourcePrinter: AST.Visitor {
         _ addressOf: AST.AddressOf, additional: Any? = nil
     ) -> Any? {
         state.write("&")
-        visit(addressOf.expression)
+        writePrefixOperand(addressOf.expression)
         return nil
     }
 
@@ -1439,7 +1524,7 @@ public final class SourcePrinter: AST.Visitor {
     public override func visitSubscript(_ subscriptExpr: AST.Subscript, additional: Any? = nil)
         -> Any?
     {
-        visit(subscriptExpr.base)
+        writePostfixBase(subscriptExpr.base)
         state.write("[")
         for (index, argument) in subscriptExpr.arguments.enumerated() {
             if index > 0 {
@@ -1458,7 +1543,8 @@ public final class SourcePrinter: AST.Visitor {
     public override func visitForceUnwrap(
         _ forceUnwrap: AST.ForceUnwrap, additional: Any? = nil
     ) -> Any? {
-        visit(forceUnwrap.expression)
+        writePostfixBase(forceUnwrap.expression)
+        writePostfixSeparator(forceUnwrap.expression)
         state.write("!")
         return nil
     }

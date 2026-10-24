@@ -369,7 +369,7 @@ public final class TypeChecker: AST.Visitor {
                 nil
             }
         if let type {
-            variableDecl.symbol?.type = type
+            variableDecl.symbol!.type = type
             fillAccessorSignatures(variableDecl, type: type)
             if variableDecl.initializer == nil, !functionReturnTypes.isEmpty,
                variableDecl.token.value == "let"
@@ -605,11 +605,9 @@ public final class TypeChecker: AST.Visitor {
         else {
             return nil
         }
-        let parameters =
-            owner.scope.types.values
-                .compactMap { $0 as? Symbol.GenericParamSymbol }
-                .sorted { $0.id.id < $1.id.id }
-                .map { TrussType.GenericParamType($0.name, $0) }
+        let parameters = orderedGenericParameters(of: owner).map {
+            TrussType.GenericParamType($0.name, $0)
+        }
         guard !parameters.isEmpty else {
             return nominalType
         }
@@ -1360,8 +1358,7 @@ public final class TypeChecker: AST.Visitor {
         _ type: TrussType.TrussType, of symbol: Symbol.NominalTypeSymbol,
         with arguments: [TrussType.TrussType]
     ) -> TrussType.TrussType {
-        let parameterNames = symbol.scope.types.values
-            .compactMap { $0 as? Symbol.GenericParamSymbol }.map(\.name)
+        let parameterNames = orderedGenericParameters(of: symbol).map(\.name)
         return replacingGenericParam(type) { genericParam in
             if let index = parameterNames.firstIndex(of: genericParam.name),
                index < arguments.count
@@ -1524,7 +1521,7 @@ public final class TypeChecker: AST.Visitor {
         )
         if let resolved = resolveOverloads(
             setterCandidates, arguments: arguments, trailingClosures: [],
-            expectedReturn: nil, at: token, fallbackName: "subscript"
+            expectedReturn: nil, at: token, fallbackName: "subscript", positional: true
         ) {
             subscriptExpression.symbol = candidates.first { $0.setter === resolved.symbol }
             subscriptExpression.ty = resolved.type.returnType
@@ -2424,6 +2421,7 @@ public final class TypeChecker: AST.Visitor {
         context.emitError("operator '\(name)' has no function declaration", at: token)
     }
 
+    @discardableResult
     private func infer(_ expression: AST.Expression, at token: Token) -> TrussType.TrussType? {
         switch expression {
         case let parentheticalExpression as AST.Parenthetical:
@@ -2667,6 +2665,7 @@ public final class TypeChecker: AST.Visitor {
                 returnType: freshTypeVariable()
             )
             check(call.callee, callType, at: token)
+            recordArgumentMapping(call)
             if let returnType = callResultType(of: call.callee) {
                 call.ty = wrapConstructionResult(call, returnType)
             }
@@ -3160,7 +3159,7 @@ public final class TypeChecker: AST.Visitor {
                 if let resolved = resolveOverloads(
                     candidates.compactMap(\.getter), arguments: subscriptExpression.arguments,
                     trailingClosures: [],
-                    expectedReturn: nil, at: token, fallbackName: "subscript"
+                    expectedReturn: nil, at: token, fallbackName: "subscript", positional: true
                 ) {
                     subscriptExpression.symbol = candidates.first { $0.getter === resolved.symbol }
                     expression.ty = resolved.type.returnType
@@ -3246,7 +3245,7 @@ public final class TypeChecker: AST.Visitor {
                     }
                     if let resolved = resolveOverloads(
                         candidates, arguments: component.arguments, trailingClosures: [],
-                        expectedReturn: nil, at: token, fallbackName: "subscript"
+                        expectedReturn: nil, at: token, fallbackName: "subscript", positional: true
                     ) {
                         component.symbol = resolved.symbol
                         component.overloads = candidates
@@ -3290,6 +3289,10 @@ public final class TypeChecker: AST.Visitor {
         _ expression: AST.Expression, _ expected: TrussType.TrussType, at token: Token
     ) {
         switch expression {
+        case let parenthetical as AST.Parenthetical:
+            check(parenthetical.inner, expected, at: token)
+            parenthetical.ty = parenthetical.inner.ty
+
         case let variable as AST.Variable where expected is TrussType.CallType:
             if let callType = expected as? TrussType.CallType {
                 checkCallTypeForCallee(variable, callType: callType, at: token)
@@ -3410,6 +3413,7 @@ public final class TypeChecker: AST.Visitor {
                 returnType: expected
             )
             check(call.callee, callType, at: token)
+            recordArgumentMapping(call)
             if let returnType = callResultType(of: call.callee) {
                 call.ty = wrapConstructionResult(call, returnType)
             }
@@ -3723,11 +3727,15 @@ public final class TypeChecker: AST.Visitor {
     }
 
     private func checkExplicitTypeArguments(of generic: AST.GenericApplication, at token: Token) {
-        guard let symbol = AST.Expression.resolvedFunctionSymbol(of: generic.base) else {
-            return
-        }
-        let expected = symbol.forallType?.parameters.count ?? 0
-        guard generic.genericArguments.count != expected else {
+        let expected: Int? =
+            if let symbol = AST.Expression.resolvedFunctionSymbol(of: generic.base) {
+                symbol.forallType?.parameters.count ?? 0
+            } else {
+                AST.Expression.resolvedFunctionSymbols(of: generic.base)
+                    .compactMap { $0.forallType?.parameters.count }
+                    .first
+            }
+        guard let expected, generic.genericArguments.count != expected else {
             return
         }
         guard reportedTypeArgumentCounts.insert(ObjectIdentifier(generic)).inserted else {
@@ -3929,17 +3937,49 @@ public final class TypeChecker: AST.Visitor {
         return nil
     }
 
+    private func recordArgumentMapping(_ call: AST.Call) {
+        guard call.argumentMapping == nil, !call.arguments.isEmpty,
+              let calleeType = call.callee.ty.map({ resolve($0) }),
+              let callable = callableSignature(of: calleeType),
+              !callable.parameters.isEmpty
+        else {
+            return
+        }
+        let signature = Symbol.FunctionSignature(
+            labels: callable.parameters.map(\.label),
+            hasDefaults: callable.parameters.map { _ in true },
+            isVararg: callable.parameters.map { _ in false },
+            isVariadic: false
+        )
+        guard
+            let mapping = mapArguments(
+                call.arguments, to: signature,
+                operatorName: AST.Expression.resolvedFunctionSymbol(of: call.callee)?.name
+            ),
+            mapping.count == call.arguments.count
+        else {
+            return
+        }
+        call.argumentMapping = mapping
+    }
+
     private func callResultType(of callee: AST.Expression) -> TrussType.TrussType? {
         callee.ty.map { resolve($0) }.flatMap { callableSignature(of: $0)?.returnType }
     }
 
     private func checkValueCall(
-        _ callType: TrussType.CallType, signature: CallableSignature, at token: Token
+        _ callType: TrussType.CallType, signature: CallableSignature, at token: Token,
+        name: String? = nil
     ) {
+        let trailingClosureCount = callType.trailingClosures.count
         let arguments = callType.arguments + callType.trailingClosures.map { label, closure in
             AST.LabeledArgument(label: label, value: closure, sourceRange: closure.sourceRange)
         }
-        guard let mapping = mapValueCallArguments(arguments, signature: signature, at: token)
+        guard
+            let mapping = mapValueCallArguments(
+                arguments, signature: signature, at: token,
+                trailingClosureCount: trailingClosureCount, name: name
+            )
         else {
             return
         }
@@ -3961,6 +4001,7 @@ public final class TypeChecker: AST.Visitor {
                           actual is TrussType.FunctionType
                 {
                     argument.value.ty = parameterType
+                    unwrapParentheses(argument.value).ty = parameterType
                 }
             } else {
                 check(argument.value, parameterType, at: token)
@@ -3997,8 +4038,24 @@ public final class TypeChecker: AST.Visitor {
         return true
     }
 
+    private func isOperatorName(_ name: String) -> Bool {
+        name.contains { !($0.isLetter || $0.isNumber || $0 == "_") }
+    }
+
+    private func isOperatorReference(_ expression: AST.Expression) -> Bool {
+        switch expression {
+        case let variable as AST.Variable:
+            isOperatorName(variable.name.value)
+        case let member as AST.MemberAccess:
+            isOperatorName(member.member.value)
+        default:
+            false
+        }
+    }
+
     private func mapValueCallArguments(
-        _ arguments: [AST.LabeledArgument], signature: CallableSignature, at token: Token
+        _ arguments: [AST.LabeledArgument], signature: CallableSignature, at token: Token,
+        trailingClosureCount: Int = 0, name: String? = nil
     ) -> [Int]? {
         let parameters = signature.parameters
         let variadicIndex: Int? =
@@ -4026,7 +4083,17 @@ public final class TypeChecker: AST.Visitor {
         }
         var used = [Bool](repeating: false, count: parameters.count)
         var mapping: [Int] = []
-        for argument in arguments {
+        let trailingStart = arguments.count - trailingClosureCount
+        for (argumentIndex, argument) in arguments.enumerated() {
+            if argumentIndex >= trailingStart {
+                let index = parameters.count - (arguments.count - argumentIndex)
+                guard index >= 0, index < parameters.count, !used[index] else {
+                    return nil
+                }
+                used[index] = true
+                mapping.append(index)
+                continue
+            }
             if let label = argument.label?.value {
                 var found: Int?
                 for (index, parameter) in parameters.enumerated()
@@ -4047,15 +4114,30 @@ public final class TypeChecker: AST.Visitor {
                 mapping.append(index)
             } else {
                 var found: Int?
-                for (index, isUsed) in used.enumerated() where !isUsed {
+                for (index, isUsed) in used.enumerated()
+                    where !isUsed && parameters[index].label == nil
+                {
                     found = index
                     break
+                }
+                if found == nil, isOperatorReference(argument.value) {
+                    found = used.firstIndex { !$0 }
                 }
                 if found == nil, let variadicIndex {
                     found = variadicIndex
                 }
                 guard let index = found else {
-                    context.emitError("too many arguments", at: token)
+                    if let missing = used.firstIndex(where: { !$0 }),
+                       let label = parameters[missing].label
+                    {
+                        context.emitError(
+                            "missing argument label '\(label)' in call to "
+                                + "'\(name ?? "function")'",
+                            at: argument.label ?? syntheticToken(for: argument.value)
+                        )
+                    } else {
+                        context.emitError("too many arguments", at: token)
+                    }
                     return nil
                 }
                 used[index] = true
@@ -4083,7 +4165,10 @@ public final class TypeChecker: AST.Visitor {
             if let calleeType = callee.ty.map({ resolve($0) }),
                let signature = callableSignature(of: calleeType)
             {
-                checkValueCall(callType, signature: signature, at: token)
+                checkValueCall(
+                    callType, signature: signature, at: token,
+                    name: callTargetName(callee)
+                )
             }
             return
         }
@@ -4107,6 +4192,12 @@ public final class TypeChecker: AST.Visitor {
         let candidates = calleeOverloads(generic.base)
         guard !candidates.isEmpty else {
             _ = infer(generic, at: token)
+            return
+        }
+        if let arity = candidates.compactMap({ $0.forallType?.parameters.count }).first,
+           generic.genericArguments.count != arity
+        {
+            checkExplicitTypeArguments(of: generic, at: token)
             return
         }
         if let resolved = resolveOverloads(
@@ -4406,7 +4497,8 @@ public final class TypeChecker: AST.Visitor {
         expectedReturn: TrussType.TrussType?,
         at token: Token,
         reportErrors: Bool = true,
-        fallbackName: String? = nil
+        fallbackName: String? = nil,
+        positional: Bool = false
     ) -> (symbol: Symbol.FunctionSymbol, type: TrussType.FunctionType)? {
         let allArguments = arguments + trailingClosures.map { label, closure in
             AST.LabeledArgument(label: label, value: closure, sourceRange: closure.sourceRange)
@@ -4443,15 +4535,27 @@ public final class TypeChecker: AST.Visitor {
             } else {
                 continue
             }
-            if !explicitArguments.isEmpty, let forallType = candidate.forallType {
+            if !explicitArguments.isEmpty {
+                let parameterNames =
+                    if let forallType = candidate.forallType {
+                        forallType.parameters.map(\.name)
+                    } else {
+                        genericParameterNames(of: candidate, fallback: genericParameters)
+                    }
                 for (index, argument) in explicitArguments.enumerated()
-                    where index < forallType.parameters.count
+                    where index < parameterNames.count
                 {
-                    typeMapping[forallType.parameters[index].name]?.binding = evaluate(argument)
+                    typeMapping[parameterNames[index]]?.binding = evaluate(argument)
                 }
             }
             let signature = candidate.signature
-            guard let argumentMapping = mapArguments(allArguments, to: signature) else {
+            guard
+                let argumentMapping = mapArguments(
+                    allArguments, to: signature, positional: positional,
+                    operatorName: candidate.name,
+                    trailingClosureCount: trailingClosures.count
+                )
+            else {
                 continue
             }
             var ok = true
@@ -4460,7 +4564,7 @@ public final class TypeChecker: AST.Visitor {
                 guard parameterIndex < ty.parameters.count else {
                     continue
                 }
-                let parameterType = ty.parameters[parameterIndex].type
+                let parameterType = resolve(ty.parameters[parameterIndex].type)
                 if let closure = argument.value as? AST.Closure,
                    parameterType is TrussType.FunctionType
                    || parameterType is TrussType.ClosureType
@@ -4546,7 +4650,8 @@ public final class TypeChecker: AST.Visitor {
             return nil
         case 1:
             finalizeSelectedCallArguments(
-                allArguments, symbol: matched[0].0, type: matched[0].1, at: token
+                allArguments, symbol: matched[0].0, type: matched[0].1, at: token,
+                positional: positional, trailingClosureCount: trailingClosures.count
             )
             return matched[0]
         default:
@@ -4559,9 +4664,15 @@ public final class TypeChecker: AST.Visitor {
 
     private func finalizeSelectedCallArguments(
         _ arguments: [AST.LabeledArgument], symbol: Symbol.FunctionSymbol,
-        type: TrussType.FunctionType, at token: Token
+        type: TrussType.FunctionType, at token: Token, positional: Bool = false,
+        trailingClosureCount: Int = 0
     ) {
-        guard let mapping = mapArguments(arguments, to: symbol.signature) else {
+        guard
+            let mapping = mapArguments(
+                arguments, to: symbol.signature, positional: positional,
+                operatorName: symbol.name, trailingClosureCount: trailingClosureCount
+            )
+        else {
             return
         }
         for (index, argument) in arguments.enumerated() {
@@ -4569,7 +4680,7 @@ public final class TypeChecker: AST.Visitor {
             guard parameterIndex < type.parameters.count else {
                 continue
             }
-            let parameterType = type.parameters[parameterIndex].type
+            let parameterType = resolve(type.parameters[parameterIndex].type)
             if let closure = argument.value as? AST.Closure {
                 guard parameterType is TrussType.FunctionType
                     || parameterType is TrussType.ClosureType
@@ -4586,6 +4697,7 @@ public final class TypeChecker: AST.Visitor {
                 continue
             }
             argument.value.ty = parameterType
+            unwrapParentheses(argument.value).ty = parameterType
         }
     }
 
@@ -4602,14 +4714,29 @@ public final class TypeChecker: AST.Visitor {
     }
 
     private func mapArguments(
-        _ arguments: [AST.LabeledArgument], to signature: Symbol.FunctionSignature
+        _ arguments: [AST.LabeledArgument], to signature: Symbol.FunctionSignature,
+        positional: Bool = false, operatorName: String? = nil, trailingClosureCount: Int = 0
     ) -> [Int]? {
         let paramCount = signature.labels.count
+        let operatorSyntax = operatorName.map(isOperatorName) ?? false
         var used = [Bool](repeating: false, count: paramCount)
         var mapping: [Int] = []
         var varargIndex: Int?
+        let trailingStart = arguments.count - trailingClosureCount
 
-        for argument in arguments {
+        for (argumentIndex, argument) in arguments.enumerated() {
+            if argumentIndex >= trailingStart {
+                let index = paramCount - (arguments.count - argumentIndex)
+                guard index >= 0, index < paramCount, !used[index] else {
+                    return nil
+                }
+                used[index] = true
+                mapping.append(index)
+                if signature.isVararg[index] {
+                    varargIndex = index
+                }
+                continue
+            }
             if let label = argument.label?.value {
                 var found: Int?
                 for (i, paramLabel) in signature.labels.enumerated()
@@ -4630,9 +4757,23 @@ public final class TypeChecker: AST.Visitor {
                 mapping.append(varargIndex)
             } else {
                 var found: Int?
-                for (i, isUsed) in used.enumerated() where !isUsed {
+                for (i, isUsed) in used.enumerated()
+                    where !isUsed && signature.labels[i] == nil
+                {
                     found = i
                     break
+                }
+                if found == nil, positional || operatorSyntax || isOperatorReference(argument.value) {
+                    found = used.firstIndex { !$0 }
+                }
+                if found == nil {
+                    for (i, isUsed) in used.enumerated()
+                        where !isUsed && signature.isVararg[i]
+                    {
+                        found = i
+                        varargIndex = i
+                        break
+                    }
                 }
                 guard let index = found else {
                     return nil
@@ -4733,9 +4874,7 @@ public final class TypeChecker: AST.Visitor {
         guard let symbol = nominal.symbol else {
             return
         }
-        let parameters = symbol.scope.types.values.compactMap {
-            $0 as? Symbol.GenericParamSymbol
-        }
+        let parameters = orderedGenericParameters(of: symbol)
         for (index, argument) in arguments.enumerated() where index < parameters.count {
             let parameter = parameters[index]
             guard !parameter.constraints.isEmpty else {
@@ -4948,6 +5087,25 @@ public final class TypeChecker: AST.Visitor {
             }
         }
         return (true, nil)
+    }
+
+    private func orderedGenericParameters(
+        of symbol: Symbol.NominalTypeSymbol
+    ) -> [Symbol.GenericParamSymbol] {
+        symbol.scope.types.values
+            .compactMap { $0 as? Symbol.GenericParamSymbol }
+            .sorted { $0.id.id < $1.id.id }
+    }
+
+    private func genericParameterNames(
+        of symbol: Symbol.FunctionSymbol, fallback: [Symbol.GenericParamSymbol]
+    ) -> [String] {
+        guard let memberOf = symbol.memberOf,
+              let owner = context.id2Symbol[memberOf] as? Symbol.NominalTypeSymbol
+        else {
+            return fallback.map(\.name)
+        }
+        return orderedGenericParameters(of: owner).map(\.name)
     }
 
     private func genericParamSymbols(

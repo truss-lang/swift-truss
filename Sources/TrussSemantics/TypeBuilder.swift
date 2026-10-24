@@ -24,7 +24,7 @@ public final class TypeBuilder: AST.Visitor {
             case is Symbol.ActorSymbol:
                 TrussType.ActorType(id: typeId, name: name)
             default:
-                fatalError("unreachable: unknown nominal type symbol \(Swift.type(of: symbol))")
+                fatalError("unreachable: unknown nominal type symbol \(type(of: symbol))")
             }
             return type
         }

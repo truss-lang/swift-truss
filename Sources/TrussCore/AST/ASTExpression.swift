@@ -339,6 +339,7 @@ public extension AST {
         public let arguments: [LabeledArgument]
         public let trailingClosures: [(Token?, Closure)]
         public let inPlace: Expression?
+        public var argumentMapping: [Int]? = nil
         public init(
             callee: Expression, arguments: [LabeledArgument], trailingClosures: [(Token?, Closure)] = [],
             inPlace: Expression? = nil, sourceRange: SourceRange
@@ -356,6 +357,10 @@ public extension AST {
 
         public override func copySemantics(from other: AST.AstNode) {
             super.copySemantics(from: other)
+            guard let otherCall = other as? AST.Call else {
+                return
+            }
+            argumentMapping = otherCall.argumentMapping
         }
     }
 
@@ -746,12 +751,23 @@ public extension AST {
         }
     }
 
+    struct OperatorPrecedence {
+        public let rank: Int
+        public let associativity: AST.PrecedenceGroupDecl.Associativity
+
+        public init(rank: Int, associativity: AST.PrecedenceGroupDecl.Associativity) {
+            self.rank = rank
+            self.associativity = associativity
+        }
+    }
+
     final class Binary: Expression {
         public let left: Expression
         public let right: Expression
         public let operatorToken: Token
         public let isAssignment: Bool
         public var symbol: Symbol.FunctionSymbol? = nil
+        public var precedence: OperatorPrecedence? = nil
         public init(
             _ left: Expression, _ right: Expression, _ operatorToken: Token,
             isAssignment: Bool = false, sourceRange: SourceRange
@@ -765,6 +781,17 @@ public extension AST {
 
         public override func accept(_ visitor: Visitor, additional: Any? = nil) -> Any? {
             visitor.visitBinary(self, additional: additional)
+        }
+
+        public override func copySemantics(from other: AST.AstNode) {
+            super.copySemantics(from: other)
+            guard let otherBinary = other as? AST.Binary else {
+                return
+            }
+            if precedence == nil {
+                precedence = otherBinary.precedence
+            }
+            symbol = otherBinary.symbol
         }
     }
 

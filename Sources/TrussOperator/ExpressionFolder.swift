@@ -11,6 +11,7 @@ public final class ExpressionFolder: AST.Rewriter {
     private lazy var hasAcyclicPrecedenceGraph: Bool = isAcyclicPrecedenceGraph()
     private lazy var reachability: [ObjectIdentifier: Set<ObjectIdentifier>] =
         computeReachability()
+    private var precedenceRanks: [ObjectIdentifier: Int] = [:]
 
     public init(context: Context, table: OperatorTable) {
         self.context = context
@@ -37,6 +38,11 @@ public final class ExpressionFolder: AST.Rewriter {
     public override func visitSequential(
         _ sequentialExpression: AST.Sequential, additional: Any? = nil
     ) -> Any? {
+        if hasAcyclicPrecedenceGraph,
+           let recovered = recoverGenericApplication(sequentialExpression)
+        {
+            return rewrite(recovered as AST.Expression)
+        }
         let rewritten =
             super.visitSequential(sequentialExpression, additional: additional)
                 as? AST.Sequential ?? sequentialExpression
@@ -57,6 +63,89 @@ public final class ExpressionFolder: AST.Rewriter {
             return rewritten
         }
         return folded
+    }
+
+    private func recoverGenericApplication(
+        _ sequence: AST.Sequential
+    ) -> AST.Sequential? {
+        guard sequence.genericApplicationGroupCloseIndex() == nil else {
+            return nil
+        }
+        guard let firstOp = sequence.ops.first, case .Operator(.Less) = firstOp.kind else {
+            return nil
+        }
+        for index in sequence.operands.indices.reversed() {
+            guard let recovered = splitSwallowedGenericClosers(sequence.operands[index]),
+                  let lastCloser = recovered.closers.last
+            else {
+                continue
+            }
+            var operands = sequence.operands
+            operands[index] = recovered.carrier
+            let insertIndex = min(index, sequence.ops.count)
+            let ops =
+                Array(sequence.ops[..<insertIndex]) + recovered.closers
+                    + Array(sequence.ops[insertIndex...])
+            let repaired = AST.Sequential(
+                ops, operands,
+                sourceRange: SourceRange(
+                    start: sequence.sourceRange.start,
+                    end: closingEnd(of: lastCloser, in: sequence)
+                )
+            )
+            guard repaired.genericApplicationGroupCloseIndex() != nil else {
+                continue
+            }
+            return repaired
+        }
+        return nil
+    }
+
+    private func splitSwallowedGenericClosers(
+        _ expression: AST.Expression
+    ) -> (carrier: AST.Expression, closers: [Token])? {
+        if let closureType = expression as? AST.ClosureType,
+           let recovered = splitSwallowedGenericClosers(closureType.returnType)
+        {
+            let carrier = AST.ClosureType(
+                closureType.parameters, closureType.asyncToken, closureType.throwsClause,
+                recovered.carrier,
+                sourceRange: SourceRange(
+                    start: closureType.sourceRange.start,
+                    end: recovered.carrier.sourceRange.end
+                )
+            )
+            return (carrier, recovered.closers)
+        }
+        if let functionType = expression as? AST.FunctionType,
+           let recovered = splitSwallowedGenericClosers(functionType.returnType)
+        {
+            let carrier = AST.FunctionType(
+                functionType.funcToken, functionType.parameters, functionType.asyncToken,
+                functionType.throwsClause, recovered.carrier,
+                sourceRange: SourceRange(
+                    start: functionType.sourceRange.start,
+                    end: recovered.carrier.sourceRange.end
+                )
+            )
+            return (carrier, recovered.closers)
+        }
+        guard let sequential = expression as? AST.Sequential,
+              sequential.operands.count == 1,
+              let carrier = sequential.operands.first,
+              !sequential.ops.isEmpty,
+              sequential.ops.allSatisfy({ isGenericCloser($0) })
+        else {
+            return nil
+        }
+        return (carrier, sequential.ops)
+    }
+
+    private func isGenericCloser(_ token: Token) -> Bool {
+        guard case let .Operator(kind?) = token.kind else {
+            return false
+        }
+        return kind.genericCloseLevels != nil
     }
 
     private func foldGeneric(_ sequence: AST.Sequential) -> AST.Expression? {
@@ -316,11 +405,32 @@ public final class ExpressionFolder: AST.Rewriter {
         _ left: AST.Expression, _ op: Token, _ right: AST.Expression,
         in sequence: AST.Sequential
     ) -> AST.Binary {
-        AST.Binary(
+        let group = group(of: op)
+        let binary = AST.Binary(
             left, right, op,
-            isAssignment: group(of: op)?.assignment ?? false,
+            isAssignment: group?.assignment ?? false,
             sourceRange: SourceRange(start: left.sourceRange.start, end: right.sourceRange.end)
         )
+        if let group {
+            binary.precedence = AST.OperatorPrecedence(
+                rank: precedenceRank(of: group), associativity: group.associativity
+            )
+        }
+        return binary
+    }
+
+    private func precedenceRank(of group: PrecedenceGroupInfo) -> Int {
+        let key = ObjectIdentifier(group)
+        if let cached = precedenceRanks[key] {
+            return cached
+        }
+        precedenceRanks[key] = 0
+        var rank = 0
+        for edge in graph.edgesForVertex(group) ?? [] {
+            rank = max(rank, precedenceRank(of: graph.vertices[edge.v]) + 1)
+        }
+        precedenceRanks[key] = rank
+        return rank
     }
 
     private func makePrefix(
