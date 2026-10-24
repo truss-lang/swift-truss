@@ -1088,6 +1088,164 @@ func matchImplicitMemberExpressionReportsError() {
 }
 
 @Test
+func implicitEnumCaseResolvesInValuePositions() {
+    let (context, _) = runTypeChecker([
+        "enum E { case a; case b }\n"
+            + "func f() -> E { return .a }\n"
+            + "func g(e: E) { let x = e }\n"
+            + "func h() { g(e: .a) }\n"
+            + "func k() { let e: E = .a }\n"
+            + "func m() { let t: (E, E) = (.a, .b) }\n"
+            + "func n() { let o: E? = .a }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func implicitEnumCaseResolvesSymbolAndType() throws {
+    let (_, programs) = runTypeChecker(["enum E { case a; case b }\nfunc f() -> E { return .a }"])
+    let functionDecl = try #require(programs[0].statements[1] as? AST.FunctionDecl)
+    let body = try #require(functionDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let returnStatement = try #require(statements[0] as? AST.Return)
+    let implicit = try #require(returnStatement.value as? AST.ImplicitMemberAccess)
+    let symbol = try #require(implicit.symbol)
+    #expect(symbol is Symbol.CaseSymbol)
+    #expect(symbol.name == "a")
+    #expect(implicit.ty is TrussType.EnumType)
+}
+
+@Test
+func implicitEnumCaseInBinaryOperandAndAssignment() {
+    let (context, _) = runTypeChecker(
+        [
+            "precedencegroup Cmp { associativity: none }\n"
+                + "infix operator ==: Cmp\n"
+                + "precedencegroup Assignment { assignment: true }\n"
+                + "infix operator =: Assignment\n"
+                + "enum E { case a; case b }\n"
+                + "func ==(lhs: E, rhs: E) -> Builtin.Int32 { return 1 }\n"
+                + "func f(e: E) -> Builtin.Int32 { return e == .a }\n"
+                + "func g(e: E) -> Builtin.Int32 { return .b == e }\n"
+                + "func h(e: E) -> E { var r: E = e\n    r = .a\n    return r }",
+        ], installBuiltin: true
+    )
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func implicitUnknownVariantReportsNoVariant() {
+    let (context, _) = runTypeChecker(["enum E { case a; case b }\nfunc f() -> E { return .c }"])
+    let errors = context.diagnosticEngine.diagnostics.filter { $0.severity == .error }
+    #expect(errors.contains { $0.message == "no variant named 'c' found for enum 'E'" })
+}
+
+@Test
+func implicitMissingMemberReportsNoMember() {
+    let (context, _) = runTypeChecker([
+        "struct S {\n    static let shared: S\n    init() {}\n}\nfunc f() -> S { return .nope }",
+    ])
+    let errors = context.diagnosticEngine.diagnostics.filter { $0.severity == .error }
+    #expect(errors.contains { $0.message == "type 'S' has no member 'nope'" })
+}
+
+@Test
+func implicitAssociatedValueCaseReportsMissingValues() {
+    let (context, _) = runTypeChecker(
+        ["enum R { case ok(Builtin.Int32) }\nfunc f() -> R { return .ok }"],
+        installBuiltin: true
+    )
+    let errors = context.diagnosticEngine.diagnostics.filter { $0.severity == .error }
+    #expect(errors.contains { $0.message == "case 'ok' has 1 associated value(s), but none given" })
+}
+
+@Test
+func implicitEnumCaseWithUnknownExpectedTypeStaysSilent() {
+    let (context, _) = runTypeChecker(["enum E { case a }\nfunc f() { let x: Nope = .a }"])
+    let messages = context.diagnosticEngine.diagnostics.map(\.message)
+    #expect(messages.contains("cannot find type 'Nope'"))
+    #expect(!messages.contains { $0.contains("implicit member") })
+}
+
+@Test
+func implicitStaticPropertyResolves() {
+    let (context, _) = runTypeChecker([
+        "struct S {\n    static let shared: S\n    init() {}\n}\nfunc f() -> S { return .shared }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func implicitStaticPropertyFallsBackToEnclosingType() {
+    let (context, _) = runTypeChecker([
+        "struct T {}\nstruct S {\n    static let shared: T\n    init() {}\n"
+            + "    func m() -> T { return .shared }\n}",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func implicitInstanceMemberIsRejected() {
+    let (context, _) = runTypeChecker([
+        "struct T {}\nstruct S {\n    var f: T\n    func m() -> T { return .f }\n}",
+    ])
+    #expect(context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func implicitStaticMethodReferenceResolves() {
+    let (context, _) = runTypeChecker([
+        "struct S {\n    static func make() -> S { return S() }\n    init() {}\n}\n"
+            + "func f() { let g: () -> S = .make }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func implicitStaticMethodCallResolves() {
+    let (context, _) = runTypeChecker([
+        "struct S {\n    static func make() -> S { return S() }\n    init() {}\n}\n"
+            + "func f() -> S { return .make() }",
+    ])
+    #expect(!context.diagnosticEngine.hasErrors)
+}
+
+@Test
+func memberAccessStaticMethodReferenceSelectsOverload() throws {
+    let source = """
+    struct S {
+        static func g() -> S { return S() }
+        static func g(x: S) -> S { return x }
+        init() {}
+    }
+    func f() {
+        let a: () -> S = S.g
+        let b: (S) -> S = S.g
+    }
+    """
+    let (context, programs) = runTypeChecker([source])
+    #expect(!context.diagnosticEngine.hasErrors)
+    let functionDecl = try #require(programs[0].statements[1] as? AST.FunctionDecl)
+    let body = try #require(functionDecl.body)
+    guard case let .Block(statements) = body else {
+        Issue.record("expected block body")
+        return
+    }
+    let first = try #require(statements[0] as? AST.VariableDecl)
+    let second = try #require(statements[1] as? AST.VariableDecl)
+    let firstMember = try #require(first.initializer as? AST.MemberAccess)
+    let secondMember = try #require(second.initializer as? AST.MemberAccess)
+    let firstSymbol = try #require(firstMember.symbol as? Symbol.FunctionSymbol)
+    let secondSymbol = try #require(secondMember.symbol as? Symbol.FunctionSymbol)
+    #expect(firstSymbol.id != secondSymbol.id)
+    #expect(firstSymbol.signature.labels.isEmpty)
+    #expect(secondSymbol.signature.labels.compactMap { $0 } == ["x"])
+}
+
+@Test
 func ifCaseEnumMatches() {
     let (context, _) = runTypeChecker(
         ["enum E { case a }\nfunc f(e: E) { if case .a = e {} }"]

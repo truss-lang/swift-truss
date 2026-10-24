@@ -1035,7 +1035,12 @@ public final class TIREmitter: AST.Visitor {
                     return ref
                 }
             } else {
-                let ref = functionRefValue(functionSymbol, at: memberAccess.sourceRange)
+                let ref = functionRefValue(
+                    functionSymbol, at: memberAccess.sourceRange,
+                    ty: memberAccess.ty.flatMap {
+                        $0 is TrussType.ClosureType ? lowerType($0).id : nil
+                    }
+                )
                 return builder.buildClosure(function: ref, captures: []).result
             }
         case let variableSymbol as Symbol.VariableSymbol:
@@ -1189,7 +1194,12 @@ public final class TIREmitter: AST.Visitor {
                     return ref
                 }
             } else {
-                let ref = functionRefValue(functionSymbol, at: implicitMemberAccess.sourceRange)
+                let ref = functionRefValue(
+                    functionSymbol, at: implicitMemberAccess.sourceRange,
+                    ty: implicitMemberAccess.ty.flatMap {
+                        $0 is TrussType.ClosureType ? lowerType($0).id : nil
+                    }
+                )
                 return builder.buildClosure(function: ref, captures: []).result
             }
         case let variableSymbol as Symbol.VariableSymbol:

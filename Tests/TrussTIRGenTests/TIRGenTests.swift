@@ -362,3 +362,41 @@ func subscriptAssignmentCallsSetter() throws {
     )
     #expect(setterCall.arguments.count == 3)
 }
+
+@Test
+func implicitEnumCaseValueLowersToEnumValue() {
+    let source = """
+    enum E { case a; case b }
+    func f() -> E { return .a }
+    func h() -> E {
+        let e: E = .b
+        return e
+    }
+    """
+    let (context, module) = runTIRGen(source)
+    #expect(!context.diagnosticEngine.hasErrors)
+    let values = instructions(of: module).compactMap { $0 as? TIR.EnumValue }
+    #expect(values.map(\.caseIndex) == [0, 1])
+}
+
+@Test
+func staticMethodReferenceLowersToClosure() {
+    let source = """
+    struct S {
+        static func make() -> S { return S() }
+        static func make(x: S) -> S { return x }
+        init() {}
+    }
+    func f() {
+        let a: () -> S = S.make
+        let b: (S) -> S = S.make
+    }
+    """
+    let (context, module) = runTIRGen(source)
+    #expect(!context.diagnosticEngine.hasErrors)
+    let closures = instructions(of: module).compactMap { $0 as? TIR.Closure }
+    #expect(closures.count == 2)
+    for closure in closures {
+        #expect(module.registry.type(closure.result.ty) is TIRType.ClosureType)
+    }
+}

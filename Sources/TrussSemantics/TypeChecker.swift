@@ -1444,6 +1444,117 @@ public final class TypeChecker: AST.Visitor {
         return result
     }
 
+    private func staticImplicitMember(
+        of name: String, in type: TrussType.TrussType?
+    ) -> Symbol.Symbol? {
+        let base = type.flatMap(optionalWrapped) ?? type
+        let nominal: TrussType.NominalType
+        if let generic = base as? TrussType.GenericInstantiation {
+            nominal = generic.base
+        } else if let plain = base as? TrussType.NominalType {
+            nominal = plain
+        } else {
+            return nil
+        }
+        guard let symbol = nominal.symbol else {
+            return nil
+        }
+        var current: Symbol.NominalTypeSymbol? = symbol
+        while let currentType = current {
+            if let entries = currentType.scope.values[name],
+               let entry = entries.first(where: { isStaticImplicitMember($0) })
+            {
+                return entry
+            }
+            current = (currentType as? Symbol.ClassSymbol)?.superclass
+        }
+        return nil
+    }
+
+    private func isStaticImplicitMember(_ symbol: Symbol.Symbol) -> Bool {
+        if symbol is Symbol.CaseSymbol {
+            return true
+        }
+        if let function = symbol as? Symbol.FunctionSymbol {
+            return function.kind == .StaticMethod
+        }
+        if let variable = symbol as? Symbol.VariableSymbol {
+            return variable.kind == .StaticProperty
+        }
+        return false
+    }
+
+    private func staticFunctionSymbols(
+        of name: String, in type: TrussType.TrussType?
+    ) -> [Symbol.FunctionSymbol] {
+        memberFunctionSymbols(of: name, in: type).filter { $0.kind == .StaticMethod }
+    }
+
+    private func implicitFunctionCandidates(
+        _ implicit: AST.ImplicitMemberAccess, expected: TrussType.TrussType
+    ) -> [Symbol.FunctionSymbol] {
+        let callable = optionalWrapped(expected) ?? expected
+        let produced = callableSignature(of: callable)?.returnType
+        var candidates = staticFunctionSymbols(of: implicit.name.value, in: produced)
+        for overload in implicit.overloads ?? [] where overload.kind == .StaticMethod {
+            if !candidates.contains(where: { $0.id == overload.id }) {
+                candidates.append(overload)
+            }
+        }
+        return candidates
+    }
+
+    private func typeSymbolType(_ expression: AST.Expression) -> TrussType.TrussType? {
+        if let variable = expression as? AST.Variable {
+            return variable.symbol.flatMap(evaluateSymbol)
+        }
+        if let member = expression as? AST.MemberAccess {
+            return member.symbol.flatMap(evaluateSymbol)
+        }
+        return nil
+    }
+
+    private func implicitValue(
+        of implicit: AST.ImplicitMemberAccess, in expected: TrussType.TrussType
+    ) -> (symbol: Symbol.Symbol, type: TrussType.TrussType)? {
+        if let symbol = staticImplicitMember(of: implicit.name.value, in: expected),
+           let type = memberType(of: implicit.name.value, in: Optional(expected))
+        {
+            return (symbol, type)
+        }
+        guard let symbol = implicit.symbol, isStaticImplicitMember(symbol),
+              let type = implicitMemberType(of: symbol)
+        else {
+            return nil
+        }
+        return (symbol, type)
+    }
+
+    private func implicitMemberType(of symbol: Symbol.Symbol) -> TrussType.TrussType? {
+        if let caseSymbol = symbol as? Symbol.CaseSymbol,
+           let memberOf = caseSymbol.memberOf,
+           let enumSymbol = context.id2Symbol[memberOf] as? Symbol.EnumSymbol,
+           let typeId = enumSymbol.typeId
+        {
+            return context.typeTable[typeId]
+        }
+        return valueType(of: symbol)
+    }
+
+    private func canResolveImplicitMember(
+        _ implicit: AST.ImplicitMemberAccess, expected: TrussType.TrussType
+    ) -> Bool {
+        if expected is TrussType.ErrorType || expected is TrussType.TypeVariableType {
+            return true
+        }
+        if expected is TrussType.FunctionType || expected is TrussType.ClosureType {
+            return implicitFunctionCandidates(implicit, expected: expected).contains {
+                matchesOverload($0, expected: expected, at: implicit.token).matches
+            }
+        }
+        return implicitValue(of: implicit, in: expected) != nil
+    }
+
     private func memberSubscriptSymbols(
         of type: TrussType.TrussType?
     ) -> [Symbol.SubscriptSymbol] {
@@ -2392,6 +2503,23 @@ public final class TypeChecker: AST.Visitor {
         context.emitError("type '\(type)' has no member '\(member)'", at: token)
     }
 
+    private func emitImplicitMemberNotFound(
+        _ implicit: AST.ImplicitMemberAccess, expected: TrussType.TrussType
+    ) {
+        let base = optionalWrapped(expected) ?? expected
+        let nominal =
+            (base as? TrussType.GenericInstantiation)?.base
+                ?? (base as? TrussType.NominalType)
+        if let nominal, nominal.symbol is Symbol.EnumSymbol {
+            context.emitError(
+                "no variant named '\(implicit.name.value)' found for enum '\(typeText(base))'",
+                at: implicit.name
+            )
+            return
+        }
+        emitNoMember(at: implicit.name, type: typeText(base), member: implicit.name.value)
+    }
+
     private func emitNoExactMatch(
         at token: Token, name: String, candidates: [Symbol.FunctionSymbol]
     ) {
@@ -2816,8 +2944,15 @@ public final class TypeChecker: AST.Visitor {
                 }
                 binary.left.isLeftValue = true
             }
-            _ = infer(binary.left, at: token)
-            _ = infer(binary.right, at: token)
+            if !(binary.left is AST.ImplicitMemberAccess) {
+                _ = infer(binary.left, at: token)
+            }
+            let rightIsImplicit = binary.right is AST.ImplicitMemberAccess
+            if binary.operatorToken.value == "=", rightIsImplicit, let leftType = binary.left.ty {
+                check(binary.right, resolve(leftType), at: token)
+            } else if !rightIsImplicit {
+                _ = infer(binary.right, at: token)
+            }
             if binary.operatorToken.value == "=" {
                 if let leftType = binary.left.ty, let rightType = binary.right.ty,
                    !canCoerce(rightType, to: leftType, at: token)
@@ -3307,59 +3442,13 @@ public final class TypeChecker: AST.Visitor {
 
         case let variable as AST.Variable:
             if expected is TrussType.FunctionType || expected is TrussType.ClosureType,
-               let overloads = variable.overloads,
-               !overloads.isEmpty
+               let overloads = variable.overloads, !overloads.isEmpty,
+               let selected = selectOverload(
+                   overloads, matching: expected, name: variable.name.value, at: token
+               )
             {
-                var constraintFailure: String? = nil
-                let matched = overloads.filter {
-                    var typeMapping: [String: TrussType.TypeVariableType] = [:]
-                    var genericParameters: [Symbol.GenericParamSymbol] = []
-                    let ty: TrussType.FunctionType
-                    if let forallType = $0.forallType {
-                        genericParameters = forallType.parameters
-                        if let functionType = instantiate(forallType, mapping: &typeMapping)
-                            as? TrussType.FunctionType
-                        {
-                            ty = functionType
-                        } else {
-                            return false
-                        }
-                    } else if let functionType = $0.functionType {
-                        genericParameters = genericParamSymbols(in: functionType)
-                        ty = instantiateGenerics(functionType, mapping: &typeMapping)
-                            as! TrussType.FunctionType
-                    } else {
-                        return false
-                    }
-                    var ok = canCoerce(ty, to: expected, at: token)
-                    if ok, !genericParameters.isEmpty {
-                        let (passed, failure) = checkGenericConstraints(
-                            of: genericParameters, mapping: typeMapping, at: token
-                        )
-                        if !passed {
-                            ok = false
-                            if constraintFailure == nil {
-                                constraintFailure = failure
-                            }
-                        }
-                    }
-                    return ok
-                }
-                switch matched.count {
-                case 0:
-                    if let constraintFailure {
-                        context.emitError(constraintFailure, at: token)
-                    } else {
-                        emitNoExactMatch(at: token, name: variable.name.value, candidates: matched)
-                    }
-                case 1:
-                    let f = matched[0]
-                    variable.symbol = f
-                    variable.ty =
-                        expected is TrussType.ClosureType ? expected : f.functionType
-                default:
-                    emitAmbiguous(at: token, name: variable.name.value)
-                }
+                variable.symbol = selected
+                variable.ty = expected is TrussType.ClosureType ? expected : selected.functionType
             }
             if expression.ty == nil {
                 if let actual = infer(expression, at: token) {
@@ -3424,18 +3513,22 @@ public final class TypeChecker: AST.Visitor {
                 }
             }
 
-        case let member as AST.MemberAccess where expected is TrussType.CallType:
-            if member.overloads == nil || member.overloads!.isEmpty {
-                if let builtinSymbol = member.symbol as? Symbol.FunctionSymbol,
-                   builtinSymbol.isBuiltin
-                {
-                    member.overloads = [builtinSymbol]
-                } else if let objectType = infer(member.object, at: token) {
-                    member.overloads = memberFunctionSymbols(of: member.member.value, in: objectType)
-                }
-            }
+        case let member as AST.MemberAccess:
             if let callType = expected as? TrussType.CallType {
+                if member.overloads == nil || member.overloads!.isEmpty {
+                    if let builtinSymbol = member.symbol as? Symbol.FunctionSymbol,
+                       builtinSymbol.isBuiltin
+                    {
+                        member.overloads = [builtinSymbol]
+                    } else if let objectType = infer(member.object, at: token) {
+                        member.overloads = memberFunctionSymbols(
+                            of: member.member.value, in: objectType
+                        )
+                    }
+                }
                 checkCallTypeForCallee(member, callType: callType, at: token)
+            } else if checkMemberAccessValue(member, expected: expected, at: token) {
+                return
             }
             if expression.ty == nil {
                 if let actual = infer(expression, at: token) {
@@ -3445,9 +3538,11 @@ public final class TypeChecker: AST.Visitor {
                 }
             }
 
-        case let implicit as AST.ImplicitMemberAccess where expected is TrussType.CallType:
+        case let implicit as AST.ImplicitMemberAccess:
             if let callType = expected as? TrussType.CallType {
                 checkCallTypeForCallee(implicit, callType: callType, at: token)
+            } else if checkImplicitMember(implicit, expected: expected, at: token) {
+                return
             }
             if expression.ty == nil {
                 if let actual = infer(expression, at: token) {
@@ -3524,6 +3619,74 @@ public final class TypeChecker: AST.Visitor {
                 }
             }
         }
+    }
+
+    private func checkImplicitMember(
+        _ implicit: AST.ImplicitMemberAccess, expected: TrussType.TrussType, at token: Token
+    ) -> Bool {
+        if expected is TrussType.ErrorType || expected is TrussType.TypeVariableType {
+            implicit.ty = TrussType.ErrorType.INSTANCE
+            return true
+        }
+        if expected is TrussType.FunctionType || expected is TrussType.ClosureType {
+            let candidates = implicitFunctionCandidates(implicit, expected: expected)
+            guard !candidates.isEmpty else {
+                return false
+            }
+            guard
+                let selected = selectOverload(
+                    candidates, matching: expected, name: implicit.name.value, at: token
+                )
+            else {
+                return true
+            }
+            implicit.symbol = selected
+            implicit.ty = expected is TrussType.ClosureType ? expected : selected.functionType
+            return true
+        }
+        guard let resolved = implicitValue(of: implicit, in: expected) else {
+            emitImplicitMemberNotFound(implicit, expected: expected)
+            return true
+        }
+        if let caseSymbol = resolved.symbol as? Symbol.CaseSymbol,
+           !caseSymbol.associatedTypes.isEmpty
+        {
+            context.emitError(
+                "case '\(caseSymbol.name)' has \(caseSymbol.associatedTypes.count) associated value(s), "
+                    + "but none given",
+                at: implicit.name
+            )
+            return true
+        }
+        implicit.symbol = resolved.symbol
+        implicit.ty = resolved.type
+        if !canCoerce(resolved.type, to: expected, at: token) {
+            emitMismatch(at: token, expected: expected, found: resolved.type)
+        }
+        return true
+    }
+
+    private func checkMemberAccessValue(
+        _ member: AST.MemberAccess, expected: TrussType.TrussType, at token: Token
+    ) -> Bool {
+        guard expected is TrussType.FunctionType || expected is TrussType.ClosureType else {
+            return false
+        }
+        let objectType = infer(member.object, at: token) ?? typeSymbolType(member.object)
+        let candidates = staticFunctionSymbols(of: member.member.value, in: objectType)
+        guard !candidates.isEmpty else {
+            return false
+        }
+        guard
+            let selected = selectOverload(
+                candidates, matching: expected, name: member.member.value, at: token
+            )
+        else {
+            return true
+        }
+        member.symbol = selected
+        member.ty = expected is TrussType.ClosureType ? expected : selected.functionType
+        return true
     }
 
     private func checkClosure(
@@ -3991,6 +4154,10 @@ public final class TypeChecker: AST.Visitor {
                 check(argument.value, parameterType, at: token)
                 continue
             }
+            if argument.value is AST.ImplicitMemberAccess {
+                check(argument.value, parameterType, at: token)
+                continue
+            }
             if let actual = infer(argument.value, at: token) {
                 if !canCoerce(actual, to: parameterType, at: token) {
                     emitMismatch(
@@ -4159,7 +4326,15 @@ public final class TypeChecker: AST.Visitor {
     private func checkCallTypeForCallee(
         _ callee: AST.Expression, callType: TrussType.CallType, at token: Token
     ) {
-        let candidates = calleeOverloads(callee)
+        var candidates = calleeOverloads(callee)
+        if candidates.isEmpty, let implicit = callee as? AST.ImplicitMemberAccess {
+            candidates = staticFunctionSymbols(
+                of: implicit.name.value, in: callType.returnType
+            )
+            if !candidates.isEmpty {
+                implicit.overloads = candidates
+            }
+        }
         guard !candidates.isEmpty else {
             _ = infer(callee, at: token)
             if let calleeType = callee.ty.map({ resolve($0) }),
@@ -4489,6 +4664,68 @@ public final class TypeChecker: AST.Visitor {
         return matched
     }
 
+    private func matchesOverload(
+        _ overload: Symbol.FunctionSymbol, expected: TrussType.TrussType, at token: Token
+    ) -> (matches: Bool, constraintFailure: String?) {
+        var typeMapping: [String: TrussType.TypeVariableType] = [:]
+        var genericParameters: [Symbol.GenericParamSymbol] = []
+        let type: TrussType.FunctionType
+        if let forallType = overload.forallType {
+            genericParameters = forallType.parameters
+            if let functionType = instantiate(forallType, mapping: &typeMapping)
+                as? TrussType.FunctionType
+            {
+                type = functionType
+            } else {
+                return (false, nil)
+            }
+        } else if let functionType = overload.functionType {
+            genericParameters = genericParamSymbols(in: functionType)
+            type = instantiateGenerics(functionType, mapping: &typeMapping)
+                as! TrussType.FunctionType
+        } else {
+            return (false, nil)
+        }
+        guard canCoerce(type, to: expected, at: token) else {
+            return (false, nil)
+        }
+        guard !genericParameters.isEmpty else {
+            return (true, nil)
+        }
+        let (passed, failure) = checkGenericConstraints(
+            of: genericParameters, mapping: typeMapping, at: token
+        )
+        return (passed, passed ? nil : failure)
+    }
+
+    private func selectOverload(
+        _ overloads: [Symbol.FunctionSymbol], matching expected: TrussType.TrussType,
+        name: String, at token: Token
+    ) -> Symbol.FunctionSymbol? {
+        var constraintFailure: String? = nil
+        let matched = overloads.filter { overload in
+            let (matches, failure) = matchesOverload(overload, expected: expected, at: token)
+            if !matches, constraintFailure == nil {
+                constraintFailure = failure
+            }
+            return matches
+        }
+        switch matched.count {
+        case 0:
+            if let constraintFailure {
+                context.emitError(constraintFailure, at: token)
+            } else {
+                emitNoExactMatch(at: token, name: name, candidates: matched)
+            }
+            return nil
+        case 1:
+            return matched[0]
+        default:
+            emitAmbiguous(at: token, name: name)
+            return nil
+        }
+    }
+
     private func resolveOverloads(
         _ candidates: [Symbol.FunctionSymbol],
         arguments: [AST.LabeledArgument],
@@ -4511,7 +4748,7 @@ public final class TypeChecker: AST.Visitor {
             var genericParameters: [Symbol.GenericParamSymbol] = []
             var bindingSnapshots: [(TrussType.TypeVariableType, TrussType.TrussType?)] = []
             for argument in allArguments {
-                if argument.value is AST.Closure {
+                if argument.value is AST.Closure || argument.value is AST.ImplicitMemberAccess {
                     continue
                 }
                 if let actual = infer(argument.value, at: token) {
@@ -4579,6 +4816,13 @@ public final class TypeChecker: AST.Visitor {
                         if captureRejection == nil {
                             captureRejection = (closure, functionType)
                         }
+                        ok = false
+                        break
+                    }
+                    continue
+                }
+                if let implicit = argument.value as? AST.ImplicitMemberAccess {
+                    if !canResolveImplicitMember(implicit, expected: parameterType) {
                         ok = false
                         break
                     }
@@ -4688,6 +4932,10 @@ public final class TypeChecker: AST.Visitor {
                     continue
                 }
                 check(closure, parameterType, at: token)
+                continue
+            }
+            if argument.value is AST.ImplicitMemberAccess {
+                check(argument.value, parameterType, at: token)
                 continue
             }
             guard parameterType is TrussType.ClosureType,
