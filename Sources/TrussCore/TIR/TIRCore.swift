@@ -2,6 +2,8 @@ import SwiftAbstract
 import SwiftBetterDiagnostic
 
 public enum TIR {
+    public static let noOpDeinitializerName = "$t_noop_deinit"
+
     public static var unknownSourceRange: SourceRange {
         SourceRange(
             location: SourceLocation(

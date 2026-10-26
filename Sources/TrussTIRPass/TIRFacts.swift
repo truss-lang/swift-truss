@@ -2,8 +2,6 @@ import SwiftBetterDiagnostic
 import TrussCore
 
 enum TIRFacts {
-    static let noOpDeinitializerName = "$t_noop_deinit"
-
     static func isTerminator(_ instruction: TIR.Instruction) -> Bool {
         instruction is TIR.Return || instruction is TIR.Branch || instruction is TIR.ConditionalBranch
             || instruction is TIR.SwitchEnum || instruction is TIR.Unreachable
@@ -179,26 +177,7 @@ enum TIRFacts {
     }
 
     static func isReferenceValue(_ id: Id.TIRTypeId, registry: TIR.Registry) -> Bool {
-        isReferenceType(id, registry: registry, visited: [])
-    }
-
-    private static func isReferenceType(
-        _ id: Id.TIRTypeId, registry: TIR.Registry, visited: Set<Id.TIRTypeId>
-    ) -> Bool {
-        guard !visited.contains(id), let ty = registry.types[id] else {
-            return false
-        }
-        switch ty {
-        case is TIRType.ClassType:
-            return true
-        case let pointer as TIRType.PointerType:
-            return registry.types[pointer.pointee] is TIRType.ClassType
-        case let structType as TIRType.StructType:
-            let nested = visited.union([id])
-            return structType.fields.contains { isReferenceType($0.type, registry: registry, visited: nested) }
-        default:
-            return false
-        }
+        registry.isReferenceType(id)
     }
 
     static func classType(of id: Id.TIRTypeId, registry: TIR.Registry) -> TIRType.ClassType? {
@@ -263,7 +242,7 @@ enum TIRFacts {
         var nested = visited
         nested.insert(classType.id)
         if classType.fields.contains(where: {
-            isReferenceType($0.type, registry: registry, visited: nested)
+            registry.isReferenceType($0.type, visited: nested)
         }) {
             return true
         }
@@ -292,7 +271,7 @@ enum TIRFacts {
         guard let entry = record.vtable.first else {
             return true
         }
-        return registry.functions[entry.function]?.name == noOpDeinitializerName
+        return registry.functions[entry.function]?.name == TIR.noOpDeinitializerName
     }
 
     static func inheritedFieldCount(

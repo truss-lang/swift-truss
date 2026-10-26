@@ -222,7 +222,7 @@ final class VTableCollector {
             return nil
         }
         let ownFields = tirClass.fields.dropFirst(inheritedFieldCount(of: symbol, classType: classType))
-        guard ownFields.contains(where: { hasReferenceType($0.type, visited: []) }) else {
+        guard ownFields.contains(where: { gen.registry.isReferenceType($0.type) }) else {
             return nil
         }
         let pointer = gen.registry.pointerType(pointee: lowered.id)
@@ -272,23 +272,6 @@ final class VTableCollector {
 
     private func owningModule(of symbol: Symbol.ClassSymbol) -> TIR.Module? {
         gen.classModules[ObjectIdentifier(symbol)]
-    }
-
-    private func hasReferenceType(_ id: Id.TIRTypeId, visited: Set<Id.TIRTypeId>) -> Bool {
-        guard !visited.contains(id), let type = gen.registry.types[id] else {
-            return false
-        }
-        switch type {
-        case is TIRType.ClassType:
-            return true
-        case let pointer as TIRType.PointerType:
-            return gen.registry.types[pointer.pointee] is TIRType.ClassType
-        case let structType as TIRType.StructType:
-            let nested = visited.union([id])
-            return structType.fields.contains { hasReferenceType($0.type, visited: nested) }
-        default:
-            return false
-        }
     }
 
     private func sharedNoOpDeinitializerEntry(_ function: TIR.Function) -> TIR.VTableEntry {

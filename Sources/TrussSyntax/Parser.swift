@@ -2274,29 +2274,8 @@ public final class Parser {
             return errorStatement(from: token, to: t3)
         }
         index += 1
-        var body: [AST.Statement] = []
-        while let closeToken = peek {
-            if case .Separator(.CloseBrace) = closeToken.kind {
-                break
-            }
-            if let stmt = parseStatement() {
-                body.append(stmt)
-            } else {
-                break
-            }
-        }
-        if let closeToken = peek {
-            if case .Separator(.CloseBrace) = closeToken.kind {
-                index += 1
-            } else {
-                emitError(
-                    "expected '}' after initializer body, but got \(closeToken.value)",
-                    at: closeToken
-                )
-            }
-        } else {
-            emitError("expected '}' after initializer body", at: endOfFile)
-        }
+        let body = parseStatements()
+        consumeCloseBrace(after: "initializer")
         return AST.InitDecl(
             modifiers, attributes, token, optionalToken, genericDecl, parameters,
             asyncToken, throwsClause, body,
@@ -2317,33 +2296,41 @@ public final class Parser {
             return errorStatement(from: token, to: t3)
         }
         index += 1
-        var body: [AST.Statement] = []
+        let body = parseStatements()
+        consumeCloseBrace(after: "deinitializer")
+        return AST.DeinitDecl(
+            modifiers, attributes, token, body,
+            sourceRange: SourceRange(from: token, to: last!, in: buffer)
+        )
+    }
+
+    @discardableResult
+    private func consumeCloseBrace(after what: String) -> Token? {
+        guard let closeToken = peek else {
+            emitError("expected '}' after \(what) body", at: endOfFile)
+            return nil
+        }
+        if case .Separator(.CloseBrace) = closeToken.kind {
+            index += 1
+        } else {
+            emitError("expected '}' after \(what) body, but got \(closeToken.value)", at: closeToken)
+        }
+        return closeToken
+    }
+
+    private func parseStatements() -> [AST.Statement] {
+        var statements: [AST.Statement] = []
         while let closeToken = peek {
             if case .Separator(.CloseBrace) = closeToken.kind {
                 break
             }
             if let stmt = parseStatement() {
-                body.append(stmt)
+                statements.append(stmt)
             } else {
                 break
             }
         }
-        if let closeToken = peek {
-            if case .Separator(.CloseBrace) = closeToken.kind {
-                index += 1
-            } else {
-                emitError(
-                    "expected '}' after deinitializer body, but got \(closeToken.value)",
-                    at: closeToken
-                )
-            }
-        } else {
-            emitError("expected '}' after deinitializer body", at: endOfFile)
-        }
-        return AST.DeinitDecl(
-            modifiers, attributes, token, body,
-            sourceRange: SourceRange(from: token, to: last!, in: buffer)
-        )
+        return statements
     }
 
     private func parseStatement() -> AST.Statement? {
@@ -2549,29 +2536,8 @@ public final class Parser {
             switch t.kind {
             case .Separator(.OpenBrace):
                 index += 1
-                var statements: [AST.Statement] = []
-                while let closeToken = peek {
-                    if case .Separator(.CloseBrace) = closeToken.kind {
-                        break
-                    }
-                    if let stmt = parseStatement() {
-                        statements.append(stmt)
-                    } else {
-                        break
-                    }
-                }
-                if let closeToken = peek {
-                    if case .Separator(.CloseBrace) = closeToken.kind {
-                        index += 1
-                    } else {
-                        emitError(
-                            "expected '}' after function body, but got \(closeToken.value)",
-                            at: closeToken
-                        )
-                    }
-                } else {
-                    emitError("expected '}' after function body", at: endOfFile)
-                }
+                let statements = parseStatements()
+                consumeCloseBrace(after: "function")
 
                 body = .Block(statements)
             case .Operator(.Assign):
@@ -2859,29 +2825,8 @@ public final class Parser {
                 switch t3.kind {
                 case .Separator(.OpenBrace):
                     index += 1
-                    var statements: [AST.Statement] = []
-                    while let closeToken = peek {
-                        if case .Separator(.CloseBrace) = closeToken.kind {
-                            break
-                        }
-                        if let stmt = parseStatement() {
-                            statements.append(stmt)
-                        } else {
-                            break
-                        }
-                    }
-                    if let closeToken = peek {
-                        if case .Separator(.CloseBrace) = closeToken.kind {
-                            index += 1
-                        } else {
-                            emitError(
-                                "expected '}' after getter body, but got \(closeToken.value)",
-                                at: closeToken
-                            )
-                        }
-                    } else {
-                        emitError("expected '}' after getter body", at: endOfFile)
-                    }
+                    let statements = parseStatements()
+                    consumeCloseBrace(after: "getter")
 
                     body = .Block(statements)
                 case .Operator(.Assign):
@@ -2941,29 +2886,8 @@ public final class Parser {
                     break _loop
                 }
                 index += 1
-                var statements: [AST.Statement] = []
-                while let closeToken = peek {
-                    if case .Separator(.CloseBrace) = closeToken.kind {
-                        break
-                    }
-                    if let stmt = parseStatement() {
-                        statements.append(stmt)
-                    } else {
-                        break
-                    }
-                }
-                if let closeToken = peek {
-                    if case .Separator(.CloseBrace) = closeToken.kind {
-                        index += 1
-                    } else {
-                        emitError(
-                            "expected '}' after setter body, but got \(closeToken.value)",
-                            at: closeToken
-                        )
-                    }
-                } else {
-                    emitError("expected '}' after setter body", at: endOfFile)
-                }
+                let statements = parseStatements()
+                consumeCloseBrace(after: "setter")
 
                 let body: AST.FunctionDecl.Body = .Block(statements)
                 accessors.append(
@@ -3014,29 +2938,8 @@ public final class Parser {
                     break _loop
                 }
                 index += 1
-                var statements: [AST.Statement] = []
-                while let closeToken = peek {
-                    if case .Separator(.CloseBrace) = closeToken.kind {
-                        break
-                    }
-                    if let stmt = parseStatement() {
-                        statements.append(stmt)
-                    } else {
-                        break
-                    }
-                }
-                if let closeToken = peek {
-                    if case .Separator(.CloseBrace) = closeToken.kind {
-                        index += 1
-                    } else {
-                        emitError(
-                            "expected '}' after willSet body, but got \(closeToken.value)",
-                            at: closeToken
-                        )
-                    }
-                } else {
-                    emitError("expected '}' after willSet body", at: endOfFile)
-                }
+                let statements = parseStatements()
+                consumeCloseBrace(after: "willSet")
                 let body: AST.FunctionDecl.Body = .Block(statements)
                 accessors.append(
                     AST.Accessor(
@@ -3086,29 +2989,8 @@ public final class Parser {
                     break _loop
                 }
                 index += 1
-                var statements: [AST.Statement] = []
-                while let closeToken = peek {
-                    if case .Separator(.CloseBrace) = closeToken.kind {
-                        break
-                    }
-                    if let stmt = parseStatement() {
-                        statements.append(stmt)
-                    } else {
-                        break
-                    }
-                }
-                if let closeToken = peek {
-                    if case .Separator(.CloseBrace) = closeToken.kind {
-                        index += 1
-                    } else {
-                        emitError(
-                            "expected '}' after didSet body, but got \(closeToken.value)",
-                            at: closeToken
-                        )
-                    }
-                } else {
-                    emitError("expected '}' after didSet body", at: endOfFile)
-                }
+                let statements = parseStatements()
+                consumeCloseBrace(after: "didSet")
                 let body: AST.FunctionDecl.Body = .Block(statements)
                 accessors.append(
                     AST.Accessor(
@@ -3121,29 +3003,8 @@ public final class Parser {
             }
         }
         if !hasError, accessors.isEmpty {
-            var statements: [AST.Statement] = []
-            while let closeToken = peek {
-                if case .Separator(.CloseBrace) = closeToken.kind {
-                    break
-                }
-                if let stmt = parseStatement() {
-                    statements.append(stmt)
-                } else {
-                    break
-                }
-            }
-            if let closeToken = peek {
-                if case .Separator(.CloseBrace) = closeToken.kind {
-                    index += 1
-                } else {
-                    emitError(
-                        "expected '}' after didSet body, but got \(closeToken.value)",
-                        at: closeToken
-                    )
-                }
-            } else {
-                emitError("expected '}' after didSet body", at: endOfFile)
-            }
+            let statements = parseStatements()
+            consumeCloseBrace(after: "getter")
             let body: AST.FunctionDecl.Body = .Block(statements)
             accessors.append(
                 AST.Accessor(
@@ -3260,28 +3121,9 @@ public final class Parser {
             )
             return errorStatement(from: token, to: openToken)
         }
-        var body: [AST.Statement] = []
-        while let closeToken = peek {
-            if case .Separator(.CloseBrace) = closeToken.kind {
-                break
-            }
-            if let stmt = parseStatement() {
-                body.append(stmt)
-            } else {
-                break
-            }
-        }
-        guard let closeToken = peek else {
-            emitError("expected '}' after for body", at: endOfFile)
+        let body = parseStatements()
+        guard let closeToken = consumeCloseBrace(after: "for") else {
             return errorStatement(from: token, to: endOfFile)
-        }
-        if case .Separator(.CloseBrace) = closeToken.kind {
-            index += 1
-        } else {
-            emitError(
-                "expected '}' after for body, but got \(closeToken.value)",
-                at: closeToken
-            )
         }
         return AST.For(
             token, asyncToken, caseToken, pattern, inToken, sequence, whereClause, openToken,
@@ -3307,28 +3149,9 @@ public final class Parser {
             )
             return errorStatement(from: token, to: openToken)
         }
-        var body: [AST.Statement] = []
-        while let closeToken = peek {
-            if case .Separator(.CloseBrace) = closeToken.kind {
-                break
-            }
-            if let stmt = parseStatement() {
-                body.append(stmt)
-            } else {
-                break
-            }
-        }
-        guard let closeToken = peek else {
-            emitError("expected '}' after while body", at: endOfFile)
+        let body = parseStatements()
+        guard let closeToken = consumeCloseBrace(after: "while") else {
             return errorStatement(from: token, to: endOfFile)
-        }
-        if case .Separator(.CloseBrace) = closeToken.kind {
-            index += 1
-        } else {
-            emitError(
-                "expected '}' after while body, but got \(closeToken.value)",
-                at: closeToken
-            )
         }
         return AST.While(
             token, condition, openToken, body, closeToken,
@@ -3351,28 +3174,9 @@ public final class Parser {
             )
             return errorStatement(from: token, to: openToken)
         }
-        var body: [AST.Statement] = []
-        while let closeToken = peek {
-            if case .Separator(.CloseBrace) = closeToken.kind {
-                break
-            }
-            if let stmt = parseStatement() {
-                body.append(stmt)
-            } else {
-                break
-            }
-        }
-        guard let closeToken = peek else {
-            emitError("expected '}' after loop body", at: endOfFile)
+        let body = parseStatements()
+        guard let closeToken = consumeCloseBrace(after: "loop") else {
             return errorStatement(from: token, to: endOfFile)
-        }
-        if case .Separator(.CloseBrace) = closeToken.kind {
-            index += 1
-        } else {
-            emitError(
-                "expected '}' after loop body, but got \(closeToken.value)",
-                at: closeToken
-            )
         }
         return AST.Loop(
             token, openToken, body, closeToken,
@@ -3394,17 +3198,7 @@ public final class Parser {
             )
             return errorStatement(from: token, to: openToken)
         }
-        var body: [AST.Statement] = []
-        while let closeToken = peek {
-            if case .Separator(.CloseBrace) = closeToken.kind {
-                break
-            }
-            if let stmt = parseStatement() {
-                body.append(stmt)
-            } else {
-                break
-            }
-        }
+        let body = parseStatements()
         guard let closeToken = next else {
             emitError("expected '}' after repeat body", at: endOfFile)
             return errorStatement(from: token, to: endOfFile)
@@ -3466,28 +3260,9 @@ public final class Parser {
             )
             return errorStatement(from: token, to: openToken)
         }
-        var body: [AST.Statement] = []
-        while let closeToken = peek {
-            if case .Separator(.CloseBrace) = closeToken.kind {
-                break
-            }
-            if let stmt = parseStatement() {
-                body.append(stmt)
-            } else {
-                break
-            }
-        }
-        guard let closeToken = peek else {
-            emitError("expected '}' after guard body", at: endOfFile)
+        let body = parseStatements()
+        guard let closeToken = consumeCloseBrace(after: "guard") else {
             return errorStatement(from: token, to: endOfFile)
-        }
-        if case .Separator(.CloseBrace) = closeToken.kind {
-            index += 1
-        } else {
-            emitError(
-                "expected '}' after guard body, but got \(closeToken.value)",
-                at: closeToken
-            )
         }
         return AST.Guard(
             token, condition, openToken, body, closeToken,
@@ -3508,28 +3283,9 @@ public final class Parser {
             )
             return errorStatement(from: token, to: openToken)
         }
-        var body: [AST.Statement] = []
-        while let closeToken = peek {
-            if case .Separator(.CloseBrace) = closeToken.kind {
-                break
-            }
-            if let stmt = parseStatement() {
-                body.append(stmt)
-            } else {
-                break
-            }
-        }
-        guard let closeToken = peek else {
-            emitError("expected '}' after defer body", at: endOfFile)
+        let body = parseStatements()
+        guard let closeToken = consumeCloseBrace(after: "defer") else {
             return errorStatement(from: token, to: endOfFile)
-        }
-        if case .Separator(.CloseBrace) = closeToken.kind {
-            index += 1
-        } else {
-            emitError(
-                "expected '}' after defer body, but got \(closeToken.value)",
-                at: closeToken
-            )
         }
         return AST.Defer(
             token, openToken, body, closeToken,
@@ -5075,30 +4831,11 @@ public final class Parser {
             )
             return errorExpression(from: token, to: openToken)
         }
-        var then: [AST.Statement] = []
-        while let closeToken = peek {
-            if case .Separator(.CloseBrace) = closeToken.kind {
-                break
-            }
-            if let stmt = parseStatement() {
-                then.append(stmt)
-            } else {
-                break
-            }
-        }
-        guard let closeToken = peek else {
-            emitError("expected '}' after if body", at: endOfFile)
+        let then = parseStatements()
+        guard let closeToken = consumeCloseBrace(after: "if") else {
             return errorExpression(from: token, to: endOfFile)
         }
         var endToken = closeToken
-        if case .Separator(.CloseBrace) = closeToken.kind {
-            index += 1
-        } else {
-            emitError(
-                "expected '}' after if body, but got \(closeToken.value)",
-                at: closeToken
-            )
-        }
         let elseKind: AST.If.ElseKind?
         if let elseToken = peek, case .Keyword(.Else) = elseToken.kind, let t = peek2 {
             index += 1
@@ -5112,30 +4849,11 @@ public final class Parser {
                 }
             case .Separator(.OpenBrace):
                 index += 1
-                var statements: [AST.Statement] = []
-                while let closeToken2 = peek {
-                    if case .Separator(.CloseBrace) = closeToken2.kind {
-                        break
-                    }
-                    if let stmt = parseStatement() {
-                        statements.append(stmt)
-                    } else {
-                        break
-                    }
-                }
-                guard let closeToken2 = peek else {
-                    emitError("expected '}' after if body", at: endOfFile)
+                let statements = parseStatements()
+                guard consumeCloseBrace(after: "if") != nil else {
                     elseKind = .Block(statements)
                     endToken = last!
                     break
-                }
-                if case .Separator(.CloseBrace) = closeToken2.kind {
-                    index += 1
-                } else {
-                    emitError(
-                        "expected '}' after if body, but got \(closeToken2.value)",
-                        at: closeToken2
-                    )
                 }
                 elseKind = .Block(statements)
                 endToken = last!
@@ -5165,28 +4883,9 @@ public final class Parser {
             return errorExpression(from: token, to: openToken)
         }
         index += 1
-        var body: [AST.Statement] = []
-        while let closeToken = peek {
-            if case .Separator(.CloseBrace) = closeToken.kind {
-                break
-            }
-            if let stmt = parseStatement() {
-                body.append(stmt)
-            } else {
-                break
-            }
-        }
-        guard let closeToken = peek else {
-            emitError("expected '}' after do body", at: endOfFile)
+        let body = parseStatements()
+        guard consumeCloseBrace(after: "do") != nil else {
             return errorExpression(from: token, to: endOfFile)
-        }
-        if case .Separator(.CloseBrace) = closeToken.kind {
-            index += 1
-        } else {
-            emitError(
-                "expected '}' after do body, but got \(closeToken.value)",
-                at: closeToken
-            )
         }
         var catches: [AST.Do.CatchClause] = []
         while let t = peek, case .Keyword(.Catch) = t.kind {
@@ -5209,28 +4908,9 @@ public final class Parser {
                 return errorExpression(from: token, to: openToken)
             }
             index += 1
-            var statements: [AST.Statement] = []
-            while let closeToken = peek {
-                if case .Separator(.CloseBrace) = closeToken.kind {
-                    break
-                }
-                if let stmt = parseStatement() {
-                    statements.append(stmt)
-                } else {
-                    break
-                }
-            }
-            guard let closeToken = peek else {
-                emitError("expected '}' after finally body", at: endOfFile)
+            let statements = parseStatements()
+            guard consumeCloseBrace(after: "finally") != nil else {
                 return errorExpression(from: token, to: endOfFile)
-            }
-            if case .Separator(.CloseBrace) = closeToken.kind {
-                index += 1
-            } else {
-                emitError(
-                    "expected '}' after finally body, but got \(closeToken.value)",
-                    at: closeToken
-                )
             }
             finallyBody = statements
         }
@@ -5277,28 +4957,9 @@ public final class Parser {
             )
             return nil
         }
-        var catchBody: [AST.Statement] = []
-        while let closeToken = peek {
-            if case .Separator(.CloseBrace) = closeToken.kind {
-                break
-            }
-            if let stmt = parseStatement() {
-                catchBody.append(stmt)
-            } else {
-                break
-            }
-        }
-        guard let closeToken = peek else {
-            emitError("expected '}' after catch body", at: endOfFile)
+        let catchBody = parseStatements()
+        guard let closeToken = consumeCloseBrace(after: "catch") else {
             return nil
-        }
-        if case .Separator(.CloseBrace) = closeToken.kind {
-            index += 1
-        } else {
-            emitError(
-                "expected '}' after catch body, but got \(closeToken.value)",
-                at: closeToken
-            )
         }
         return AST.Do.CatchClause(
             pattern, whereToken, whereCondition, catchBody,

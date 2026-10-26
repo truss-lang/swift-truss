@@ -63,7 +63,7 @@ final class GenerationContext {
             return existing
         }
         let function = module.addFunction(
-            name: sharedNoOpDeinitializerName, parameters: [], returnType: registry.voidType().id,
+            name: TIR.noOpDeinitializerName, parameters: [], returnType: registry.voidType().id,
             isVariadic: false, isExtern: false, callingConvention: nil
         )
         function.sourceRange = sourceRange
@@ -98,7 +98,5 @@ func parameterConventions(selfKind: Symbol.FunctionSymbol.Kind?, count: Int) -> 
         return TIR.Ownership.Owned
     }
 }
-
-let sharedNoOpDeinitializerName = "$t_noop_deinit"
 
 let deinitializerSlotName = "deinit"

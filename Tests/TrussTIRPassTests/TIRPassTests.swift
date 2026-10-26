@@ -309,7 +309,7 @@ private func classWithMetadata(
         )
     } else {
         module.addFunction(
-            name: "$t_noop_deinit", parameters: [TIR.Parameter(ty: pointer, name: "self")],
+            name: TIR.noOpDeinitializerName, parameters: [TIR.Parameter(ty: pointer, name: "self")],
             returnType: registry.voidType().id, isVariadic: false, isExtern: false,
             callingConvention: nil, parameterOwnership: [.Guaranteed]
         )
@@ -827,7 +827,7 @@ func classWithReferenceFieldsWithoutUserDeinitializerDischargesThem() throws {
     let record = try #require(module.registry.metadatas.values.first { $0.name == "Holder" })
     let entry = try #require(record.vtable.first)
     let deinitializer = try #require(module.registry.functions[entry.function])
-    #expect(deinitializer.name != "$t_noop_deinit")
+    #expect(deinitializer.name != TIR.noOpDeinitializerName)
     let fields = allInstructions(of: deinitializer).compactMap { $0 as? TIR.ClassElementAddr }
     #expect(fields.count == 1)
     #expect(dischargedLoads(of: fields[0].result, in: deinitializer).count == 1)
@@ -1326,7 +1326,7 @@ func synthesizedDeinitializerChainsToTheInheritedDeinitializer() throws {
     let subRecord = try #require(module.registry.metadatas.values.first { $0.name == "Sub" })
     let subEntry = try #require(subRecord.vtable.first)
     let subDeinitializer = try #require(module.registry.functions[subEntry.function])
-    #expect(subDeinitializer.name != "$t_noop_deinit")
+    #expect(subDeinitializer.name != TIR.noOpDeinitializerName)
     let baseRecord = try #require(module.registry.metadatas.values.first { $0.name == "Base" })
     let baseEntry = try #require(baseRecord.vtable.first)
     let baseDeinitializer = try #require(module.registry.functions[baseEntry.function])

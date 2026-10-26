@@ -58,6 +58,6 @@ func metadataRecordsCarryTypeIdentityAndTeardownKind() throws {
         let entry = try #require(record.vtable.first)
         #expect(entry.name == "deinit")
         let function = try #require(registry.functions[entry.function])
-        #expect((function.name == "$t_noop_deinit") == !hasRealDeinitializer)
+        #expect((function.name == TIR.noOpDeinitializerName) == !hasRealDeinitializer)
     }
 }

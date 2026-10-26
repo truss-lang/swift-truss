@@ -625,24 +625,7 @@ public extension TIR {
         }
 
         private func isReferenceValue(_ id: Id.TIRTypeId) -> Bool {
-            isReferenceType(id, visited: [])
-        }
-
-        private func isReferenceType(_ id: Id.TIRTypeId, visited: Set<Id.TIRTypeId>) -> Bool {
-            guard !visited.contains(id), let ty = currentRegistry.types[id] else {
-                return false
-            }
-            switch ty {
-            case is TIRType.ClassType:
-                return true
-            case let pointer as TIRType.PointerType:
-                return currentRegistry.types[pointer.pointee] is TIRType.ClassType
-            case let structType as TIRType.StructType:
-                let nested = visited.union([id])
-                return structType.fields.contains { isReferenceType($0.type, visited: nested) }
-            default:
-                return false
-            }
+            currentRegistry.isReferenceType(id)
         }
 
         private func isClassReference(_ id: Id.TIRTypeId) -> Bool {
