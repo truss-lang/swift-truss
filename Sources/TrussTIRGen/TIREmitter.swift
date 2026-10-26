@@ -1144,8 +1144,7 @@ public final class TIREmitter: AST.Visitor {
             if caseSymbol.associatedTypes.isEmpty {
                 return builder.buildEnumValue(caseIndex: tag, payload: nil, ty: enumType.id).result
             } else {
-                // TODO: build enum value with associated values
-                fatalError()
+                return builder.buildEnumValueConstruction(ty: enumType.id, index: tag, symbol: caseSymbol)
             }
         default:
             guard let memberOf = symbol.memberOf,
@@ -1224,8 +1223,7 @@ public final class TIREmitter: AST.Visitor {
             if caseSymbol.associatedTypes.isEmpty {
                 return builder.buildEnumValue(caseIndex: tag, payload: nil, ty: enumType.id).result
             } else {
-                // TODO: build enum value with associated values
-                fatalError()
+                return builder.buildEnumValueConstruction(ty: enumType.id, index: tag, symbol: caseSymbol)
             }
         default:
             guard let memberOf = symbol.memberOf,
@@ -1249,12 +1247,19 @@ public final class TIREmitter: AST.Visitor {
             fatalError("unreachable")
         }
         if let arith = builtinArithInfo(of: call.callee) {
-            let arguments: [TIR.Value] = call.arguments.compactMap {
+            let arguments: [TIR.Value] = call.arguments.map {
                 visitExpression($0.value)
             }
             return emitBuiltinArith(arith, arguments: arguments)
         }
         let calleeValue = visitExpression(call.callee)
+        if let construction = calleeValue as? TIR.EnumValueConstruction {
+            return builder.buildEnumValue(
+                caseIndex: construction.index,
+                payload: enumPayload(of: construction, arguments: call.arguments),
+                ty: construction.ty
+            )
+        }
         let callee: TIR.Value
         let selfParameter: TIR.Value?
         if let construction = calleeValue as? TIR.ObjectConstruction {
@@ -2048,6 +2053,37 @@ public final class TIREmitter: AST.Visitor {
         }
     }
 
+    private func enumPayload(
+        of construction: TIR.EnumValueConstruction, arguments: [AST.LabeledArgument]
+    ) -> TIR.Value? {
+        guard let builder else {
+            fatalError("unreachable")
+        }
+        let enumType = gen.registry.types[construction.ty] as! TIRType.EnumType
+        let caseInfo = enumType.cases[construction.index]
+        guard !caseInfo.associatedTypes.isEmpty else {
+            return nil
+        }
+        let evaluated = arguments.map { visitExpression($0.value) }
+        let labels = construction.symbol.associatedLabels
+        var slots = [TIR.Value?](repeating: nil, count: caseInfo.associatedTypes.count)
+        var mapped = 0
+        for (position, argument) in arguments.enumerated() {
+            let index = argument.label.flatMap { labels.firstIndex(of: $0.value) } ?? mapped
+            mapped += 1
+            slots[index] = evaluated[position]
+        }
+        if caseInfo.associatedTypes.count == 1 {
+            return slots[0]
+        }
+        let payloadType = gen.registry.tupleType(elements: caseInfo.associatedTypes.enumerated().map {
+            TIRType.TupleType.Element(
+                label: labels.indices.contains($0.offset) ? labels[$0.offset] : nil, type: $0.element
+            )
+        })
+        return builder.buildTupleValue(elements: slots.compactMap { $0 }, ty: payloadType.id).result
+    }
+
     private func emitBuiltinArith(_ arith: BuiltinArith, arguments: [TIR.Value]) -> Any? {
         guard let builder else {
             return nil
@@ -2257,6 +2293,20 @@ public extension TIR {
             super.init(ty: ty, name: "")
         }
     }
+
+    class EnumValueConstruction: Value {
+        public let index: Int
+        public let symbol: Symbol.CaseSymbol
+        public init(
+            ty: Id.TIRTypeId,
+            index: Int,
+            symbol: Symbol.CaseSymbol
+        ) {
+            self.index = index
+            self.symbol = symbol
+            super.init(ty: ty, name: "")
+        }
+    }
 }
 
 public extension TIR.Builder {
@@ -2305,6 +2355,19 @@ public extension TIR.Builder {
             getter: getter,
             setter: setter,
             ty: registry.voidType().id
+        )
+    }
+
+    @discardableResult
+    func buildEnumValueConstruction(
+        ty: Id.TIRTypeId,
+        index: Int,
+        symbol: Symbol.CaseSymbol
+    ) -> TIR.EnumValueConstruction {
+        TIR.EnumValueConstruction(
+            ty: ty,
+            index: index,
+            symbol: symbol
         )
     }
 }
