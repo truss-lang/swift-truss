@@ -344,6 +344,7 @@ public extension AST {
             callee: Expression, arguments: [LabeledArgument], trailingClosures: [(Token?, Closure)] = [],
             inPlace: Expression? = nil, sourceRange: SourceRange
         ) {
+            callee.willBeCalled = true
             self.callee = callee
             self.arguments = arguments
             self.trailingClosures = trailingClosures

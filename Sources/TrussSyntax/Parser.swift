@@ -2626,21 +2626,30 @@ public final class Parser {
         guard let startToken = peek else {
             emitError("expected parameter", at: endOfFile)
             return AST.FunctionDecl.Parameter(
-                label: nil, name: errorToken(), type: nil, defaultValue: nil,
+                label: nil,
+                name: errorToken(),
+                type: AST.ErrorExpression(SourceRange(location: endOfFile)),
+                defaultValue: nil,
                 sourceRange: SourceRange(location: endOfFile)
             )
         }
         guard let first = next else {
             emitError("expected parameter", at: endOfFile)
             return AST.FunctionDecl.Parameter(
-                label: nil, name: errorToken(), type: nil, defaultValue: nil,
+                label: nil,
+                name: errorToken(),
+                type: AST.ErrorExpression(SourceRange(location: endOfFile)),
+                defaultValue: nil,
                 sourceRange: SourceRange(location: endOfFile)
             )
         }
         guard case .Identifier = first.kind else {
             emitError("expected identifier in parameter, but got '\(first.value)'", at: first)
             return AST.FunctionDecl.Parameter(
-                label: nil, name: first, type: nil, defaultValue: nil,
+                label: nil,
+                name: first,
+                type: AST.ErrorExpression(first.sourceRange(in: buffer)),
+                defaultValue: nil,
                 sourceRange: first.sourceRange(in: buffer)
             )
         }
@@ -2656,14 +2665,21 @@ public final class Parser {
             index += 1
             name = second
         }
-        var type: AST.Expression? = nil
+        let type: AST.Expression
         if let colon = peek, case .Separator(.Colon) = colon.kind {
             index += 1
-            type = parseExpression(excepts: [.Assign], isTypeContext: true)
+            if let expr = parseExpression(excepts: [.Assign], isTypeContext: true) {
+                type = expr
+            } else {
+                emitError("expected type expression after ':'", at: locationAfter(colon))
+                type = AST.ErrorExpression(SourceRange(location: locationAfter(colon)))
+            }
         } else if let t = peek {
             emitError("expected ':' after parameter name, but got '\(t.value)'", at: t)
+            type = errorExpression(from: t, to: t)
         } else {
             emitError("expected ':' after parameter name", at: endOfFile)
+            type = AST.ErrorExpression(SourceRange(location: endOfFile))
         }
         var defaultValue: AST.Expression? = nil
         if let assign = peek, case .Operator(.Assign) = assign.kind {

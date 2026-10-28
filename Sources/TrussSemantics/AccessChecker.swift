@@ -224,7 +224,7 @@ public final class AccessChecker: AST.Visitor {
             )
             checkDeclarationAccess(
                 of: symbol,
-                typeExpressions: functionDecl.parameters.map(\.type),
+                typeExpressions: functionDecl.parameters.map(\.typeExpression),
                 returnExpression: functionDecl.returnTypeExpression,
                 what: "method", name: functionDecl.name
             )
@@ -245,7 +245,7 @@ public final class AccessChecker: AST.Visitor {
             )
             checkDeclarationAccess(
                 of: symbol,
-                typeExpressions: initDecl.parameters.map(\.type),
+                typeExpressions: initDecl.parameters.map(\.typeExpression),
                 returnExpression: nil,
                 what: "initializer", name: initDecl.token
             )
@@ -270,7 +270,7 @@ public final class AccessChecker: AST.Visitor {
             )
             checkDeclarationAccess(
                 of: symbol,
-                typeExpressions: subscriptDecl.parameters.map(\.type),
+                typeExpressions: subscriptDecl.parameters.map(\.typeExpression),
                 returnExpression: subscriptDecl.returnType,
                 what: "subscript", name: subscriptDecl.token
             )

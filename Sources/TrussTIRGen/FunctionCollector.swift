@@ -255,7 +255,7 @@ final class FunctionCollector {
                 let ty = setterSymbol.functionType?.parameters[safe: index].map {
                     gen.typeLower.lower($0.type)
                 }
-                    ?? (parameter.type?.ty).map { gen.typeLower.lower($0) }
+                    ?? (parameter.typeExpression?.ty).map { gen.typeLower.lower($0) }
                     ?? gen.registry.voidType()
                 return TIR.Parameter(ty: ty.id, name: parameter.name.value)
             })
@@ -294,7 +294,7 @@ final class FunctionCollector {
         }
         tirParameters.append(contentsOf: parameters.enumerated().map { index, parameter in
             let ty = symbolType?.functionType?.parameters[safe: index].map { gen.typeLower.lower($0.type) }
-                ?? (parameter.type?.ty).map { gen.typeLower.lower($0) }
+                ?? (parameter.typeExpression?.ty).map { gen.typeLower.lower($0) }
                 ?? gen.registry.voidType()
             return TIR.Parameter(ty: ty.id, name: parameter.name.value)
         })

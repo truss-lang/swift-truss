@@ -514,7 +514,7 @@ public extension AST {
         public struct Parameter {
             public let label: Token?
             public let name: Token
-            public let type: Expression?
+            public let typeExpression: Expression?
             public let defaultValue: Expression?
             public let sourceRange: SourceRange
             public var symbol: Symbol.VariableSymbol? = nil
@@ -524,7 +524,7 @@ public extension AST {
             ) {
                 self.label = label
                 self.name = name
-                self.type = type
+                typeExpression = type
                 self.defaultValue = defaultValue
                 self.sourceRange = sourceRange
             }

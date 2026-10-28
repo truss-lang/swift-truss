@@ -151,7 +151,7 @@ public final class SourcePrinter: AST.Visitor {
             text += "_ "
         }
         text += parameter.name.value
-        if let type = parameter.type {
+        if let type = parameter.typeExpression {
             text += ": " + render(type)
         }
         if let defaultValue = parameter.defaultValue {

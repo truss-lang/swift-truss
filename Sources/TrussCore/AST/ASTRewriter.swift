@@ -113,7 +113,7 @@ extension AST {
         ) -> AST.FunctionDecl.Parameter {
             var changed = false
             let type: Expression?
-            if let oldType = parameter.type {
+            if let oldType = parameter.typeExpression {
                 let newType = rewrite(oldType)
                 type = newType
                 if newType !== oldType {
@@ -805,7 +805,7 @@ extension AST {
                 return false
             }
             for (oldParameter, newParameter) in zip(old, new) {
-                if oldParameter.type !== newParameter.type
+                if oldParameter.typeExpression !== newParameter.typeExpression
                     || oldParameter.defaultValue !== newParameter.defaultValue
                 {
                     return false

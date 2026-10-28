@@ -226,7 +226,7 @@ extension AST {
                 visitGenericDecl(genericDecl, additional: additional)
             }
             for parameter in initDecl.parameters {
-                if let type = parameter.type {
+                if let type = parameter.typeExpression {
                     visit(type, additional: additional)
                 }
                 if let defaultValue = parameter.defaultValue {
@@ -262,7 +262,7 @@ extension AST {
                 visitGenericDecl(genericDecl, additional: additional)
             }
             for parameter in functionDecl.parameters {
-                if let type = parameter.type {
+                if let type = parameter.typeExpression {
                     visit(type, additional: additional)
                 }
                 if let defaultValue = parameter.defaultValue {
@@ -628,7 +628,7 @@ extension AST {
                     visit(item.expr, additional: additional)
                 }
                 for parameter in sig.parameters {
-                    if let type = parameter.type {
+                    if let type = parameter.typeExpression {
                         visit(type, additional: additional)
                     }
                     if let defaultValue = parameter.defaultValue {
@@ -931,7 +931,7 @@ extension AST {
                 visitGenericDecl(genericDecl, additional: additional)
             }
             for parameter in subscriptDecl.parameters {
-                if let type = parameter.type {
+                if let type = parameter.typeExpression {
                     visit(type, additional: additional)
                 }
                 if let defaultValue = parameter.defaultValue {
@@ -985,7 +985,7 @@ extension AST {
                 visitGenericDecl(genericDecl, additional: additional)
             }
             for parameter in theoremDecl.parameters {
-                if let type = parameter.type {
+                if let type = parameter.typeExpression {
                     visit(type, additional: additional)
                 }
                 if let defaultValue = parameter.defaultValue {
@@ -1008,7 +1008,7 @@ extension AST {
             _ quantifierExpr: AST.QuantifierExpr, additional: Any? = nil
         ) -> Any? {
             for parameter in quantifierExpr.parameters {
-                if let type = parameter.type {
+                if let type = parameter.typeExpression {
                     visit(type, additional: additional)
                 }
             }

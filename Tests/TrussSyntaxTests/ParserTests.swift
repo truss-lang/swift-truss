@@ -1141,7 +1141,7 @@ func parseInitWithParameters() throws {
     try #require(initDecl != nil)
     try #require(initDecl!.parameters.count == 1)
     #expect(initDecl!.parameters[0].name.value == "x")
-    #expect(initDecl!.parameters[0].type != nil)
+    #expect(initDecl!.parameters[0].typeExpression != nil)
 }
 
 @Test
@@ -4741,7 +4741,7 @@ func parseFunctionDeclWithSingleParameter() throws {
     try #require(decl!.parameters.count == 1)
     #expect(decl!.parameters[0].label?.value == "a")
     #expect(decl!.parameters[0].name.value == "a")
-    let type = decl!.parameters[0].type as? AST.Variable
+    let type = decl!.parameters[0].typeExpression as? AST.Variable
     try #require(type != nil)
     #expect(type!.name.value == "Int")
     #expect(decl!.parameters[0].defaultValue == nil)
@@ -4821,7 +4821,7 @@ func parseFunctionDeclWithVariadicType() throws {
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
     try #require(decl!.parameters.count == 1)
-    let variadic = decl!.parameters[0].type as? AST.VariadicType
+    let variadic = decl!.parameters[0].typeExpression as? AST.VariadicType
     try #require(variadic != nil)
     let base = variadic!.base as? AST.Variable
     #expect(base != nil)
@@ -4834,7 +4834,7 @@ func parseFunctionDeclWithLabeledVariadicType() throws {
     let statements = parseStatements("func foo(items: Int32...) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
-    let variadic = decl!.parameters[0].type as? AST.VariadicType
+    let variadic = decl!.parameters[0].typeExpression as? AST.VariadicType
     try #require(variadic != nil)
     let base = variadic!.base as? AST.Variable
     #expect(base!.name.value == "Int32")
@@ -4845,7 +4845,7 @@ func parseFunctionDeclWithTupleVariadicType() throws {
     let statements = parseStatements("func foo(_ xs: (Int, String)...) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
-    let variadic = decl!.parameters[0].type as? AST.VariadicType
+    let variadic = decl!.parameters[0].typeExpression as? AST.VariadicType
     try #require(variadic != nil)
     let tuple = variadic!.base as? AST.Tuple
     try #require(tuple != nil)
@@ -4892,7 +4892,7 @@ func parseFunctionDeclNonVariadicTypeUnaffected() throws {
     let statements = parseStatements("func foo(_ xs: Int) {}")
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
-    let type = decl!.parameters[0].type as? AST.Variable
+    let type = decl!.parameters[0].typeExpression as? AST.Variable
     try #require(type != nil)
     #expect(type!.name.value == "Int")
 }
@@ -4933,7 +4933,7 @@ func parseFunctionDeclCStyleVarargAfterSwiftVariadic() throws {
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
     try #require(decl!.parameters.count == 1)
-    let variadic = decl!.parameters[0].type as? AST.VariadicType
+    let variadic = decl!.parameters[0].typeExpression as? AST.VariadicType
     #expect(variadic != nil)
     #expect(decl!.varargToken != nil)
 }
@@ -7312,7 +7312,7 @@ func parseClosureSingleUnannotatedParameter() throws {
     try #require(signature!.parameters.count == 1)
     #expect(signature!.parameters[0].name.value == "x")
     #expect(signature!.parameters[0].label == nil)
-    #expect(signature!.parameters[0].type == nil)
+    #expect(signature!.parameters[0].typeExpression == nil)
     #expect(signature!.inToken.value == "in")
     #expect(closure!.body.count == 1)
 }
@@ -7589,7 +7589,7 @@ func parseClosureTypeInParameter() throws {
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
     try #require(decl!.parameters.count == 1)
-    let closureType = decl!.parameters[0].type as? AST.ClosureType
+    let closureType = decl!.parameters[0].typeExpression as? AST.ClosureType
     #expect(closureType != nil)
     #expect(closureType!.parameters.count == 1)
 }
@@ -7712,7 +7712,7 @@ func parseClosureTypeAsyncAsParameter() throws {
     let decl = statements[0] as? AST.FunctionDecl
     try #require(decl != nil)
     try #require(decl!.parameters.count == 1)
-    let closureType = decl!.parameters[0].type as? AST.ClosureType
+    let closureType = decl!.parameters[0].typeExpression as? AST.ClosureType
     try #require(closureType != nil)
     try #require(closureType!.parameters.count == 1)
     let parameterClosure = closureType!.parameters[0].type as? AST.ClosureType
@@ -8718,7 +8718,7 @@ func parseFunctionTypeInFunctionParameter() throws {
     try #require(statements.count == 1)
     let decl = try #require(statements[0] as? AST.FunctionDecl)
     try #require(decl.parameters.count == 1)
-    let functionType = try #require(decl.parameters[0].type as? AST.FunctionType)
+    let functionType = try #require(decl.parameters[0].typeExpression as? AST.FunctionType)
     try #require(functionType.parameters.count == 1)
     #expect(functionType.parameters[0].label?.value == "x")
 }
@@ -8905,7 +8905,7 @@ func parameterType(_ program: AST.Program, function: String) -> AST.Expression? 
     let funcDecl = program.statements.first {
         ($0 as? AST.FunctionDecl)?.name.value == function
     } as? AST.FunctionDecl
-    return funcDecl?.parameters.first?.type
+    return funcDecl?.parameters.first?.typeExpression
 }
 
 func closureReturnSequential(_ expression: AST.Expression?) throws -> AST.Sequential {

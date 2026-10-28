@@ -609,7 +609,7 @@ public final class Enter: AST.Visitor {
         for parameter in parameters {
             labels.append(parameter.label?.value)
             hasDefaults.append(parameter.defaultValue != nil)
-            isVararg.append(parameter.type is AST.VariadicType)
+            isVararg.append(parameter.typeExpression is AST.VariadicType)
         }
         return Symbol.FunctionSignature(
             labels: labels, hasDefaults: hasDefaults, isVararg: isVararg, isVariadic: isVariadic

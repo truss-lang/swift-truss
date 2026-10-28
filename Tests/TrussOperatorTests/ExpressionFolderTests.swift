@@ -529,7 +529,7 @@ func parameterType(_ program: AST.Program, function: String) -> AST.Expression? 
     let funcDecl = program.statements.first {
         ($0 as? AST.FunctionDecl)?.name.value == function
     } as? AST.FunctionDecl
-    return funcDecl?.parameters.first?.type
+    return funcDecl?.parameters.first?.typeExpression
 }
 
 func runFoldedTyped(_ sources: [String]) -> (Context, [AST.Program]) {

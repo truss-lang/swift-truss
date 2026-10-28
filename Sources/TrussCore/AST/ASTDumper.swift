@@ -320,7 +320,7 @@ public extension AST {
                         text += " label:\(label.value)"
                     }
                     var children: [() -> Void] = []
-                    if let type = parameter.type {
+                    if let type = parameter.typeExpression {
                         children.append { self.visit(type) }
                     }
                     if let defaultValue = parameter.defaultValue {
