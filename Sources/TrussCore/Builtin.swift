@@ -76,6 +76,16 @@ public enum Builtin {
         if let existing = context.name2Package[packageName] {
             return existing
         }
+        context.register(builtinTypeSymbol: {
+            let symbol = Symbol.BuiltinTypeSymbol(id: context.nextSymbolId, name: "Void")
+            symbol.access = .Public
+            return symbol
+        }())
+        context.register(builtinTypeSymbol: {
+            let symbol = Symbol.BuiltinTypeSymbol(id: context.nextSymbolId, name: "Never")
+            symbol.access = .Public
+            return symbol
+        }())
         let package = Symbol.PackageSymbol(id: context.nextSymbolId, name: packageName)
         for info in typeInfos {
             let symbol = Symbol.BuiltinTypeSymbol(id: context.nextSymbolId, name: info.name)

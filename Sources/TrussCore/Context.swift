@@ -5,6 +5,7 @@ public final class Context {
     public private(set) var sourceTable: [Id.SourceId: Source] = [:]
     public private(set) var id2Symbol: [Id.SymbolId: Symbol.Symbol] = [:]
     public private(set) var name2Package: [String: Symbol.PackageSymbol] = [:]
+    public private(set) var name2GlobalBuiltinType: [String: Symbol.BuiltinTypeSymbol] = [:]
     public private(set) var typeTable: [Id.ASTTypeId: TrussType.TrussType] = [:]
     public private(set) var allowedWarningRanges: [SourceRange] = []
     public init() {}
@@ -22,8 +23,15 @@ public final class Context {
 
     @discardableResult
     public func register(packageSymbol: Symbol.PackageSymbol) -> Context {
-        name2Package[packageSymbol.name] = packageSymbol
         id2Symbol[packageSymbol.id] = packageSymbol
+        name2Package[packageSymbol.name] = packageSymbol
+        return self
+    }
+
+    @discardableResult
+    public func register(builtinTypeSymbol: Symbol.BuiltinTypeSymbol) -> Context {
+        id2Symbol[builtinTypeSymbol.id] = builtinTypeSymbol
+        name2GlobalBuiltinType[builtinTypeSymbol.name] = builtinTypeSymbol
         return self
     }
 

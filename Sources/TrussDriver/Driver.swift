@@ -196,8 +196,7 @@ public final class Driver {
             runPass(TypeBuilder(context: context), context: context, programs: programs)
         }
         if !context.diagnosticEngine.hasErrors {
-            let checker = TypeChecker(context: context)
-            checker.checkAll(programs)
+            runPass(TypeChecker(context: context), context: context, programs: programs)
         }
         if !context.diagnosticEngine.hasErrors {
             runPass(AttributeChecker(context: context), context: context, programs: programs)

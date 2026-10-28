@@ -586,6 +586,9 @@ public final class NameResolver: AST.Visitor {
         if let package = context.name2Package[name] {
             return (-1, [package])
         }
+        if let symbol = context.name2GlobalBuiltinType[name] {
+            return (-1, [symbol])
+        }
         return nil
     }
 
